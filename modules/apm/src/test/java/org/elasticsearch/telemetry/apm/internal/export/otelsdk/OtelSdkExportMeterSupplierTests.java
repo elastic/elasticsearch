@@ -164,7 +164,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             assertFalse("dropped instrument callback must be skipped", droppedCallbackRan.get());
         }
     }
-      
+
     public void testExportIntervalGaugeReportsConfiguredInterval() {
         InMemoryMetricReader inMemoryReader = InMemoryMetricReader.create();
         SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(inMemoryReader).build();

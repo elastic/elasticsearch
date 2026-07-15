@@ -1969,7 +1969,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (typed != null && i < typed.size()) {
                 names[i] = typed.get(i).name();
             } else {
-                names[i] = options.quoting() ? unquoteHeaderName(fields[i], options.quoteChar()) : fields[i].trim();
+                names[i] = options.quoting() ? unquoteHeaderName(fields[i], options.quoteChar()).trim() : fields[i].trim();
             }
         }
         return names;

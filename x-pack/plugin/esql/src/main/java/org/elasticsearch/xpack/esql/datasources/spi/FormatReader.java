@@ -301,8 +301,7 @@ public interface FormatReader extends Closeable {
      * <p>
      * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
      * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
-     * A declared name the file does not supply is surfaced (read-time throw today; null + one per-dataset warning once
-     * absent-column handling lands), never a silent positional fallback.
+     * A declared name the file does not supply reads null with a warning, never a silent positional fallback.
      *
      * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply

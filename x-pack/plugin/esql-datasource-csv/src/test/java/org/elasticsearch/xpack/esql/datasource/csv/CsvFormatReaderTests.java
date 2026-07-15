@@ -6754,6 +6754,40 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * An absent declared column reads null through the ALL-stripe harvest path (statsColumnScope=ALL) — the harvest
+     * reads every raw field via rawFieldIndex, and the -1 sentinel must null-fill there rather than index row[-1] or
+     * poison the per-column stats. col5 is beyond the 3-field file.
+     */
+    public void testAbsentDeclaredColumnThroughAllStripeScope() throws Exception {
+        StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "col5", DataType.KEYWORD)   // absent: file has 3 fields
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .statsColumnScope(StripeColumnScope.ALL)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue("absent col5 reads null through the ALL-stripe harvest", page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(1).isNull(1));
+            page.releaseBlocks();
+        }
+    }
+
     /** By-name binding through the direct-to-block walker (direct-block enabled, projected stats scope). */
     public void testDeclaredPathBindingThroughDirectBlockWalker() throws Exception {
         StorageObject object = createStorageObject("11,gamma\n12,delta\n");

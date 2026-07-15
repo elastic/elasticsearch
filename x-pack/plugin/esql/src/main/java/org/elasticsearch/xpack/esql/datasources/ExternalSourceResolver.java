@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.SchemaProvenance;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -2318,7 +2319,12 @@ public class ExternalSourceResolver {
             }
             dateFormats = collected;
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns);
+        // The one place the reading mode is read: it selects the schema's PROVENANCE and is consumed here, never
+        // travelling. A strict schema is a DECLARED claim about the file (bind by name, report absent columns);
+        // a dynamic schema was INFERRED from the file, so position already equals physical position. Every downstream
+        // read-time decision keys on the provenance the data node receives, not on the mode.
+        SchemaProvenance provenance = isStrict(declaredMapping) ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 
     /**

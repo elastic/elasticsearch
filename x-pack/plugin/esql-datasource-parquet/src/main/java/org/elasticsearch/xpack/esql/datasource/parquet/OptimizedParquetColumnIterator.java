@@ -746,11 +746,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return 1;
     }
 
-    /**
-     * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its
-     * raw value IS its decoded value) or admits no exact relation. Consulted once so the per-row-group skip is not a
-     * per-consumer re-derivation of the unit rule.
-     */
     @Nullable
     private static DataType sortColumnEsqlType(String sortColumnPath, ColumnInfo[] columnInfos) {
         if (sortColumnPath == null) {
@@ -783,6 +778,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * not a per-row-group re-derivation.
      */
     @Nullable
+    /**
+     * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its
+     * raw value IS its decoded value) or admits no exact relation. Consulted once so the per-row-group skip is not a
+     * per-consumer re-derivation of the unit rule.
+     */
     private static DeclaredTypeCoercions.RawDecodeRelation resolveSortDecodeRelation(
         String sortColumnPath,
         PrimitiveType sortColumnPrimitiveType,

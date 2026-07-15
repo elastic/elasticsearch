@@ -152,23 +152,6 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * How this column's decoded value relates to the raw value its parquet statistics hold, or {@code null} when no
-     * exact relation exists and every stats-based decision must decline.
-     *
-     * <p>The derivation is parquet-local because annotation semantics are; the relation and the bound math it feeds
-     * are shared ({@link DeclaredTypeCoercions}) because format semantics are reader-agnostic. This is the single
-     * place the question is answered for predicate translation, the TopN threshold rail, and the page index — they
-     * previously each re-derived it, which is how one of them was always wrong.
-     *
-     * <p>Note the direction flips on the DECLARED type, not on the file: a {@code TIMESTAMP(MICROS)} column decodes
-     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code raw / 1000}, truncating)
-     * when it is declared {@code date}. An explicit declaration is allowed to be lossy — that is the point of
-     * declaring it — but the pruning must know which way the map goes.
-     *
-     * @param declaredType the ES|QL type the column reads as ({@code DATETIME} or {@code DATE_NANOS})
-     * @param declaredFormat the column's declared date format, or {@code null}
-     */
-    /**
      * Whether decoding this column can turn a physically-present value into {@code null}. Temporal coercion is
      * partial: a negative epoch under {@code date_nanos}, a range overflow, or a format-parse failure all produce a
      * {@code null} for a value the row-group statistics counted as present. When that is possible, {@code IS NULL}
@@ -206,6 +189,23 @@ final class ParquetColumnDecoding {
     }
 
     @Nullable
+    /**
+     * How this column's decoded value relates to the raw value its parquet statistics hold, or {@code null} when no
+     * exact relation exists and every stats-based decision must decline.
+     *
+     * <p>The derivation is parquet-local because annotation semantics are; the relation and the bound math it feeds
+     * are shared ({@link DeclaredTypeCoercions}) because format semantics are reader-agnostic. This is the single
+     * place the question is answered for predicate translation, the TopN threshold rail, and the page index — they
+     * previously each re-derived it, which is how one of them was always wrong.
+     *
+     * <p>Note the direction flips on the DECLARED type, not on the file: a {@code TIMESTAMP(MICROS)} column decodes
+     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code raw / 1000}, truncating)
+     * when it is declared {@code date}. An explicit declaration is allowed to be lossy — that is the point of
+     * declaring it — but the pruning must know which way the map goes.
+     *
+     * @param declaredType the ES|QL type the column reads as ({@code DATETIME} or {@code DATE_NANOS})
+     * @param declaredFormat the column's declared date format, or {@code null}
+     */
     static DeclaredTypeCoercions.RawDecodeRelation rawDecodeRelation(
         PrimitiveType primitiveType,
         DataType declaredType,

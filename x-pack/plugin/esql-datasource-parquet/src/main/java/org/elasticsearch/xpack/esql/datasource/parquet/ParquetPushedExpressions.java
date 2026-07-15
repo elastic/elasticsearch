@@ -194,11 +194,12 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * The declared formats are THREADED, never stored: this instance is shared by every iterator created from one
-     * {@code ParquetFormatReader}, and iterators for different files may run on different driver threads (the same
-     * reason {@code automatonCache} is lock-guarded). A field would be a race whose failure mode is precisely the bug
-     * this translation exists to prevent — a thread reading another file's map, missing the lookup, and pushing a
-     * raw-unit bound.
+     * The declared formats are THREADED, never stored on a MUTABLE field: this instance is shared by every iterator
+     * created from one {@code ParquetFormatReader}, and iterators for different files may run on different driver
+     * threads (the same reason {@code automatonCache} is lock-guarded). A per-translation mutable field would be a
+     * race whose failure mode is precisely the bug this translation exists to prevent — a thread reading another
+     * translation's map, missing the lookup, and pushing a raw-unit bound. (An immutable final field set once in
+     * {@code withDeclaredDateFormats} would be race-free too; threading keeps the map off this object's identity.)
      */
     private FilterPredicate toFilterPredicateInner(MessageType schema, Map<String, String> formats) {
         List<FilterPredicate> translated = new ArrayList<>();
@@ -780,10 +781,6 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Maps this class's predicate op onto the shared authority's, or {@code null} for one the authority cannot
-     * answer. The authority deliberately has no {@code NOT_EQ}: its truth set is a band under any rescaling map.
-     */
-    /**
      * {@code IN} over a temporal column, as the OR of each element's raw band. {@code IN} matches ANY element, so the
      * pushed predicate must be a SUPERSET: dropping an element would under-include and prune matching rows. So if any
      * element has no exact raw counterpart, the whole push declines rather than silently narrowing.
@@ -808,6 +805,10 @@ final class ParquetPushedExpressions {
     }
 
     @Nullable
+    /**
+     * Maps this class's predicate op onto the shared authority's, or {@code null} for one the authority cannot
+     * answer. The authority deliberately has no {@code NOT_EQ}: its truth set is a band under any rescaling map.
+     */
     private static DeclaredTypeCoercions.BoundOp boundOpOf(PredicateOp op) {
         return switch (op) {
             case EQ -> DeclaredTypeCoercions.BoundOp.EQ;

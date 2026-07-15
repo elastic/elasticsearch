@@ -174,17 +174,16 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             var capturedInputs = ArgumentCaptor.forClass(InferenceInputs.class);
             verify(sender).send(any(), capturedInputs.capture(), any(), any());
 
-            // EmbeddingsInput.ramBytesUsed() adds its own wrapper overhead (shallow size, input type, supplier lambda)
-            // on top of the estimate it was constructed with; measure that overhead with an empty input
-            var wrapperOverhead = new EmbeddingsInput(List.of(), InputType.INTERNAL_SEARCH).ramBytesUsed();
-            var expectedBytes = inputs.stream().map(ChunkInferenceInput::input).mapToLong(InferenceStringGroup::ramBytesUsed).sum();
-            assertThat(capturedInputs.getValue().ramBytesUsed(), equalTo(wrapperOverhead + expectedBytes));
+            var inputGroups = inputs.stream().map(ChunkInferenceInput::input).toList();
+            var referenceInput = new EmbeddingsInput(inputGroups, InputType.INTERNAL_SEARCH);
+            assertThat(capturedInputs.getValue().ramBytesUsed(), equalTo(referenceInput.ramBytesUsed()));
 
+            var groupBytes = inputGroups.stream().mapToLong(InferenceStringGroup::ramBytesUsed).sum();
             var flattenedStringBytesOnly = inputs.stream()
                 .flatMap(c -> c.input().inferenceStrings().stream())
                 .mapToLong(InferenceString::ramBytesUsed)
                 .sum();
-            assertThat("the estimate must include the per-group overhead", expectedBytes, greaterThan(flattenedStringBytesOnly));
+            assertThat("the estimate must include the per-group overhead", groupBytes, greaterThan(flattenedStringBytesOnly));
         }
     }
 

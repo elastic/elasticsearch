@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
@@ -78,14 +80,17 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAct
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
@@ -95,6 +100,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
@@ -105,6 +111,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
@@ -155,6 +162,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICA
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGE;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGE_OUTCOME;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
@@ -169,6 +177,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
     public static final String SECURITY_CHANGE_ORIGIN_FIELD_VALUE = "security_config_change";
+    // The event.type of the opt-in, post-execution "outcome" record. It is deliberately distinct from
+    // SECURITY_CHANGE_ORIGIN_FIELD_VALUE so the outcome record is unambiguously distinguishable from the pre-execution
+    // security_config_change record, and so it can be enabled independently via the events include/exclude settings.
+    public static final String SECURITY_CHANGE_OUTCOME_ORIGIN_FIELD_VALUE = "security_config_change_outcome";
 
     // changing any of these field names requires changing the log4j2.properties file(s) too
     public static final String LOG_TYPE = "type";
@@ -222,6 +234,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String CHANGE_CONFIG_FIELD_NAME = "change";
     public static final String CREATE_CONFIG_FIELD_NAME = "create";
     public static final String INVALIDATE_API_KEYS_FIELD_NAME = "invalidate";
+    // Note: this is NOT a top-level audit field (it needs no entry in log4j2.properties). It is a boolean nested inside the
+    // "put" config-change object of the post-execution "outcome" record (event.type=security_config_change_outcome), indicating
+    // whether the object was created (true) or modified (false). See coordinatingActionResponse.
+    public static final String CREATED_FIELD_NAME = "created";
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(
@@ -1127,7 +1143,69 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest transportRequest,
         TransportResponse transportResponse
     ) {
-        // not implemented yet
+        // Emits a post-execution "outcome" record for the native upsert actions (put user/role/role mapping/privileges), recording
+        // whether each object was created (true) or modified (false). This is a NEW, opt-in event type
+        // (event.type=security_config_change_outcome) that is NOT enabled by default: it is emitted only when the operator adds
+        // "security_config_change_outcome" to the audit events include list, preserving the pre-existing default audit output
+        // exactly. It is the post-execution companion to the pre-execution "attempt" record emitted in accessGranted (event.type=
+        // security_config_change) and is correlated to it by request.id. Because this hook only fires on successful (non-exceptional)
+        // completion, a failed write produces only the attempt record and no outcome record. The other SECURITY_CHANGE_ACTIONS
+        // (create_apikey, delete_*, change_*, service tokens, profiles, ...) have unambiguous create/modify semantics, so their
+        // responses are intentionally not handled here; dispatch is on the response type so unhandled actions simply fall through.
+        if (events.contains(SECURITY_CONFIG_CHANGE_OUTCOME) && SECURITY_CHANGE_ACTIONS.contains(action)) {
+            try {
+                if (transportResponse instanceof final PutUserResponse putUserResponse) {
+                    assert PutUserAction.NAME.equals(action);
+                    securityChangeOutcomeLogEntryBuilder(requestId).withPutUserOutcome(
+                        ((PutUserRequest) transportRequest).username(),
+                        putUserResponse.created()
+                    ).build();
+                } else if (transportResponse instanceof final PutRoleResponse putRoleResponse) {
+                    assert PutRoleAction.NAME.equals(action);
+                    securityChangeOutcomeLogEntryBuilder(requestId).withPutRoleOutcome(
+                        ((PutRoleRequest) transportRequest).name(),
+                        putRoleResponse.isCreated()
+                    ).build();
+                } else if (transportResponse instanceof final BulkRolesResponse bulkRolesResponse) {
+                    assert ActionTypes.BULK_PUT_ROLES.name().equals(action);
+                    for (BulkRolesResponse.Item item : bulkRolesResponse.getItems()) {
+                        // skip failed items; only successfully created/updated roles are actual changes. A NOOP result means the
+                        // stored role was identical to the request, so it is intentionally not audited as a modification.
+                        if (item.isFailed()) {
+                            continue;
+                        }
+                        final String resultType = item.getResultType();
+                        if (DocWriteResponse.Result.CREATED.getLowercase().equals(resultType)) {
+                            securityChangeOutcomeLogEntryBuilder(requestId).withPutRoleOutcome(item.getRoleName(), true).build();
+                        } else if (DocWriteResponse.Result.UPDATED.getLowercase().equals(resultType)) {
+                            securityChangeOutcomeLogEntryBuilder(requestId).withPutRoleOutcome(item.getRoleName(), false).build();
+                        }
+                    }
+                } else if (transportResponse instanceof final PutRoleMappingResponse putRoleMappingResponse) {
+                    assert PutRoleMappingAction.NAME.equals(action);
+                    securityChangeOutcomeLogEntryBuilder(requestId).withPutRoleMappingOutcome(
+                        ((PutRoleMappingRequest) transportRequest).getName(),
+                        putRoleMappingResponse.isCreated()
+                    ).build();
+                } else if (transportResponse instanceof final PutPrivilegesResponse putPrivilegesResponse) {
+                    assert PutPrivilegesAction.NAME.equals(action);
+                    // created() lists the privileges (by application) that were created; any privilege in the request that is not
+                    // listed there was updated.
+                    final Map<String, List<String>> created = putPrivilegesResponse.created();
+                    for (ApplicationPrivilegeDescriptor privilege : ((PutPrivilegesRequest) transportRequest).getPrivileges()) {
+                        final List<String> createdForApplication = created.get(privilege.getApplication());
+                        final boolean wasCreated = createdForApplication != null && createdForApplication.contains(privilege.getName());
+                        securityChangeOutcomeLogEntryBuilder(requestId).withPutPrivilegeOutcome(
+                            privilege.getApplication(),
+                            privilege.getName(),
+                            wasCreated
+                        ).build();
+                    }
+                }
+            } catch (IOException e) {
+                throw new ElasticsearchSecurityException("Unexpected error while serializing event data", e);
+            }
+        }
     }
 
     public boolean includeRequestBody() {
@@ -1136,6 +1214,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
+    }
+
+    private LogEntryBuilder securityChangeOutcomeLogEntryBuilder(String requestId) {
+        return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_OUTCOME_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
 
     private class LogEntryBuilder {
@@ -1274,6 +1356,50 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject()
                 // toXContent of {@code ApplicationPrivilegeDescriptor} does a good job
                 .field("privileges", putPrivilegesRequest.getPrivileges())
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        // The "outcome" builders below record the post-execution result of an upsert (whether the object was created or modified).
+        // They are minimal by design (identity + "created" flag only) to avoid duplicating the full request body already captured by
+        // the pre-execution "attempt" record; the two records are correlated by request.id.
+
+        LogEntryBuilder withPutUserOutcome(String username, boolean created) throws IOException {
+            return withNamedPutOutcome("put_user", "user", username, created);
+        }
+
+        LogEntryBuilder withPutRoleOutcome(String roleName, boolean created) throws IOException {
+            return withNamedPutOutcome("put_role", "role", roleName, created);
+        }
+
+        LogEntryBuilder withPutRoleMappingOutcome(String roleMappingName, boolean created) throws IOException {
+            return withNamedPutOutcome("put_role_mapping", "role_mapping", roleMappingName, created);
+        }
+
+        private LogEntryBuilder withNamedPutOutcome(String eventAction, String objectType, String name, boolean created)
+            throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, eventAction);
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject(objectType)
+                .field("name", name)
+                .field(CREATED_FIELD_NAME, created)
+                .endObject() // objectType
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withPutPrivilegeOutcome(String application, String privilegeName, boolean created) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_privileges");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("privilege")
+                .field("application", application)
+                .field("name", privilegeName)
+                .field(CREATED_FIELD_NAME, created)
+                .endObject() // privilege
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;

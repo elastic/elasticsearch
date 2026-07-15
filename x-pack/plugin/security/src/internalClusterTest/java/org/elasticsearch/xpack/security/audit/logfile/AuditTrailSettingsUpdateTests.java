@@ -221,6 +221,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
             "connection_granted",
             "connection_denied",
             "system_access_granted",
+            "security_config_change_outcome",
             "authentication_success",
             "run_as_granted",
             "run_as_denied"

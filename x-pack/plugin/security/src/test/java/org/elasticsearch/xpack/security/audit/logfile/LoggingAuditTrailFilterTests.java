@@ -36,6 +36,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -74,6 +77,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -2842,6 +2846,36 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertThat("AccessGranted message: should not filter since filter is removed", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
+    }
+
+    public void testSecurityConfigChangeOutcomeIsNeverFiltered() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        // an ignore policy that matches every event by user, realm, role and action
+        final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.all.users", List.of("*"));
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.all.realms", List.of("*"));
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.all.roles", List.of("*"));
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.all.actions", List.of("*"));
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
+        final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
+
+        final Authentication authentication = createAuthentication(new User("user1", "r1"), "realm");
+        final PutRoleRequest putRoleRequest = new PutRoleRequest();
+        putRoleRequest.name("audited_role");
+        final boolean created = randomBoolean();
+        auditTrail.coordinatingActionResponse(
+            randomAlphaOfLength(8),
+            authentication,
+            PutRoleAction.NAME,
+            putRoleRequest,
+            new PutRoleResponse(created)
+        );
+        // security_config_change_outcome records are emitted unconditionally and are never suppressed by ignore policies
+        assertThat(logOutput.size(), is(1));
+        assertThat(logOutput.get(0), containsString("event.type=\"security_config_change_outcome\""));
+        assertThat(logOutput.get(0), containsString("event.action=\"put_role\""));
+        assertThat(logOutput.get(0), containsString("\"role\":{\"name\":\"audited_role\",\"created\":" + created + "}"));
     }
 
     private InetSocketAddress randomLoopbackInetSocketAddress() {

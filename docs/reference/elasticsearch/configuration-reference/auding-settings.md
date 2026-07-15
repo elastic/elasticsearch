@@ -95,7 +95,7 @@ $$$xpack-sa-lf-emit-node-id$$$
 
 ## Audit Logfile Event Ignore Policies [audit-event-ignore-policies]
 
-The following settings affect the [ignore policies](docs-content://deploy-manage/security/logging-configuration/logfile-audit-events-ignore-policies.md) that enable fine-grained control over which audit events are printed to the log file. All of the settings with the same policy name combine to form a single policy. If an event matches all the conditions of any policy, it is ignored and not printed. Most audit events are subject to the ignore policies. The sole exception are events of the `security_config_change` type, which cannot be filtered out, unless [excluded](#xpack-sa-lf-events-exclude) altogether.
+The following settings affect the [ignore policies](docs-content://deploy-manage/security/logging-configuration/logfile-audit-events-ignore-policies.md) that enable fine-grained control over which audit events are printed to the log file. All of the settings with the same policy name combine to form a single policy. If an event matches all the conditions of any policy, it is ignored and not printed. Most audit events are subject to the ignore policies. The sole exceptions are events of the `security_config_change` and `security_config_change_outcome` types, which cannot be filtered out, unless [excluded](#xpack-sa-lf-events-exclude) altogether.
 
 $$$xpack-sa-lf-events-ignore-users$$$
 

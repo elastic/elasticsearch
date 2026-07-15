@@ -23,6 +23,7 @@ public enum AuditLevel {
     CONNECTION_DENIED,
     SYSTEM_ACCESS_GRANTED,
     SECURITY_CONFIG_CHANGE,
+    SECURITY_CONFIG_CHANGE_OUTCOME,
     AUTHENTICATION_SUCCESS,
     RUN_AS_GRANTED,
     RUN_AS_DENIED;
@@ -43,6 +44,7 @@ public enum AuditLevel {
                 case "connection_denied" -> enumSet.add(CONNECTION_DENIED);
                 case "system_access_granted" -> enumSet.add(SYSTEM_ACCESS_GRANTED);
                 case "security_config_change" -> enumSet.add(SECURITY_CONFIG_CHANGE);
+                case "security_config_change_outcome" -> enumSet.add(SECURITY_CONFIG_CHANGE_OUTCOME);
                 case "authentication_success" -> enumSet.add(AUTHENTICATION_SUCCESS);
                 case "run_as_granted" -> enumSet.add(RUN_AS_GRANTED);
                 case "run_as_denied" -> enumSet.add(RUN_AS_DENIED);

@@ -11,6 +11,8 @@ import io.netty.channel.Channel;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
@@ -79,14 +82,17 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAct
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
@@ -96,6 +102,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEntry;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
@@ -914,6 +921,201 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put("type", "audit");
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(reducedLogLine, checkedFields);
+    }
+
+    public void testSecurityChangeOutcomeEventsNotEmittedByDefault() {
+        // With the default audit configuration (which does not include the opt-in security_config_change_outcome event type), the
+        // coordinatingActionResponse hook must not emit anything - preserving pre-existing default audit output.
+        final String requestId = randomRequestId();
+        final Authentication authentication = createAuthentication();
+        final PutRoleRequest putRoleRequest = new PutRoleRequest();
+        putRoleRequest.name(randomAlphaOfLengthBetween(3, 8));
+        auditTrail.coordinatingActionResponse(
+            requestId,
+            authentication,
+            PutRoleAction.NAME,
+            putRoleRequest,
+            new PutRoleResponse(randomBoolean())
+        );
+        assertEmptyLog(logger);
+
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(randomAlphaOfLengthBetween(3, 8));
+        auditTrail.coordinatingActionResponse(
+            requestId,
+            authentication,
+            PutUserAction.NAME,
+            putUserRequest,
+            new PutUserResponse(randomBoolean())
+        );
+        assertEmptyLog(logger);
+    }
+
+    public void testSecurityChangeOutcomeEventsForUpserts() throws IOException {
+        // the outcome event type is opt-in and off by default, so it must be explicitly enabled
+        updateLoggerSettings(
+            Settings.builder()
+                .put(settings)
+                .putList(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), "security_config_change_outcome")
+                .build()
+        );
+        final String requestId = randomRequestId();
+        final Authentication authentication = createAuthentication();
+
+        // put_user: created and modified
+        for (boolean created : new boolean[] { true, false }) {
+            final PutUserRequest putUserRequest = new PutUserRequest();
+            final String username = randomAlphaOfLengthBetween(3, 8);
+            putUserRequest.username(username);
+            auditTrail.coordinatingActionResponse(
+                requestId,
+                authentication,
+                PutUserAction.NAME,
+                putUserRequest,
+                new PutUserResponse(created)
+            );
+            assertUpsertOutcomeLogLine("put_user", "user", username, created, requestId);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
+
+        // put_role: created and modified
+        for (boolean created : new boolean[] { true, false }) {
+            final PutRoleRequest putRoleRequest = new PutRoleRequest();
+            final String roleName = randomAlphaOfLengthBetween(3, 8);
+            putRoleRequest.name(roleName);
+            auditTrail.coordinatingActionResponse(
+                requestId,
+                authentication,
+                PutRoleAction.NAME,
+                putRoleRequest,
+                new PutRoleResponse(created)
+            );
+            assertUpsertOutcomeLogLine("put_role", "role", roleName, created, requestId);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
+
+        // put_role_mapping: created and modified
+        for (boolean created : new boolean[] { true, false }) {
+            final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest();
+            final String mappingName = randomAlphaOfLengthBetween(3, 8);
+            putRoleMappingRequest.setName(mappingName);
+            auditTrail.coordinatingActionResponse(
+                requestId,
+                authentication,
+                PutRoleMappingAction.NAME,
+                putRoleMappingRequest,
+                new PutRoleMappingResponse(created)
+            );
+            assertUpsertOutcomeLogLine("put_role_mapping", "role_mapping", mappingName, created, requestId);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
+
+        // bulk put_role: only successfully created/updated roles are audited; NOOP and failed items are skipped
+        final String createdRole = "created_role";
+        final String updatedRole = "updated_role";
+        final String noopRole = "noop_role";
+        final String failedRole = "failed_role";
+        final BulkRolesResponse bulkRolesResponse = new BulkRolesResponse(
+            List.of(
+                BulkRolesResponse.Item.success(createdRole, DocWriteResponse.Result.CREATED),
+                BulkRolesResponse.Item.success(updatedRole, DocWriteResponse.Result.UPDATED),
+                BulkRolesResponse.Item.success(noopRole, DocWriteResponse.Result.NOOP),
+                BulkRolesResponse.Item.failure(failedRole, new IllegalStateException("failed to put role"))
+            )
+        );
+        // the request is not read for the bulk path (the response carries the per-item names and results)
+        auditTrail.coordinatingActionResponse(
+            requestId,
+            authentication,
+            ActionTypes.BULK_PUT_ROLES.name(),
+            new BulkPutRolesRequest(List.of()),
+            bulkRolesResponse
+        );
+        List<String> bulkOutput = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(bulkOutput.size(), is(2));
+        assertUpsertOutcomeLogLine("put_role", "role", createdRole, true, requestId, bulkOutput.get(0));
+        assertUpsertOutcomeLogLine("put_role", "role", updatedRole, false, requestId, bulkOutput.get(1));
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        // put_privileges: one created, one modified (the response lists created privileges; the rest were updated)
+        final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
+        final ApplicationPrivilegeDescriptor createdPrivilege = new ApplicationPrivilegeDescriptor(
+            "app",
+            "read",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final ApplicationPrivilegeDescriptor updatedPrivilege = new ApplicationPrivilegeDescriptor(
+            "app",
+            "write",
+            Set.of("data:write/*"),
+            Map.of()
+        );
+        putPrivilegesRequest.setPrivileges(List.of(createdPrivilege, updatedPrivilege));
+        auditTrail.coordinatingActionResponse(
+            requestId,
+            authentication,
+            PutPrivilegesAction.NAME,
+            putPrivilegesRequest,
+            new PutPrivilegesResponse(Map.of("app", List.of("read")))
+        );
+        List<String> privilegeOutput = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(privilegeOutput.size(), is(2));
+        assertPrivilegeOutcomeLogLine("app", "read", true, requestId, privilegeOutput.get(0));
+        assertPrivilegeOutcomeLogLine("app", "write", false, requestId, privilegeOutput.get(1));
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        // a security-change action whose response is not an upsert response produces no outcome record (fall-through)
+        auditTrail.coordinatingActionResponse(
+            requestId,
+            authentication,
+            DeleteRoleAction.NAME,
+            new DeleteRoleRequest(),
+            ActionResponse.Empty.INSTANCE
+        );
+        assertThat(CapturingLogger.output(logger.getName(), Level.INFO).size(), is(0));
+    }
+
+    private void assertUpsertOutcomeLogLine(String eventAction, String objectType, String name, boolean created, String requestId) {
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(1));
+        assertUpsertOutcomeLogLine(eventAction, objectType, name, created, requestId, output.get(0));
+    }
+
+    private void assertUpsertOutcomeLogLine(
+        String eventAction,
+        String objectType,
+        String name,
+        boolean created,
+        String requestId,
+        String logLine
+    ) {
+        final String expectedBody = Strings.format("\"put\":{\"%s\":{\"name\":\"%s\",\"created\":%s}}", objectType, name, created);
+        assertOutcomeLogLine(eventAction, expectedBody, requestId, logLine);
+    }
+
+    private void assertPrivilegeOutcomeLogLine(String application, String name, boolean created, String requestId, String logLine) {
+        final String expectedBody = Strings.format(
+            "\"put\":{\"privilege\":{\"application\":\"%s\",\"name\":\"%s\",\"created\":%s}}",
+            application,
+            name,
+            created
+        );
+        assertOutcomeLogLine("put_privileges", expectedBody, requestId, logLine);
+    }
+
+    private void assertOutcomeLogLine(String eventAction, String expectedBody, String requestId, String logLine) {
+        assertThat(logLine, containsString(expectedBody));
+        final String reducedLogLine = logLine.replace(", " + expectedBody, "");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        // the outcome record is a distinct, opt-in event type so it can be told apart from the pre-execution security_config_change
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change_outcome");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction);
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(reducedLogLine, checkedFields);
     }

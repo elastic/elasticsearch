@@ -9,6 +9,13 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+/**
+ * Holds the centroids and centroid assignments for a field.
+ * <p>
+ * The centroids are held separately so they can be pushed to off-heap whilst keeping the centroid assignments in memory.
+ * @param centroids Centroids.
+ * @param centroidAssignments Centroid assignments.
+ */
 public record CentroidInformation(float[][] centroids, CentroidAssignments centroidAssignments) {
 
     public CentroidInformation(int dims, float[][] centroids, int[] assignments, OverspillAssignments overspillAssignments) {

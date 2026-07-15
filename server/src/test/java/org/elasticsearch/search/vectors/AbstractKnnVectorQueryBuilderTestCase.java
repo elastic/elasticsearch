@@ -220,11 +220,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         switch (elementType()) {
             case FLOAT -> assertThat(
                 query,
-                anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
+                anyOf(
+                    instanceOf(ESKnnFloatVectorQuery.class),
+                    instanceOf(DenseVectorQuery.Floats.class),
+                    instanceOf(FilteredDenseVectorQuery.class),
+                    instanceOf(BooleanQuery.class)
+                )
             );
             case BYTE -> assertThat(
                 query,
-                anyOf(instanceOf(ESKnnByteVectorQuery.class), instanceOf(DenseVectorQuery.Bytes.class), instanceOf(BooleanQuery.class))
+                anyOf(
+                    instanceOf(ESKnnByteVectorQuery.class),
+                    instanceOf(DenseVectorQuery.Bytes.class),
+                    instanceOf(FilteredDenseVectorQuery.class),
+                    instanceOf(BooleanQuery.class)
+                )
             );
         }
 
@@ -268,8 +278,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         };
 
         Query bruteForceVectorQueryBuilt = switch (elementType()) {
-            case BIT, BYTE -> new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD, filterQuery);
-            case FLOAT, BFLOAT16 -> new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD, filterQuery);
+            case BIT, BYTE -> DenseVectorQuery.Bytes.codecScored(resolvedVector.asByteVector(), VECTOR_FIELD).filteredBy(filterQuery);
+            case FLOAT, BFLOAT16 -> DenseVectorQuery.Floats.codecScored(resolvedVector.asFloatVector(), VECTOR_FIELD)
+                .filteredBy(filterQuery);
         };
 
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {

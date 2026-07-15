@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -191,15 +192,16 @@ public final class HivePartitionDetector implements PartitionDetector {
      * with {@code %XX} only and writes a literal {@code +} unescaped (it is not in the escape set). This is therefore
      * a plain UTF-8 percent-decode that keeps {@code +} literal, unlike {@code application/x-www-form-urlencoded}
      * decoding, which maps {@code +} to a space and so corrupts {@code a+b} to {@code "a b"} (a filter on the true
-     * value then drops every row of that folder). {@link RestUtils#decodeComponent} decodes {@code %XX} escapes as
-     * UTF-8 and keeps a literal {@code +} as {@code +} (its {@code es.rest.url_plus_as_space} default is {@code false});
-     * a malformed escape is left as the raw value rather than failing the detection.
+     * value then drops every row of that folder). This decodes {@code %XX} escapes as UTF-8 and keeps a literal
+     * {@code +} as {@code +} by passing {@code plusAsSpace=false} explicitly, so the result does not depend on the
+     * REST-only {@code es.rest.url_plus_as_space} setting; a malformed escape is left as the raw value rather than
+     * failing the detection.
      *
      * <p>Shared by {@link TemplatePartitionDetector}, which decodes its own directory segments the same way.
      */
     static String decodePartitionValue(String value) {
         try {
-            return RestUtils.decodeComponent(value);
+            return RestUtils.decodeComponent(value, StandardCharsets.UTF_8, false);
         } catch (IllegalArgumentException e) {
             return value;
         }

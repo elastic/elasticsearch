@@ -48,18 +48,6 @@ public final class EscfLuceneColumn implements SliceableColumn {
         this.kind = kind;
     }
 
-    /**
-     * Creates a sliceable long column backed by the given mutable byte array. The array is wrapped
-     * in a live {@link BytesArray} view — engine writes to the array are immediately visible to
-     * the column's cursors without copying.
-     *
-     * @param values    mutable byte array of length {@code docCount * 8}; each 8-byte slot holds
-     *                  one little-endian long value (written via
-     *                  {@link org.elasticsearch.common.util.ByteUtils#writeLongLE})
-     * @param name      Lucene field name
-     * @param fieldType the Lucene field type for this column
-     * @param kind      numeric kind ({@code LONG}, {@code INT}, etc.)
-     */
     public static EscfLuceneColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
         BytesArray data = new BytesArray(values);
         int docCount = values.length / 8;
@@ -128,8 +116,6 @@ public final class EscfLuceneColumn implements SliceableColumn {
                         if (pos + length > size()) {
                             throw new IllegalStateException("fill of " + length + " from pos " + pos + " exceeds size()=" + size());
                         }
-                        // Read through EscfLongColumn (byte[]-backed BytesArray LE read) rather than
-                        // System.arraycopy — the backing is byte[], not long[].
                         for (int i = 0; i < length; i++) {
                             dst[offset + i] = values.getLongValue(pos++);
                         }

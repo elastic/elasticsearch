@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
@@ -428,24 +429,70 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
 
     public final void testSerialization() throws IOException {
         List<List<V>> expected = mixedExpectedValues();
-        BlockFactory factory = blockFactory();
-        try (B block = buildBlock(factory, expected)) {
-            assertSerialization(block, factory, expected, minimumSerializationTransportVersion());
-            assertSerialization(
-                block,
-                factory,
-                expected,
-                TransportVersionUtils.randomVersionSupporting(minimumSerializationTransportVersion())
-            );
-            assertSerialization(block, factory, expected, TransportVersion.current());
+        try (B block = buildBlock(blockFactory(), expected)) {
+            assertSerializationAtSupportedVersions(block, expected);
         }
     }
 
-    private void assertSerialization(B block, BlockFactory factory, List<List<V>> expected, TransportVersion version) throws IOException {
+    public final void testConstantBlockSerialization() throws IOException {
+        assumeTrue("constant block factory unsupported", supportsConstantBlockFactory());
+        V value = randomValue();
+        int positions = randomIntBetween(1, 8192);
+        try (B block = createConstantBlock(blockFactory(), value, positions)) {
+            assertSerializationAtSupportedVersions(block, repeat(value, positions), copy -> assertTrue(copy.asVector().isConstant()));
+        }
+    }
+
+    public final void testEmptyBlockSerialization() throws IOException {
+        try (B block = buildBlock(blockFactory(), List.of())) {
+            assertSerializationAtSupportedVersions(block, List.of());
+        }
+        try (B source = buildBlock(blockFactory(), allNull(1)); Block filtered = source.filter(false)) {
+            assertSerializationAtSupportedVersions(castBlock(filtered), List.of());
+        }
+        try (B source = buildBlock(blockFactory(), List.of(List.of(randomValue()))); Block filtered = source.filter(false)) {
+            assertSerializationAtSupportedVersions(castBlock(filtered), List.of());
+        }
+    }
+
+    public final void testFilteredBlockSerialization() throws IOException {
+        List<List<V>> denseExpected = List.of(List.of(randomValue()), List.of(randomValue()));
+        try (B source = buildBlock(blockFactory(), denseExpected); Block filtered = source.filter(false, 1)) {
+            assertSerializationAtSupportedVersions(castBlock(filtered), List.of(denseExpected.get(1)));
+        }
+
+        List<List<V>> sparseExpected = new ArrayList<>();
+        sparseExpected.add(List.of(randomValue()));
+        sparseExpected.add(null);
+        try (B source = buildBlock(blockFactory(), sparseExpected); Block filtered = source.filter(false, 0)) {
+            assertSerializationAtSupportedVersions(castBlock(filtered), List.of(sparseExpected.get(0)));
+        }
+    }
+
+    private void assertSerializationAtSupportedVersions(B block, List<List<V>> expected) throws IOException {
+        assertSerializationAtSupportedVersions(block, expected, copy -> {});
+    }
+
+    private void assertSerializationAtSupportedVersions(B block, List<List<V>> expected, Consumer<B> extra) throws IOException {
+        BlockFactory factory = block.blockFactory();
+        assertSerialization(block, factory, expected, minimumSerializationTransportVersion(), extra);
+        assertSerialization(
+            block,
+            factory,
+            expected,
+            TransportVersionUtils.randomVersionSupporting(minimumSerializationTransportVersion()),
+            extra
+        );
+        assertSerialization(block, factory, expected, TransportVersion.current(), extra);
+    }
+
+    private void assertSerialization(B block, BlockFactory factory, List<List<V>> expected, TransportVersion version, Consumer<B> extra)
+        throws IOException {
         try (B copy = serializeDeserialize(block, factory, version)) {
             assertValues(copy, expected);
             assertThat(copy.elementType(), equalTo(expectedElementType()));
             assertThat(copy.blockFactory(), sameInstance(factory));
+            extra.accept(copy);
         }
     }
 

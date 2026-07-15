@@ -719,7 +719,6 @@ public class SharedBlobCacheWarmingService {
                     plan.timeout(),
                     plan.timeoutContext(),
                     indexShard,
-                    threadPool.rawRelativeTimeInMillis(),
                     resumeRecoveryListener
                 )
             );
@@ -956,10 +955,10 @@ public class SharedBlobCacheWarmingService {
         TimeValue timeout,
         String timeoutContext,
         IndexShard indexShard,
-        long startedMillis,
         ActionListener<Void> resumeRecoveryListener
     ) {
         assert timeout.millis() > 0;
+        long startedMillis = threadPool.rawRelativeTimeInMillis();
         final SubscribableListener<Void> race = new SubscribableListener<>();
         final var cancellable = threadPool.schedule(() -> {
             logger.warn(

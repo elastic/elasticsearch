@@ -1632,7 +1632,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                         TimeValue.timeValueMinutes(1),
                         "test: awaiting warming",
                         indexShard,
-                        threadPool.rawRelativeTimeInMillis(),
                         resumeRecoveryListener
                     )
                 );

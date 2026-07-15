@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.zone.ZoneOffsetTransition;
@@ -263,8 +264,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 long periodEnd = transition == null ? Long.MAX_VALUE : transition.getInstant().toEpochMilli();
                 long limit = Math.min(periodEnd, to);
                 // Boundaries in [boundary, limit): boundary, boundary + width, ... i.e. ceil((limit - boundary) / width).
-                long inPeriod = Math.ceilDiv(limit - boundary, width);
-                count += inPeriod;
+                long inPeriod;
+                try {
+                    inPeriod = ceilDivExact(limit, boundary, width);
+                    count = Math.addExact(count, inPeriod);
+                } catch (ArithmeticException overflow) {
+                    return false;
+                }
                 if (count > buckets) {
                     return false;
                 }
@@ -284,7 +290,26 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
          */
         boolean roundingIsOkHeuristic(Unit unit) {
             Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
-            return buckets >= Math.ceilDiv(to - rounding.round(from), unit.approximateWidthMillis());
+            try {
+                return buckets >= ceilDivExact(to, rounding.round(from), unit.approximateWidthMillis());
+            } catch (ArithmeticException overflow) {
+                return false;
+            }
+        }
+
+        private static long ceilDivExact(long upperExclusive, long lowerInclusive, long width) {
+            try {
+                long delta = Math.subtractExact(upperExclusive, lowerInclusive);
+                return Math.ceilDiv(delta, width);
+            } catch (ArithmeticException overflow) {
+                BigInteger delta = BigInteger.valueOf(upperExclusive).subtract(BigInteger.valueOf(lowerInclusive));
+                BigInteger bigWidth = BigInteger.valueOf(width);
+                BigInteger ceilDiv = delta.add(bigWidth.subtract(BigInteger.ONE)).divide(bigWidth);
+                if (ceilDiv.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+                    throw new ArithmeticException("overflow");
+                }
+                return ceilDiv.longValueExact();
+            }
         }
     }
 

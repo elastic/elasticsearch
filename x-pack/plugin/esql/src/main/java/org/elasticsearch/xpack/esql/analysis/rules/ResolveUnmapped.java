@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -59,6 +57,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -165,16 +164,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             }
         }
         return nullified;
-    }
-
-    private static FieldAttribute nullifyField(Attribute attribute) {
-        return new FieldAttribute(
-            attribute.source(),
-            null,
-            attribute.qualifier(),
-            attribute.name(),
-            new MissingEsField(attribute.name(), DataType.NULL, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
     }
 
     /**

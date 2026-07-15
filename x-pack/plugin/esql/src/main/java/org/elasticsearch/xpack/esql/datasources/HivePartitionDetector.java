@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.charset.StandardCharsets;
@@ -279,7 +279,9 @@ public final class HivePartitionDetector implements PartitionDetector {
             return Double.parseDouble(value);
         }
         if (type == DataType.BOOLEAN) {
-            return Booleans.parseBoolean(value);
+            // Match tryAllBoolean's case-insensitive inference: a folder typed BOOLEAN there (e.g. a standard
+            // writer's flag=True/flag=False) must cast, so parse the same true/false-in-any-case token set.
+            return DeclaredTypeCoercions.strictParseBoolean(value);
         }
         return value;
     }

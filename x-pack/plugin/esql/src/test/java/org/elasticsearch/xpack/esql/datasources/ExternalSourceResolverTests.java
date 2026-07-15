@@ -327,6 +327,113 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
     }
 
+    /**
+     * The UNION_BY_NAME reconciliation aggregate must safe-miss a text-format column that a widening pin retyped. Its
+     * cached per-file stats were harvested at the narrower read type (a solo narrow read shares the read-schema-blind
+     * cache entry), so under {@code null_field} the pinned column's extrema are poisoned and its value/null counts
+     * dropped, while a non-pinned column and the shared row count still fold normally. Without the boundary the fold
+     * would serve the narrow read's stale {@code max} (here 20) as the widened column's MAX, a silent wrong answer.
+     */
+    public void testReconcileAggregatePoisonsPinnedColumnUnderNullField() {
+        StoragePath pathA = StoragePath.of("s3://bucket/a.csv");
+        StoragePath pathB = StoragePath.of("s3://bucket/b.csv");
+
+        Map<String, Object> flatA = new HashMap<>();
+        flatA.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        flatA.put(SourceStatisticsSerializer.columnMinKey("val"), 1L);
+        flatA.put(SourceStatisticsSerializer.columnMaxKey("val"), 20L);
+        flatA.put(SourceStatisticsSerializer.columnValueCountKey("val"), 3L);
+        flatA.put(SourceStatisticsSerializer.columnNullCountKey("val"), 0L);
+        flatA.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        flatA.put(SourceStatisticsSerializer.columnMaxKey("id"), 3L);
+
+        Map<String, Object> flatB = new HashMap<>();
+        flatB.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        flatB.put(SourceStatisticsSerializer.columnMinKey("val"), -5L);
+        flatB.put(SourceStatisticsSerializer.columnMaxKey("val"), 100L);
+        flatB.put(SourceStatisticsSerializer.columnValueCountKey("val"), 2L);
+        flatB.put(SourceStatisticsSerializer.columnNullCountKey("val"), 0L);
+        flatB.put(SourceStatisticsSerializer.columnMinKey("id"), 4L);
+        flatB.put(SourceStatisticsSerializer.columnMaxKey("id"), 5L);
+
+        List<Attribute> longSchema = List.of(attr("val", DataType.LONG), attr("id", DataType.LONG));
+        Map<StoragePath, SourceMetadata> allMetadata = new LinkedHashMap<>();
+        allMetadata.put(pathA, new SimpleSourceMetadata(longSchema, "csv", pathA.toString(), null, null, flatA, null));
+        allMetadata.put(pathB, new SimpleSourceMetadata(longSchema, "csv", pathB.toString(), null, null, flatB, null));
+
+        Map<String, DataType> reconciledTypes = Map.of("val", DataType.LONG, "id", DataType.LONG);
+        Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+        perFileTypes.put(pathA, Map.of("val", DataType.LONG, "id", DataType.LONG));
+        perFileTypes.put(pathB, Map.of("val", DataType.LONG, "id", DataType.LONG));
+        // a.csv's val was inferred INTEGER and pinned to LONG; b.csv was already LONG (not pinned).
+        Map<StoragePath, Set<String>> perFilePinnedColumns = Map.of(pathA, Set.of("val"));
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            allMetadata,
+            perFileTypes,
+            reconciledTypes,
+            perFilePinnedColumns,
+            false, // null_field keeps rows, so row count stays trustworthy
+            false  // csv does not fold an absent column as implicit null (irrelevant here: every column present)
+        );
+
+        assertNotNull(agg);
+        // Pinned "val" is untrustworthy -> extrema poisoned (value dropped, unservable marker set) -> MIN/MAX(val) safe-miss.
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("val")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("val")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("val")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("val")));
+        // ... and its value count is dropped, so COUNT(val) safe-misses rather than serving a subset count.
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("val")));
+        // Row count folds normally under null_field (the row is kept, only the cell nulls).
+        assertEquals(5L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        // Non-pinned "id" folds normally.
+        assertEquals(1L, ((Number) agg.get(SourceStatisticsSerializer.columnMinKey("id"))).longValue());
+        assertEquals(5L, ((Number) agg.get(SourceStatisticsSerializer.columnMaxKey("id"))).longValue());
+    }
+
+    /**
+     * Under {@code skip_row} a narrow-read parse failure on a pinned column drops the whole row, so the pinned file's
+     * cached row count is short too. Dropping it forces the entire aggregate to safe-miss ({@code mergeStatistics}
+     * requires a numeric row count from every file), so even {@code COUNT(*)} re-scans rather than serving an undercount.
+     */
+    public void testReconcileAggregateDropsRowCountForPinnedColumnUnderSkipRow() {
+        StoragePath pathA = StoragePath.of("s3://bucket/a.csv");
+        StoragePath pathB = StoragePath.of("s3://bucket/b.csv");
+
+        Map<String, Object> flatA = new HashMap<>();
+        flatA.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        flatA.put(SourceStatisticsSerializer.columnMinKey("val"), 1L);
+        flatA.put(SourceStatisticsSerializer.columnMaxKey("val"), 20L);
+
+        Map<String, Object> flatB = new HashMap<>();
+        flatB.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        flatB.put(SourceStatisticsSerializer.columnMinKey("val"), -5L);
+        flatB.put(SourceStatisticsSerializer.columnMaxKey("val"), 100L);
+
+        List<Attribute> longSchema = List.of(attr("val", DataType.LONG));
+        Map<StoragePath, SourceMetadata> allMetadata = new LinkedHashMap<>();
+        allMetadata.put(pathA, new SimpleSourceMetadata(longSchema, "csv", pathA.toString(), null, null, flatA, null));
+        allMetadata.put(pathB, new SimpleSourceMetadata(longSchema, "csv", pathB.toString(), null, null, flatB, null));
+
+        Map<String, DataType> reconciledTypes = Map.of("val", DataType.LONG);
+        Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+        perFileTypes.put(pathA, Map.of("val", DataType.LONG));
+        perFileTypes.put(pathB, Map.of("val", DataType.LONG));
+        Map<StoragePath, Set<String>> perFilePinnedColumns = Map.of(pathA, Set.of("val"));
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            allMetadata,
+            perFileTypes,
+            reconciledTypes,
+            perFilePinnedColumns,
+            true, // skip_row: a dropped row makes a.csv's cached row count untrustworthy
+            false
+        );
+
+        assertNull(agg);
+    }
+
     // ===== Stats partial / file-count flag tests =====
 
     /**

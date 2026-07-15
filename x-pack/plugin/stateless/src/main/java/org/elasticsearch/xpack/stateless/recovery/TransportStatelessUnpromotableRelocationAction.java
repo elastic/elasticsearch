@@ -448,7 +448,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
                         shardId,
                         bccTermAndGen,
-                        new BlobMetadata(bccBlobName, luceneCommitPointMetadata.blobLocation().offset())
+                        new BlobMetadata(bccBlobName, luceneCommitPointMetadata.fileOffset())
                     );
                     Map<String, BlobFileRanges> metadataFromStore = null;
                     while (bccIterator.hasNext()) {

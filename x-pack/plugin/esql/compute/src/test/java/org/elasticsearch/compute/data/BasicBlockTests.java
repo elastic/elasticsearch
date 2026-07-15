@@ -1961,7 +1961,7 @@ public class BasicBlockTests extends ESTestCase {
         }
         assertThat(block.getTotalValueCount(), equalTo(totalValueCount));
         for (int p = 0; p + 1 < block.getPositionCount(); p++) {
-            if (block.isNull(p) == false && block.isNull(p + 1) == false) {
+            if (block.isNull(p) == false) {
                 assertThat(block.getValueCount(p), equalTo(block.getFirstValueIndex(p + 1) - block.getFirstValueIndex(p)));
             }
         }

@@ -354,7 +354,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         assertThat(block.mayHaveNulls(), equalTo(hasNull));
         assertThat(block.areAllValuesNull(), equalTo(allNull));
         assertThat(block.doesHaveMultivaluedFields(), equalTo(hasMultivalued));
-        assertThat(block.mayHaveMultivaluedFields(), equalTo(hasMultivalued));
+        if (block.mayHaveMultivaluedFields() == false) {
+            assertThat(hasMultivalued, equalTo(false));
+        }
         if (supportsDenseVector() && denseSingleValued) {
             Vector vector = block.asVector();
             assertThat(vector, notNullValue());
@@ -383,6 +385,13 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             int begin = expected.size() == 1 ? 0 : 1;
             try (Block sliced = block.slice(begin, expected.size())) {
                 assertValues(castBlock(sliced), expected.subList(begin, expected.size()));
+            }
+        }
+        if (expected.size() > 2) {
+            int begin = randomIntBetween(1, expected.size() - 2);
+            int end = randomIntBetween(begin + 1, expected.size() - 1);
+            try (Block sliced = block.slice(begin, end)) {
+                assertValues(castBlock(sliced), expected.subList(begin, end));
             }
         }
     }
@@ -531,7 +540,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         }
         assertThat(block.getTotalValueCount(), equalTo(totalValueCount));
         for (int p = 0; p + 1 < block.getPositionCount(); p++) {
-            if (block.isNull(p) == false && block.isNull(p + 1) == false) {
+            if (block.isNull(p) == false) {
                 assertThat(block.getValueCount(p), equalTo(block.getFirstValueIndex(p + 1) - block.getFirstValueIndex(p)));
             }
         }

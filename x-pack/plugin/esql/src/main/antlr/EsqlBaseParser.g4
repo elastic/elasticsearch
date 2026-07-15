@@ -79,7 +79,6 @@ processingCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? dedupCommand
     | {this.isDevVersion()}? highlightCommand
     ;
@@ -389,10 +388,6 @@ tsCollapseCommand
 //
 lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
     ;
 
 dedupCommand

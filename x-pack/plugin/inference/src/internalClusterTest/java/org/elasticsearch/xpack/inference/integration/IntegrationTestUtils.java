@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -94,6 +95,19 @@ public class IntegrationTestUtils {
         for (var entry : semanticTextFields.entrySet()) {
             mapping.startObject(entry.getKey());
             mapping.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+            mapping.field("inference_id", entry.getValue());
+            mapping.endObject();
+        }
+        mapping.endObject().endObject();
+
+        return mapping;
+    }
+
+    public static XContentBuilder generateSemanticFieldMapping(Map<String, String> semanticFields) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        for (var entry : semanticFields.entrySet()) {
+            mapping.startObject(entry.getKey());
+            mapping.field("type", SemanticFieldMapper.CONTENT_TYPE);
             mapping.field("inference_id", entry.getValue());
             mapping.endObject();
         }

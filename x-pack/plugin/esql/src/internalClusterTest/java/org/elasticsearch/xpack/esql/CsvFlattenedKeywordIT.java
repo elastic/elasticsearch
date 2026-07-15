@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -847,20 +846,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     }
                 }
             }
-            // A MATCH(...) whose keyword field argument was wrapped in field_extract(...) is pushed
-            // to Lucene as a synthetic field attribute, which only the runtime lexical search path
-            // can score. That path is gated on the MATCH_RUNTIME_SEARCH capability, which is
-            // snapshot-only (see EsqlCapabilities). In a release build the RUNTIME_LEXICAL_SEARCH
-            // pragma has no effect, so the analyzer rejects the wrapped field with "cannot operate
-            // on [field_extract(...)]". Skip the variant there rather than launch a query that is
-            // guaranteed to fail for a build-flavor reason unrelated to field_extract coverage.
-            if (result.wrappedMatchFunctionArg() && org.elasticsearch.Build.current().isSnapshot() == false) {
-                SILENCED_COUNTS_BY_REASON.computeIfAbsent("match_runtime_search_snapshot_only", k -> new AtomicInteger()).incrementAndGet();
-                logger.info("keyword→flattened: skipping; MATCH runtime search is snapshot-only [{}]", testId);
-                throw new StacklessAssumptionViolatedException(
-                    "skipping: MATCH(field_extract(...)) requires the snapshot-only MATCH_RUNTIME_SEARCH capability"
-                );
-            }
             // The short "launched" marker is emitted unconditionally so that every launched test has a single,
             // grep-able log line tying the test method (from the JUnit thread context) to the set of fields
             // the rewriter actually wrapped. The multi-line rewritten query itself is gated on
@@ -879,9 +864,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             }
 
             Settings extraPragmas = Settings.EMPTY;
-            if (result.wrappedMatchFunctionArg()) {
-                extraPragmas = Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build();
-            }
             return new IndexLoadStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
         }
 
@@ -1364,18 +1346,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "MATCH_PHRASE:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
-        "MV_CONTAINS:subset is missing",
-        "MV_DEDUPE:field is missing",
-        "MV_DIFFERENCE:field2 is missing",
-        "MV_INTERSECTION:field1 is missing",
-        "MV_INTERSECTION:field2 is missing",
-        "MV_INTERSECTS:field2 is missing",
-        "MV_LAST:field is missing",
-        "MV_SLICE:field is missing",
+        // MV_SORT's order argument must be foldable (MvSort#resolveType calls Validations.isFoldable
+        // on it), so a field_extract(...) call there is rejected by the verifier regardless of
+        // flattened rewriting; no csv-spec entry can exercise this slot with a field reference.
         "MV_SORT:order is missing",
-        "MV_UNION:field1 is missing",
-        "MV_UNION:field2 is missing",
-        "MV_ZIP:delim is missing",
         "NETWORK_DIRECTION:internal_networks is missing",
         "NOT_EQUALS:lhs is missing",
         "NOT_EQUALS:rhs is missing",
@@ -1387,12 +1361,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "NOT_RLIKE:str is missing",
         "PRESENT_OVER_TIME:field is missing",
         "QSTR:query is missing",
-        "REPLACE:newString is missing",
-        "REPLACE:regex is missing",
         "RLIKE:pattern is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
-        "SPLIT:string is missing",
         "TBUCKET:from is missing", // THESE are constant and https://github.com/elastic/elasticsearch/pull/151930 should let us skip it
         "TBUCKET:to is missing",
         "TEXT_EMBEDDING:text is missing",

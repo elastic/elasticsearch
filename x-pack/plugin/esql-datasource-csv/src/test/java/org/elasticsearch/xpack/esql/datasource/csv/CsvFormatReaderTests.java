@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -55,12 +57,12 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -417,12 +419,13 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertFalse(page.getBlock(1).isNull(0));
             assertFalse(page.getBlock(2).isNull(0));
 
-            // Second row: name is null
+            // Second row: name is a present empty keyword -> empty string (not null)
             assertFalse(page.getBlock(0).isNull(1));
-            assertTrue(page.getBlock(1).isNull(1));
+            assertFalse(page.getBlock(1).isNull(1));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
             assertFalse(page.getBlock(2).isNull(1));
 
-            // Third row: score is null
+            // Third row: score is a present empty double -> null (no empty representation for numerics)
             assertFalse(page.getBlock(0).isNull(2));
             assertFalse(page.getBlock(1).isNull(2));
             assertTrue(page.getBlock(2).isNull(2));
@@ -1475,7 +1478,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     // --- Empty and null value handling ---
 
-    public void testEmptyFieldsTreatedAsNull() throws IOException {
+    public void testEmptyFieldsStringVsNumeric() throws IOException {
         String csv = "id:long,name:keyword,score:double\n1,,95.5\n2,Bob,\n";
 
         StorageObject object = createStorageObject(csv);
@@ -1485,13 +1488,17 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue(page.getBlock(1).isNull(0));
+            // Present empty keyword -> empty string; present empty double -> null.
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertTrue(page.getBlock(2).isNull(1));
         }
     }
 
     public void testExplicitNullString() throws IOException {
-        String csv = "id:long,name:keyword\n1,null\n2,Bob\n";
+        // The literal "null" token is a null marker for typed columns (id here is unaffected), but a
+        // declared KEYWORD/TEXT column must be able to hold the string "null" verbatim.
+        String csv = "id:long,name:keyword\n,null\n2,Bob\n";
 
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
@@ -1500,8 +1507,28 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(0).isNull(0));
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef("null"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertFalse(page.getBlock(1).isNull(1));
+        }
+    }
+
+    public void testKeywordColumnHoldsLiteralNullStringAnyCase() throws IOException {
+        String csv = "name:keyword\nnull\nNULL\nNuLl\nBob\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("null"), nameBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NULL"), nameBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(new BytesRef("NuLl"), nameBlock.getBytesRef(2, new BytesRef()));
+            assertEquals(new BytesRef("Bob"), nameBlock.getBytesRef(3, new BytesRef()));
         }
     }
 
@@ -2579,7 +2606,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testCustomDatetimeFormat() throws IOException {
         String csv = "id:long,ts:datetime\n1,2021-01-15 14:30:00\n2,2022-06-20 09:00:00\n";
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss");
         CsvFormatOptions options = new CsvFormatOptions(
             ',',
             CsvFormatOptions.DEFAULT.quoteChar(),
@@ -2603,6 +2630,22 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(0));
             assertEquals(Instant.parse("2022-06-20T09:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
         }
+    }
+
+    /**
+     * Config-time acceptance of {@code datetime_format} is the ES {@link DateFormatter} grammar, the same one the
+     * NDJSON reader accepts: custom java-time patterns, ES named formats and {@code a||b} composites all compile;
+     * garbage is still rejected loudly at config time rather than nulling every cell at read time.
+     */
+    public void testDatetimeFormatConfigAcceptance() {
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ssXXX", "yyyy-MM-dd", "epoch_second", "basic_date", "yyyy-MM-dd||epoch_millis")) {
+            new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", pattern));
+        }
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", "not-a-valid-!!format!!"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid datetime format [not-a-valid-!!format!!]"));
     }
 
     // --- withConfig() Integration Tests ---
@@ -3230,6 +3273,27 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(2, namesBlock.getValueCount(1));
             assertEquals(new BytesRef("hello world"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1), new BytesRef()));
             assertEquals(new BytesRef("test"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1) + 1, new BytesRef()));
+        }
+    }
+
+    /**
+     * A quoted {@code "null"} element inside a bracket multi-value cell is stripped to the bare token by
+     * the bracket splitter before element parsing sees it (see #1098); on a KEYWORD column it must survive
+     * as the literal string, not be dropped as a null element.
+     */
+    public void testMultiValueBracketsQuotedNullStringPreserved() throws IOException {
+        String csv = "id:integer,names:keyword\n1,\"[\"\"null\"\",\"\"bar\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = mvcReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock namesBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, namesBlock.getValueCount(0));
+            assertEquals(new BytesRef("null"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("bar"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
         }
     }
 
@@ -4468,6 +4532,43 @@ public class CsvFormatReaderTests extends ESTestCase {
         String nonFusedDetail = nonFusedWarnings.stream().filter(w -> w.contains("Row [")).findFirst().orElse("");
         assertTrue("Fused path should report Row [3], got: " + fusedDetail, fusedDetail.contains("Row [3]"));
         assertTrue("Non-fused path should report Row [3], got: " + nonFusedDetail, nonFusedDetail.contains("Row [3]"));
+    }
+
+    /**
+     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#informationalWarningSink()}
+     * supplied: every emitted message must route through the sink instead of {@link HeaderWarning}, since
+     * {@link CsvFormatReader#read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testWarningsRouteThroughWarningSinkWhenSupplied() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad_id,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+        List<String> sunk = new ArrayList<>();
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).informationalWarningSink(sunk::add).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+
+        // 1 summary + 1 detail
+        assertEquals(2, sunk.size());
+        assertTrue("Summary should mention skip_row, got: " + sunk.get(0), sunk.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).contains("Row [2]"));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -6425,11 +6526,451 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
             assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
-            assertTrue(page.getBlock(1).isNull(0));
+            // Interior empty keyword field reads as the empty string, not null.
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
             assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            // Trailing empty integer field stays null (no empty representation for numerics).
             assertTrue(page.getBlock(2).isNull(1));
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Empty vs null handling for external CSV/TSV, per situation.
+    //
+    // COUNT(DISTINCT) collapses null, empty string, and the literal "null" into one another, so it
+    // hides which case is actually wrong. Each test below isolates one situation and asserts the exact
+    // block value so a regression in any single case is visible.
+    //
+    // Semantics:
+    // - A PRESENT but empty cell on a KEYWORD/TEXT column reads as the empty string "".
+    // - A PRESENT but empty cell on a non-string column (numeric/date/...) reads as null.
+    // - A MISSING cell (row shorter than the schema) reads as null on every type.
+    // - The literal token "null" maps to null only on non-string columns; a KEYWORD/TEXT column holds it
+    // as the string "null". A custom null_value token maps to null; empty IP/VERSION cells map to null.
+    // A present-but-empty element inside a bracket multi-value cell follows the same per-type rule as a
+    // scalar cell (empty string on KEYWORD/TEXT, kept in the list; null, and dropped from the list,
+    // otherwise).
+    // -----------------------------------------------------------------------------------------------
+
+    /** Reads {@code csv} with the given reader and runs {@code asserts} against the first page (all columns projected). */
+    private void withFirstPage(FormatReader reader, String csv, Consumer<Page> asserts) throws IOException {
+        StorageObject object = createStorageObject(csv);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 100)) {
+            assertTrue("expected at least one page", iterator.hasNext());
+            asserts.accept(iterator.next());
+        }
+    }
+
+    private static void assertKeyword(Page page, int block, int pos, String expected) {
+        BytesRefBlock b = (BytesRefBlock) page.getBlock(block);
+        assertFalse("block " + block + " pos " + pos + " should not be null", b.isNull(pos));
+        assertEquals("block " + block + " pos " + pos, new BytesRef(expected), b.getBytesRef(pos, new BytesRef()));
+    }
+
+    private static void assertBlockNull(Page page, int block, int pos) {
+        assertTrue("block " + block + " pos " + pos + " should be null", page.getBlock(block).isNull(pos));
+    }
+
+    // --- Default path (Jackson bulk iterator: quoted CSV, no bracket multi-values) ---
+
+    public void testEmptyVsNull_interiorEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 0, "apple");
+            assertKeyword(page, 1, 1, ""); // present, interior empty -> empty string
+            assertKeyword(page, 1, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20,
+            3,30,banana
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 0, "apple");
+            assertKeyword(page, 2, 1, ""); // present, trailing empty -> empty string
+            assertKeyword(page, 2, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_leadingEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            phrase:keyword,id:long
+            apple,1
+            ,2
+            banana,3
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 0, 0, "apple");
+            assertKeyword(page, 0, 1, ""); // present, leading empty -> empty string
+            assertKeyword(page, 0, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_missingStringField_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20
+            3,30,banana
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 0, "apple");
+            assertBlockNull(page, 2, 1); // missing (short row) -> null, NOT empty string
+            assertKeyword(page, 2, 2, "banana");
+        });
+    }
+
+    /**
+     * The unquoted literal token {@code null} on a declared string column stays the string "null": a
+     * KEYWORD/TEXT column must be able to hold the value "null", so the token is not a null marker there.
+     */
+    public void testEmptyVsNull_literalNullUnquoted_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,null,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, "null"); // literal "null" on a string column -> the string "null"
+        });
+    }
+
+    /**
+     * A QUOTED {@code "null"} on a string column behaves like the unquoted token: the string-type gate runs
+     * after unquoting, so a KEYWORD/TEXT column keeps the literal "null" either way.
+     */
+    public void testEmptyVsNull_literalNullQuoted_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"null",20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, "null"); // quoted "null" on a string column -> the string "null"
+        });
+    }
+
+    public void testEmptyVsNull_whitespaceOnlyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,   ,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            // Default is no-trim (RFC 4180): a whitespace-only string cell is a present, non-empty value
+            // kept verbatim, not trimmed to the empty string. Trimming a string column is opt-in via trim_spaces.
+            assertKeyword(page, 1, 1, "   ");
+        });
+    }
+
+    public void testEmptyVsNull_interiorEmptyNumeric_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,score:double,phrase:keyword
+            1,1.5,a
+            2,,b
+            3,3.5,c
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // empty numeric -> null
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyNumeric_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,score:double
+            1,a,1.5
+            2,b,
+            3,c,3.5
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 2, 1); // trailing empty numeric -> null
+        });
+    }
+
+    public void testEmptyVsNull_customNullValueToken_defaultPath() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,N/A,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // custom null_value token -> null
+        });
+    }
+
+    public void testEmptyVsNull_emptyUnderCustomNullValue_defaultPath() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // empty cell (not the N/A token) -> empty string
+        });
+    }
+
+    // --- TSV / plain mode (Jackson bulk iterator, tab delimiter, no quoting) ---
+
+    public void testEmptyVsNull_interiorEmptyString_tsvPlain() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        withFirstPage(reader, "id:long\tphrase:keyword\tn:integer\n1\tapple\t10\n2\t\t20\n3\tbanana\t30\n", page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // interior empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_tsvPlain() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        withFirstPage(reader, "id:long\tn:integer\tphrase:keyword\n1\t10\tapple\n2\t20\t\n3\t30\tbanana\n", page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 1, ""); // trailing empty -> empty string
+        });
+    }
+
+    // --- Direct-to-block path (multi_value_syntax=none, projected read with per-column stats) ---
+    // These force the optimized direct decoders (emitPlainField / splitAndConvertQuoted) by supplying a
+    // FormatReadContext with a projected, non-ALL stats scope on a direct-block-enabled reader. The
+    // present-empty rule must match the Jackson and bracket paths: empty string on KEYWORD/TEXT, null on
+    // other types, and null only for a genuinely missing (short-row) field.
+
+    /** Reads {@code csv} on the direct-to-block path (all named columns projected) and asserts the first page. */
+    private void withFirstPageDirect(String csv, List<String> projected, Consumer<Page> asserts) throws IOException {
+        StorageObject object = createStorageObject(csv);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projected)
+            .batchSize(100)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(true);
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue("expected at least one page", iterator.hasNext());
+            asserts.accept(iterator.next());
+        }
+    }
+
+    public void testEmptyVsNull_interiorEmptyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 0, "apple");
+            assertKeyword(page, 1, 1, ""); // present, interior empty -> empty string (not null)
+            assertKeyword(page, 1, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_whitespaceOnlyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,   ,20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            // Default is no-trim (RFC 4180): a whitespace-only string cell is a present, non-empty value
+            // kept verbatim, not trimmed to the empty string. Trimming a string column is opt-in via trim_spaces.
+            assertKeyword(page, 1, 1, "   ");
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string (not null)
+        });
+    }
+
+    public void testEmptyVsNull_interiorEmptyNumeric_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,score:double,phrase:keyword
+            1,1.5,a
+            2,,b
+            3,3.5,c
+            """, List.of("id", "score", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // empty numeric has no empty representation -> null
+        });
+    }
+
+    public void testEmptyVsNull_missingStringField_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20
+            3,30,banana
+            """, List.of("id", "n", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 2, 1); // missing (short row) -> null, NOT empty string
+        });
+    }
+
+    // --- Fused bracket path (multi_value_syntax=brackets, comma delimiter) ---
+
+    public void testEmptyVsNull_interiorEmptyString_fusedBrackets() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // interior empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_fusedBrackets() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        withFirstPage(reader, """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20,
+            3,30,banana
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 1, ""); // trailing empty -> empty string (fused trailing gap fixed)
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_fusedBrackets() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_bracketsSplitThenConvertRoute() throws IOException {
+        // With multi_value_syntax=brackets + an inferred (plain) schema, the rows BEYOND the inference
+        // sample are read via the split-then-convert route (splitCommaDelimiterBracketAwareFields ->
+        // convertRowInPlace), not the fused walker. schema_sample_size=2 keeps rows 3 and 4 on that
+        // route. Both bracket routes must agree: an interior empty and a trailing empty keyword cell
+        // read as the empty string, not null.
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "schema_sample_size", "2")
+        );
+        withFirstPage(reader, """
+            id,phrase,tail
+            1,apple,x
+            2,pear,y
+            3,,z
+            4,banana,
+            """, page -> {
+            assertEquals(4, page.getPositionCount());
+            assertKeyword(page, 1, 2, ""); // interior empty (row beyond sample) -> empty string
+            assertKeyword(page, 2, 3, ""); // trailing empty (row beyond sample) -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_bracketsSplitThenConvertRoute() throws IOException {
+        // Route C (rows beyond the inference sample under brackets + inferred schema, read via
+        // splitCommaDelimiterBracketAwareFields). A quoted empty `""` field yields no text; it must still
+        // read as the empty string, matching the fused walker and the Jackson path rather than collapsing
+        // to a missing field. schema_sample_size=1 pushes row 2 onto the split-then-convert route.
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "schema_sample_size", "1")
+        );
+        withFirstPage(reader, """
+            phrase
+            apple
+            ""
+            """, page -> {
+            assertEquals(2, page.getPositionCount());
+            assertKeyword(page, 0, 0, "apple");
+            assertKeyword(page, 0, 1, ""); // quoted empty on the split route -> empty string (not null)
+        });
+    }
+
+    /**
+     * A present-but-empty element inside a bracket multi-value cell (e.g. the middle of {@code [a,,c]})
+     * follows the same per-type rule as a scalar present-empty cell: empty string on KEYWORD/TEXT,
+     * kept in the list rather than silently dropped. Dropping it (the pre-fix behavior) shrinks the
+     * multi-value list and loses positional correspondence with other columns — the same
+     * cardinality-corruption bug class this PR fixes for scalar cells, one level deeper.
+     */
+    public void testEmptyVsNull_presentEmptyElement_bracketMultiValue() throws IOException {
+        String csv = "id:integer,phrase:keyword\n1,\"[a,,c]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock phrase = (BytesRefBlock) page.getBlock(1);
+            assertEquals(3, phrase.getValueCount(0));
+            int first = phrase.getFirstValueIndex(0);
+            assertEquals(new BytesRef("a"), phrase.getBytesRef(first, new BytesRef()));
+            assertEquals(new BytesRef(""), phrase.getBytesRef(first + 1, new BytesRef()));
+            assertEquals(new BytesRef("c"), phrase.getBytesRef(first + 2, new BytesRef()));
+        }
+    }
+
+    /**
+     * A present-but-empty element inside a bracket multi-value cell on a non-string column has no
+     * empty representation, so it maps to null and is dropped from the list — same as the pre-fix
+     * behavior and consistent with a scalar present-empty numeric cell.
+     */
+    public void testEmptyVsNull_presentEmptyElement_bracketMultiValueNumeric() throws IOException {
+        String csv = "id:integer,n:integer\n1,\"[10,,30]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock n = (IntBlock) page.getBlock(1);
+            assertEquals(2, n.getValueCount(0));
+            int first = n.getFirstValueIndex(0);
+            assertEquals(10, n.getInt(first));
+            assertEquals(30, n.getInt(first + 1));
         }
     }
 

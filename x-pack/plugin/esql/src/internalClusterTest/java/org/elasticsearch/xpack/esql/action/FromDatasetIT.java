@@ -161,12 +161,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_ndjson_rename_nonstrict",
         "employees_parquet_rename",
         "employees_rename_multi",
-        "employees_source_disabled",
-        "employees_source_enabled",
-        "employees_copy_nonstrict",
-        "employees_parquet_copy",
-        "employees_copy_collide",
-        "employees_copy_multi",
         "employees_swap",
         "employees_id_from_col",
         "employees_id_bad_path",
@@ -183,6 +177,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "logs_ndjson",
         "logs_csv_rename",
         "logs_csv_gz",
+        "logs_csv_gz_strict",
+        "logs_tsv_gz_strict",
+        "logs_ndjson_gz_strict",
+        "logs_csv_gz_strict_multi",
         "logs_parquet_strict_format",
         "logs_noext_strict",
         "employees_extensionless",
@@ -467,50 +465,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testCopyToDuplicatesColumnNonStrict() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-
-        // Non-strict copy: emp_no is kept AND copied to emp_copy. The copy materializes as EVAL emp_copy = emp_no above
-        // the base relation, so both columns carry the same value and the read path is untouched.
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("emp_no", new DatasetFieldMapping("long", null, "emp_copy"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_copy_nonstrict",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_copy_nonstrict | KEEP emp_no, emp_copy | SORT emp_no | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("emp_copy")); // the copy target
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat("copy carries the source value", row.get(1), equalTo(row.get(0)));
-            }
-            assertThat(rows.get(0).get(0), equalTo(1L));
-        }
-    }
-
     public void testRenameWithKeepSubsetProjectsRenamedColumn() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
@@ -554,7 +508,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // Strict declaration: `ts` is a date parsed with the access-log pattern (which carries an explicit zone).
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -589,7 +543,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict overlay retypes the inferred keyword `ts` to a date with the declared format; date comparison then
         // works on the parsed instants. Only the 11/Oct row (2000-10-11T16:00:00Z) is >= the 2000-10-11T00:00:00Z bound.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -625,7 +579,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // File-level datetime_format is a pattern that CANNOT parse the access-log text; the column's own declared
         // format must win for that column, so the value still parses to the exact zone-aware epoch.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -692,7 +646,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // rejected loudly at query resolution rather than silently ignored.
         Path parquet = writeParquetRenameFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "emp_no", List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -722,7 +676,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // NDJSON already parses dates via the ES DateFormatter; a per-column declared format reparses that column with
         // its own pattern (same zone-aware semantics).
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -755,7 +709,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // the key back to `ts` for the reader). If the logical->physical re-keying were inverted, the reader would look
         // up the formatter under the wrong name and the value would fall to the undeclared path.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("event_time", new DatasetFieldMapping("date", "ts", List.of(), ACCESS_LOG_FORMAT));
+        properties.put("event_time", DatasetFieldMapping.withFormat("date", "ts", ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -798,11 +752,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gz))) {
             out.write(csv);
         }
-        // Non-strict so the format/sourceType is inferred through the extension-based reader (the strict path derives the
-        // sourceType from the file extension and doesn't yet see through a compound `.csv.gz` — a separate, pre-existing
-        // gap unrelated to declared date formats). The overlay retypes the inferred `ts` to a date with the format.
+        // Non-strict here so this test stays focused on the declared date format; the strict path over a compound
+        // `.csv.gz` is covered separately by testStrictOverGzipCsvReads (and its tsv/ndjson twins). The overlay retypes
+        // the inferred `ts` to a date with the format.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -827,6 +781,104 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testStrictOverGzipCsvReads() throws Exception {
+        // A strict (dynamic:false) mapping over compound-compressed .csv.gz. The strict path derives the reader
+        // sourceType from the file name; before the compound-extension fix it last-dotted to "gz" and the query failed
+        // with "No operator factory for sourceType: gz". It must now resolve to "csv" (through the compression-unwrapping
+        // registry) and read the row. Regression guard for the strict compound-extension read fix.
+        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false));
+    }
+
+    public void testStrictOverGzipTsvReads() throws Exception {
+        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false));
+    }
+
+    public void testStrictOverGzipNdjsonReads() throws Exception {
+        // NDJSON is read by JSON key, so no header_row setting applies; the compound `.ndjson.gz` must still resolve
+        // through the compression-unwrapping registry to the "ndjson" reader rather than last-dotting to "gz".
+        assertStrictGzippedTextReads("logs_ndjson_gz_strict", ".ndjson.gz", "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n", Map.of());
+    }
+
+    public void testStrictOverGzipCsvGlobReads() throws Exception {
+        // The multi-file half of the fix: resolveStrictMultiFile must derive the reader from a CONCRETE listed file name
+        // (listing.path(0)) through the compression-unwrapping registry — not last-dot the raw `*.csv.gz` glob string to
+        // "gz" (which would fail with "No operator factory for sourceType: gz"). Regression guard for the multi-file
+        // portion of the strict compound-extension read fix.
+        Path root = createTempDir();
+        writeGzip(root.resolve("part1.csv.gz"), "ts_a,alpha\nts_b,beta\n");
+        writeGzip(root.resolve("part2.csv.gz"), "ts_c,gamma\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("keyword", null));
+        properties.put("note", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_csv_gz_strict_multi",
+                    "local_ds",
+                    root.toUri() + "*.csv.gz",
+                    null,
+                    new HashMap<>(Map.of("header_row", false)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_csv_gz_strict_multi | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L)); // 2 rows from part1 + 1 from part2
+        }
+    }
+
+    private static void writeGzip(Path target, String content) throws Exception {
+        try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Registers a strict (dynamic:false) two-column {@code ts,note} dataset over a gzipped text file of the given
+     * compound extension and asserts {@code note} reads back as {@code alpha} — i.e. the strict path resolved the
+     * reader through the compound extension (not the "gz" codec suffix).
+     */
+    private void assertStrictGzippedTextReads(String datasetName, String ext, String content, Map<String, Object> settings)
+        throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path gz = createTempFile("dataset-strict-", ext);
+        writeGzip(gz, content);
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("keyword", null));
+        properties.put("note", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    gz.toUri().toString(),
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | KEEP note | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0).toString(), equalTo("alpha"));
+        }
+    }
+
     public void testDeclaredDateFormatOnStrictParquetRejected() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
@@ -834,7 +886,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // resolution path bypasses the non-strict overlay's reject, so it must guard the columnar case itself.
         Path parquet = writeParquetRenameFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "emp_no", List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -864,9 +916,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A strict dataset over an extensionless path with no `format` setting has an unknowable sourceType (null). The
-        // columnar-format reject must guard that null (an immutable Set throws on contains(null)) so the query keeps its
-        // prior clean failure instead of an NPE-wrapped 500 — even though no date format is declared here.
+        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
+        // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
+        // loud at resolution with a clean IllegalArgumentException ("Cannot infer format from object name without
+        // extension") — propagated unwrapped as a 4xx, never an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -891,6 +944,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
+        assertThat(e.getMessage(), containsString("without extension"));
     }
 
     public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {
@@ -968,59 +1022,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(0), equalTo(1L));
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-        }
-    }
-
-    public void testSourceDisabledReturnsEmptySource() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("emp_no", new DatasetFieldMapping("integer", null));
-        // _source.enabled: false -> METADATA _source must succeed with a null _source column, matching a real
-        // index whose _source is disabled (SourceFieldMapper's ConstantNull block loader) rather than erroring.
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, false));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_source_disabled",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-
-        // _source is not sortable (true for a real index too), so sort on emp_no and KEEP _source alongside it.
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_source_disabled METADATA _source | KEEP emp_no, _source | SORT emp_no | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            assertThat(response.columns().get(1).name(), equalTo("_source"));
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat("_source is null when _source.enabled: false", row.get(1), org.hamcrest.Matchers.nullValue());
-            }
-        }
-    }
-
-    public void testSourceEnabledByDefaultAllowsMetadataSource() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // No _source knob -> available by default; METADATA _source resolves to a column (not rejected).
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_source_enabled", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
-        try (var response = run(syncEsqlQueryRequest("FROM employees_source_enabled METADATA _source | KEEP _source | LIMIT 1"), TIMEOUT)) {
-            assertThat(response.columns().get(0).name(), equalTo("_source"));
         }
     }
 
@@ -1203,76 +1204,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testCopyToMultipleTargets() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // copy_to a LIST of targets: emp_no is copied to both emp_a and emp_b (one EVAL alias per target).
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("emp_no", new DatasetFieldMapping("long", null, java.util.List.of("emp_a", "emp_b")));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_copy_multi",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_copy_multi | SORT emp_no | KEEP emp_no, emp_a, emp_b | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(3));
-            assertThat(columns.get(1).name(), equalTo("emp_a"));
-            assertThat(columns.get(2).name(), equalTo("emp_b"));
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat(row.get(1), equalTo(row.get(0))); // emp_a == emp_no
-                assertThat(row.get(2), equalTo(row.get(0))); // emp_b == emp_no
-            }
-        }
-    }
-
-    public void testCopyToTargetCollidingWithInferredColumnRejected() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // Non-strict copy whose target collides with a REAL (inferred) file column. PUT can't see inferred columns, so
-        // it passes; the query must reject rather than let the EVAL silently overwrite first_name with a copy of emp_no.
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("emp_no", new DatasetFieldMapping("long", null, "first_name")); // target == an inferred column
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_copy_collide",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        Exception e = expectThrows(Exception.class, () -> {
-            try (var ignored = run(syncEsqlQueryRequest("FROM employees_copy_collide | KEEP emp_no, first_name"), TIMEOUT)) {
-                // must not reach here — the copy target collides with the inferred first_name
-            }
-        });
-        assertThat(e.getMessage(), containsString("collides with an existing column"));
-    }
-
     public void testStrictColumnarLongToDatetimeCoerces() throws Exception {
         // Strict + columnar: declaring the physical int64 `emp_no` as DATETIME COERCES at read time (Hive/Trino style) —
         // the reader reinterprets the epoch-millis long as a datetime, no reject and no silent null. emp_no 1,2,3 read
@@ -1317,7 +1248,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetDeferredCoerceFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT));
         properties.put("id_str", new DatasetFieldMapping("keyword", "id")); // physical int64 -> stringify
         properties.put("msg", new DatasetFieldMapping("keyword", null));
         properties.put("pri", new DatasetFieldMapping("integer", null));
@@ -1428,7 +1359,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetBadDateTokenFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT));
         properties.put("id_str", new DatasetFieldMapping("keyword", "id"));
         properties.put("msg", new DatasetFieldMapping("keyword", null));
         properties.put("pri", new DatasetFieldMapping("integer", null));
@@ -1516,7 +1447,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path csv = createTempFile("dataset-bad-date-", ".csv");
         Files.writeString(csv, "ts:keyword,note:keyword\ndefinitely-not-a-date,alpha\n");
         Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
-        csvProps.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        csvProps.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         csvProps.put("note", new DatasetFieldMapping("keyword", null));
         assertAcked(
             client().execute(
@@ -1553,7 +1484,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             {"ts":"definitely-not-a-date","note":"beta"}
             """;
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        props.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         props.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
 
@@ -1640,7 +1571,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
-        csvProps.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
+        csvProps.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         csvProps.put("note", new DatasetFieldMapping("keyword", null));
         assertAcked(
             client().execute(
@@ -1661,7 +1592,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path parquet = writeParquetStringDateFixture();
         Map<String, DatasetFieldMapping> pqProps = new LinkedHashMap<>();
         pqProps.put("id", new DatasetFieldMapping("long", null));
-        pqProps.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT));
+        pqProps.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -2005,49 +1936,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testParquetStrictCopyToAndFilterPushdown() throws Exception {
-        // Strict + columnar + copy: comp (physical salary) is moved AND copied to comp2. The copy is an EVAL above the
-        // relation, so it works for parquet exactly as for CSV, and a WHERE on the copy target substitutes back to the
-        // source and pushes down — the trickiest combination (strict, columnar pushdown, copy alias-substitution).
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Path parquet = writeParquetRenameFixture();
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
-        properties.put("comp", new DatasetFieldMapping("integer", "salary", "comp2")); // move salary->comp, copy to comp2
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_parquet_copy",
-                    "local_ds",
-                    parquet.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "parquet")),
-                    mapping
-                )
-            )
-        );
-
-        // 1) the copy carries the source value
-        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_copy | SORT id | KEEP comp, comp2 | LIMIT 10"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat("copy carries the source value", row.get(1), equalTo(row.get(0)));
-            }
-        }
-        // 2) WHERE on the copy target pushes down (substituted to salary): Bob (200), Carol (300)
-        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_copy | WHERE comp2 > 150 | SORT id | LIMIT 10"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(2L));
-            assertThat(rows.get(1).get(0), equalTo(3L));
-        }
-    }
-
     private void putParquetRenameDataset(String name, Path parquet) {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -2180,7 +2068,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path parquet = writeParquetStringDateFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
-        properties.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT)); // string -> date
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT)); // string -> date
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
@@ -2985,7 +2873,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict declaration whose only knob is _id.path = first_name (a keyword column). The columns keep their
         // inferred names/types; _id is stamped from first_name's value.
         DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), null, "first_name")
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "first_name")
         );
 
         assertAcked(
@@ -3061,7 +2949,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // logical space — _id equals the renamed column's values.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("uid", new DatasetFieldMapping("keyword", "first_name"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, null, "uid"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, "uid"));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -3109,7 +2997,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         props.put("first_name", new DatasetFieldMapping("keyword", null));
         // Non-strict, _id.path = region (the partition key). PUT accepts (non-strict defers the id-column existence
         // check); the reject fires at query time when _id is actually requested.
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props, null, "region"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props, "region"));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -3277,7 +3165,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict declaration whose _id.path names a column that exists in NO file — a typo, or the files lost it.
         // PUT accepts it (non-strict defers the existence check to query time; the files may not exist yet at PUT).
         DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), null, "no_such_column")
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "no_such_column")
         );
         assertAcked(
             client().execute(

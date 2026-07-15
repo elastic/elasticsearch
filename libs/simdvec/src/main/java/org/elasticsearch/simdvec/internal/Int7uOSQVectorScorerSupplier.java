@@ -16,6 +16,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;

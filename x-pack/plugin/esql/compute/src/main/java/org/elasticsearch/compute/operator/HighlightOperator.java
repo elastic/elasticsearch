@@ -37,10 +37,12 @@ import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
+import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -56,7 +58,8 @@ import java.util.function.Supplier;
  * block.
  * <p>
  * The {@link MemoryIndex} is built with offsets, so we read them via {@link UnifiedHighlighter.OffsetSource#POSTINGS}.
- * This is the same coordinator-side path that {@code TOP_SNIPPETS} already uses.
+ * This is the same coordinator-side path that {@code TOP_SNIPPETS} already uses. Unlike Query DSL highlighting, this
+ * path truncates analyzed tokens at the configured/default offset instead of throwing the "field too long" error.
  * <p>
  * TODO: use real index offsets and per-field analyzers when highlighting can run directly against shard data.
  */
@@ -80,17 +83,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "HighlightOperator[query="
-                + config.queryText()
-                + ", fields="
-                + fieldEvaluatorFactories.size()
-                + ", number_of_fragments="
-                + config.numberOfFragments()
-                + ", fragment_size="
-                + config.fragmentSize()
-                + ", no_match_size="
-                + config.noMatchSize()
-                + "]";
+            return "HighlightOperator[" + config.describe() + ", fields=" + fieldEvaluatorFactories.size() + "]";
         }
     }
 
@@ -98,8 +91,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final HighlightConfig config;
     private final Query query;
     private final Analyzer analyzer;
+    private final Analyzer memoryIndexAnalyzer;
     private final PassageFormatter formatter;
-    private final int maxAnalyzedOffset;
+    private final int indexMaxAnalyzedOffset;
+    private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
     private final int highlighterNumberOfFragments;
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
@@ -116,29 +111,44 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
-        this.maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
-        // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
-        // top passages by score, which loses document order when several sentences tie. We want document order.
-        this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
-        // TODO: honour boundary_scanner, boundary_scanner_locale, boundary_chars, boundary_max_scan, and order.
-        if (config.numberOfFragments() == 0) {
+        // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
+        // user's max_analyzed_offset to it (rather than overwriting the index cap) prevents raising the default.
+        this.indexMaxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
+        int configuredOffset = config.maxAnalyzedOffset();
+        int queryOffset = configuredOffset < 0 ? indexMaxAnalyzedOffset : Math.min(configuredOffset, indexMaxAnalyzedOffset);
+        this.queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(queryOffset, indexMaxAnalyzedOffset);
+        this.memoryIndexAnalyzer = new LimitTokenOffsetAnalyzer(analyzer, queryMaxAnalyzedOffset.getNotNull());
+        // For order=score we let Lucene cap fragments directly; otherwise we collect every passage and trim later so we
+        // can keep document order.
+        this.highlighterNumberOfFragments = config.orderByScore() && config.numberOfFragments() > 0
+            ? config.numberOfFragments()
+            : Integer.MAX_VALUE - 1;
+        this.breakIteratorSupplier = breakIterator(
+            config.numberOfFragments(),
+            config.fragmentSize(),
+            config.wordBoundary(),
+            config.locale()
+        );
+    }
+
+    // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.
+    private static Supplier<BreakIterator> breakIterator(int numberOfFragments, int fragmentSize, boolean wordBoundary, Locale locale) {
+        if (numberOfFragments == 0) {
             // One passage per (multi-)value: only break on the multi-value separator.
-            this.breakIteratorSupplier = () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        } else {
-            // Fragment by sentence, bounded to fragment_size characters when a positive size is requested.
-            this.breakIteratorSupplier = () -> new SplittingBreakIterator(
-                sentenceBreakIterator(config.fragmentSize()),
-                CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
-            );
+            return () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         }
+        return () -> {
+            BreakIterator passageIterator = wordBoundary
+                ? BreakIterator.getWordInstance(locale)
+                : sentenceBreakIterator(fragmentSize, locale);
+            return new SplittingBreakIterator(passageIterator, CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        };
     }
 
     // Break on sentences, capped to fragment_size chars when it's positive (long sentences get split, short ones may
     // share a fragment). A non-positive fragment_size drops the cap and just breaks on sentences.
-    private static BreakIterator sentenceBreakIterator(int fragmentSize) {
-        return fragmentSize > 0
-            ? BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize)
-            : BreakIterator.getSentenceInstance(Locale.ROOT);
+    private static BreakIterator sentenceBreakIterator(int fragmentSize, Locale locale) {
+        return fragmentSize > 0 ? BoundedBreakIteratorScanner.getSentence(locale, fragmentSize) : BreakIterator.getSentenceInstance(locale);
     }
 
     @Override
@@ -150,21 +160,24 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         BytesRef scratch = new BytesRef();
         try {
             for (int f = 0; f < fieldEvaluators.length; f++) {
-                try (Block block = fieldEvaluators[f].eval(page)) {
-                    if (block instanceof BytesRefBlock fieldValues) {
-                        highlightedBlocks[f] = highlightField(fieldValues, rowCount, scratch);
-                    } else {
-                        throw new IllegalArgumentException(
-                            "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
-                        );
-                    }
-                }
+                highlightedBlocks[f] = highlightField(page, f, rowCount, scratch);
             }
             return page.appendBlocks(highlightedBlocks);
         } catch (Exception e) {
             // If we highlighted some fields but failed before appending them, we need to release them.
             Releasables.closeExpectNoException(highlightedBlocks);
             throw e;
+        }
+    }
+
+    private Block highlightField(Page page, int fieldIndex, int rowCount, BytesRef scratch) {
+        try (Block block = fieldEvaluators[fieldIndex].eval(page)) {
+            if (block instanceof BytesRefBlock fieldValues) {
+                return highlightField(fieldValues, rowCount, scratch);
+            }
+            throw new IllegalArgumentException(
+                "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
+            );
         }
     }
 
@@ -180,7 +193,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 try {
                     appendSnippets(builder, highlight(text));
                 } catch (IOException e) {
-                    throw new IllegalStateException("Failed to highlight field", e);
+                    throw new IllegalStateException("HIGHLIGHT failed to highlight field", e);
                 }
             }
             return builder.build();
@@ -208,7 +221,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     private Snippet[] highlight(String text) throws IOException {
         MemoryIndex memoryIndex = new MemoryIndex(true);
-        memoryIndex.addField(CONTENT_FIELD, text, analyzer);
+        memoryIndex.addField(CONTENT_FIELD, text, memoryIndexAnalyzer);
         IndexSearcher searcher = memoryIndex.createSearcher();
         UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
         builder.withFormatter(formatter);
@@ -222,8 +235,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             query,
             config.noMatchSize(),
             highlighterNumberOfFragments,
-            maxAnalyzedOffset,
-            QueryMaxAnalyzedOffset.create(-1, maxAnalyzedOffset),
+            indexMaxAnalyzedOffset,
+            queryMaxAnalyzedOffset,
             false,
             false
         );
@@ -233,39 +246,47 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     /**
      * Appends the highlighter output for one row: {@code null} when there is no snippet (no match and no
-     * {@code no_match_size}), a single value, or a multi-value entry when several fragments are returned. When
-     * {@code number_of_fragments > 0} the snippets, which arrive in document order, are capped to that many fragments.
+     * {@code no_match_size}), a single value, or a multi-value entry when several fragments are returned. Snippets
+     * arrive in document order; when {@code order} is {@code score} they are re-sorted by descending score first. When
+     * {@code number_of_fragments > 0} they are then capped to that many fragments.
      */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
-        int length = snippets == null ? 0 : snippets.length;
-        int numberOfFragments = config.numberOfFragments();
-        if (numberOfFragments > 0) {
-            length = Math.min(length, numberOfFragments);
-        }
-        if (length == 0) {
+        if (snippets == null || snippets.length == 0) {
             builder.appendNull();
-        } else if (length == 1) {
-            builder.appendBytesRef(new BytesRef(snippets[0].getText()));
-        } else {
-            builder.beginPositionEntry();
-            for (int i = 0; i < length; i++) {
-                builder.appendBytesRef(new BytesRef(snippets[i].getText()));
-            }
-            builder.endPositionEntry();
+            return;
         }
+        if (config.orderByScore() && snippets.length > 1) {
+            Arrays.sort(snippets, SCORE_DESCENDING);
+        }
+        int count = snippets.length;
+        if (config.numberOfFragments() > 0) {
+            count = Math.min(count, config.numberOfFragments());
+        }
+        if (count == 1) {
+            builder.appendBytesRef(new BytesRef(snippets[0].getText()));
+            return;
+        }
+        builder.beginPositionEntry();
+        for (int i = 0; i < count; i++) {
+            builder.appendBytesRef(new BytesRef(snippets[i].getText()));
+        }
+        builder.endPositionEntry();
     }
+
+    // Highest score first. NaN counts as the lowest score so the no-match fallback passage (which carries a NaN score)
+    // never sorts ahead of a real fragment. Arrays.sort is stable, so equal scores keep document order.
+    static final Comparator<Snippet> SCORE_DESCENDING = Comparator.comparingDouble((Snippet s) -> {
+        float score = s.getScore();
+        return Float.isNaN(score) ? Double.NEGATIVE_INFINITY : score;
+    }).reversed();
 
     @Override
     public String toString() {
         return getClass().getSimpleName()
             + "[query="
             + query
-            + ", number_of_fragments="
-            + config.numberOfFragments()
-            + ", fragment_size="
-            + config.fragmentSize()
-            + ", no_match_size="
-            + config.noMatchSize()
+            + ", "
+            + config.describe()
             + ", fields="
             + Arrays.toString(fieldEvaluators)
             + "]";

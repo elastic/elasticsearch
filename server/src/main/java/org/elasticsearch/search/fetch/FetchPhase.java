@@ -14,7 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -48,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -66,6 +69,14 @@ public final class FetchPhase {
     }
 
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
+        execute(context, docIdsToLoad, rankDocs, null);
+    }
+
+    /**
+     * @param memoryChecker if provided, called with each hit's source byte count for external CB accounting;
+     *                      if null, the fetch phase uses the context's circuit breaker directly
+     */
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -87,7 +98,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
         } finally {
             try {
                 // Always finish profiling
@@ -115,7 +126,13 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
+    private SearchHits buildSearchHits(
+        SearchContext context,
+        int[] docIdsToLoad,
+        Profiler profiler,
+        RankDocShardInfo rankDocs,
+        @Nullable IntConsumer memoryChecker
+    ) {
         // Optionally remove sparse and dense vector fields early to:
         // - Reduce the in-memory size of the source
         // - Speed up retrieval of the synthetic source
@@ -149,6 +166,8 @@ public final class FetchPhase {
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
+        int[] locallyAccumulatedBytes = { 0 };
+
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
             LeafReaderContext ctx;
@@ -156,6 +175,14 @@ public final class FetchPhase {
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
+
+            final IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
+                locallyAccumulatedBytes[0] += bytes;
+                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
+                    locallyAccumulatedBytes[0] = 0;
+                }
+            };
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
@@ -198,6 +225,11 @@ public final class FetchPhase {
                     for (FetchSubPhaseProcessor processor : processors) {
                         processor.process(hit);
                     }
+                    BytesReference sourceRef = hit.hit().getSourceRef();
+                    if (sourceRef != null) {
+                        // x2: fetching a large source implies serializing it to the HTTP response later
+                        memChecker.accept(sourceRef.length() * 2);
+                    }
                     success = true;
                     return hit.hit();
                 } finally {
@@ -208,24 +240,31 @@ public final class FetchPhase {
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(
-            context.shardTarget(),
-            context.searcher().getIndexReader(),
-            docIdsToLoad,
-            context.request().allowPartialSearchResults(),
-            context.queryResult()
-        );
+        try {
+            SearchHit[] hits = docsIterator.iterate(
+                context.shardTarget(),
+                context.searcher().getIndexReader(),
+                docIdsToLoad,
+                context.request().allowPartialSearchResults(),
+                context.queryResult()
+            );
 
-        if (context.isCancelled()) {
-            for (SearchHit hit : hits) {
-                // release all hits that would otherwise become owned and eventually released by SearchHits below
-                hit.decRef();
+            if (context.isCancelled()) {
+                for (SearchHit hit : hits) {
+                    // release all hits that would otherwise become owned and eventually released by SearchHits below
+                    hit.decRef();
+                }
+                throw new TaskCancelledException("cancelled");
             }
-            throw new TaskCancelledException("cancelled");
-        }
 
-        TotalHits totalHits = context.getTotalHits();
-        return new SearchHits(hits, totalHits, context.getMaxScore());
+            TotalHits totalHits = context.getTotalHits();
+            return new SearchHits(hits, totalHits, context.getMaxScore());
+        } finally {
+            long bytes = docsIterator.getRequestBreakerBytes();
+            if (bytes > 0L) {
+                context.circuitBreaker().addWithoutBreaking(-bytes);
+            }
+        }
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {

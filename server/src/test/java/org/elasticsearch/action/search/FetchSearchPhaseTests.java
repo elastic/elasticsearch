@@ -9,6 +9,9 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -20,11 +23,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +60,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -72,6 +78,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -842,6 +849,147 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 return StoredFieldsSpec.NO_REQUIREMENTS;
             }
         }));
+    }
+
+    public void testFetchPhaseChecksMemoryBreaker() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        String body = "{ \"thefield\": \" " + randomAlphaOfLength(48_000) + "\" }";
+        for (int i = 0; i < 100; i++) {
+            Document document = new Document();
+            document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+            document.add(new StoredField("_source", new BytesRef(body)));
+            w.addDocument(document);
+        }
+        if (randomBoolean()) {
+            w.forceMerge(1);
+        }
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+        AtomicInteger breakerCalledCount = new AtomicInteger(0);
+        NoopCircuitBreaker breakingCircuitBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                breakerCalledCount.incrementAndGet();
+            }
+        };
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breakingCircuitBreaker)) {
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) throws IOException {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) throws IOException {
+                    Source source = hitContext.source();
+                    hitContext.hit().sourceRef(source.internalSourceRef());
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NEEDS_SOURCE;
+                }
+            }));
+            fetchPhase.execute(
+                searchContext,
+                IntStream.range(0, 100).toArray(),
+                null,
+                i -> breakingCircuitBreaker.addEstimateBytesAndMaybeBreak(i, "test")
+            );
+            assertThat(breakerCalledCount.get(), equalTo(100));
+        } finally {
+            r.close();
+            dir.close();
+        }
+    }
+
+    private static SearchContext createSearchContext(
+        ContextIndexSearcher contextIndexSearcher,
+        boolean allowPartialResults,
+        CircuitBreaker circuitBreaker
+    ) {
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            bitsetFilterCache,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP
+        );
+        TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {
+            private final FetchSearchResult fetchSearchResult = new FetchSearchResult();
+            private final ShardSearchRequest request = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                new SearchRequest().allowPartialSearchResults(allowPartialResults),
+                new ShardId("index", "indexUUID", 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1f,
+                0L,
+                null
+            );
+
+            @Override
+            public IdLoader newIdLoader() {
+                return new IdLoader.StoredIdLoader();
+            }
+
+            @Override
+            public FetchSearchResult fetchResult() {
+                return fetchSearchResult;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                return request;
+            }
+
+            @Override
+            public CircuitBreaker circuitBreaker() {
+                return circuitBreaker;
+            }
+
+            @Override
+            public long memAccountingBufferSize() {
+                return 1024 * 1024L;
+            }
+        };
+        searchContext.addReleasable(searchContext.fetchResult()::decRef);
+        searchContext.setTask(new SearchShardTask(-1, "type", "action", "description", null, Collections.emptyMap()));
+        return searchContext;
     }
 
     private static SearchContext createSearchContext(ContextIndexSearcher contextIndexSearcher, boolean allowPartialResults) {

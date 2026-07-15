@@ -1088,3 +1088,13 @@ ROW ts = TO_DATETIME("2024-11-03T12:00:00Z")
 c:long | b:datetime
 1      | 2024-11-03T11:00:00.000Z
 ;
+
+
+calendarCountingLargeRange
+ROW ts = 0::datetime
+| STATS c = COUNT(*) BY b = BUCKET(ts, 2147483647, 0::datetime, 6300000000000000000::datetime)
+;
+
+c:long | b:datetime
+1      | 1970-01-01T00:00:00.000Z
+;

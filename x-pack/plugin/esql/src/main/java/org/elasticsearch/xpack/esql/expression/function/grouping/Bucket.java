@@ -85,7 +85,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         "esql_support_explicit_bucket_rounding_configuration"
     );
 
-    // Package-private (rather than private) so BucketTests can exercise roundingIsOkFixedWidthUnit against
+    // Package-private (rather than private) so BucketOffsetTests can exercise roundingIsOkFixedWidthUnit against
     // roundingIsOkCalendarBasedUnit (the naive per-bucket oracle) directly.
     record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
 
@@ -127,6 +127,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
              */
             Long fixedWidthMillis();
 
+            /**
+             * The minimum width of this unit in milliseconds.
+             */
+            long approximateWidthMillis();
+
             static Unit of(Rounding.DateTimeUnit value) {
                 return new Unit() {
                     @Override
@@ -137,6 +142,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     @Override
                     public Long fixedWidthMillis() {
                         return null;
+                    }
+
+                    @Override
+                    public long approximateWidthMillis() {
+                        return value.getField().getBaseUnit().getDuration().toMillis();
                     }
                 };
             }
@@ -150,6 +160,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
                     @Override
                     public Long fixedWidthMillis() {
+                        return value.millis();
+                    }
+
+                    @Override
+                    public long approximateWidthMillis() {
                         return value.millis();
                     }
                 };
@@ -207,7 +222,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
             long bucket = rounding.round(from);
             long used = 0;
+            int numberOfIterations = 0;
             while (used < buckets) {
+                if (numberOfIterations++ > 1_000_000) {
+                    return roundingIsOkHeuristic(unit);
+                }
                 bucket = rounding.nextRoundingValue(bucket);
                 used++;
                 if (bucket >= to) {
@@ -235,7 +254,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             ZoneRules rules = zoneId.getRules();
             long boundary = rounding.round(from);
             long count = 0;
+            int numberOfIterations = 0;
             while (boundary < to) {
+                if (numberOfIterations++ > 1_000_000) {
+                    return roundingIsOkHeuristic(unit);
+                }
                 ZoneOffsetTransition transition = rules.nextTransition(Instant.ofEpochMilli(boundary));
                 long periodEnd = transition == null ? Long.MAX_VALUE : transition.getInstant().toEpochMilli();
                 long limit = Math.min(periodEnd, to);
@@ -254,6 +277,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 boundary = rounding.nextRoundingValue(lastInPeriod);
             }
             return count <= buckets;
+        }
+
+        /**
+         * The heuristic that can slightly undershoot or overshoot the number of buckets.
+         */
+        boolean roundingIsOkHeuristic(Unit unit) {
+            Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
+            return buckets >= Math.ceilDiv(to - rounding.round(from), unit.approximateWidthMillis());
         }
     }
 

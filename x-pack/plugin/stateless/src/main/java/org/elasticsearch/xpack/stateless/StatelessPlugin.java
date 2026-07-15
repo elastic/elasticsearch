@@ -555,7 +555,6 @@ public class StatelessPlugin extends Plugin
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
 
-    private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollector> searchShardSizeCollector = new SetOnce<>();
     private final SetOnce<WarmingRatioProviderFactory> warmingRatioProviderFactoryRef = new SetOnce<>();
@@ -1684,7 +1683,6 @@ public class StatelessPlugin extends Plugin
 
                 EngineConfig newConfig = EngineConfig.builder(config)
                     .mergePolicy(getMergePolicy(config))
-                    .codecProvider(getCodecProvider(config))
                     .translogConfig(newTranslogConfig)
                     .internalRefreshListener(internalRefreshListeners)
                     // Here we pass an index deletion policy wrapper to the engine. This is the only way we have to pass the
@@ -1802,13 +1800,6 @@ public class StatelessPlugin extends Plugin
         registrator.accept(StatelessPlugin.NAME, metricHolder);
     }
 
-    protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
-        var factory = codecProviderFactory.get();
-        if (factory != null) {
-            return factory.getCodecProvider(engineConfig);
-        }
-        return engineConfig.getCodecProvider();
-    }
 
     protected org.apache.lucene.index.MergePolicy getMergePolicy(EngineConfig engineConfig) {
         return engineConfig.getMergePolicy();
@@ -1816,14 +1807,6 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        var factories = loader.loadExtensions(CodecProviderFactory.class);
-
-        if (factories.size() > 1) {
-            throw new IllegalStateException(CodecProviderFactory.class + " may not have multiple implementations");
-        } else if (factories.size() == 1) {
-            codecProviderFactory.set(factories.get(0));
-        }
-
         this.statelessServicesConsumerProviders.set(loader.loadExtensions(StatelessExtensionProvider.class));
 
         var refreshManagerServiceFactories = loader.loadExtensions(RefreshManagerServiceFactory.class);

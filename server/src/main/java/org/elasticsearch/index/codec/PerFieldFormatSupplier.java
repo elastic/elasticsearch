@@ -28,6 +28,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocValuesFormatProvider;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -226,6 +227,13 @@ public class PerFieldFormatSupplier {
 
         if (useTSDBDocValuesFormat(field)) {
             return tsdbDocValuesFormat;
+        }
+
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper instanceof DocValuesFormatProvider provider) {
+                return provider.getDocValuesFormatForField(docValuesFormat);
+            }
         }
 
         return docValuesFormat;

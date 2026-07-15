@@ -42,6 +42,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjectBuilder;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -68,6 +69,7 @@ public class InferredDateRequestFilterParityIT extends ESRestTestCase {
 
     private static final String LOCAL_DATA_SOURCE = "local_parquet_ds";
     private static final String DATASET = "events_dataset";
+    private static final String RENAMED_DATASET = "events_renamed_ts";
     private static final String INDEX = "events_index";
     private static final String FIXTURE = "events.parquet";
 
@@ -75,6 +77,7 @@ public class InferredDateRequestFilterParityIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = Clusters.httpOnlyTestCluster();
 
     private static Path localFixturesPath;
+    private static boolean datasetRegistered = false;
 
     /** Datasets and {@code local} data sources are gated to snapshot builds today (same gate as the other datasource ITs). */
     @BeforeClass
@@ -94,8 +97,12 @@ public class InferredDateRequestFilterParityIT extends ESRestTestCase {
     @AfterClass
     public static void cleanupDatasets() throws Exception {
         try {
+            // Delete the raw-PUT renamed dataset first — DatasetRegistry doesn't track it, and the data source it
+            // references can't be dropped by DatasetRegistry.cleanup() while a dataset still points at it.
+            DatasetRegistry.deleteIgnoringMissing(client(), "/_query/dataset/" + RENAMED_DATASET);
             DatasetRegistry.cleanup(client());
         } finally {
+            datasetRegistered = false;
             DatasetRegistry.clearCaches();
         }
     }
@@ -128,6 +135,23 @@ public class InferredDateRequestFilterParityIT extends ESRestTestCase {
         String uri = localFixturesPath.resolve(FIXTURE).toUri().toString();
         DatasetRegistry.ensureDataSource(client(), LOCAL_DATA_SOURCE, "local", Map.of());
         DatasetRegistry.ensureDataset(client(), DATASET, LOCAL_DATA_SOURCE, uri, null);
+
+        // A second dataset over the same file with a DYNAMIC (inferred) base plus one declared column that RENAMES the
+        // source event_time to @timestamp via the read-path `path` — "a time axis is just a column named @timestamp".
+        // This is what surfaces an @timestamp column that Kibana's `FROM <source> | LIMIT 0` probe resolves without
+        // field_caps. DatasetRegistry only sends settings, so the mapping goes through a raw PUT.
+        if (datasetRegistered == false) {
+            Request putRenamed = new Request("PUT", "/_query/dataset/" + RENAMED_DATASET);
+            putRenamed.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "data_source": "%s",
+                  "resource": "%s",
+                  "mappings": { "dynamic": "true", "properties": { "@timestamp": { "type": "date", "path": "event_time" } } }
+                }
+                """, LOCAL_DATA_SOURCE, uri));
+            assertOK(client().performRequest(putRenamed));
+            datasetRegistered = true;
+        }
 
         // The mirror index: identical rows, event_time mapped as a date (epoch_millis), category as keyword.
         if (indexExists(INDEX) == false) {
@@ -190,6 +214,42 @@ public class InferredDateRequestFilterParityIT extends ESRestTestCase {
             bool.field("gte", from).field("format", "strict_date_optional_time");
             bool.endObject().endObject().endObject().endArray();
         });
+    }
+
+    /**
+     * The renamed-timestamp path, which is what makes a dashboard time picker work on a dataset: a dataset defined with
+     * a dynamic base plus a declared {@code @timestamp} rename of the source {@code event_time}. It asserts (1) the
+     * dataset now exposes an {@code @timestamp} column — exactly what Kibana's {@code FROM <source> | LIMIT 0} probe
+     * looks for — and (2) a request-filter range on that renamed {@code @timestamp} selects the same rows as the same
+     * range on the index's underlying {@code event_time}, so the rename + filter are faithful end to end.
+     */
+    public void testRenamedTimestampResolvesAndFilters() throws Exception {
+        assertThat("the renamed dataset must expose an @timestamp column", columnNames(RENAMED_DATASET), hasItem("@timestamp"));
+
+        String from = iso(5);
+        String to = iso(20);
+        List<Object> fromDataset = selectedIds(RENAMED_DATASET, b -> rangeFilterOn(b, "@timestamp", from, to));
+        List<Object> fromIndex = selectedIds(INDEX, b -> rangeFilterOn(b, "event_time", from, to));
+        assertEquals("range on the renamed @timestamp must select the same rows as the index's event_time", fromIndex, fromDataset);
+        assertThat("the filter must actually carve a subset", fromIndex.size(), greaterThan(0));
+        assertThat("the filter must actually carve a subset", fromIndex.size(), lessThan(ROWS));
+    }
+
+    private static void rangeFilterOn(XContentBuilder b, String field, String from, String to) throws IOException {
+        b.startArray("filter").startObject().startObject("range").startObject(field);
+        b.field("gte", from).field("lte", to).field("format", "strict_date_optional_time");
+        b.endObject().endObject().endObject().endArray();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> columnNames(String source) throws IOException {
+        Map<String, Object> resp = runEsqlSync(
+            requestObjectBuilder().query("FROM " + source + " | LIMIT 0"),
+            new AssertWarnings.NoWarnings(),
+            null
+        );
+        List<Map<String, String>> cols = (List<Map<String, String>>) resp.get("columns");
+        return cols.stream().map(c -> c.get("name")).toList();
     }
 
     /** Runs the same Kibana-shaped filter over the dataset and the index; the selected id sets must match and be non-trivial. */

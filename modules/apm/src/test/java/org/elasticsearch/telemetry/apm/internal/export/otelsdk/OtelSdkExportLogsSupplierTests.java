@@ -101,34 +101,28 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
 
     public void testSslCertWithoutKeyIsRejected() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
             .put(OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE.getKey(), getDataPath("tls/cert1.crt").toString())
             .build();
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings, createTempDir());
-        try {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::install);
-            assertThat(e.getMessage(), containsString("telemetry.logs.ssl.certificate"));
-            assertThat(e.getMessage(), containsString("telemetry.logs.ssl.key"));
-        } finally {
-            supplier.close();
-        }
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE, OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY)
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e.getMessage(), containsString("telemetry.logs.ssl.certificate"));
+        assertThat(e.getMessage(), containsString("telemetry.logs.ssl.key"));
     }
 
     public void testSslKeyWithoutCertIsRejected() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
             .put(OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY.getKey(), getDataPath("tls/cert1.key").toString())
             .build();
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings, createTempDir());
-        try {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::install);
-            assertThat(e.getMessage(), containsString("telemetry.logs.ssl.certificate"));
-            assertThat(e.getMessage(), containsString("telemetry.logs.ssl.key"));
-        } finally {
-            supplier.close();
-        }
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE, OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY)
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e.getMessage(), containsString("telemetry.logs.ssl.certificate"));
+        assertThat(e.getMessage(), containsString("telemetry.logs.ssl.key"));
     }
 
     public void testInstallWithCaDoesNotThrow() {

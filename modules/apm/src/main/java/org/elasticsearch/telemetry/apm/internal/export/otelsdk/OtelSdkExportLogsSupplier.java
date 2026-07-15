@@ -90,16 +90,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         if (OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) == false) {
             return;
         }
-        String cert = OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE.get(settings);
-        String key = OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY.get(settings);
-        if (cert.isEmpty() != key.isEmpty()) {
-            throw new IllegalArgumentException(
-                OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
-                    + " and "
-                    + OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY.getKey()
-                    + " must be set together"
-            );
-        }
         LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         Configuration config = ctx.getConfiguration();
         LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
@@ -193,10 +183,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
             .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
-        String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
-        if (authHeader != null) {
-            exporterBuilder.addHeader("Authorization", authHeader);
-        }
         List<String> cas = OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES.get(settings);
         if (cas.isEmpty() == false || cert.isEmpty() == false) {
             try {

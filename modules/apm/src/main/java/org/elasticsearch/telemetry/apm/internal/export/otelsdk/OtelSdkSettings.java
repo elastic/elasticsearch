@@ -236,6 +236,28 @@ public final class OtelSdkSettings {
     public static final Setting<String> TELEMETRY_LOGS_SSL_CERTIFICATE = Setting.simpleString(
         "telemetry.logs.ssl.certificate",
         "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String key = (String) settings.get(TELEMETRY_LOGS_SSL_KEY);
+                if (value.isEmpty() != key.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_KEY).iterator();
+            }
+        },
         NodeScope
     );
 
@@ -245,7 +267,33 @@ public final class OtelSdkSettings {
      * Supports PKCS#8 ({@code BEGIN PRIVATE KEY}) and PKCS#1 RSA ({@code BEGIN RSA PRIVATE KEY}) formats.
      * Encrypted keys are not supported.
      */
-    public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString("telemetry.logs.ssl.key", "", NodeScope);
+    public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString(
+        "telemetry.logs.ssl.key",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String cert = (String) settings.get(TELEMETRY_LOGS_SSL_CERTIFICATE);
+                if (value.isEmpty() != cert.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_CERTIFICATE).iterator();
+            }
+        },
+        NodeScope
+    );
 
     private static final class GreaterThanTimeValueValidator implements Setting.Validator<TimeValue> {
 

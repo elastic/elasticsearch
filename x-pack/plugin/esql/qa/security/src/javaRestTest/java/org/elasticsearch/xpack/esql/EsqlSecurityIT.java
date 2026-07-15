@@ -1775,6 +1775,33 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
+    public void testLookupJoinWithRequestFilterMatchingNoDocs() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+        // Regression test: a request-level filter that matches no source documents used to cause the
+        // lookup index field-caps request to be sent with an empty index expression. With security
+        // enabled, IndicesAndAliasesResolver then expanded the empty expression to all authorised
+        // indices (lookup-user1 and lookup-user2 for metadata1_read2), making the lookup join fail
+        // with "Lookup Join requires a single lookup mode index; [...] resolves to multiple indices"
+        // instead of returning an empty result set.
+        // https://github.com/elastic/kibana/issues/277613
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity("""
+            {
+                "query": "FROM index-user2 | LOOKUP JOIN lookup-user2 ON value | KEEP value, org | LIMIT 10",
+                "filter": {"match_none": {}}
+            }
+            """);
+        request.setOptions(runAsUserOptions("metadata1_read2", null));
+        request.addParameter("error_trace", "true");
+        Response resp = client().performRequest(request);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("values"), equalTo(List.of()));
+    }
+
     public void testFromLookupIndexForbidden() throws Exception {
         var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
@@ -2601,6 +2628,39 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat(hits.stream().anyMatch(h -> dataset.equals(h.get("name"))), equalTo(true));
         } finally {
             deleteDatasetAsAdmin(dataset);
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
+    }
+
+    /**
+     * Explicit-name counterpart of {@link #testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream}: a user
+     * authorized on the co-resident data stream asks for it by its literal name, not via a wildcard. Dataset
+     * resolution must preserve explicit-name not-found semantics instead of treating the foreign resource like a
+     * wildcard-expanded value that can be silently filtered away.
+     */
+    public void testGetDatasetByExplicitNameOfCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        try {
+            Request get = new Request("GET", "/_query/dataset/entities-updates-default");
+            setUser(get, "ds_repro_broad_reader");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+            assertThat(ex.getMessage(), containsString("dataset [entities-updates-default] not found"));
+        } finally {
             Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
             setUser(delDs, "test-admin");
             client().performRequest(delDs);

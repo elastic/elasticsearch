@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.hamcrest.Matcher;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -447,6 +449,14 @@ public class VerifierTests extends ESTestCase {
             "from ages | FORK (where true) | where age_range is null",
             containsString("Cannot use field [age_range] with unsupported type [integer_range]")
         );
+    }
+
+    public void testForkWithSourceInOneBranch() {
+        // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
+        // Analyzer.resolveFork with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
+        // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
+        // literal or it wrongly fails the query with "EVAL does not support type [_source]".
+        defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -2011,6 +2021,21 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
             containsString("[MatchPhrase] function cannot be used after FORK")
         );
+        // No KEEP here: unlike the general per-command check above, KQL/QSTR's own stricter allow-list also
+        // rejects Project (i.e. RENAME/KEEP), and since Failure equality is keyed on the failing node - not the
+        // message - that nearer failure would otherwise shadow the FORK one we're asserting on.
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where kql(\"field_name: Meditation\")",
+            containsString("[KQL] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
+            containsString("[QSTR] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
+            containsString("[KNN] function cannot be used after FORK")
+        );
         fullText().stripErrorPrefix(false)
             .error(
                 "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
@@ -2348,6 +2373,21 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
+     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
+     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
+     */
+    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        fullText().error(
+            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            allOf(
+                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                not(containsString("federated"))
+            )
+        );
+    }
+
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
         // MATCH supports runtime search and can operate on renamed non-index fields
         fullText().query("from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")");
@@ -2646,9 +2686,10 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, "
-                    + "geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
-                    + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, "
+                    + "exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, "
+                    + "ip, keyword, long, tdigest, text, unsigned_long or version], "
+                    + "found value [\"3 days\"::date_period] type [date_period]"
             )
         );
 
@@ -2887,6 +2928,23 @@ public class VerifierTests extends ESTestCase {
                     + "expected one of [analyzer, output_format, similarity_threshold]"
             )
         );
+    }
+
+    public void testMvInRangeInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": false })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lowr\": false })",
+            containsString("Invalid option [include_lowr]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": \"banana\" })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": null })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
     public void testCategorizeOptionOutputFormat() {
@@ -4526,6 +4584,85 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsQueryFoldableConcatConstants() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
+    public void testHighlightRejectsInvalidEnumOptions() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assertInvalidHighlightOption("encoder", "xml");
+        assertInvalidHighlightOption("boundary_scanner", "chars");
+        assertInvalidHighlightOption("order", "doc");
+    }
+
+    public void testHighlightEncoderIsCaseSensitive() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // boundary_scanner and order are case-insensitive, but encoder mirrors Query DSL and is case-sensitive.
+        assertInvalidHighlightOption("encoder", "HTML");
+    }
+
+    public void testHighlightRejectsWrongValueTypesAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
+        assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
+        assertInvalidHighlightOptionValue(
+            "boundary_scanner_locale",
+            "123",
+            containsString("Option [boundary_scanner_locale] must be a string")
+        );
+        assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Option [boundary_chars] must be a string"));
+        assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Option [boundary_max_scan] must be numeric"));
+    }
+
+    public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assertInvalidHighlightOptionValue(
+            "boundary_scanner_locale",
+            "\"en_US\"",
+            allOf(
+                containsString("Option [boundary_scanner_locale] has invalid language tag"),
+                containsString("[en_US] is not a valid language tag")
+            )
+        );
+    }
+
+    public void testHighlightRejectsDecimalNumericsAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Option [number_of_fragments] must be an integer"));
+        assertInvalidHighlightOptionValue("fragment_size", "10.5", containsString("Option [fragment_size] must be an integer"));
+        assertInvalidHighlightOptionValue("max_analyzed_offset", "10.9", containsString("Option [max_analyzed_offset] must be an integer"));
+    }
+
+    public void testHighlightRejectsOutOfRangeNumericsAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
+        assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
+        assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));
+        assertInvalidHighlightOptionValue("boundary_max_scan", "-1", containsString("Option [boundary_max_scan] must be >= 0"));
+        assertInvalidHighlightOptionValue(
+            "max_analyzed_offset",
+            "0",
+            containsString("Option [max_analyzed_offset] must be a positive integer, or -1")
+        );
+        assertInvalidHighlightOptionValue(
+            "max_analyzed_offset",
+            "-2",
+            containsString("Option [max_analyzed_offset] must be a positive integer, or -1")
+        );
+    }
+
+    private void assertInvalidHighlightOption(String optionName, String optionValue) {
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": \"" + optionValue + "\" }",
+            containsString("Invalid value [" + optionValue + "] for option [" + optionName + "] in HIGHLIGHT")
+        );
+    }
+
+    // optionValue is inlined verbatim into the query, so numbers are bare (e.g. "0.9") and strings include quotes
+    // (e.g. "\"far\"").
+    private void assertInvalidHighlightOptionValue(String optionName, String optionValue, Matcher<String> messageMatcher) {
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": " + optionValue + " }",
+            allOf(containsString("Invalid value for option [" + optionName + "] in HIGHLIGHT"), messageMatcher)
+        );
     }
 
     /**

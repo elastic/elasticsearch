@@ -161,6 +161,16 @@ tasks.named("thirdPartyAudit").configure {
     'javax.jms.Message',
     // HttpClient5 can use Conscrypt (TLS using BoringSSL), but we don't want that
     'org.conscrypt.Conscrypt',
+    // HttpClient5 5.6.x / HttpCore5 5.4.x support optional content compression (zstd, brotli, commons-compress),
+    // none of which we bundle
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    'com.github.luben.zstd.ZstdDecompressCtx',
+    'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
   )
 }
 

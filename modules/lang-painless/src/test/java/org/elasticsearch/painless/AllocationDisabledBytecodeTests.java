@@ -68,4 +68,77 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         String asm = bytecode("int n = 3; int[] a = new int[n]; return 1;", 1024 * 1024L);
         assertThat(asm, containsString("$checkAllocBytes"));
     }
+
+    public void testNoCounterBytecodeForStringConcatWhenDisabled() {
+        // String concat takes its own emission path; it too must be clean when tracking is off.
+        String asm = bytecode("String a = 'ab'; String b = 'cd'; return a + b;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testPreCheckEmittedForStringConcatWhenEnabled() {
+        String asm = bytecode("String a = 'ab'; String b = 'cd'; return a + b;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoCounterBytecodeForNewObjectWhenDisabled() {
+        // The @allocates_constant visitNewObject path must also be clean when tracking is off.
+        String asm = bytecode("new ArrayList(); return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testPreCheckEmittedForNewObjectWhenEnabled() {
+        String asm = bytecode("new ArrayList(); return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoEstimatorBytecodeWhenDisabled() {
+        // @allocates_dynamic sites must also be clean when tracking is off.
+        String asm = bytecode("String s = 'hello'; s.substring(0, 3); new ArrayList(new ArrayList()); return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationEstimators")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testEstimatorBytecodePresentWhenEnabled() {
+        String asm = bytecode("String s = 'hello'; s.substring(0, 3); return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("AllocationEstimators"));
+        assertThat(asm, containsString("sanitizeEstimate"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoDefConcatChargeBytecodeWhenDisabled() {
+        // A def '+' (possible runtime string concat) must be clean when tracking is off.
+        String asm = bytecode("def a = 'ab'; def b = 'cd'; def c = a + b; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("checkDefConcatAlloc")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testDefConcatChargeBytecodePresentWhenEnabled() {
+        // With tracking on, the def '+' site charges via AllocationGuard.checkDefConcatAlloc before the dynamic add.
+        String asm = bytecode("def a = 'ab'; def b = 'cd'; def c = a + b; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("checkDefConcatAlloc"));
+    }
+
+    public void testNoEmittedTrackingBytecodeForDefCallWhenDisabled() {
+        // A def-dispatched call to an annotated target must be clean when tracking is off.
+        String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+        assertThat(asm, not(containsString("AllocationEstimators")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {
+        // Unlike the statically-typed path (see testEstimatorBytecodePresentWhenEnabled), a def call's estimator charge is
+        // applied at runtime inside Def.lookupMethod (the bootstrap), not with emitted per-site bytecode — so even with tracking
+        // on the def call site emits no estimator markers. ("x" is returned to avoid an autobox charge muddying the check; the
+        // only ON/OFF bytecode difference for the def call is the scriptThis push, exercised behaviorally in
+        // AllocationDefDispatchTests.)
+        String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 'x';", 1024 * 1024L);
+        assertThat(asm, not(containsString("AllocationEstimators")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
 }

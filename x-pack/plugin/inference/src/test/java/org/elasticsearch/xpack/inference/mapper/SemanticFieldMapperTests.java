@@ -363,6 +363,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
     }
 
     @Override
+    protected IndexVersion getRandomCompatibleIndexVersion() {
+        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic");
         b.field("inference_id", INFERENCE_ID);

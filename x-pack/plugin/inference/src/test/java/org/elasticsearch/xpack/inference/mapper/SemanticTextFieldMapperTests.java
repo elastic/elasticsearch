@@ -1269,6 +1269,11 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     }
 
     @Override
+    protected IndexVersion getRandomCompatibleIndexVersion() {
+        return SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat());
+    }
+
+    @Override
     protected void assertChunksTextField(SemanticTextFieldMapper.SemanticTextFieldType fieldType, NestedObjectMapper chunksMapper) {
         if (fieldType.useLegacyFormat()) {
             Mapper textMapper = chunksMapper.getMapper(TEXT_FIELD);

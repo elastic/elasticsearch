@@ -161,6 +161,8 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     protected abstract Set<TaskType> supportedTaskTypes();
 
+    protected abstract IndexVersion getRandomCompatibleIndexVersion();
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new InferencePlugin(Settings.EMPTY) {
@@ -296,7 +298,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     protected MapperService createSemanticMapperService(XContentBuilder mappings) throws IOException {
-        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat());
+        IndexVersion indexVersion = getRandomCompatibleIndexVersion();
         return createSemanticMapperService(mappings, indexVersion, indexVersion);
     }
 

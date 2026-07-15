@@ -181,6 +181,12 @@ class HardcodedEntitlements {
                         )
                     )
                 )
+            ),
+            new Scope(
+                "org.elasticsearch.simdvec",
+                List.of(
+                    new LoadNativeLibrariesEntitlement()
+                )
             )
         );
 

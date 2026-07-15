@@ -967,6 +967,82 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("lteq"));
     }
 
+    // --- annotated TIMESTAMP(MICROS) declared `date`: a truncating decode, every operator ---
+    // Real ClickBench has no annotated timestamps, so these cover the shape end-to-end tests on that data cannot.
+    // decode = floorDiv(raw_micros, 1000); one decoded milli is the raw band [b*1000, b*1000+999]. The pushed bound
+    // must never be STRICTER than the truth (that would prune matching rows), which each case checks by op.
+
+    private MessageType microsSchema() {
+        return Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+    }
+
+    private String microsPushed(Expression e) {
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(e)).toFilterPredicate(microsSchema());
+        return fp == null ? null : fp.toString();
+    }
+
+    private static Expression cmp(String kind, long millis) {
+        var col = attr("ts", DataType.DATETIME);
+        var v = lit(millis, DataType.DATETIME);
+        return switch (kind) {
+            case "gt" -> new GreaterThan(Source.EMPTY, col, v, null);
+            case "gte" -> new GreaterThanOrEqual(Source.EMPTY, col, v, null);
+            case "lt" -> new LessThan(Source.EMPTY, col, v, null);
+            case "lte" -> new LessThanOrEqual(Source.EMPTY, col, v, null);
+            case "eq" -> new Equals(Source.EMPTY, col, v, null);
+            case "neq" -> new NotEquals(Source.EMPTY, col, v, null);
+            default -> throw new IllegalArgumentException(kind);
+        };
+    }
+
+    public void testMicrosDateGteRoundsToBandStart() {
+        // decoded >= 1000ms <=> raw >= 1_000_000 (exact band start)
+        assertThat(microsPushed(cmp("gte", 1000L)), containsString("gteq(ts, 1000000)"));
+    }
+
+    public void testMicrosDateLtRoundsToBandStart() {
+        // decoded < 1000ms <=> raw < 1_000_000 (exact)
+        assertThat(microsPushed(cmp("lt", 1000L)), containsString("lt(ts, 1000000)"));
+    }
+
+    public void testMicrosDateGtRoundsOutwardNotInward() {
+        // decoded > 1000ms <=> raw >= 1_001_000; pushing gt(1_000_000) is LOOSER, hence safe (never prunes a match).
+        String r = microsPushed(cmp("gt", 1000L));
+        assertThat(r, containsString("1000000")); // loose bound; FilterExec rechecks
+    }
+
+    public void testMicrosDateLteCoversTheBandTop() {
+        // decoded <= 1000ms <=> raw <= 1_000_999 (the band TOP, not its floor)
+        assertThat(microsPushed(cmp("lte", 1000L)), containsString("lteq(ts, 1000999)"));
+    }
+
+    public void testMicrosDateEqPushesTheWholeBand() {
+        String r = microsPushed(cmp("eq", 1000L));
+        assertThat("band floor", r, containsString("gteq(ts, 1000000)"));
+        assertThat("band top", r, containsString("lteq(ts, 1000999)"));
+    }
+
+    public void testMicrosDateNotEqDeclines() {
+        // "not this millisecond" is "not this band of 1000 raw values" — a single notEq cannot express it.
+        assertNull(microsPushed(cmp("neq", 1000L)));
+    }
+
+    public void testNanosDateEqPushesTheWiderBand() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ts")
+            .named("test");
+        // decode = floorDiv(raw_nanos, 1_000_000); one milli is a 1e6-wide raw band.
+        String r = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1000L))).toFilterPredicate(schema).toString();
+        assertThat(r, containsString("gteq(ts, 1000000000)"));
+        assertThat(r, containsString("lteq(ts, 1000999999)"));
+    }
+
     // --- the datetime arm's raw-bound decision, through the real entry point ---
 
     /** A millis-annotated column stores exactly what the literal holds: push the bound unchanged. */

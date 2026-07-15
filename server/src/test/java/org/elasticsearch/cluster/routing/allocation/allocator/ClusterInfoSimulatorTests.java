@@ -1248,7 +1248,6 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 equalTo(baselineBytes + deltaBytes)
             );
             assertThat(
-                "Only the default shard heap usage, not the default index heap usage, should count towards hosted-shards heap usage",
                 simulatorForNewShard.getEstimatedHeapUsages().get(nodeId).nodeHeapEstimate().hostedShardsHeapUsage(),
                 equalTo(hostedSharesBaselineBytes + defaultShardHeapBytes)
             );
@@ -1313,12 +1312,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 equalTo(baselineBytes + deltaBytes)
             );
             assertThat(
-                "Only the default shard heap usage, not the default index heap usage, should count towards hosted-shards heap usage",
                 simulatorForRelocation.getEstimatedHeapUsages().get(sourceNodeId).nodeHeapEstimate().hostedShardsHeapUsage(),
                 equalTo(hostedSharesBaselineBytes - defaultShardHeapBytes)
             );
             assertThat(
-                "Only the default shard heap usage, not the default index heap usage, should count towards hosted-shards heap usage",
                 simulatorForRelocation.getEstimatedHeapUsages().get(targetNodeId).nodeHeapEstimate().hostedShardsHeapUsage(),
                 equalTo(hostedSharesBaselineBytes + defaultShardHeapBytes)
             );

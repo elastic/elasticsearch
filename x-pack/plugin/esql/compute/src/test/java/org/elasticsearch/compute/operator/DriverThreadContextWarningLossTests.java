@@ -37,37 +37,8 @@ import static org.hamcrest.Matchers.stringContainsInOrder;
  * Regression test guarding against ESQL response warnings going missing when a {@link Driver}
  * hops between worker threads mid-execution.
  * <p>
- *     {@link Warnings#registerWarning} ultimately calls the static
- *     {@link HeaderWarning#addWarning}, which writes into whatever {@link ThreadContext} is
- *     registered for the node, keyed by the <em>calling</em> thread's thread-local slot. {@link
- *     Driver#schedule} re-submits its per-iteration task to the shared executor on every
- *     iteration, so successive iterations of the same driver can run on different worker
- *     threads. Before the fix, that resubmission used a plain
- *     {@link org.elasticsearch.common.util.concurrent.AbstractRunnable} that was <em>not</em>
- *     wrapped with {@code threadContext.preserveContext(...)}, so only the final completion path
- *     (the {@code onComplete} handler in {@link Driver#schedule}) restored context — via {@code
- *     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)} — and it
- *     did so relative to whatever context was active on the <em>completing</em> thread at that
- *     moment, not the (possibly different) thread that ran the iteration which registered the
- *     warning. If that thread never had anything stashed on it (a fresh worker thread pulled from
- *     the pool), the response header written on the earlier thread was silently dropped.
- * </p>
- * <p>
- *     The fix is {@code threadContext.preserveContext(task)} around every task handed to {@link
- *     org.elasticsearch.compute.operator.DriverScheduler#scheduleOrRunTask}, so each
- *     resubmission carries the submitting thread's {@link ThreadContext} state (including any
- *     warnings just registered) to whatever thread the executor picks next.
- * </p>
- * <p>
- *     To make the thread hop deterministic (rather than a rare scheduling race), this test pins
- *     each driver iteration to a specific, dedicated, single-thread executor: the first iteration
- *     (where the warning is registered) always runs on thread "A", and the second iteration
- *     (where the driver finishes and the response headers are collected) always runs on a
- *     genuinely different thread "B" that has never had anything stashed on its {@link
- *     ThreadContext} slot. This relies on {@code maxIterations == 1}, which forces {@link
- *     Driver#schedule} to resubmit to the executor after every single loop iteration, and on the
- *     operator chain needing exactly one iteration per page (one page registers the warning, a
- *     second page drains the source and finishes the driver).
+ *     For {@link Warnings#registerWarning} to work, we need to carefully hand off the thread
+ *     context every time the {@link Driver} shifts from one thread to another.
  * </p>
  */
 public class DriverThreadContextWarningLossTests extends ESTestCase {
@@ -75,6 +46,20 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
     private static final String WARNING_MESSAGE = "driver-thread-hop warning that must survive completion";
     private static final String SECOND_WARNING_MESSAGE = "second driver-thread-hop warning, from a later hop";
 
+    /**
+     * Test that rescheduling preserves the thread context.
+     * <p>
+     *     To make the thread hop deterministic (rather than a rare scheduling race), this test pins
+     *     each driver iteration to a specific, dedicated, single-thread executor: the first iteration
+     *     (where the warning is registered) always runs on thread "A", and the second iteration
+     *     (where the driver finishes and the response headers are collected) always runs on a
+     *     genuinely different thread "B" that has never had anything stashed on its {@link
+     *     ThreadContext} slot. This relies on {@code maxIterations == 1}, which forces {@link
+     *     Driver#schedule} to resubmit to the executor after every single loop iteration, and on the
+     *     operator chain needing exactly one iteration per page (one page registers the warning, a
+     *     second page drains the source and finishes the driver).
+     * </p>
+     */
     public void testWarningRegisteredOnHoppedThreadSurvivesCompletion() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);

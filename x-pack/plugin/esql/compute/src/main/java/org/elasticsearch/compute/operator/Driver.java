@@ -539,8 +539,7 @@ public class Driver implements Releasable, Describable {
         ActionListener<Void> listener,
         LongSupplier currentTimeNanosSupplier
     ) {
-        final var task = new AbstractRunnable() {
-
+        var task = new AbstractRunnable() {
             @Override
             protected void doRun() {
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier);
@@ -570,14 +569,8 @@ public class Driver implements Releasable, Describable {
                 driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         };
-        // Wrap in preserveContext so that whatever ThreadContext state is ambient on the submitting
-        // thread (including any warnings just registered by the iteration that ran on it) travels
-        // with the task to whatever thread the executor picks to run it. Without this, successive
-        // iterations of the same driver can silently lose response headers when they hop threads.
-        // The cast is safe: task is always a fresh AbstractRunnable allocated above, and
-        // ThreadContext#preserveContext wraps any AbstractRunnable argument in a
-        // ContextPreservingAbstractRunnable, which itself extends AbstractRunnable.
-        driver.scheduler.scheduleOrRunTask(executor, (AbstractRunnable) threadContext.preserveContext(task));
+        task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
+        driver.scheduler.scheduleOrRunTask(executor, task);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

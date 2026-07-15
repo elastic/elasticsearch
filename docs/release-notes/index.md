@@ -20,6 +20,11 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+:::{changelog} /releases/elasticsearch
+:config: /changelog.yml
+:subsections:
+:::
+
 ## 9.4.3 [elasticsearch-9.4.3-release-notes]
 
 ### Features and enhancements [elasticsearch-9.4.3-features-enhancements]

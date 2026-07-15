@@ -7,83 +7,34 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import java.util.Base64;
-import java.util.Map;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 
 /**
  * Real Parquet files, byte-for-byte as written by <b>pyarrow</b> (the writer pandas, Spark and Iceberg use) — not by
  * this repo's test fixture code. Each file holds the same instant, 2024-01-01T00:00:00Z, in a different physical
  * shape, so a declaration's job is only to recover it.
  * <p>
- * Captured rather than generated at test time so the suite stays hermetic (no python, no network) while the bytes stay
- * genuinely third-party: a fixture we wrote ourselves could encode the same misunderstanding as the reader, which is
- * exactly what this is meant to catch. Regenerate with pyarrow if a shape needs adding; see
- * {@code FromDatasetIT#testRealParquetTimestampShapesAllReachTheSameInstant}.
+ * The bytes live as binary resources under {@code /real-parquet/}, checked in as {@code .parquet} files rather than
+ * generated at test time so the suite stays hermetic (no python, no network) while the bytes stay genuinely
+ * third-party: a fixture we wrote ourselves could encode the same misunderstanding as the reader, which is exactly
+ * what this is meant to catch. Regenerate with pyarrow if a shape needs adding (write the file, drop it in the
+ * resource dir); see {@code FromDatasetIT#testRealParquetTimestampShapesAllReachTheSameInstant}.
  */
 final class RealParquetFixtures {
 
     private RealParquetFixtures() {}
 
     static byte[] bytes(String name) {
-        String b64 = FILES.get(name);
-        if (b64 == null) {
-            throw new IllegalArgumentException("no real-parquet fixture named [" + name + "]");
+        String resource = "/real-parquet/" + name + ".parquet";
+        try (InputStream in = RealParquetFixtures.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalArgumentException("no real-parquet fixture named [" + name + "] at [" + resource + "]");
+            }
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed reading real-parquet fixture [" + name + "]", e);
         }
-        return Base64.getDecoder().decode(b64);
     }
-
-    private static final Map<String, String> FILES = Map.of(
-        "annotated_micros",
-        "UEFSMRUEFSAVJEwVBBUAEgAAEDwAICEQ1w0GAEACIxDXDQYAFQAVEhUWLBUEFRAVBhUGHBgIQAIjENcNBgAYCAAgIRDXDQYAFgAoCEACIxDXDQ"
-            + "YAGAgAICEQ1w0GABERAAAACSACAAAABAEBAwIVBBksNQAYBnNjaGVtYRUCABUEJQIYAnRzJRRMjBEcLAAAAAAAFgQZHBkcJgAcFQQZNQAGEBkY"
-            + "AnRzFQIWBBbMARbUASZIJggcGAhAAiMQ1w0GABgIACAhENcNBgAWACgIQAIjENcNBgAYCAAgIRDXDQYAEREAGSwVBBUAFQIAFQAVEBUCADwpBh"
-            + "kmAAQAAAAWzAEWBCYIFtQBABkcGAxBUlJPVzpzY2hlbWEYuAEvLy8vLzRBQUFBQVFBQUFBQUFBS0FBd0FCZ0FGQUFnQUNnQUFBQUFCQkFBTUFB"
-            + "QUFDQUFJQUFBQUJBQUlBQUFBQkFBQUFBRUFBQUFVQUFBQUVBQVVBQWdBQmdBSEFBd0FBQUFRQUJBQUFBQUFBQUVLRUFBQUFCd0FBQUFFQUFBQU"
-            + "FBQUFBQUlBQUFCMGN3QUFDQUFNQUFZQUNBQUlBQUFBQUFBQ0FBUUFBQUFEQUFBQVZWUkRBQT09ABggcGFycXVldC1jcHAtYXJyb3cgdmVyc2lv"
-            + "biAyMy4wLjEZHBwAAACPAQAAUEFSMQ==",
-        "annotated_nanos",
-        "UEFSMRUEFRAVFEwVAhUAEgAACBwAAGUBFxCmFxUAFRIVFiwVAhUQFQYVBhwYCAAAZQEXEKYXGAgAAGUBFxCmFxYAKAgAAGUBFxCmFxgIAABlAR"
-            + "cQphcREQAAAAkgAgAAAAIBAQIAFQQZLDUAGAZzY2hlbWEVAgAVBCUCGAJ0c2yMERw8AAAAAAAWAhkcGRwmABwVBBk1AAYQGRgCdHMVAhYCFrwB"
-            + "FsQBJjgmCBwYCAAAZQEXEKYXGAgAAGUBFxCmFxYAKAgAAGUBFxCmFxgIAABlARcQphcREQAZLBUEFQAVAgAVABUQFQIAPCkGGSYAAgAAABa8AR"
-            + "YCJggWxAEAGRwYDEFSUk9XOnNjaGVtYRi4AS8vLy8vNEFBQUFBUUFBQUFBQUFLQUF3QUJnQUZBQWdBQ2dBQUFBQUJCQUFNQUFBQUNBQUlBQUFB"
-            + "QkFBSUFBQUFCQUFBQUFFQUFBQVVBQUFBRUFBVUFBZ0FCZ0FIQUF3QUFBQVFBQkFBQUFBQUFBRUtFQUFBQUJ3QUFBQUVBQUFBQUFBQUFBSUFBQU"
-            + "IwY3dBQUNBQU1BQVlBQ0FBSUFBQUFBQUFEQUFRQUFBQURBQUFBVlZSREFBPT0AGCBwYXJxdWV0LWNwcC1hcnJvdyB2ZXJzaW9uIDIzLjAuMRkc"
-            + "HAAAAI0BAABQQVIx",
-        "annotated_millis",
-        "UEFSMRUEFRAVFEwVAhUAEgAACBwA9FHCjAEAABUAFRIVFiwVAhUQFQYVBhwYCAD0UcKMAQAAGAgA9FHCjAEAABYAKAgA9FHCjAEAABgIAPRRwo"
-            + "wBAAAREQAAAAkgAgAAAAIBAQIAFQQZLDUAGAZzY2hlbWEVAgAVBCUCGAJ0cyUSTIwRHBwAAAAAABYCGRwZHCYAHBUEGTUABhAZGAJ0cxUCFgIW"
-            + "vAEWxAEmOCYIHBgIAPRRwowBAAAYCAD0UcKMAQAAFgAoCAD0UcKMAQAAGAgA9FHCjAEAABERABksFQQVABUCABUAFRAVAgA8KQYZJgACAAAAFr"
-            + "wBFgImCBbEAQAZHBgMQVJST1c6c2NoZW1hGLgBLy8vLy80QUFBQUFRQUFBQUFBQUtBQXdBQmdBRkFBZ0FDZ0FBQUFBQkJBQU1BQUFBQ0FBSUFB"
-            + "QUFCQUFJQUFBQUJBQUFBQUVBQUFBVUFBQUFFQUFVQUFnQUJnQUhBQXdBQUFBUUFCQUFBQUFBQUFFS0VBQUFBQndBQUFBRUFBQUFBQUFBQUFJQU"
-            + "FBQjBjd0FBQ0FBTUFBWUFDQUFJQUFBQUFBQUJBQVFBQUFBREFBQUFWVlJEQUE9PQAYIHBhcnF1ZXQtY3BwLWFycm93IHZlcnNpb24gMjMuMC4x"
-            + "GRwcAAAAjwEAAFBBUjE=",
-        "bare_seconds",
-        "UEFSMRUEFRAVFEwVAhUAEgAACByAAJJlAAAAABUAFRIVFiwVAhUQFQYVBhwYCIAAkmUAAAAAGAiAAJJlAAAAABYAKAiAAJJlAAAAABgIgACSZQ"
-            + "AAAAAREQAAAAkgAgAAAAIBAQIAFQQZLDUAGAZzY2hlbWEVAgAVBCUCGAJ0cwAWAhkcGRwmABwVBBk1AAYQGRgCdHMVAhYCFrwBFsQBJjgmCBwY"
-            + "CIAAkmUAAAAAGAiAAJJlAAAAABYAKAiAAJJlAAAAABgIgACSZQAAAAAREQAZLBUEFQAVAgAVABUQFQIAPCkGGSYAAgAAABa8ARYCJggWxAEAGR"
-            + "wYDEFSUk9XOnNjaGVtYRisAS8vLy8vM2dBQUFBUUFBQUFBQUFLQUF3QUJnQUZBQWdBQ2dBQUFBQUJCQUFNQUFBQUNBQUlBQUFBQkFBSUFBQUFC"
-            + "QUFBQUFFQUFBQVVBQUFBRUFBVUFBZ0FCZ0FIQUF3QUFBQVFBQkFBQUFBQUFBRUNFQUFBQUJ3QUFBQUVBQUFBQUFBQUFBSUFBQUIwY3dBQUNBQU"
-            + "1BQWdBQndBSUFBQUFBQUFBQVVBQUFBQT0AGCBwYXJxdWV0LWNwcC1hcnJvdyB2ZXJzaW9uIDIzLjAuMRkcHAAAAHgBAABQQVIx",
-        "bare_millis",
-        "UEFSMRUEFRAVFEwVAhUAEgAACBwA9FHCjAEAABUAFRIVFiwVAhUQFQYVBhwYCAD0UcKMAQAAGAgA9FHCjAEAABYAKAgA9FHCjAEAABgIAPRRwo"
-            + "wBAAAREQAAAAkgAgAAAAIBAQIAFQQZLDUAGAZzY2hlbWEVAgAVBCUCGAJ0cwAWAhkcGRwmABwVBBk1AAYQGRgCdHMVAhYCFrwBFsQBJjgmCBwY"
-            + "CAD0UcKMAQAAGAgA9FHCjAEAABYAKAgA9FHCjAEAABgIAPRRwowBAAAREQAZLBUEFQAVAgAVABUQFQIAPCkGGSYAAgAAABa8ARYCJggWxAEAGR"
-            + "wYDEFSUk9XOnNjaGVtYRisAS8vLy8vM2dBQUFBUUFBQUFBQUFLQUF3QUJnQUZBQWdBQ2dBQUFBQUJCQUFNQUFBQUNBQUlBQUFBQkFBSUFBQUFC"
-            + "QUFBQUFFQUFBQVVBQUFBRUFBVUFBZ0FCZ0FIQUF3QUFBQVFBQkFBQUFBQUFBRUNFQUFBQUJ3QUFBQUVBQUFBQUFBQUFBSUFBQUIwY3dBQUNBQU"
-            + "1BQWdBQndBSUFBQUFBQUFBQVVBQUFBQT0AGCBwYXJxdWV0LWNwcC1hcnJvdyB2ZXJzaW9uIDIzLjAuMRkcHAAAAHgBAABQQVIx",
-        "bare_nanos",
-        "UEFSMRUEFRAVFEwVAhUAEgAACBwAAGUBFxCmFxUAFRIVFiwVAhUQFQYVBhwYCAAAZQEXEKYXGAgAAGUBFxCmFxYAKAgAAGUBFxCmFxgIAABlAR"
-            + "cQphcREQAAAAkgAgAAAAIBAQIAFQQZLDUAGAZzY2hlbWEVAgAVBCUCGAJ0cwAWAhkcGRwmABwVBBk1AAYQGRgCdHMVAhYCFrwBFsQBJjgmCBwY"
-            + "CAAAZQEXEKYXGAgAAGUBFxCmFxYAKAgAAGUBFxCmFxgIAABlARcQphcREQAZLBUEFQAVAgAVABUQFQIAPCkGGSYAAgAAABa8ARYCJggWxAEAGR"
-            + "wYDEFSUk9XOnNjaGVtYRisAS8vLy8vM2dBQUFBUUFBQUFBQUFLQUF3QUJnQUZBQWdBQ2dBQUFBQUJCQUFNQUFBQUNBQUlBQUFBQkFBSUFBQUFC"
-            + "QUFBQUFFQUFBQVVBQUFBRUFBVUFBZ0FCZ0FIQUF3QUFBQVFBQkFBQUFBQUFBRUNFQUFBQUJ3QUFBQUVBQUFBQUFBQUFBSUFBQUIwY3dBQUNBQU"
-            + "1BQWdBQndBSUFBQUFBQUFBQVVBQUFBQT0AGCBwYXJxdWV0LWNwcC1hcnJvdyB2ZXJzaW9uIDIzLjAuMRkcHAAAAHgBAABQQVIx",
-        "annotated_date",
-        "UEFSMRUEFQgVDEwVAhUAEgAABAwLTQAAFQAVEhUWLBUCFRAVBhUGHBgEC00AABgEC00AABYAKAQLTQAAGAQLTQAAEREAAAAJIAIAAAACAQECAB"
-            + "UEGSw1ABgGc2NoZW1hFQIAFQIlAhgCdHMlDExsAAAAFgIZHBkcJgAcFQIZNQAGEBkYAnRzFQIWAhaUARacASYwJggcGAQLTQAAGAQLTQAAFgAo"
-            + "BAtNAAAYBAtNAAAREQAZLBUEFQAVAgAVABUQFQIAPCkGGSYAAgAAABaUARYCJggWnAEAGRwYDEFSUk9XOnNjaGVtYRisAS8vLy8vM2dBQUFBUU"
-            + "FBQUFBQUFLQUF3QUJnQUZBQWdBQ2dBQUFBQUJCQUFNQUFBQUNBQUlBQUFBQkFBSUFBQUFCQUFBQUFFQUFBQVVBQUFBRUFBVUFBZ0FCZ0FIQUF3"
-            + "QUFBQVFBQkFBQUFBQUFBRUlFQUFBQUJ3QUFBQUVBQUFBQUFBQUFBSUFBQUIwY3dBQUFBQUdBQWdBQmdBR0FBQUFBQUFBQUFBQUFBQT0AGCBwYX"
-            + "JxdWV0LWNwcC1hcnJvdyB2ZXJzaW9uIDIzLjAuMRkcHAAAAG4BAABQQVIx"
-    );
 }

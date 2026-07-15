@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -596,7 +597,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 7);
         {
         setState(270);
-        if (!(this.isExternalDataSourcesEnabled())) throw new FailedPredicateException(this, "this.isExternalDataSourcesEnabled()");
+        if (!(EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled())) throw new FailedPredicateException(this, "EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()");
         setState(271);
         externalCommand();
         }
@@ -10257,7 +10258,7 @@ public class EsqlBaseParser extends ParserConfig {
     case 1:
       return this.isDevVersion();
     case 2:
-      return this.isExternalDataSourcesEnabled();
+      return EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled();
     }
     return true;
   }

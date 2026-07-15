@@ -541,10 +541,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     public void testWarmCacheForSearchShardRecoveryNullEndOffsetsUsesResumesRecoveryBeforeWarmingCompletes() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long warmDurationMillis = randomLongBetween(50, 100);
-        Settings threadPoolSettings = Settings.builder()
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
-            .build();
-        try (var threadPool = new TestThreadPool(getTestName(), threadPoolSettings, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+        Settings threadPoolSettings = Settings.builder().put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build();
+        try (
+            var threadPool = new TestThreadPool(
+                getTestName(),
+                threadPoolSettings,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             CountDownLatch startWarmLatch = new CountDownLatch(1);
             CountDownLatch blockWarmLatch = new CountDownLatch(1);
@@ -586,10 +590,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     public void testWarmCacheForSearchShardRecoveryWithReplica() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long warmDurationMillis = randomLongBetween(50, 100);
-        Settings threadPoolSettings = Settings.builder()
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
-            .build();
-        try (var threadPool = new TestThreadPool(getTestName(), threadPoolSettings, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+        Settings threadPoolSettings = Settings.builder().put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build();
+        try (
+            var threadPool = new TestThreadPool(
+                getTestName(),
+                threadPoolSettings,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
             CountDownLatch startWarmLatch = new CountDownLatch(1);
             CountDownLatch blockWarmLatch = new CountDownLatch(1);
             PlainActionFuture<Void> resume = new PlainActionFuture<>() {
@@ -643,10 +651,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     public void testWarmCacheForSearchShardRecoveryNoOtherActive() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long warmDurationMillis = randomLongBetween(50, 100);
-        Settings threadPoolSettings = Settings.builder()
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
-            .build();
-        try (var threadPool = new TestThreadPool(getTestName(), threadPoolSettings, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+        Settings threadPoolSettings = Settings.builder().put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build();
+        try (
+            var threadPool = new TestThreadPool(
+                getTestName(),
+                threadPoolSettings,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
             CountDownLatch startWarmLatch = new CountDownLatch(1);
             CountDownLatch blockWarmLatch = new CountDownLatch(1);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
@@ -697,10 +709,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long waitMillis = randomLongBetween(1, 10);
         long delayMillis = randomLongBetween(20, 100);
-        Settings threadPoolSettings = Settings.builder()
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
-            .build();
-        try (var threadPool = new TestThreadPool(getTestName(), threadPoolSettings, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+        Settings threadPoolSettings = Settings.builder().put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build();
+        try (
+            var threadPool = new TestThreadPool(
+                getTestName(),
+                threadPoolSettings,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
             CountDownLatch startWarmLatch = new CountDownLatch(1);
             CountDownLatch blockWarmLatch = new CountDownLatch(1);
             Settings settings = Settings.builder()

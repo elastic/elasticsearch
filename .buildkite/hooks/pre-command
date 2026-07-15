@@ -108,13 +108,12 @@ if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   DEVELOCITY_API_KEY=$(vault_with_retry read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
   export DEVELOCITY_API_KEY
 
-  # Es delivery stats for resolving test history AND publishing results
-  ES_DELIVERY_STATS_URL=$(vault read -field=es_delivery_stats_url secret/ci/elastic-elasticsearch/agentic-workflows)
+  # ES delivery stats for resolving test history AND publishing results
+  ES_DELIVERY_STATS_URL=$(vault_with_retry read -field=es_delivery_stats_url secret/ci/elastic-elasticsearch/agentic-workflows)
   export ES_DELIVERY_STATS_URL
- 
-  ES_DELIVERY_STATS_API_KEY=$(vault read -field=es_delivery_stats_api_key secret/ci/elastic-elasticsearch/agentic-workflows)
+
+  ES_DELIVERY_STATS_API_KEY=$(vault_with_retry read -field=es_delivery_stats_api_key secret/ci/elastic-elasticsearch/agentic-workflows)
   export ES_DELIVERY_STATS_API_KEY
-  
   export PATH="${HOME}/.local/bin:${PATH}"
 
   # gh_admin_token is SAML-authorized for the elastic org. gh reads GH_TOKEN, so

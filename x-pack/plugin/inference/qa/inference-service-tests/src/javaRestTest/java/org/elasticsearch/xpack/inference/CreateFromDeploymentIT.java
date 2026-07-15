@@ -70,7 +70,6 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testAttachToDeployment_TextEmbedding() throws IOException {
-        // reproduces https://github.com/elastic/elasticsearch/issues/144860
         var deploymentId = ".multilingual-e5-small";
 
         putE5TrainedModels(deploymentId);
@@ -85,7 +84,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
 
         // Note: on GET, the endpoint is reconstructed from the model_id (a built-in E5 model here), not the
         // deployment_id, so it does not carry dimensions/similarity/element_type in its response. That is a
-        // pre-existing, unrelated behavior of the built-in E5 model settings and is out of scope for this fix.
+        // pre-existing, unrelated behavior of the built-in E5 model settings.
         var getModel = getModel(inferenceId);
         assertThat(
             getModel.get("service_settings"),

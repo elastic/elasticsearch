@@ -770,7 +770,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             return pushedFilter;
         }
         if (pushedExpressions != null) {
-            return pushedExpressions.toSearchArgument(schema);
+            // Columns whose declared coercion can decode a present cell to null — IS NULL must not push over them.
+            Set<String> decodeCanNull = new java.util.HashSet<>(declaredDateFormats.keySet());
+            decodeCanNull.addAll(declaredTypeColumns);
+            return pushedExpressions.toSearchArgument(schema, decodeCanNull);
         }
         return null;
     }

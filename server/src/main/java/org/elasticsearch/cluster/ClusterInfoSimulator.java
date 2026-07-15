@@ -199,8 +199,6 @@ public class ClusterInfoSimulator {
                 if (includeIndexUsage && numberOfShardsForIndex == 1) {
                     // This node's index only has the initializing shard, which is now being added in simulation. This is the node's first
                     // shard for the index, and the index-level heap usage overhead must be added.
-                    var updatedNodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
-                    assert updatedNodeHeap != null;
                     indexUsageDelta = shardAndIndexHeap.indexHeapUsageBytes();
                 }
                 estimatedHeapUsages.put(
@@ -214,8 +212,6 @@ public class ClusterInfoSimulator {
                 if (includeIndexUsage && numberOfShardsForIndex == 0) {
                     // This node only had one shard of the index, which is now being relocated away in simulation. The index-level heap
                     // usage overhead must be subtracted, since the node will no longer have the index.
-                    var updatedNodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
-                    assert updatedNodeHeap != null;
                     indexUsageDelta = -1 * shardAndIndexHeap.indexHeapUsageBytes();
                 }
                 estimatedHeapUsages.put(

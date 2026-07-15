@@ -251,6 +251,53 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    /**
+     * When all remote clusters have skip_unavailable=true and the lookup index is missing on all of them,
+     * each remote cluster is skipped individually inside {@code receiveLookupIndexResolution}.
+     * If the local cluster is also part of the query and holds the lookup index, the query succeeds
+     * with both remotes reported as SKIPPED.
+     * If the query targets only remote clusters (no local source), the lookup field-caps request
+     * returns an invalid resolution before the per-cluster skip logic is reached, so the query
+     * currently fails with a VerificationException (pre-existing limitation).
+     */
+    public void testLookupJoinAllRemoteClustersSkipped() throws IOException {
+        setupClusters(3);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        // lookup index is intentionally absent from both remote clusters
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+        try {
+            // Local source + both remotes: remote clusters are skipped because the lookup is missing
+            // on them; local cluster succeeds and contributes 10 rows.
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM logs-*, *:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                    randomBoolean()
+                )
+            ) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(10));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.getCluster(LOCAL_CLUSTER).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(executionInfo.getCluster(REMOTE_CLUSTER_1).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(executionInfo.getCluster(REMOTE_CLUSTER_2).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            }
+
+            // Pure-remote source: lookup field-caps for the qualified remote expressions returns
+            // notFound (no responses) before per-cluster skip logic runs, so both remotes
+            // end up in a VerificationException rather than being skipped cleanly.
+            // FIXME: ideally this should return 0 rows with both remotes SKIPPED.
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [cluster-a:values_lookup,remote-b:values_lookup]"),
+                () -> runQuery("FROM *:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+            );
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
     public void testLookupJoinMissingLocalIndex() throws IOException {
         setupClusters(2);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);

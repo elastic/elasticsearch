@@ -1593,3 +1593,17 @@ max:double | max2:double | cluster:keyword | pod:keyword | b:datetime
 5.625      | 5.625       | prod            | two         | 2024-05-10T00:15:00.000Z
 8.625      | 10.125      | qa              | two         | 2024-05-10T00:15:00.000Z
 ;
+
+firstAndLastWithNullSort
+required_capability: ts_command_v0
+required_capability: fix_agg_first_last_foldables_in_sort_field
+TS k8s
+| STATS x = first(network.bytes_in, null), y = last(network.bytes_in, null) BY pod
+| SORT pod
+;
+
+x:long | y:long | pod:keyword
+278    | 206    | one
+585    | 972    | three
+799    | 913    | two
+;

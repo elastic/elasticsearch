@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * {@link MappedActionFilter}s that fail the continuation step of local bulk-by-scroll search:
+ * {@link MappedActionFilter}s that fail the continuation step of local bulk-by-paginated-search search:
  * <ul>
  *     <li><strong>PIT (reindex):</strong> second matching {@link TransportSearchAction} after
  *     {@link org.elasticsearch.index.reindex.ReindexRequest#convertSearchRequestToUsePit} (empty indices, PIT in source).</li>

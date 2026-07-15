@@ -1,0 +1,204 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  # bfloat16 on a non-quantized codec: the raw path reads the preserved bfloat16 values, so quantized=true
+  # must be a no-op. Mirrors dv_hnsw so the two can be compared.
+  - do:
+      indices.create:
+        index: dv_bfloat16_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+
+  # bfloat16 on a quantized codec: the raw path still reads the preserved bfloat16 values, while
+  # quantized=true scores against the int8 representation. Mirrors dv_int8_hnsw.
+  - do:
+      indices.create:
+        index: dv_bfloat16_int8_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: int8_hnsw
+
+  # dv_unindexed_bfloat16 mirrors dv_bfloat16_hnsw's vectors for the same comparison on a bfloat16 field.
+  - do:
+      indices.create:
+        index: dv_unindexed_bfloat16
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: false
+
+  # dv_bfloat16_hnsw mirrors dv_hnsw exactly so we can compare quantized=true vs default (must be a no-op).
+  - do:
+      index:
+        index: dv_bfloat16_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_bfloat16_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_bfloat16_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  - do:
+      index:
+        index: dv_bfloat16_int8_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [0.6, 0.5, 0.4, 0.3, 0.2] }
+  - do:
+      index:
+        index: dv_bfloat16_int8_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [0.1, 0.2, 0.3, 0.4, 0.6] }
+  - do:
+      index:
+        index: dv_bfloat16_int8_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 0.5, 0.5, 0.5, 0.5] }
+
+  # dv_unindexed_bfloat16 mirrors dv_bfloat16_hnsw exactly.
+  - do:
+      index:
+        index: dv_unindexed_bfloat16
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_unindexed_bfloat16
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_unindexed_bfloat16
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"quantized: true is a no-op on a bfloat16 non-quantized index":
+  # The hnsw codec has no quantized representation, so both paths read the same preserved bfloat16
+  # values and scores must match exactly.
+  - do:
+      search:
+        index: dv_bfloat16_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - set: { hits.hits.0._score: bf16_score_0 }
+  - set: { hits.hits.1._score: bf16_score_1 }
+  - set: { hits.hits.2._score: bf16_score_2 }
+
+  - do:
+      search:
+        index: dv_bfloat16_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $bf16_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $bf16_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $bf16_score_2, error: 0.000001}}
+
+---
+"dense_vector raw scoring on a quantized bfloat16 index uses the preserved values":
+  # int8_hnsw quantizes, but the default raw path iterates the preserved bfloat16 vectors. Doc 3's
+  # stored vector equals the query (0.5 is exact in bfloat16), so raw cosine ≈ 1.0 with tight tolerance.
+  - do:
+      search:
+        index: dv_bfloat16_int8_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+  - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "3"}
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}
+
+---
+"similarity_function override works on a bfloat16 field":
+  # Override the cosine-mapped bfloat16 index to l2_norm: doc 3 (original [0.5,…]) is nearest in
+  # Euclidean distance to the query [0.4, 0.5, …]. The override reconstructs original vectors via the
+  # stored per-doc magnitude, so the score is 1/(1+||query−original||²) ≈ 0.990, proving the
+  # override drove scoring on the bfloat16 read path.
+  - do:
+      search:
+        index: dv_bfloat16_int8_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.4, 0.5, 0.5, 0.5, 0.5]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # dist² from query [0.4,0.5,0.5,0.5,0.5] to original doc 3 [0.5,0.5,0.5,0.5,0.5] = 0.01 →
+  # score ≈ 0.990 (bfloat16 rounding introduces a tiny error, covered by error: 0.01).
+  - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
+
+---
+"dense_vector raw scoring on a non-indexed bfloat16 field matches the indexed equivalent":
+  - do:
+      search:
+        index: dv_bfloat16_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: bf16_top_id }
+  - set: { hits.hits.0._score: bf16_indexed_score_0 }
+
+  - do:
+      search:
+        index: dv_unindexed_bfloat16
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $bf16_top_id }
+  - close_to: {hits.hits.0._score: {value: $bf16_indexed_score_0, error: 0.000001}}
+

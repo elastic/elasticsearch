@@ -11,11 +11,16 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -44,9 +50,11 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +62,12 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTestCase {
@@ -73,6 +84,42 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         // So that a failed test cannot corrupt subsequent ones.
         TestRecoveryBlockerPlugin.reset();
         BlockingFsRepositoryPlugin.reset();
+    }
+
+    @After
+    public void verifyNoOutstandingRecoveriesInStatsAndMetrics() {
+        final var nodes = internalCluster().getNodeNames();
+        final Predicate<RecoveryStats> noMoreRecoveriesInStats = RecoveryStats::noCurrentRecoveries;
+        awaitRecoveryCountStats(Arrays.stream(nodes).collect(Collectors.toMap(node -> node, ignored -> noMoreRecoveriesInStats)));
+
+        final var nodeToTelemetry = Arrays.stream(nodes)
+            .collect(
+                Collectors.toMap(
+                    node -> node,
+                    node -> internalCluster().getInstance(PluginsService.class, node)
+                        .filterPlugins(TestTelemetryPlugin.class)
+                        .findFirst()
+                        .orElseThrow()
+                )
+            );
+        final var noMoreRecoveriesInMetrics = Map.of(
+            RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES,
+            0L,
+            RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES,
+            0L,
+            RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_SOURCE,
+            0L,
+            RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE,
+            0L,
+            RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_TARGET,
+            0L,
+            RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_TARGET,
+            0L
+        );
+        awaitRecoveryCountMetrics(
+            nodeToTelemetry,
+            Arrays.stream(nodes).collect(Collectors.toMap(node -> node, ignored -> noMoreRecoveriesInMetrics))
+        );
     }
 
     @Override
@@ -97,16 +144,16 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -137,18 +184,18 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -180,18 +227,18 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var targetIndex = resolveIndex(targetIndexName);
         final var shardId = new ShardId(targetIndex, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(targetIndex).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -228,18 +275,18 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -277,17 +324,16 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         BlockingFsRepositoryPlugin.restoreHasStarted.release();
 
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -300,6 +346,246 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         awaitDirectCancellationMetric(node, 1L);
     }
 
+    public void testDirectCancellationOfStartedReplicaPeerRecovery() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        // Ensure committed segments exist, so FILE_CHUNK actions are issued
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var blockedRecovery = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
+
+        // Stall the recovery
+        final var transportService = MockTransportService.getInstance(primaryNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                blockedRecovery.countDown();
+                safeAwait(proceedWithRecovery);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var replicaNode = internalCluster().startDataOnlyNode();
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        safeAwait(blockedRecovery);
+
+        disableAllocation();
+        waitNoPendingTasksOnAll();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(transportService, shardId);
+        final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+
+        client(replicaNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithRecovery.countDown();
+
+        safeAwait(shardFailureReceived);
+        waitNoPendingTasksOnAll();
+        ensureYellow(indexName);
+
+        awaitReplicaUnassignedDueToCancellation(shardId);
+        awaitDirectCancellationMetric(replicaNode, 1L);
+    }
+
+    public void testDirectCancellationOfStartedReplicaPeerRecoveryDuringTranslogPrep() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var blockedRecovery = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
+
+        // Stall the recovery right as it prepares for translog operations
+        final var transportService = MockTransportService.getInstance(primaryNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG)) {
+                blockedRecovery.countDown();
+                safeAwait(proceedWithRecovery);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var replicaNode = internalCluster().startDataOnlyNode();
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        safeAwait(blockedRecovery);
+
+        disableAllocation();
+        waitNoPendingTasksOnAll();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(transportService, shardId);
+        final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+
+        client(replicaNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithRecovery.countDown();
+
+        safeAwait(shardFailureReceived);
+        waitNoPendingTasksOnAll();
+        ensureYellow(indexName);
+
+        awaitReplicaUnassignedDueToCancellation(shardId);
+        awaitDirectCancellationMetric(replicaNode, 1L);
+    }
+
+    public void testDirectCancellationOfPrimaryRelocationDuringFileTransfer() throws Exception {
+        final var sourceNode = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        // Ensure committed segments exist, so FILE_CHUNK actions are issued
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var blockedRelocation = new CountDownLatch(1);
+        final var proceedWithRelocation = new CountDownLatch(1);
+
+        // Stall the relocation at the file-transfer step on the source
+        final var sourceTransportService = MockTransportService.getInstance(sourceNode);
+        sourceTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                blockedRelocation.countDown();
+                safeAwait(proceedWithRelocation);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var targetNode = internalCluster().startDataOnlyNode();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
+        safeAwait(blockedRelocation);
+
+        disableAllocation();
+        waitNoPendingTasksOnAll();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(sourceTransportService, shardId);
+        final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+
+        client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithRelocation.countDown();
+
+        safeAwait(shardFailureReceived);
+
+        // The failed relocation leaves the primary on sourceNode
+        waitNoPendingTasksOnAll();
+        ensureGreen(indexName);
+        final var finalState = internalCluster().getInstance(ClusterService.class, sourceNode).state();
+        final var primaryShard = finalState.routingTable().shardRoutingTable(shardId).primaryShard();
+        assertTrue("primary shard is still started", primaryShard.started());
+        assertThat(
+            "primary shard is still located on source node",
+            primaryShard.currentNodeId(),
+            equalTo(finalState.nodes().resolveNode(sourceNode).getId())
+        );
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
+    }
+
+    /// A cancellation requested once the primary handoff has started should be silently ignored.
+    /// The handoff and the relocation complete normally, and the flag is eventually wiped by `postRecovery()`.
+    public void testDirectCancellationAtPrimaryHandoffGetsIgnored() throws Exception {
+        final var sourceNode = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var targetNode = internalCluster().startDataOnlyNode();
+
+        // Stall the primary context handoff on the target
+        final var blockedHandoff = new CountDownLatch(1);
+        final var proceedWithHandoff = new CountDownLatch(1);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT, (handler, request, channel, task) -> {
+                blockedHandoff.countDown();
+                safeAwait(proceedWithHandoff);
+                handler.messageReceived(request, channel, task);
+            });
+
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
+        safeAwait(blockedHandoff);
+
+        disableAllocation();
+        waitNoPendingTasksOnAll();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+
+        final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithHandoff.countDown();
+
+        waitNoPendingTasksOnAll();
+        ensureGreen(indexName);
+        awaitClusterState(state -> {
+            final var primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+            return primaryShard.started() && primaryShard.currentNodeId().equals(state.nodes().resolveNode(targetNode).getId());
+        });
+
+        assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        shard.ensureRecoveryNotCancelled();
+        assertThat(directCancellationMetric(targetNode), equalTo(0L));
+    }
+
     public void testDirectCancellationIgnoredAfterRecoveryFinalize() throws Exception {
         final var node = internalCluster().startNode();
         final var indexName = randomIndexName();
@@ -310,18 +596,20 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         safeAcquire(TestRecoveryBlockerPlugin.afterRecoveryEntered);
         TestRecoveryBlockerPlugin.afterRecoveryEntered.release();
 
+        disableAllocation();
+        waitNoPendingTasksOnAll();
+
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
-        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
 
+        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
         );
-        disableAllocation();
 
         // All checkpoints are already past, so the flag is never read.
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -408,6 +696,28 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             .stream()
             .mapToLong(Measurement::getLong)
             .sum();
+    }
+
+    private void awaitReplicaUnassignedDueToCancellation(ShardId shardId) {
+        awaitClusterState(state -> {
+            final var indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            assertTrue("Primary shard should be active", indexShardRoutingTable.primaryShard().active());
+
+            final var unassignedShards = indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
+            if (unassignedShards.isEmpty()) {
+                return false;
+            }
+            assertThat(unassignedShards, hasSize(1));
+            final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
+            assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
+            assertThat(
+                "Expected unassignment reason to be RECOVERY_CANCELLED",
+                unassignedInfo.reason(),
+                equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED)
+            );
+            assertNull("Unassigned info failure should be null", unassignedInfo.failure());
+            return true;
+        });
     }
 
     private static CountDownLatch shardCancelledFailureReceivedLatch(String node, ShardId shardId) {

@@ -601,10 +601,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | INLINE STATS r = FIRST(responseTime, @timestamp) BY instance
             """));
 
-        assertThat(
-            err,
-            is("2:16: Data type [TDIGEST] of field [r] is not currently supported as INLINE STATS with BY computed output")
-        );
+        assertThat(err, is("2:16: Data type [TDIGEST] of field [r] is not currently supported as INLINE STATS with BY computed output"));
     }
 
     public void testEnrichRemoteRejected() {

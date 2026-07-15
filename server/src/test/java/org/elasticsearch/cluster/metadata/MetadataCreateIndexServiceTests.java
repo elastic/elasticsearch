@@ -139,6 +139,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -2144,9 +2145,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testBatchedIndexCreationAndReroute() {
         withTemporaryClusterService((clusterService, threadPool) -> {
             final var allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
-                i -> (ClusterState) i.getArguments()[0]
-            );
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(returnsFirstArg());
             when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
             MetadataCreateIndexService service = new MetadataCreateIndexService(
                 Settings.EMPTY,

@@ -383,7 +383,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
             for (final var routingNode : clusterState.getRoutingNodes()
                 .stream()
-                .sorted(Comparator.comparing((RoutingNode shardRoutings) -> shardRoutings.nodeId().substring(7)))
+                .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
                 .toList()) {
 
                 int shards = 0;

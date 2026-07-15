@@ -89,15 +89,14 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
-        if (clusterService.state().term() != request.term()) {
-            logger.debug(
-                "ignoring direct recovery cancellation request for term [{}], local applied term is [{}]",
-                request.term(),
-                clusterService.state().term()
-            );
+        final long currentTerm = clusterService.state().term();
+        assert currentTerm >= request.term();
+        if (currentTerm > request.term()) {
+            logger.debug("ignoring direct recovery cancellation request for term [{}], local term is [{}]", request.term(), currentTerm);
             listener.onResponse(new CancelRecoveriesAction.Response(Set.of()));
             return;
         }
+
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());

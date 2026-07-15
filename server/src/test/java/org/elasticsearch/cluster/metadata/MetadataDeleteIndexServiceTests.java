@@ -64,7 +64,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void initService() throws Exception {
         allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
-            mockInvocation -> (ClusterState) mockInvocation.getArguments()[0]
+            mockInvocation -> mockInvocation.getArguments()[0]
         );
         service = new MetadataDeleteIndexService(
             Settings.EMPTY,
@@ -124,7 +124,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = clusterState(projectId, index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).thenAnswer(i -> (ClusterState) i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).thenAnswer(i -> i.getArguments()[0]);
 
         // Remove it
         final ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(

@@ -846,7 +846,7 @@ class NodeConstruction {
         );
         modules.add(clusterModule);
 
-        BatchedRerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
+        RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);
 
         clusterInfoService.addListener(

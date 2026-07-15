@@ -912,11 +912,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 .build()
         );
 
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // all still on
-                                                                                                          // desired
-                                                                                                          // nodes, no
-                                                                                                          // movement
-                                                                                                          // needed
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // all still on desired nodes, no
+                                                                                                          // movement needed
         assertNotNull(allocationStats);
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0), allocationStats.get());
 

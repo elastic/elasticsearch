@@ -797,9 +797,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
             clusterInfoReference.set(overfullClusterInfo);
 
-            strategy.reroute(clusterState, "foo", ActionListener.noop()); // ensure reroute doesn't fail even though there is
-                                                                          // negative free
-            // space
+            strategy.reroute(clusterState, "foo", ActionListener.noop()); // ensure reroute doesn't fail even though there is negative free
+                                                                          // space
         }
 
         {

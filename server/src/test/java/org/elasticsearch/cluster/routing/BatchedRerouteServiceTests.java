@@ -200,8 +200,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 throw new ElasticsearchException("simulated");
             }
             l.onResponse(null);
-            ClusterState resultState = randomBoolean() ? s : ClusterState.builder(s).build();
-            return resultState;
+            return randomBoolean() ? s : ClusterState.builder(s).build();
         });
 
         final int iterations = between(1, 100);

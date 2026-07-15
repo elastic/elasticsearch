@@ -443,6 +443,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
+    public void testLoadModeRejectsSubqueryUnionForkWithDroppedUnmappedField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM (FROM partial_mapping_sample_data),(FROM partial_mapping_sample_data)
+            | FORK (DROP unmapped_message) (WHERE true)
+            """), containsString("FORK after subquery is not supported"));
+    }
+
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

@@ -716,10 +716,15 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // TODO: Remove after SML swaps to the below .ai-index* pattern
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".context-idx-sml-data", ".context-idx-sml-data-*")
+                    .privileges("all")
+                    .build(),
                 // Context Engine's SML storage. A regular (non-system) index that Kibana
                 // creates and manages itself at startup, including its alias.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".context-idx-sml-data", ".context-idx-sml-data-*")
+                    .indices(".ai-index-idx-sml-data", ".ai-index-idx-sml-data-*")
                     .privileges("all")
                     .build(),
                 // Significant events. Kibana system user manages index plumbing and document access.

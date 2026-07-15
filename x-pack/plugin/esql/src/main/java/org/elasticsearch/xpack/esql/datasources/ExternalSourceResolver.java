@@ -1384,13 +1384,25 @@ public class ExternalSourceResolver {
                 // COUNT/MIN/MAX is not a unit-blind numeric mix across DATETIME(millis)/DATE_NANOS(nanos) files.
                 Map<String, DataType> reconciledTypes = attributesToTypeMap(unifiedSchema);
                 Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+                Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
-                    perFileTypes.put(e.getKey(), attributesToTypeMap(e.getValue().fileSchema().attributes()));
+                    SchemaReconciliation.FileSchemaInfo info = e.getValue();
+                    perFileTypes.put(e.getKey(), attributesToTypeMap(info.fileSchema().attributes()));
+                    Set<String> pinnedColumns = pinnedColumnsOf(info);
+                    if (pinnedColumns.isEmpty() == false) {
+                        perFilePinnedColumns.put(e.getKey(), pinnedColumns);
+                    }
                 }
+                // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
+                // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
+                // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
+                boolean dropPinnedRowCount = resolvesToSkipRow(firstMeta.sourceType(), config);
                 Map<String, Object> aggregatedStats = aggregateFileStatistics(
                     allMetadata,
                     perFileTypes,
                     reconciledTypes,
+                    perFilePinnedColumns,
+                    dropPinnedRowCount,
                     foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
                 );
                 aggregatedStats = applyDatasetAggregate(datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
@@ -1463,9 +1475,13 @@ public class ExternalSourceResolver {
         for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> entry : result.perFileInfo().entrySet()) {
             SchemaReconciliation.FileSchemaInfo info = entry.getValue();
             // Recompute the mapping against the data-only unified schema; the file (physical) schema is
-            // unchanged so the reader still parses every column, including the shadowed one.
+            // unchanged so the reader still parses every column, including the shadowed one. Carry the pin's
+            // inferredTypes forward so a Hive-partitioned glob keeps the pinned-column stats boundary.
             ColumnMapping mapping = SchemaReconciliation.computeMapping(dataOnlyUnified, info.fileSchema().attributes());
-            perFileInfo.put(entry.getKey(), new SchemaReconciliation.FileSchemaInfo(info.fileSchema(), mapping, info.statistics()));
+            perFileInfo.put(
+                entry.getKey(),
+                new SchemaReconciliation.FileSchemaInfo(info.fileSchema(), mapping, info.statistics(), info.inferredTypes())
+            );
         }
         return new SchemaReconciliation.Result(new ExternalSchema(dataOnlyUnified), Map.copyOf(perFileInfo));
     }
@@ -1616,12 +1632,23 @@ public class ExternalSourceResolver {
      * safe-misses when a value cannot be normalized. {@code perFileTypes} maps each file's path to its own column
      * types; {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
      * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
+     * <p>
+     * {@code perFilePinnedColumns} names, per file, the columns a text-format UNION_BY_NAME pin retyped above their
+     * inferred type (see {@link SchemaReconciliation#reconcileUnionByName}). Their cached per-file stats were harvested
+     * at the narrower read type, but the schema cache identity is read-schema-blind, so a stat harvested by a solo
+     * narrow read is shared with this widened read. That stat is not merely a wrong unit but a wrong value (the narrow
+     * read null-filled or row-dropped the out-of-sample cell that the wide read keeps), which normalization cannot
+     * rescue. So each pinned column is safe-missed via {@link SourceStatisticsSerializer#overlayPinnedColumnsOnStats}:
+     * its extrema are poisoned and its value/null counts dropped, and when {@code dropPinnedRowCount} (SKIP_ROW, where
+     * a narrow-read parse failure dropped the whole row) the file's row count is dropped too, forcing a full re-scan.
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
         Map<StoragePath, SourceMetadata> allMetadata,
         Map<StoragePath, Map<String, DataType>> perFileTypes,
         Map<String, DataType> reconciledTypes,
+        Map<StoragePath, Set<String>> perFilePinnedColumns,
+        boolean dropPinnedRowCount,
         boolean implicitNullsForAbsentColumn
     ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
@@ -1637,6 +1664,10 @@ public class ExternalSourceResolver {
             Map<String, DataType> fileTypes = perFileTypes.get(entry.getKey());
             if (fileTypes != null) {
                 flat = SourceStatisticsSerializer.normalizeStatsToReconciled(flat, fileTypes, reconciledTypes);
+            }
+            Set<String> pinnedColumns = perFilePinnedColumns.get(entry.getKey());
+            if (pinnedColumns != null && pinnedColumns.isEmpty() == false) {
+                flat = SourceStatisticsSerializer.overlayPinnedColumnsOnStats(flat, pinnedColumns, dropPinnedRowCount);
             }
             perFileFlatStats.add(flat);
         }
@@ -1702,6 +1733,46 @@ public class ExternalSourceResolver {
             types.put(a.name(), a.dataType());
         }
         return types;
+    }
+
+    /**
+     * The columns a UNION_BY_NAME pin retyped above their inferred type for this file, i.e. the columns whose read-time
+     * type differs from the type their cached stats were harvested at. Derived as {@code inferredTypes != fileSchema}:
+     * {@link SchemaReconciliation.FileSchemaInfo#inferredTypes()} snapshots the pre-pin types and is populated only when
+     * the pin actually retyped a column, so a null (nothing retyped) or type-equal entry yields the empty set.
+     */
+    public static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
+        Map<String, DataType> inferred = info.inferredTypes();
+        if (inferred == null) {
+            return Set.of();
+        }
+        Map<String, DataType> fileTypes = attributesToTypeMap(info.fileSchema().attributes());
+        Set<String> pinned = new HashSet<>();
+        for (Map.Entry<String, DataType> e : inferred.entrySet()) {
+            DataType fileType = fileTypes.get(e.getKey());
+            if (fileType != null && fileType != e.getValue()) {
+                pinned.add(e.getKey());
+            }
+        }
+        return pinned;
+    }
+
+    /**
+     * Whether the effective {@link ErrorPolicy} for {@code sourceType} under {@code config} resolves to
+     * {@link ErrorPolicy.Mode#SKIP_ROW}, in which a narrow-read parse failure on a pinned column drops the whole row and
+     * so makes the file's cached row count untrustworthy. Resolved through {@link ErrorPolicy#fromConfig} against the
+     * reader's own default (mirrors {@link #warmsRowCountSafely}) so it is format-agnostic and catches the implicit
+     * SKIP_ROW that a bare {@code max_errors} selects. An invalid policy conservatively drops the row count: it must not
+     * fail resolution (the data node rejects it at scan time), and dropping only forces a safe re-scan.
+     */
+    public boolean resolvesToSkipRow(String sourceType, Map<String, Object> config) {
+        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
+        try {
+            return ErrorPolicy.fromConfig(config, defaultPolicy).mode() == ErrorPolicy.Mode.SKIP_ROW;
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
     }
 
     /**
@@ -2816,15 +2887,22 @@ public class ExternalSourceResolver {
             ColumnMapping mapping = hasDeclaredColumns
                 ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
                 : info.mapping();
+            // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
+            // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
+            // declared ones. A UNION_BY_NAME pin already retyped this file's read schema and snapshotted the pre-pin
+            // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
+            // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
+            // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
+            Map<String, DataType> preRetypeInferredTypes = info.inferredTypes() != null
+                ? info.inferredTypes()
+                : attributesToTypeMap(info.fileSchema().attributes());
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(
                     new ExternalSchema(perFile.fileSchema()),
                     mapping,
                     info.statistics(),
-                    // PRE-overlay file types (physical names, inferred types) so the split-level stats boundary can
-                    // normalize footer stats with the file's real types, not the overlaid declared ones.
-                    attributesToTypeMap(info.fileSchema().attributes())
+                    preRetypeInferredTypes
                 )
             );
         }

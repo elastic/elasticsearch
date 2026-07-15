@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -738,9 +739,12 @@ public class EsqlSession {
 
         // TODO: merge into one method
         if (subPlan != null) {
-            // code-path to execute subplans
+            // code-path to execute subplans. The pinned-read accumulator gathers union_by_name widened reads across
+            // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
+            // their polluting stat deltas regardless of which plan read a file pinned.
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
+                new HashMap<>(),
                 subPlan,
                 configuration,
                 foldContext,
@@ -756,13 +760,53 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            Map<String, PinnedColumns> pinnedReads = new HashMap<>();
+            collectPinnedReads(optimizedPlan, pinnedReads);
             // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
             // source stats into ExternalSourceCacheService before delivering Result.
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-                reconcileCapturedSourceStats(result.completionInfo());
+                reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
                 next.onResponse(result);
             }));
         }
+    }
+
+    /**
+     * A file's columns whose read type was pinned above their inferred type for a {@code union_by_name} widening read,
+     * plus whether that read's error policy drops whole rows ({@code skip_row}). Collected from the executed plan's
+     * {@link ExternalRelation} nodes and used to strip a widening read's polluting stat deltas off the captured
+     * contributions before commit. See {@link SourceStatisticsSerializer#removeColumnStatFamilies}.
+     */
+    private record PinnedColumns(Set<String> columns, boolean dropRowCount) {
+        PinnedColumns mergedWith(PinnedColumns other) {
+            Set<String> union = new HashSet<>(columns);
+            union.addAll(other.columns);
+            return new PinnedColumns(union, dropRowCount || other.dropRowCount);
+        }
+    }
+
+    /**
+     * Collects the {@code union_by_name} pinned reads in {@code plan}, keyed by the file path string the data-node
+     * capture uses ({@code StoragePath#toString()}), merging into {@code into}. A pinned read of a file harvests
+     * {@code value_count}/{@code null_count}/extrema the same file's solo narrow read never produces, so those deltas
+     * must not commit into the read-schema-blind shared cache entry. Accumulates across every executed plan (each
+     * subplan and the final main plan) because a file may be read pinned inside a subquery.
+     */
+    private void collectPinnedReads(LogicalPlan plan, Map<String, PinnedColumns> into) {
+        plan.forEachDown(ExternalRelation.class, relation -> {
+            var schemaMap = relation.schemaMap();
+            if (schemaMap.isEmpty()) {
+                return;
+            }
+            boolean dropRowCount = externalSourceResolver.resolvesToSkipRow(relation.sourceType(), relation.metadata().config());
+            for (var entry : schemaMap.entrySet()) {
+                Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(entry.getValue());
+                if (pinned.isEmpty()) {
+                    continue;
+                }
+                into.merge(entry.getKey().toString(), new PinnedColumns(pinned, dropRowCount), PinnedColumns::mergedWith);
+            }
+        });
     }
 
     /**
@@ -770,8 +814,14 @@ public class EsqlSession {
      * into the coordinator's {@code ExternalSourceCacheService}, so the next query's planning-time
      * lookup finds the {@code _stats.*} keys embedded in the matching {@code SchemaCacheEntry}'s
      * {@code safeMetadata} — same shape Parquet's footer-derived stats already use.
+     * <p>
+     * For any file read at a {@code union_by_name} pinned (widened) type, first strips that read's pinned-column stat
+     * families off its contributions ({@link SourceStatisticsSerializer#removeColumnStatFamilies}): the per-file cache
+     * identity is read-schema-blind, so a solo narrow read and the pinned wider read share one entry, and committing the
+     * wider read's {@code value_count}/extrema would pollute the value the narrow read serves. This is the commit-side
+     * sibling of the serve-side {@code overlayPinnedColumnsOnStats}.
      */
-    private void reconcileCapturedSourceStats(DriverCompletionInfo info) {
+    private void reconcileCapturedSourceStats(DriverCompletionInfo info, Map<String, PinnedColumns> pinnedReads) {
         if (info == null) {
             return;
         }
@@ -780,9 +830,37 @@ public class EsqlSession {
             return;
         }
         ExternalSourceCacheService cache = externalSourceResolver.cacheService();
-        if (cache != null) {
-            cache.reconcileSourceStatsFromContributions(captured);
+        if (cache == null) {
+            return;
         }
+        cache.reconcileSourceStatsFromContributions(stripPinnedContributions(captured, pinnedReads));
+    }
+
+    /**
+     * Returns {@code captured} with each pinned file's per-contribution pinned-column stat families removed. Files not
+     * read at a pinned type pass through untouched; when nothing is pinned the input map is returned unchanged.
+     */
+    private static Map<String, List<Map<String, Object>>> stripPinnedContributions(
+        Map<String, List<Map<String, Object>>> captured,
+        Map<String, PinnedColumns> pinnedReads
+    ) {
+        if (pinnedReads.isEmpty()) {
+            return captured;
+        }
+        Map<String, List<Map<String, Object>>> out = new HashMap<>(captured.size());
+        for (Map.Entry<String, List<Map<String, Object>>> entry : captured.entrySet()) {
+            PinnedColumns pinned = pinnedReads.get(entry.getKey());
+            if (pinned == null) {
+                out.put(entry.getKey(), entry.getValue());
+                continue;
+            }
+            List<Map<String, Object>> stripped = new ArrayList<>(entry.getValue().size());
+            for (Map<String, Object> contribution : entry.getValue()) {
+                stripped.add(SourceStatisticsSerializer.removeColumnStatFamilies(contribution, pinned.columns(), pinned.dropRowCount()));
+            }
+            out.put(entry.getKey(), stripped);
+        }
+        return out;
     }
 
     private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
@@ -938,6 +1016,7 @@ public class EsqlSession {
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
+        Map<String, PinnedColumns> pinnedReads,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -951,6 +1030,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
+        collectPinnedReads(subPlan.subPlan, pinnedReads);
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
@@ -975,6 +1055,7 @@ public class EsqlSession {
 
                 if (newSubPlan == null) {
                     executionInfo.finishSubPlans();
+                    collectPinnedReads(newMainPlan, pinnedReads);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     runner.run(
                         newPhysicalPlan,
@@ -984,7 +1065,7 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
-                            reconcileCapturedSourceStats(merged);
+                            reconcileCapturedSourceStats(merged, pinnedReads);
                             EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
                                 new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
@@ -994,6 +1075,7 @@ public class EsqlSession {
                 } else {
                     executeSubPlan(
                         completionInfoAccumulator,
+                        pinnedReads,
                         newSubPlan,
                         configuration,
                         foldContext,

@@ -30,10 +30,12 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -174,6 +176,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
         final BinaryDVMatcher matcher = getBinaryDVMatcher();
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -183,9 +186,14 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     // No matches to be had
                     return null;
                 }
+
+                // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
+                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+
                 final SortedBinaryDocValues values = arrayOrder
                     ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
                     : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
+
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {

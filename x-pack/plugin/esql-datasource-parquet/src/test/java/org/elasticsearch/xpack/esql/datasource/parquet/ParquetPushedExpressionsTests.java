@@ -1009,10 +1009,11 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(microsPushed(cmp("lt", 1000L)), containsString("lt(ts, 1000000)"));
     }
 
-    public void testMicrosDateGtRoundsOutwardNotInward() {
-        // decoded > 1000ms <=> raw >= 1_001_000; pushing gt(1_000_000) is LOOSER, hence safe (never prunes a match).
+    public void testMicrosDateGtIsExact() {
+        // decoded > 1000ms <=> raw >= 1_001_000 <=> raw > 1_000_999. The EXACT bound, not the loose gt(1_000_000):
+        // a loose GT is safe pushed directly but stricter-than-truth once wrapped in NOT.
         String r = microsPushed(cmp("gt", 1000L));
-        assertThat(r, containsString("1000000")); // loose bound; FilterExec rechecks
+        assertThat(r, containsString("gt(ts, 1000999)"));
     }
 
     public void testMicrosDateLteCoversTheBandTop() {

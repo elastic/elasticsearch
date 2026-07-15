@@ -13,7 +13,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -146,6 +148,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin, ActionPlu
     @Override
     public List<ActionHandler> getActions() {
         return List.of(new ActionHandler(ReplaceKibanaIndexMappingAction.INSTANCE, TransportReplaceKibanaIndexMappingAction.class));
+    }
+
+    @Override
+    public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
+        return List.of(new KibanaDroppedFieldsMappingValidator());
     }
 
     @Override

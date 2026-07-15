@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.core.impl.MutableLogEvent;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.message.AsynchronouslyFormattable;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.apache.logging.log4j.util.StringBuilderFormattable;
@@ -367,7 +368,16 @@ public abstract class AuditLogPatternLayoutBenchmark {
         /**
          * Audit log message for the slot-array path: it is both the assembled state (an ordered slot array) and the renderer.
          * As a {@link StringBuilderFormattable}, {@code %m} formats it straight into Log4j's buffer.
+         *
+         * <p>The {@link AsynchronouslyFormattable} annotation is essential for a fair comparison. When
+         * {@code MutableLogEvent.setMessage} is handed a message that is <em>not</em> asynchronously-formattable, it eagerly calls
+         * {@code getFormattedMessage()} on it (via {@code InternalAsyncUtil.makeMessageImmutable}, LOG4J2-763) to snapshot it -
+         * so the message is rendered <b>twice</b> per event: once here, and again by the {@code %m} converter. That doubles both
+         * time and allocation and erases the slot-array's advantage. {@link StringMapMessage} carries this annotation, so the
+         * log4j path is exempt; the real audit accumulator carries it too. Without it the two paths would not be compared on
+         * equal footing.
          */
+        @AsynchronouslyFormattable
         private static final class SlotArrayMessage implements Message, StringBuilderFormattable {
 
             private static final long serialVersionUID = 1L;

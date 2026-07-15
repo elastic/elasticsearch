@@ -41,6 +41,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
@@ -612,8 +613,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private long lastBlockId = -1;
         private final int[] uncompressedDocStarts;
         private final int biggestUncompressedBlockSize;
-        private byte[] uncompressedBlock;  // Lazily allocated on the first value decode to avoid eagerly over-consuming memory under a
-                                           // large query fan-out.
+        // Lazily allocated to avoid eagerly over-consuming memory under a large query fan-out or a single outlier block
+        private byte[] uncompressedBlock;
         private BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
@@ -667,11 +668,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          * decoder since the offsets were loaded.
          */
         private void decompressValues(boolean compressed, int numDocsInBlock) throws IOException {
-            if (uncompressedBlock == null) {
-                uncompressedBlock = new byte[biggestUncompressedBlockSize];
+            int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
+            if (uncompressedBlock == null || uncompressedBlock.length < uncompressedBlockLength) {
+                // Size to the block we actually read, capped at the segment max, so one outlier block does not force every
+                // decoder on the segment to allocate the outlier size.
+                int size = Math.min(ArrayUtil.oversize(uncompressedBlockLength, Byte.BYTES), biggestUncompressedBlockSize);
+                uncompressedBlock = new byte[size];
                 uncompressedBytesRef = new BytesRef(uncompressedBlock);
             }
-            int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;

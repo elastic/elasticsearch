@@ -18,18 +18,19 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  *   <li><b>binding</b> — an {@link #INFERRED} schema was read from the file, so its <em>i</em>-th column already is the
  *       file's <em>i</em>-th physical field: bind by position. A {@link #DECLARED} schema asserts names, not positions,
  *       so it must bind by name against the file's own physical-name space (header line, columnar footer, JSON keys, or
- *       the self-encoded {@code col<N>} names of a headerless text file); a name no physical column supplies is an
- *       error, not a silent positional fallback.</li>
- *   <li><b>existence</b> — a {@link #DECLARED} column absent from the file is a mismatch between the claim and reality
- *       and is surfaced (the declaration still wins — the column reads null — but the divergence is reported, not
- *       swallowed). An {@link #INFERRED} column cannot be absent: it was read from the file.</li>
+ *       the self-encoded {@code col<N>} names of a headerless text file). It is never a silent positional fallback; a
+ *       declared name the file does not supply is the absence case below (null + one warning), not an error.</li>
+ *   <li><b>existence</b> — a {@link #DECLARED} column the file does not supply reads null in every declared mode (the
+ *       declaration wins — it names the schema), and the mismatch is surfaced by a single per-query warning so a typo'd
+ *       name or a dropped upstream column is not invisible. It is not an error. An {@link #INFERRED} column cannot be
+ *       absent: it was read from the file.</li>
  *   <li><b>coercion</b> — a {@link #DECLARED} type licenses a lossy read-time narrowing toward it; an {@link #INFERRED}
  *       target may only widen. (Tracked per-column by {@code declaredTypeColumns}; provenance is the schema-level shape
  *       of the same distinction.)</li>
  * </ul>
  * Under {@code dynamic:true} the schema is {@code INFERRED} (read from the file); under {@code dynamic:false} it is a
- * {@code DECLARED} claim. That is the whole of what the mode controls — every downstream behavior reads this, never the
- * mode.
+ * {@code DECLARED} claim. Provenance is the projection of the mode that crosses to the data node: the read-time
+ * decisions above read this, never the mode itself, which stays on the coordinator.
  */
 public enum SchemaProvenance {
     INFERRED,

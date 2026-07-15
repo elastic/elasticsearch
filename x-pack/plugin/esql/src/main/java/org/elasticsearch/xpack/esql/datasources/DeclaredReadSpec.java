@@ -62,9 +62,7 @@ public record DeclaredReadSpec(
 ) implements Writeable {
 
     /** Wire gate for {@link #provenance}; a pre-gate peer reads/writes the four original fields and defaults INFERRED. */
-    private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName(
-        "declared_read_spec_provenance"
-    );
+    private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName("declared_read_spec_provenance");
 
     /** The empty spec — nothing declared. The default carried on every non-declared read. */
     public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);

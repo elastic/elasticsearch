@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import java.io.IOException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
@@ -23,17 +22,17 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link Match}.
+ * {@link ExpressionEvaluator} implementation for {@link RuntimeSearch}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MatchTextEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MatchTextEvaluator.class);
+public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RuntimeSearchTextEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator fieldBlock;
 
-  private final Set<BytesRef> queryTerms;
+  private final RuntimeSearch.TokenStreamMatcher matcher;
 
   private final Analyzer analyzer;
 
@@ -43,11 +42,12 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, Set<BytesRef> queryTerms,
-      Analyzer analyzer, BytesRef scratch, DriverContext driverContext) {
+  public RuntimeSearchTextEvaluator(Source source, ExpressionEvaluator fieldBlock,
+      RuntimeSearch.TokenStreamMatcher matcher, Analyzer analyzer, BytesRef scratch,
+      DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
-    this.queryTerms = queryTerms;
+    this.matcher = matcher;
     this.analyzer = analyzer;
     this.scratch = scratch;
     this.driverContext = driverContext;
@@ -71,7 +71,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.queryTerms, this.analyzer, this.scratch));
+          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.matcher, this.analyzer, this.scratch));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -83,7 +83,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryTerms=" + queryTerms + ", analyzer=" + analyzer + "]";
+    return "RuntimeSearchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", matcher=" + matcher + ", analyzer=" + analyzer + "]";
   }
 
   @Override
@@ -103,29 +103,30 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory fieldBlock;
 
-    private final Set<BytesRef> queryTerms;
+    private final RuntimeSearch.TokenStreamMatcher matcher;
 
     private final Analyzer analyzer;
 
     private final Function<DriverContext, BytesRef> scratch;
 
-    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Set<BytesRef> queryTerms,
-        Analyzer analyzer, Function<DriverContext, BytesRef> scratch) {
+    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock,
+        RuntimeSearch.TokenStreamMatcher matcher, Analyzer analyzer,
+        Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;
-      this.queryTerms = queryTerms;
+      this.matcher = matcher;
       this.analyzer = analyzer;
       this.scratch = scratch;
     }
 
     @Override
-    public MatchTextEvaluator get(DriverContext context) {
-      return new MatchTextEvaluator(source, fieldBlock.get(context), queryTerms, analyzer, scratch.apply(context), context);
+    public RuntimeSearchTextEvaluator get(DriverContext context) {
+      return new RuntimeSearchTextEvaluator(source, fieldBlock.get(context), matcher, analyzer, scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryTerms=" + queryTerms + ", analyzer=" + analyzer + "]";
+      return "RuntimeSearchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", matcher=" + matcher + ", analyzer=" + analyzer + "]";
     }
   }
 }

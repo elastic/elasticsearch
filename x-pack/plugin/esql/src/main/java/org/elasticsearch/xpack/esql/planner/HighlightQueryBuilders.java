@@ -11,6 +11,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -195,9 +199,22 @@ public final class HighlightQueryBuilders {
      * as the query and must also be used to populate the operator's MemoryIndex.
      */
     public static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames) {
+        return translate(queryExpr, fieldNames, null);
+    }
+
+    /**
+     * Builds the runtime query using {@code analyzerOverride} for both query-parsing and row-text re-analysis.
+     * When {@code analyzerOverride} is {@code null}, the standard analyzer is used.
+     * The returned analyzer comes from the same context as the query and must also be used to populate the operator's
+     * MemoryIndex.
+     */
+    public static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, @Nullable Analyzer analyzerOverride) {
         String literal = queryTextIfLiteral(queryExpr);
         String queryText = literal != null ? literal : queryExpr.sourceText();
-        RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldNames);
+        NamedAnalyzer namedAnalyzer = analyzerOverride == null ? Lucene.STANDARD_ANALYZER
+            : analyzerOverride instanceof NamedAnalyzer na ? na
+            : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzerOverride);
+        RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);
         Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
         return new TranslatedQuery(queryText, query, context.searchAnalyzer());
     }

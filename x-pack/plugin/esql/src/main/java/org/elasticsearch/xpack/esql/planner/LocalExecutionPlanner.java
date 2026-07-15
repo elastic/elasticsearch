@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
@@ -104,6 +105,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -204,6 +206,7 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -1322,7 +1325,8 @@ public class LocalExecutionPlanner {
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
 
-        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(queryExpr, fieldNames);
+        Analyzer analyzerOverride = resolveHighlightAnalyzer(options.analyzerName(), context.analysisRegistry());
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(queryExpr, fieldNames, analyzerOverride);
         HighlightConfig config = new HighlightConfig(
             translated.queryText(),
             options.preTag(),
@@ -1334,6 +1338,7 @@ public class LocalExecutionPlanner {
             HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
+            options.analyzerName(),
             options.maxAnalyzedOffset()
             // The query and MemoryIndex must use the same analyzer.
         ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
@@ -1350,6 +1355,35 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
+    }
+
+    /** Resolves the analyzer override, or returns {@code null} when none was provided. */
+    private static Analyzer resolveHighlightAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+        if (analyzerName == null) {
+            return null;
+        }
+        if (analysisRegistry == null) {
+            throw new InvalidArgumentException(
+                "Invalid value for option [analyzer] in HIGHLIGHT: analyzer cannot be resolved without an analysis registry"
+            );
+        }
+        try {
+            Analyzer analyzer = analysisRegistry.getAnalyzer(analyzerName);
+            if (analyzer != null) {
+                return analyzer;
+            }
+        } catch (IOException e) {
+            throw new InvalidArgumentException(
+                e,
+                "Invalid value for option [analyzer] in HIGHLIGHT: failed to load analyzer [{}]: {}",
+                analyzerName,
+                e.getMessage()
+            );
+        }
+        throw new InvalidArgumentException(
+            "Invalid value [{}] for option [analyzer] in HIGHLIGHT, expected a registered analyzer",
+            analyzerName
+        );
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {

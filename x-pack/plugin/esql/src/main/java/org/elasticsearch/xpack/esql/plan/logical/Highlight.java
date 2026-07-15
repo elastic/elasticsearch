@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -54,6 +57,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
+    // The analyzer override applies to every ON field. It can name a built-in or globally registered analyzer.
+    public static final String ANALYZER = "analyzer";
     public static final String NO_MATCH_SIZE = "no_match_size";
     public static final String BOUNDARY_SCANNER = "boundary_scanner";
     public static final String BOUNDARY_SCANNER_LOCALE = "boundary_scanner_locale";
@@ -72,6 +77,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         NUMBER_OF_FRAGMENTS,
         FRAGMENT_SIZE,
         ENCODER,
+        ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
         BOUNDARY_CHARS,
@@ -230,7 +236,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     @Override
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
-        verifyQuery(failures);
         if (options == null) {
             return;
         }
@@ -239,6 +244,51 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         verifyEnum(failures, HighlightOptions.ORDER_OPTION);
         for (String name : VALID_OPTION_NAMES) {
             verifyValue(failures, name);
+        }
+    }
+
+    /** Validates the analyzer name (if any) then checks the query structure. */
+    @Override
+    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+        postAnalysisVerification(failures);
+        boolean analyzerOk = resolveVerificationAnalyzer(analysisRegistry, failures);
+        if (analyzerOk) {
+            verifyQuery(failures);
+        }
+    }
+
+    /**
+     * Validates the analyzer override name against the registry.
+     * Returns {@code true} when the analyzer is valid (or no override was specified), {@code false} when the name is unknown.
+     * Adds a failure to {@code failures} when the name is unknown.
+     */
+    private boolean resolveVerificationAnalyzer(AnalysisRegistry analysisRegistry, Failures failures) {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        if (value == null) {
+            return true;
+        }
+        Object folded = value.fold(FoldContext.small());
+        // verifyValue already reports non-string values.
+        if (folded instanceof BytesRef == false && folded instanceof String == false) {
+            return true;
+        }
+        // Some test contexts do not provide a registry, so resolution has to wait until execution.
+        if (analysisRegistry == null) {
+            return true;
+        }
+        String name = BytesRefs.toString(folded);
+        try {
+            Analyzer analyzer = analysisRegistry.getAnalyzer(name);
+            if (analyzer == null) {
+                failures.add(fail(this, "Invalid value [{}] for option [analyzer] in HIGHLIGHT, expected a registered analyzer", name));
+                return false;
+            }
+            return true;
+        } catch (IOException e) {
+            failures.add(
+                fail(this, "Invalid value for option [analyzer] in HIGHLIGHT: failed to load analyzer [{}]: {}", name, e.getMessage())
+            );
+            return false;
         }
     }
 

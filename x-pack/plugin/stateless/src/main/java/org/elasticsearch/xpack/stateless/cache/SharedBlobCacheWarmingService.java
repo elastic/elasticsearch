@@ -715,23 +715,10 @@ public class SharedBlobCacheWarmingService {
                 directory,
                 endTargetsToWarm,
                 false,
-                searchRecoveryWarmingListener(
-                    plan.timeout(),
-                    plan.timeoutContext(),
-                    indexShard,
-                    resumeRecoveryListener
-                )
+                searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, resumeRecoveryListener)
             );
         } else {
-            warmCacheAndTimeIt(
-                Type.SEARCH,
-                indexShard,
-                commit,
-                directory,
-                endTargetsToWarm,
-                false,
-                ActionListener.noop()
-            );
+            warmCacheAndTimeIt(Type.SEARCH, indexShard, commit, directory, endTargetsToWarm, false, ActionListener.noop());
             searchRecoveryWaitDurationMetric.record(
                 0.0,
                 Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, SearchRecoveryWaitOutcome.NO_WAIT.name())

@@ -44,18 +44,11 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
     }
 
     /**
-     * Two partitions ({@code p=a}: 3 rows, {@code p=b}: 2 rows). {@code COUNT(p)} must SAFE-MISS to a scan on the
-     * data node — proving the partition-column signal reaches the data-node fold via the serialized
-     * {@code _partition.columns} metadata (the coordinator-only {@code FileList} is {@code UNRESOLVED} there), not
-     * just the coordinator gate. Without the serialized stamp the data-node fold warm-folds {@code COUNT(p)} to 0
-     * (a {@code LocalSourceExec} with no scan operator).
-     */
-    /**
      * A capitalized boolean partition folder ({@code flag=True/}, {@code flag=False/}, the casing common data
      * writers emit) must type the {@code flag} column as {@code BOOLEAN} and be queryable rather than failing
-     * partition-value casting. The fix lives in the format-agnostic {@code HivePartitionDetector.castValue}, so a
-     * single format end-to-end guard suffices; the detector-level coverage (any casing, template/auto delegation,
-     * null-sentinel mix) lives in {@code HivePartitionDetectorTests} / {@code TemplatePartitionDetectorTests}.
+     * partition-value casting. Partition-value casting is format-agnostic ({@code HivePartitionDetector.castValue}),
+     * so a single format end-to-end guard suffices; the detector-level coverage (any casing, hive/template
+     * delegation, null-sentinel mix) lives in {@code HivePartitionDetectorTests} / {@code TemplatePartitionDetectorTests}.
      */
     public void testCapitalizedBooleanPartitionFolderQueryable() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -89,11 +82,23 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
 
         // Typed boolean equality over the path-derived column keeps only the flag=False rows.
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE flag == false"))) {
+            int flagIdx = response.columns().stream().map(ColumnInfoImpl::name).toList().indexOf("flag");
             List<List<Object>> rows = getValuesList(response);
             assertThat("WHERE flag == false keeps exactly the two flag=False rows", rows.size(), equalTo(2));
+            assertTrue(
+                "every kept row is flag=false, not just the right count",
+                rows.stream().allMatch(r -> Boolean.FALSE.equals(r.get(flagIdx)))
+            );
         }
     }
 
+    /**
+     * Two partitions ({@code p=a}: 3 rows, {@code p=b}: 2 rows). {@code COUNT(p)} must SAFE-MISS to a scan on the
+     * data node, proving the partition-column signal reaches the data-node fold via the serialized
+     * {@code _partition.columns} metadata (the coordinator-only {@code FileList} is {@code UNRESOLVED} there), not
+     * just the coordinator gate. Without the serialized stamp the data-node fold warm-folds {@code COUNT(p)} to 0
+     * (a {@code LocalSourceExec} with no scan operator).
+     */
     public void testCountOfPartitionColumnSafeMissesToScanAcrossNodes() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
 

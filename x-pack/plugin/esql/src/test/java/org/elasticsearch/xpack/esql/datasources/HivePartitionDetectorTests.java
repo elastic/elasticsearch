@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -61,8 +62,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
     /**
      * The other half of the inference/cast symmetry: a token that is not {@code true}/{@code false} in any
      * case (here {@code yes}, and a whitespace-padded {@code " true"}) infers {@code KEYWORD}, so it never
-     * routes to the BOOLEAN cast branch. Guards against a future edit widening the cast's accepted set past
-     * what inference admits.
+     * routes to the BOOLEAN cast branch. Inference admits exactly the token set the cast accepts, so a
+     * KEYWORD-typed value cannot reach {@code strictParseBoolean}.
      */
     public void testTypeInferenceRejectsNonBooleanTokens() {
         assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("true", "yes")));
@@ -273,6 +274,17 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(true, HivePartitionDetector.castValue("TrUe", DataType.BOOLEAN));
         assertEquals(false, HivePartitionDetector.castValue("False", DataType.BOOLEAN));
         assertEquals(true, HivePartitionDetector.castValue("TRUE", DataType.BOOLEAN));
+    }
+
+    /**
+     * The cast side of the symmetry: a token outside the case-insensitive {@code true}/{@code false} set
+     * ({@code yes}, or a whitespace-padded {@code " true"}) throws when cast to {@code BOOLEAN}. Such tokens
+     * infer {@code KEYWORD} (see {@code testTypeInferenceRejectsNonBooleanTokens}), so they never reach this
+     * branch in practice, but the cast pins the same accepted set.
+     */
+    public void testCastValueBooleanRejectsNonBooleanTokens() {
+        expectThrows(InvalidArgumentException.class, () -> HivePartitionDetector.castValue("yes", DataType.BOOLEAN));
+        expectThrows(InvalidArgumentException.class, () -> HivePartitionDetector.castValue(" true", DataType.BOOLEAN));
     }
 
     public void testCastValueKeyword() {

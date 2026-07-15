@@ -88,7 +88,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                         client(),
                         ".ml-anomalies-",
                         ML_INDEX_TEMPLATE_VERSION,
-                        List.of(".ml-anomalies-*", ".reindexed-*-ml-anomalies-*")
+                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
                     )
                 );
                 assertBusy(

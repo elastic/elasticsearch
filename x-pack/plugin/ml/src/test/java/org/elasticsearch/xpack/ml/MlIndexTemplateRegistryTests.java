@@ -105,7 +105,11 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml anomalies results index template to be put"));
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
-        assertThat(indexTemplate.indexPatterns(), containsInAnyOrder(".ml-anomalies-*", ".reindexed-*-ml-anomalies-*"));
+        assertThat(
+            indexTemplate.indexPatterns(),
+            containsInAnyOrder(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
+        );
+        assertThat(indexTemplate.priority(), equalTo(2147483647L));
     }
 
     public void testStateTemplate() {

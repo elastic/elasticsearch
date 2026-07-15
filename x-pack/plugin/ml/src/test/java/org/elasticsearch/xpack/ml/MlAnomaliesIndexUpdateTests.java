@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.mockito.ArgumentCaptor;
@@ -187,6 +188,25 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         verify(systemAuditor, never()).warning(anyString());
     }
 
+    public void testAnomalyScoreExplanationDoubleFieldsMatchResultsTemplate() {
+        IndexMetadata indexMetadata = IndexMetadata.builder(".test-template-mapping")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .putMapping(AnomalyDetectorsIndex.resultsMapping())
+            .build();
+
+        for (String fieldName : MlAnomaliesIndexUpdate.ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS) {
+            assertTrue(
+                "results template must declare anomaly_score_explanation." + fieldName + " as double",
+                MlIndexAndAlias.hasFieldTypedAs(indexMetadata, List.of("anomaly_score_explanation", fieldName), "double")
+            );
+        }
+    }
+
     public void testHealReindexedV7_HealWhenJobIdKeywordButAnomalyScoreExplanationFloat() {
         String badIndex = ".reindexed-v7-ml-anomalies-shared-000001";
         String targetIndex = ".ml-anomalies-shared-000001";
@@ -200,6 +220,49 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
         SystemAuditor systemAuditor = mock(SystemAuditor.class);
         var client = mockClientForHeal(targetIndex);
+
+        updater(client, cs, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
+
+        verify(client).execute(same(TransportCreateIndexAction.TYPE), any(), any());
+        verify(client).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());
+        verify(systemAuditor).warning(anyString());
+        verify(auditor).warning(eq("jobA"), anyString());
+    }
+
+    public void testHealReindexedV7_DoesNotReuseTargetWithFloatAnomalyScoreExplanation() {
+        String badIndex = ".reindexed-v7-ml-anomalies-shared-000001";
+        String unhealthyTarget = ".ml-anomalies-shared-000001";
+        String newTarget = ".ml-anomalies-shared-000002";
+
+        IndexMetadata.Builder unhealthyTargetMeta = IndexMetadata.builder(unhealthyTarget)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_target")
+            )
+            .putMapping(keywordJobIdWithFloatAnomalyScoreExplanationMapping());
+
+        IndexMetadata.Builder badMeta = IndexMetadata.builder(badIndex)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_bad")
+            )
+            .putMapping(textJobIdMapping())
+            .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.resultsWriteAlias("jobA")).writeIndex(true).isHidden(true).build())
+            .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobResultsAliasedName("jobA")).isHidden(true).build());
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put(unhealthyTargetMeta).put(badMeta))
+            .build();
+
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
+        var client = mockClientForHeal(newTarget);
 
         updater(client, cs, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
 

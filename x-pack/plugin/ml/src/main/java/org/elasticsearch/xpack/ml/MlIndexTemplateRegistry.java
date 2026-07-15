@@ -43,7 +43,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
      *
      * 10000001: ".reindexed-v7-ml-anomalies-*" added to ml-anomalies index pattern
      * 10000002: ".reindexed-v7-ml-state*" and ".reindexed-v8-ml-state*" added to ml-state index pattern
-     * 10000003: ".reindexed-*-ml-anomalies-*" wildcard replaces the v7-only anomalies index pattern
+     * 10000003: ".reindexed-v8-ml-anomalies-*" added alongside the existing v7 reindexed anomalies pattern
      */
     public static final int ML_INDEX_TEMPLATE_VERSION = 10000003 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
@@ -73,14 +73,6 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         );
     }
 
-    /**
-     * The results template's index pattern includes an unanchored {@code .reindexed-*-ml-anomalies-*}
-     * wildcard (see results_index_template.json) so that it also intersects the {@code .ml-state}
-     * template's {@code .reindexed-v7-ml-state*} / {@code .reindexed-v8-ml-state*} patterns under
-     * Elasticsearch's pattern-overlap check. Both templates therefore cannot share the maximum
-     * priority (they used to, both at {@code Integer.MAX_VALUE}); the results template is pinned one
-     * below it so the two composable templates no longer collide at registration time.
-     */
     private static IndexTemplateConfig anomalyDetectionResultsTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));

@@ -93,8 +93,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     /**
      * Index pattern used to resolve all reindexed ML anomalies candidates (e.g.
      * {@code .reindexed-v7-ml-anomalies-*}, {@code .reindexed-v8-ml-anomalies-*}).
-     * Keep in sync with {@code index_patterns} in
-     * {@code ml/anomalydetection/results_index_template.json}.
+     * Broader than the composable template's explicit v7/v8 {@code index_patterns} because
+     * runtime index resolution is not subject to template-overlap validation.
      */
     static final String REINDEXED_ANOMALIES_PATTERN = ".reindexed-*-ml-anomalies-*";
 
@@ -102,7 +102,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * {@code anomaly_score_explanation} fields that must be typed as {@code double} in the
      * managed AD results index template. Dynamic mapping may guess {@code float} instead.
      */
-    private static final List<String> ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS = List.of(
+    static final List<String> ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS = List.of(
         "lower_confidence_bound",
         "typical_value",
         "upper_confidence_bound",
@@ -613,8 +613,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         String affectedJobs = String.join(", ", jobIds);
         String clusterMessage = Strings.format(
             "Anomaly detection historical results are stranded in index [%s] because an Elasticsearch upgrade "
-                + "on one of the affected versions (pre-8.18.8, pre-8.19.5, pre-9.0.8, pre-9.1.5, pre-9.2.0, "
-                + "pre-9.3.0, pre-9.4.0, pre-9.6.0) produced broken ML anomaly results index mappings. "
+                + "on one of the affected versions (pre-8.18.8, pre-8.19.19, pre-9.0.8, pre-9.1.5, pre-9.2.0, "
+                + "pre-9.3.8, pre-9.4.4, pre-9.5.1, pre-9.6.0) produced broken ML anomaly results index mappings. "
                 + "New results are now written to [%s] with the correct mappings and will appear in the UI again. "
                 + "Affected jobs: [%s]. "
                 + "To recover the historical results, ensure your user has read and write on .ml-anomalies-* "

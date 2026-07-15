@@ -1,6 +1,7 @@
 ---
 setup:
   - do:
+<<<<<<< HEAD:x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_insist_operator_synthetic_source.yml
       indices.create:
         index: my-index
         body:
@@ -18,6 +19,37 @@ setup:
   - do:
       bulk:
         index: my-index
+=======
+      indices.put_index_template:
+        name: logs-esql-unmapped-fields-template
+        body:
+          index_patterns: [ "logs-esql-unmapped-fields-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            settings:
+              mode: "logsdb"
+              index:
+                sort.field: [ "@timestamp" ]
+                sort.order: [ "desc" ]
+            mappings:
+              dynamic: false
+              properties:
+                "@timestamp":
+                  type: date
+                message:
+                  type: text
+      allowed_warnings:
+        - "index template [logs-esql-unmapped-fields-template] has index patterns [logs-esql-unmapped-fields-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-esql-unmapped-fields-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-esql-unmapped-fields-test
+
+  - do:
+      bulk:
+        index: logs-esql-unmapped-fields-test
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845)):x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_unmapped_fields_synthetic_source.yml
         refresh: true
         body:
           - { "index": { } }
@@ -36,15 +68,29 @@ setup:
 ---
 teardown:
   - do:
+<<<<<<< HEAD:x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_insist_operator_synthetic_source.yml
       indices.delete:
         index: my-index
+=======
+      indices.delete_data_stream:
+        name: logs-esql-unmapped-fields-*
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-esql-unmapped-fields-template
+        ignore: 404
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845)):x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_unmapped_fields_synthetic_source.yml
 
 ---
 "Simple from":
   - do:
       esql.query:
         body:
+<<<<<<< HEAD:x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_insist_operator_synthetic_source.yml
           query: 'FROM my-index | SORT @timestamp | LIMIT 1'
+=======
+          query: 'FROM logs-esql-unmapped-fields-test | SORT @timestamp | LIMIT 1'
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845)):x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_unmapped_fields_synthetic_source.yml
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -55,11 +101,15 @@ teardown:
   - match: {values.0.1: "No, I am your father."}
 
 ---
-"FROM with INSIST_🐔and LIMIT 1":
+"Load unmapped fields with LIMIT 1":
   - do:
       esql.query:
         body:
+<<<<<<< HEAD:x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_insist_operator_synthetic_source.yml
           query: 'FROM my-index | INSIST_🐔 host.name, agent_id, http_method | SORT @timestamp | KEEP host.name, agent_id, http_method | LIMIT 1'
+=======
+          query: 'SET unmapped_fields="load"; FROM logs-esql-unmapped-fields-test | SORT @timestamp | KEEP host.name, agent_id, http_method | LIMIT 1'
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845)):x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_unmapped_fields_synthetic_source.yml
 
   - match: {columns.0.name: "host.name"}
   - match: {columns.0.type: "keyword"}
@@ -73,7 +123,7 @@ teardown:
   - match: {values.0.2: "GET"}
 
 ---
-"FROM with INSIST_🐔":
+"Load unmapped field":
   - requires:
       test_runner_features: allowed_warnings_regex
   - do:
@@ -81,7 +131,11 @@ teardown:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
+<<<<<<< HEAD:x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_insist_operator_synthetic_source.yml
           query: 'FROM my-index | INSIST_🐔 agent_id | SORT @timestamp | KEEP agent_id'
+=======
+          query: 'SET unmapped_fields="load"; FROM logs-esql-unmapped-fields-test | SORT @timestamp | KEEP agent_id'
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845)):x-pack/plugin/logsdb/src/yamlRestTest/resources/rest-api-spec/test/52_esql_unmapped_fields_synthetic_source.yml
 
   - match: {columns.0.name: "agent_id"}
   - match: {columns.0.type: "keyword"}

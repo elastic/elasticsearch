@@ -949,13 +949,45 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+<<<<<<< HEAD
   @Override public void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+=======
+  @Override public void enterDedupCommand(EsqlBaseParser.DedupCommandContext ctx) { }
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
+<<<<<<< HEAD
   @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+=======
+  @Override public void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
   /**
    * {@inheritDoc}
    *

@@ -806,6 +806,7 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
+<<<<<<< HEAD
    * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
    * @param ctx the parse tree
    */
@@ -815,6 +816,37 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+=======
+   * Enter a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void exitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree

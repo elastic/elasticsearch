@@ -21,7 +21,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+<<<<<<< HEAD
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+=======
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -99,7 +103,6 @@ public enum FeatureMetric {
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),
-    INSIST(Insist.class::isInstance),
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),

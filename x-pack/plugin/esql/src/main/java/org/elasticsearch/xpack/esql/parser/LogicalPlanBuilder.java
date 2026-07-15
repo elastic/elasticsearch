@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -435,6 +434,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+<<<<<<< HEAD
     public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
         var source = source(ctx);
         List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
@@ -448,6 +448,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             input,
             fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
         );
+=======
+    public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
+        Source source = source(ctx);
+        return input -> new Dedup(source, input);
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
     }
 
     @Override

@@ -100,6 +100,299 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
 ;
 
+<<<<<<< HEAD
+=======
+doesNotLoadUnmappedFieldsFork
+required_capability: optional_fields_v5
+required_capability: fork_v9
+
+FROM partial_mapping_sample_data
+| FORK (WHERE event_duration > 5000000) (WHERE event_duration < 800000)
+| SORT _fork, @timestamp DESC
+| KEEP _fork, @timestamp, event_duration, message
+;
+
+_fork:keyword | @timestamp:datetime      | event_duration:long | message:keyword
+fork1         | 2024-10-23T13:53:55.832Z | 5033754             | Connection error?
+fork1         | 2024-10-23T13:52:55.015Z | 8268152             | Connection error?
+fork2         | 2024-10-23T13:51:54.732Z | 725447              | Connection error?
+;
+
+loadLookupJoin_mappedKeyViaEval
+required_capability: optional_fields_load_with_lookup_join
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:integer | language_name:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | English
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 1                     | English
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
+;
+
+loadLookupJoin_unmappedKeyMatchesKeywordLookup
+required_capability: optional_fields_load_with_lookup_join
+
+// In load mode, language_code (unmapped in primary) is read from _source as keyword and matches the lookup key.
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| KEEP @timestamp, language_code, language_name
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | language_code:keyword | language_name:keyword
+2024-10-23T13:55:01.543Z | 1                     | English
+2024-10-23T13:53:55.832Z | 2                     | French
+2024-10-23T13:52:55.015Z | 3                     | Spanish
+;
+
+loadLookupJoin_keepBeforeJoin_unmappedKey
+required_capability: optional_fields_load_with_lookup_join
+
+// In load mode, KEEP before the join binds the unmapped key to the primary, not the lookup output.
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP language_code
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| SORT language_code
+| LIMIT 3
+;
+
+language_code:keyword | language_name:keyword
+1                     | English
+1                     | English
+2                     | French
+;
+
+// Non-key unmapped field present in _source is loaded from the primary and surfaces through the LOOKUP JOIN.
+loadUnmappedFieldAfterLookupJoin
+required_capability: optional_fields_load_with_lookup_join
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON message
+| KEEP @timestamp, message, message_type, unmapped_message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message:keyword        | message_type:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | connection           | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | error                | Disconnection error
+2024-10-23T13:52:55.015Z | Connection error?      | error                | Disconnection error
+2024-10-23T13:51:54.732Z | Connection error?      | error                | Disconnection error
+2024-10-23T13:33:34.937Z | 42                     | numeric              | 43
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | connection           | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | connection           | Disconnected from 10.1.0.3
+;
+
+// A field absent from all mappings and _source returns null downstream of LOOKUP JOIN.
+loadAbsentFieldAfterLookupJoin
+required_capability: optional_fields_load_with_lookup_join
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON message
+| KEEP @timestamp, message_type, completely_absent_field
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message_type:keyword | completely_absent_field:keyword
+2024-10-23T13:55:01.543Z | connection           | null
+2024-10-23T13:53:55.832Z | error                | null
+2024-10-23T13:52:55.015Z | error                | null
+2024-10-23T13:51:54.732Z | error                | null
+2024-10-23T13:33:34.937Z | numeric              | null
+2024-10-23T12:27:28.948Z | connection           | null
+2024-10-23T12:15:03.360Z | connection           | null
+;
+
+// Expression-based LOOKUP JOIN: unmapped_event_duration is loaded from the primary's _source even when no lookup row
+// matches. Digit strings sort before message_type's alphabetic values in keyword order, so the expression is always
+// false and message_type is null for every row; the non-null unmapped_event_duration values prove it was loaded.
+loadUnmappedField_expressionJoin_noMatch
+required_capability: optional_fields_load_with_lookup_join
+required_capability: lookup_join_on_boolean_expression
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON unmapped_event_duration > message_type
+| KEEP @timestamp, unmapped_event_duration, message_type
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | unmapped_event_duration:keyword | message_type:keyword
+2024-10-23T13:55:01.543Z | 1756468                         | null
+2024-10-23T13:53:55.832Z | 5033756                         | null
+2024-10-23T13:52:55.015Z | 8268154                         | null
+2024-10-23T13:51:54.732Z | 725449                          | null
+2024-10-23T13:33:34.937Z | 1232383                         | null
+2024-10-23T12:27:28.948Z | 2764890                         | null
+2024-10-23T12:15:03.360Z | 3450234                         | null
+;
+
+fullTextMatchOperatorOnFullyMappedTextField
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: match_operator_colon
+
+SET unmapped_fields="load"\;
+FROM books
+| WHERE author:"Faulkner"
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+;
+
+qstrTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: qstr_function
+required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE QSTR("txt: Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+kqlTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: kql_function
+required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE KQL("txt: Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+matchTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: match_function
+required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE MATCH(txt, "Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: match_operator_colon
+required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE txt:"Faulkner" OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+renameTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| RENAME txt AS renamed_txt
+| KEEP _index, doc_id, renamed_txt
+| SORT _index, doc_id
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword          | doc_id:keyword | renamed_txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_mapped       | mapped-2       | Jane Austen
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152184
+# A dense_vector PUNK should null-fill where unmapped, but the KEYWORD->dense_vector auto-cast hex-decodes the _source array and fails.
+denseVectorPunkShowsNullUnderLoad-Ignore
+required_capability: optional_fields_unmapped_load_null_fallback
+
+SET unmapped_fields="load"\;
+FROM colors, colors_unmapped METADATA _index
+| WHERE id == 15
+| KEEP _index, color, rgb_vector
+| SORT _index
+;
+
+_index:keyword       | color:text | rgb_vector:dense_vector
+colors               | green      | [0.0, 128.0, 0.0]
+colors_unmapped      | green      | null
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152196
+# KNN over a partially unmapped dense_vector should null-fill where unmapped, but instead errors that the field does not exist.
+knnOnDenseVectorPunkUnderLoad-Ignore
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: knn_function_v5
+
+SET unmapped_fields="load"\;
+FROM colors, employees METADATA _index, _score
+| WHERE knn(rgb_vector, [0, 128, 0])
+| SORT _score DESC, color ASC
+| KEEP _index, color
+| LIMIT 1
+;
+
+_index:keyword | color:text
+colors         | green
+;
+
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 ######################
 # Single index tests #
 ######################

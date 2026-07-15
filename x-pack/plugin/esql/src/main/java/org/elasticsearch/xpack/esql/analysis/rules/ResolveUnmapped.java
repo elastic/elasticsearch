@@ -53,7 +53,12 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+<<<<<<< HEAD
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
+=======
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -163,11 +168,17 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
+<<<<<<< HEAD
      * This method introduces field extractors - via "insisted", {@link PotentiallyUnmappedKeywordEsField} wrapped in
      * {@link FieldAttribute} - for every attribute in {@code unresolved}, within the {@link EsRelation}s in the plan accessible from
      * the given {@code plan}.
      * <p>
      * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
+=======
+     * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (unmapped keywords wrapped in {@link FieldAttribute}) for
+     * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
+     * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
@@ -182,13 +193,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
-        List<FieldAttribute> insisted = new ArrayList<>(unresolved.size());
+        List<FieldAttribute> loaded = new ArrayList<>(unresolved.size());
         for (var ua : unresolved) {
             if (exclude.contains(ua.name()) == false) {
-                insisted.add(insistKeyword(ua));
+                loaded.add(unmappedKeyword(ua));
             }
         }
-        return insisted;
+        return loaded;
     }
 
     // TODO: would an alternative to this be to have ResolveRefs#resolveFork re-resolve the Fork?

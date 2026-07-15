@@ -672,8 +672,156 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+<<<<<<< HEAD
     public void testTypeConflictLongUnmappedNoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+=======
+    public void testLoadModeAllowsCrossBranchTypeConflictWhenOnlyKept() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages().statement(setUnmappedLoad("""
+            FROM languages,
+                (FROM test | KEEP emp_no, language_code)
+            | KEEP language_code
+            """));
+    }
+
+    // Regression: RENAME of a cross-branch union-typed column above a multi-source FROM used to crash with a 500
+    // (UnresolvedException "Invalid call to dataType on an unresolved object") in ResolveUnionTypesInUnionAll, because the
+    // not-yet-resolved RENAME alias yielded an UnresolvedAttribute whose dataType() was queried during the type cascade. It must
+    // instead surface the same clean cross-branch conflict verification error as other references to the unsupported union column.
+    public void testLoadModeCrossBranchTypeConflictRenameFailsCleanly() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages().statementError(setUnmappedLoad("""
+            FROM languages,
+                (FROM test | KEEP emp_no, language_code)
+            | RENAME language_code AS lc
+            """), containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]"));
+    }
+
+    // Same regression as above but the renamed conflicting column is also consumed by a downstream SORT: the first cascade pass sees a
+    // resolved RENAME alias and retargets the OrderBy, then a later pass leaves the alias unresolved (unsupported child). It must still
+    // fail cleanly with the cross-branch conflict error rather than crash in ResolveUnionTypesInUnionAll.
+    public void testLoadModeCrossBranchTypeConflictRenameThenSortFailsCleanly() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages().statementError(setUnmappedLoad("""
+            FROM languages,
+                (FROM test | KEEP emp_no, language_code)
+            | RENAME language_code AS lc
+            | SORT lc
+            """), containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]"));
+    }
+
+    // Regression: to_string() (a convert function) over a field that is BOTH partially unmapped within a branch (multi-typed
+    // {float, keyword} in the merged languages_mixed_numerics+partial_message_types_lookup relation) AND union-typed across the
+    // UnionAll branches under load used to fail analysis with "Unknown column [$$language_code_float$converted_to$keyword]".
+    public void testLoadModeToStringOverCrossBranchMultiTypeUnionField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("languages_mixed_numerics", fieldResponseMap("language_code_float", "float")),
+                fieldCapabilitiesIndexResponse("partial_message_types_lookup", fieldResponseMap("message_type", "keyword"))
+            ),
+            List.of()
+        );
+        TestAnalyzer a = analyzer();
+        a.addIndex(
+            "languages_mixed_numerics,partial_message_types_lookup",
+            mergedResolution("languages_mixed_numerics,partial_message_types_lookup", caps, true)
+        );
+        a.addIndex("clientips", "mapping-clientips.json");
+        a.statement(setUnmappedLoad("""
+            FROM languages_mixed_numerics, partial_message_types_lookup, (FROM clientips)
+            | EVAL x = to_string(language_code_float)
+            """));
+        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
+        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
+    }
+
+    public void testLoadModeToStringOverMultiTypeUnionFieldInSubqueryBranch() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("languages_mixed_numerics", fieldResponseMap("language_code_float", "float")),
+                fieldCapabilitiesIndexResponse("partial_message_types_lookup", fieldResponseMap("message_type", "keyword"))
+            ),
+            List.of()
+        );
+        TestAnalyzer a = analyzer();
+        a.addIndex("clientips", "mapping-clientips.json");
+        a.addIndex(
+            "languages_mixed_numerics,partial_message_types_lookup",
+            mergedResolution("languages_mixed_numerics,partial_message_types_lookup", caps, true)
+        );
+        a.statement(setUnmappedLoad("""
+            FROM clientips, (FROM languages_mixed_numerics, partial_message_types_lookup)
+            | EVAL x = to_string(language_code_float)
+            """));
+        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
+        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
+    }
+
+    public void testLoadModeCrossBranchTextPunkResolvesToTextNotUnsupported() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // foo is TEXT (no KEYWORD->TEXT converter) in text_idx and unmapped in unmapped_idx -> two-legged PUNK in the merged branch.
+        FieldCapabilitiesResponse mergedCaps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("text_idx", fieldResponseMap(Map.of("foo", "text", "id", "long"))),
+                fieldCapabilitiesIndexResponse("unmapped_idx", fieldResponseMap(Map.of("id", "long")))
+            ),
+            List.of()
+        );
+        FieldCapabilitiesResponse subCaps = new FieldCapabilitiesResponse(
+            List.of(fieldCapabilitiesIndexResponse("kw_idx", fieldResponseMap(Map.of("id", "long")))),
+            List.of()
+        );
+        TestAnalyzer a = analyzer();
+        a.addIndex("text_idx,unmapped_idx", mergedResolution("text_idx,unmapped_idx", mergedCaps, true));
+        a.addIndex("kw_idx", mergedResolution("kw_idx", subCaps, true));
+
+        var plan = a.statement(setUnmappedLoad("FROM text_idx, unmapped_idx, (FROM kw_idx) | SORT id | LIMIT 3"));
+
+        Attribute foo = plan.output().stream().filter(at -> at.name().equals("foo")).findFirst().orElseThrow();
+        assertThat(foo.dataType(), equalTo(DataType.TEXT));
+        // No column, at the top output or in any UnionAll, may surface as UNSUPPORTED.
+        plan.output()
+            .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))));
+        plan.forEachDown(
+            org.elasticsearch.xpack.esql.plan.logical.UnionAll.class,
+            ua -> ua.output()
+                .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))))
+        );
+        assertWarnings(nonLoadablePunkWarning("foo", "text"));
+    }
+
+    public void testLoadModeCrossBranchSmallNumericPunkResolvesToWidenedNotUnsupported() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        FieldCapabilitiesResponse mergedCaps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("float_idx", fieldResponseMap(Map.of("foo", "float", "id", "long"))),
+                fieldCapabilitiesIndexResponse("unmapped_idx", fieldResponseMap(Map.of("id", "long")))
+            ),
+            List.of()
+        );
+        FieldCapabilitiesResponse subCaps = new FieldCapabilitiesResponse(
+            List.of(fieldCapabilitiesIndexResponse("kw_idx", fieldResponseMap(Map.of("id", "long")))),
+            List.of()
+        );
+        TestAnalyzer a = analyzer();
+        a.addIndex("float_idx,unmapped_idx", mergedResolution("float_idx,unmapped_idx", mergedCaps, true));
+        a.addIndex("kw_idx", mergedResolution("kw_idx", subCaps, true));
+
+        var plan = a.statement(setUnmappedLoad("FROM float_idx, unmapped_idx, (FROM kw_idx) | SORT id | LIMIT 3"));
+
+        Attribute foo = plan.output().stream().filter(at -> at.name().equals("foo")).findFirst().orElseThrow();
+        assertThat(foo.dataType(), equalTo(DataType.DOUBLE));
+        plan.output()
+            .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))));
+        assertWarnings(nonLoadablePunkWarning("foo", "float"));
+    }
+
+    public void testSingleTypeLongUnmappedAutoCast() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -689,7 +837,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testTypeConflictLongKeywordUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -706,7 +854,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testTypeConflictLongIntUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -739,7 +887,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testSameMappingHashNotPartiallyUnmapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -760,8 +908,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(attr.dataType(), is(DataType.LONG));
     }
 
+<<<<<<< HEAD
     public void testSameMappingHashWithUnmappedIndex() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+=======
+    public void testSameMappingHashWithUnmappedIndexAutoCast() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(

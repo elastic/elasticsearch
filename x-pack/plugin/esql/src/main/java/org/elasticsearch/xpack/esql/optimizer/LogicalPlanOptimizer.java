@@ -33,7 +33,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
+<<<<<<< HEAD
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
+=======
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
@@ -267,7 +270,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceLimitAndSortAsTopN(),
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
+<<<<<<< HEAD
             new PropgateUnmappedFields(),
+=======
+>>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
             new CombineLimitTopN(),
             new ReorderLimitProjectAndOrderBy()
         );

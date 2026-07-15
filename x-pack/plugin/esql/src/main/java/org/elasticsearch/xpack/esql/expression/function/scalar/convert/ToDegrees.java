@@ -108,6 +108,12 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         return DOUBLE;
     }
 
+    @Override
+    public boolean isNoop() {
+        // Computes even when the input is already double, so it's never a no-op.
+        return false;
+    }
+
     @ConvertEvaluator(warnExceptions = { ArithmeticException.class })
     static double process(double deg) {
         return NumericUtils.asFiniteNumber(Math.toDegrees(deg));

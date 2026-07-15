@@ -119,7 +119,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     public void testSpanProcessorSelfMonitoringMetricsFlowIntoHealthProvider() {
         InMemoryMetricReader inMemoryReader = InMemoryMetricReader.create();
         SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(inMemoryReader).build();
-        var resources = new OtelSdkExportMeterSupplier.OTelMetricsResources(meterProvider, null);
+        var resources = new OtelSdkExportMeterSupplier.OTelMetricsResources(meterProvider, null, null);
         OtelSdkExportMeterSupplier meterSupplier = new OtelSdkExportMeterSupplier(Settings.EMPTY, null, resources);
 
         BatchSpanProcessor processor = BatchSpanProcessor.builder(InMemorySpanExporter.create())
@@ -163,6 +163,24 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             assertTrue("kept instrument callback should run", keptCallbackRan.get());
             assertFalse("dropped instrument callback must be skipped", droppedCallbackRan.get());
         }
+      
+    public void testExportIntervalGaugeReportsConfiguredInterval() {
+        InMemoryMetricReader inMemoryReader = InMemoryMetricReader.create();
+        SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(inMemoryReader).build();
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "90s").build();
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, null);
+
+        try (var gauge = supplier.registerReaderMetrics(meterProvider)) {
+            MetricData metric = inMemoryReader.collectAllMetrics()
+                .stream()
+                .filter(m -> m.getName().equals("es.apm.metrics.reader.export_interval"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("es.apm.metrics.reader.export_interval gauge was not emitted"));
+            assertEquals("s", metric.getUnit());
+            double value = metric.getDoubleGaugeData().getPoints().iterator().next().getValue();
+            assertEquals(90.0, value, 0.0);
+        }
+        meterProvider.close();
     }
 
     /** attemptFlushMetrics() after close() must return a successful no-op result. */

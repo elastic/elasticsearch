@@ -60,7 +60,14 @@ public record DeclaredReadSpec(
     SchemaProvenance provenance
 ) implements Writeable {
 
-    /** Wire gate for {@link #provenance}; a pre-gate peer reads/writes the four original fields and defaults INFERRED. */
+    /**
+     * Wire gate for {@link #provenance}; a pre-gate peer reads/writes the four original fields and defaults INFERRED.
+     * During a rolling upgrade a peer that predates this version therefore binds a strict read positionally — the
+     * pre-fix behaviour. That is TOLERATED by design, not failed loud: this is a read path (nothing is persisted or
+     * corrupted — the worst case is a transient wrong query result), the degraded behaviour equals what that peer
+     * already ships, and it self-heals once every node supports the version. Failing loud would break every running
+     * strict query for the upgrade window to prevent a transient, non-durable result — a worse trade.
+     */
     private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName("declared_read_spec_provenance");
 
     /** The empty spec — nothing declared. The default carried on every non-declared read. */

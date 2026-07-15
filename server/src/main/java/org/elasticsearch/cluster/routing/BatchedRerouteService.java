@@ -41,6 +41,7 @@ public class BatchedRerouteService implements RerouteService {
 
     private final ClusterService clusterService;
     private final RerouteAction reroute;
+
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
     private List<ActionListener<Void>> pendingRerouteListeners;
@@ -104,7 +105,57 @@ public class BatchedRerouteService implements RerouteService {
         try {
             var future = new ListenableFuture<Void>();
             final String source = CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")";
-            submitUnbatchedTask(source, new RerouteUpdateTask(priority, reason, source, future, currentListeners));
+            submitUnbatchedTask(source, new ClusterStateUpdateTask(priority) {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final boolean currentListenersArePending;
+                    synchronized (mutex) {
+                        assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners)
+                            : "currentListeners=" + currentListeners + ", pendingRerouteListeners=" + pendingRerouteListeners;
+                        currentListenersArePending = pendingRerouteListeners == currentListeners;
+                        if (currentListenersArePending) {
+                            pendingRerouteListeners = null;
+                        }
+                    }
+                    if (currentListenersArePending) {
+                        logger.trace("performing batched reroute [{}]", reason);
+                        return reroute.reroute(currentState, reason, future);
+                    } else {
+                        logger.trace("batched reroute [{}] was promoted", reason);
+                        // reroute was batched and completed in other branch
+                        future.onResponse(null);
+                        return currentState;
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    synchronized (mutex) {
+                        if (pendingRerouteListeners == currentListeners) {
+                            pendingRerouteListeners = null;
+                        }
+                    }
+                    final ClusterState state = clusterService.state();
+                    if (MasterService.isPublishFailureException(e)) {
+                        logger.debug(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
+                        // no big deal, the new master will reroute again
+                    } else if (logger.isTraceEnabled()) {
+                        logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
+                    } else {
+                        logger.error(
+                            () -> format("unexpected failure during [%s], current state version [%s]", source, state.version()),
+                            e
+                        );
+                    }
+                    ActionListener.onFailure(currentListeners, e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, null)));
+                }
+            });
         } catch (Exception e) {
             synchronized (mutex) {
                 assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);
@@ -124,72 +175,5 @@ public class BatchedRerouteService implements RerouteService {
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    private final class RerouteUpdateTask extends ClusterStateUpdateTask {
-        private final String reason;
-        private final String source;
-        private final ListenableFuture<Void> future;
-        private final List<ActionListener<Void>> currentListeners;
-
-        private RerouteUpdateTask(
-            Priority priority,
-            String reason,
-            String source,
-            ListenableFuture<Void> future,
-            List<ActionListener<Void>> currentListeners
-        ) {
-            super(priority);
-            this.reason = reason;
-            this.source = source;
-            this.future = future;
-            this.currentListeners = currentListeners;
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) {
-            final boolean currentListenersArePending;
-            synchronized (mutex) {
-                assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners)
-                    : "currentListeners=" + currentListeners + ", pendingRerouteListeners=" + pendingRerouteListeners;
-                currentListenersArePending = pendingRerouteListeners == currentListeners;
-                if (currentListenersArePending) {
-                    pendingRerouteListeners = null;
-                }
-            }
-            if (currentListenersArePending) {
-                logger.trace("performing batched reroute [{}]", reason);
-                return reroute.reroute(currentState, reason, future);
-            } else {
-                logger.trace("batched reroute [{}] was promoted", reason);
-                // reroute was batched and completed in other branch
-                future.onResponse(null);
-                return currentState;
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            synchronized (mutex) {
-                if (pendingRerouteListeners == currentListeners) {
-                    pendingRerouteListeners = null;
-                }
-            }
-            final ClusterState state = clusterService.state();
-            if (MasterService.isPublishFailureException(e)) {
-                logger.debug(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
-                // no big deal, the new master will reroute again
-            } else if (logger.isTraceEnabled()) {
-                logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
-            } else {
-                logger.error(() -> format("unexpected failure during [%s], current state version [%s]", source, state.version()), e);
-            }
-            ActionListener.onFailure(currentListeners, e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, null)));
-        }
     }
 }

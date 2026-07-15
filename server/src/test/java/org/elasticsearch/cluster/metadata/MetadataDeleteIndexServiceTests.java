@@ -124,7 +124,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = clusterState(projectId, index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).thenAnswer(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(i -> i.getArguments()[0]);
 
         // Remove it
         final ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(

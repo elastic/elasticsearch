@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -256,7 +257,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "scale_diff_f",
         "scale_diff_g",
         "scale_xdecl_seconds",
-        "scale_xdecl_millis"
+        "scale_xdecl_millis",
+        "cb_inferred",
+        "cb_nonstrict",
+        "cb_strict"
     );
 
     /**
@@ -2976,6 +2980,99 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path tempFile = createTempDir().resolve(name + ".parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
+    }
+
+    /**
+     * Real-data validation against a genuine ClickBench parquet file (bare int64 {@code EventTime} of Unix seconds),
+     * across all THREE declaration modes — inferred, non-strict, strict — with ground truth computed from the raw
+     * seconds independently of the product. Skipped unless {@code -Dclickbench.real.parquet=<path>} points at a real
+     * file, so CI does not carry the bytes. Values pinned from the actual file used in this run.
+     */
+    private java.nio.file.Path realClickBenchLocal;
+
+    public void testRealClickBenchEventTimeAcrossAllThreeModes() throws Exception {
+        String realPath = System.getProperty("tests.clickbench.real.parquet");
+        assumeTrue("set -Dtests.clickbench.real.parquet to a real hits.parquet", realPath != null);
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        long maxSec = 1375127873L;      // real EventTime max in this file
+        long minSec = 1372795438L;      // real EventTime min
+        String maxIso = "2013-07-29T19:57:53.000Z";
+
+        // MODE 1 — INFERRED: no declaration; EventTime infers as long, unit is raw seconds.
+        registerReal("cb_inferred", realPath, null);
+        assertQ("cb_inferred INF ==", "FROM cb_inferred | WHERE EventTime == " + maxSec + " | STATS c = COUNT(*)", 1L);
+        assertQ("cb_inferred INF MAX", "FROM cb_inferred | STATS m = MAX(EventTime)", maxSec);
+        assertQ("cb_inferred INF MIN", "FROM cb_inferred | STATS m = MIN(EventTime)", minSec);
+        assertQ(
+            "cb_inferred INF SORT DESC",
+            "FROM cb_inferred | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxSec
+        );
+
+        // MODE 2 — NON-STRICT: dynamic:true, declare EventTime {date, epoch_second}; unit becomes millis.
+        registerReal("cb_nonstrict", realPath, DatasetMapping.Dynamic.TRUE);
+        assertQ("cb_nonstrict ==", "FROM cb_nonstrict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("cb_nonstrict >=", "FROM cb_nonstrict | WHERE EventTime >= TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "cb_nonstrict SORT DESC",
+            "FROM cb_nonstrict | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxSec * 1000L
+        );
+        assertQ("cb_nonstrict MAX", "FROM cb_nonstrict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v", maxSec * 1000L);
+        assertQ("cb_nonstrict MIN", "FROM cb_nonstrict | STATS m = MIN(EventTime) | EVAL v = m::long | KEEP v", minSec * 1000L);
+
+        // MODE 3 — STRICT: dynamic:false, EventTime {date, epoch_second} pinned as the schema.
+        registerReal("cb_strict", realPath, DatasetMapping.Dynamic.FALSE);
+        assertQ("cb_strict ==", "FROM cb_strict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "cb_strict SORT DESC",
+            "FROM cb_strict | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxSec * 1000L
+        );
+        assertQ("cb_strict MAX", "FROM cb_strict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v", maxSec * 1000L);
+    }
+
+    private void assertQ(String label, String query, Object expected) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+            assertThat(label + " :: " + query, actual, equalTo(expected));
+        }
+    }
+
+    private void registerReal(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
+        // Copy into the allowlisted temp dir the harness permits (esql.datasource.local_allowed_paths); the real
+        // download lives outside it. One copy is shared across the three registrations via a per-test cache.
+        if (realClickBenchLocal == null) {
+            realClickBenchLocal = createTempDir().resolve("hits.parquet");
+            Files.copy(java.nio.file.Path.of(realPath), realClickBenchLocal);
+        }
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        DatasetMapping mapping = null;
+        if (mode != null) {
+            props.put("EventTime", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+            if (mode == DatasetMapping.Dynamic.FALSE) {
+                // strict pins the declaration, so name the columns the queries touch.
+                props.put("EventDate", new DatasetFieldMapping("integer", null));
+            }
+            mapping = new DatasetMapping(new DatasetMapping.Mappings(mode, props));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    realClickBenchLocal.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
     }
 
     /**

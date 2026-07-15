@@ -4640,8 +4640,50 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testHighlightRejectsNonStringOnField() {
+    public void testHighlightAcceptsValidQueries() {
         assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        defaultAnalyzer().query("FROM test | HIGHLIGHT \"\\\"quick fox\\\" OR (ca* AND jump~) OR /f[ao]x/\" ON first_name");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT title : \"fox\" ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") OR MATCH(body, \"bar\") ON title, body");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
+        fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
+        // A registered named analyzer resolves successfully.
+        defaultAnalyzer().query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
+    }
+
+    public void testHighlightAnalyzerOption() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        // An unknown analyzer is rejected at analysis time.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            containsString("Invalid value [not_a_real_analyzer] for option [analyzer] in HIGHLIGHT, expected a registered analyzer")
+        );
+        // Syntax errors are still reported when the analyzer resolves.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
+            containsString("Invalid query [fox AND] in HIGHLIGHT:")
+        );
+        // When the analyzer is unknown, report only that failure without adding a second error for the query.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            allOf(
+                containsString("Invalid value [not_a_real_analyzer] for option [analyzer] in HIGHLIGHT, expected a registered analyzer"),
+                not(containsString("Invalid query"))
+            )
+        );
+    }
+
+    public void testHighlightRejectsInvalidQueries() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        // ON fields must be text or keyword.
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"x\" ON salary",
             containsString("HIGHLIGHT ON field [salary] must be [text] or [keyword], found [integer]")
@@ -4658,61 +4700,7 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT \"x\" ON emp_no WITH { \"number_of_fragments\": 2 }",
             containsString("HIGHLIGHT ON field [emp_no] must be [text] or [keyword], found [integer]")
         );
-    }
-
-    public void testHighlightAcceptsValidQueries() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        defaultAnalyzer().query("FROM test | HIGHLIGHT \"\\\"quick fox\\\" OR (ca* AND jump~) OR /f[ao]x/\" ON first_name");
-        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") ON title");
-        fullText().query("FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON title");
-        fullText().query("FROM test | HIGHLIGHT QSTR(\"title: fox\") ON title");
-        fullText().query("FROM test | HIGHLIGHT title : \"fox\" ON title");
-        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") OR MATCH(body, \"bar\") ON title, body");
-        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
-        fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
-        fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
-        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
-        fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
-        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
-        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
-    }
-
-    public void testHighlightAcceptsRegisteredAnalyzer() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        defaultAnalyzer().query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
-    }
-
-    public void testHighlightRejectsUnknownAnalyzerAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
-            containsString("Invalid value [not_a_real_analyzer] for option [analyzer] in HIGHLIGHT, expected a registered analyzer")
-        );
-    }
-
-    public void testHighlightSyntaxCheckedWithNamedAnalyzer() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        // Syntax errors are still reported when the analyzer resolves.
-        defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
-            containsString("Invalid query [fox AND] in HIGHLIGHT:")
-        );
-    }
-
-    public void testHighlightUnknownAnalyzerReportsOnlyAnalyzerFailure() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        // Report the unknown analyzer without adding a second error for the query.
-        defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
-            allOf(
-                containsString("Invalid value [not_a_real_analyzer] for option [analyzer] in HIGHLIGHT, expected a registered analyzer"),
-                not(containsString("Invalid query"))
-            )
-        );
-    }
-
-    public void testHighlightSurfacesQueryTranslationFailures() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        // Query translation failures are surfaced during analysis.
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name",
             containsString("Invalid query [fox AND] in HIGHLIGHT: Failed to parse query [fox AND]")
@@ -4726,6 +4714,7 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
         );
+        // The HIGHLIGHT query can only reference fields listed in the ON clause.
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
@@ -4740,10 +4729,7 @@ public class VerifierTests extends ESTestCase {
         );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
-    }
-
-    public void testHighlightExpressionAfterStatsFailsFieldResolution() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        // Fields dropped by an upstream STATS can no longer be resolved by HIGHLIGHT.
         fullText().error(
             "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",
             containsString("Unknown column [title]")

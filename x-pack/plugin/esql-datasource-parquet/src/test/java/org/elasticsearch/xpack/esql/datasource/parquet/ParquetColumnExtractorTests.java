@@ -305,6 +305,48 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
+    public void testDeferredDeclaredCoercionWarningsRouteToSuppliedSink() throws IOException {
+        // A declared long over unparseable string tokens null-fills each bad value on the deferred path and
+        // records a per-value coercion Warning. When a driver-thread sink is supplied, every such warning must
+        // reach that sink (the budget-gated relay) and not this thread's HeaderWarning context.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("v")
+            .named("strings");
+        byte[] data = writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                Group g = factory.newGroup();
+                g.add("v", "notanumber" + i);
+                groups.add(g);
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 1024L);
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        List<String> sink = new ArrayList<>();
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE, sink::add)) {
+            long[] positions = { 0, 1, 2 };
+            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.LONG }, positions, blockFactory);
+            try (Block block = blocks[0]) {
+                assertEquals(3, block.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertTrue("an unparseable long token null-fills its cell", block.isNull(i));
+                }
+            }
+        }
+        assertTrue(
+            "per-value coercion warnings must reach the supplied sink, got: " + sink,
+            sink.stream().anyMatch(w -> w.contains("cannot coerce value"))
+        );
+        List<String> leaked = drainWarnings();
+        assertTrue(
+            "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
+            leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+        );
+    }
+
     private byte[] writeSingleInt64File(long[] values) throws IOException {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("longs");
         return writeFile(schema, factory -> {

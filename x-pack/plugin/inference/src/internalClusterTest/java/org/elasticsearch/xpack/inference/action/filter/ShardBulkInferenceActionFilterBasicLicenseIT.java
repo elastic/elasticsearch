@@ -104,12 +104,13 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
 
     @Override
     public Settings indexSettings() {
-        var settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
+        var settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
 
         if (useLegacyFormat) {
-            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED,
-                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat));
+            settingsBuilder.put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+            );
             settingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
         }
 

@@ -685,6 +685,12 @@ final class ParquetPushedExpressions {
         LogicalTypeAnnotation logical = ptype.getLogicalTypeAnnotation();
 
         if (value == null) {
+            // IS NULL must not push when decode can turn a physically-present cell into null (a format parse
+            // failure, an out-of-range narrowing) — same gate as the date_nanos twin. IS NOT NULL stays pushed
+            // (it only over-includes). INT32/INT64 differ only in the column kind.
+            if (op == PredicateOp.EQ && ParquetColumnDecoding.decodeCanNull(ptype, DataType.DATETIME, formats.get(columnName))) {
+                return null;
+            }
             return switch (ptype.getPrimitiveTypeName()) {
                 case INT32 -> orderedPredicate(FilterApi.intColumn(columnName), null, op);
                 case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), null, op);

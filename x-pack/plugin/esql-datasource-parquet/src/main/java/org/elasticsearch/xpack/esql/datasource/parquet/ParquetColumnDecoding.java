@@ -183,6 +183,11 @@ final class ParquetColumnDecoding {
         if (declaredFormat != null) {
             return true; // a format parse can fail per value
         }
+        if (primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+            // The only INT32 datetime is an inferred DATE (days -> millis), which never nulls; a format arm is
+            // already handled above. So a no-format INT32 keeps its IS NULL pushdown.
+            return false;
+        }
         if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
             return true; // conservative for shapes this method does not model
         }

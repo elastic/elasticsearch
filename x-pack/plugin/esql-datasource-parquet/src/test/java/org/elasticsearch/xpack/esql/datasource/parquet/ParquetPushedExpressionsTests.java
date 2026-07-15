@@ -1043,6 +1043,25 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(r, containsString("lteq(ts, 1000999999)"));
     }
 
+    /**
+     * A declared format can null a physically-present datetime cell (parse failure), so IS NULL must decline the
+     * push — pushing eq(col, null) prunes a group whose physical nullCount is 0 but which holds decode-minted nulls.
+     */
+    public void testDatetimeIsNullDeclinesWhenDecodeCanNull() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        Expression isNull = new org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(isNull)).toFilterPredicate(schema, Map.of("ts", "yyyyMMdd"));
+        assertNull("IS NULL over a decode-can-null datetime column must decline", fp);
+    }
+
+    /** A plain inferred datetime (bare INT64, no format) never nulls at decode, so IS NULL keeps pushing. */
+    public void testDatetimeIsNullStillPushesWhenDecodeCannotNull() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        Expression isNull = new org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(isNull)).toFilterPredicate(schema);
+        assertNotNull("IS NULL over a non-nulling inferred datetime must still push", fp);
+    }
+
     // --- the datetime arm's raw-bound decision, through the real entry point ---
 
     /** A millis-annotated column stores exactly what the literal holds: push the bound unchanged. */

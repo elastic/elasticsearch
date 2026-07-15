@@ -150,6 +150,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -275,6 +276,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Nullable
     private volatile RecoveryState recoveryState;
+    private volatile boolean recoveryCancellationRequested = false;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -1983,6 +1985,50 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
+    /// Requests cancellation of a recovery that is not yet completed.
+    ///
+    /// Each recovery type checks whether a cancellation has been requested at its own phase boundaries
+    /// via [#ensureRecoveryNotCancelled].
+    ///
+    /// Note that `RESHARD_SPLIT` recoveries are currently not supported (support will be added via elasticsearch-team#2801).
+    ///
+    /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
+    /// @throws IllegalStateException if the ongoing recovery is not of a supported type
+    public void requestRecoveryCancellation() {
+        synchronized (mutex) {
+            if (state == IndexShardState.CREATED) {
+                // Recovery type not yet known. Store the flag.
+                recoveryCancellationRequested = true;
+                return;
+            }
+            if (state != IndexShardState.RECOVERING) {
+                throw new IndexShardNotRecoveringException(shardId, state);
+            }
+            final RecoveryState currentRecoveryState = recoveryState;
+            assert currentRecoveryState != null;
+            final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
+            switch (recoveryType) {
+                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE, PEER -> recoveryCancellationRequested = true;
+                case RESHARD_SPLIT -> throw new IllegalStateException(
+                    "requestRecoveryCancellation is currently unsupported for RESHARD_SPLIT recoveries, shardId: " + shardId
+                );
+            }
+        }
+    }
+
+    /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
+    ///
+    /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
+    /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
+    /// (preserving it as the cause), e.g. via `onFailure`.
+    public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
+        final RecoveryState currentRecoveryState = recoveryState;
+        assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
+        if (recoveryCancellationRequested) {
+            throw new RecoveryCancelledException(shardId, currentRecoveryState.getSourceNode(), currentRecoveryState.getTargetNode());
+        }
+    }
+
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,
         IndexShardClosedException {
         assert postRecoveryComplete == null;
@@ -2026,6 +2072,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (state == IndexShardState.STARTED) {
                         throw new IndexShardStartedException(shardId);
                     }
+                    // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
+                    recoveryCancellationRequested = false;
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
             }).addListener(finalListener);

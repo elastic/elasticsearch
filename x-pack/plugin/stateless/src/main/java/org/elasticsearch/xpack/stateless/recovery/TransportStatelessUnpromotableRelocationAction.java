@@ -69,12 +69,14 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction.TYPE;
@@ -175,8 +177,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
 
-            SubscribableListener.newForked(indexShard::preRecovery).andThenApply(unused -> {
+            SubscribableListener.<Void>newForked(l -> {
+                indexShard.ensureRecoveryNotCancelled();
+                indexShard.preRecovery(l);
+            }).andThenApply(unused -> {
                 logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.prepareForIndexRecovery();
                 // Skip unnecessary intermediate stages
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
@@ -387,24 +393,34 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
         logger.debug("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
+        AtomicLong warningCounter = new AtomicLong();
 
-        try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
+        try (var listeners = new RefCountingListener(listener.map(r -> {
+            logger.debug("returning {} context infos for shard {}. Warnings: {}", pitContextInfos.size(), shardId, warningCounter.get());
+            return new PITHandoffResponse(pitContextInfos);
+        }))) {
             for (PitReaderContext context : activeContexts) {
                 fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(info -> {
                     pitContextInfos.add(info);
                     pitRelocationMetrics.recordSourceContextCreated();
-                })));
+                })), warningCounter);
             }
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
+    private void fetchOpenPitContextInfo(
+        ShardId shardId,
+        PitReaderContext context,
+        ActionListener<Optional<OpenPITContextInfo>> listener,
+        AtomicLong warningCounter
+    ) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
             logger.warn(
                 "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
                 e
             );
+            warningCounter.incrementAndGet();
             l.onResponse(Optional.empty());
         });
 
@@ -417,45 +433,59 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             assert luceneCommitPointBlobLocation != null : "commit point [" + indexCommit + "] not found in search directory";
             final var bccTermAndGen = luceneCommitPointBlobLocation.getBatchedCompoundCommitTermAndGeneration();
             final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
+            final Collection<String> commitFileNames = indexCommit.getFileNames();
 
-            // We need to fetch the CC header to get the canonical blob location for all the files in the open PIT
-            // reader. We have to do that instead of relying on the SearchDirectory#metadata because generational files
-            // are pinned to the first BCC blob that contains them, this means that generational files from a commit
-            // might point towards different BCCs.
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
-                final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
-                    shardId,
-                    bccTermAndGen,
-                    // We're just interested in fetching up to the CC header of the commit point,
-                    // hence we set the max offset to the Lucene commit point offset
-                    new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
-                );
-                while (bccIterator.hasNext()) {
-                    var statelessCompoundCommit = bccIterator.next();
-                    if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
-                        innerListener.onResponse(
-                            Optional.of(
-                                new OpenPITContextInfo(
-                                    shardId,
-                                    indexCommit.getSegmentsFileName(),
-                                    context.keepAlive(),
-                                    new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
-                                    statelessCompoundCommit.commitFiles(),
-                                    new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
-                                )
-                            )
-                        );
-                        return;
+                final Map<String, BlobLocation> metadata;
+                if (searchDirectory.isBccUploaded(bccTermAndGen)) {
+                    // Fetch the CC header from the object store to get the canonical blob locations.
+                    // This is preferred over SearchDirectory#metadata because generational files
+                    // are pinned to the first BCC blob that contains them, meaning generational files
+                    // from a commit might point towards different BCCs in the SearchDirectory.
+                    final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
+                        shardId,
+                        bccTermAndGen,
+                        new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
+                    );
+                    Map<String, BlobLocation> fromStore = null;
+                    while (bccIterator.hasNext()) {
+                        var statelessCompoundCommit = bccIterator.next();
+                        if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
+                            fromStore = statelessCompoundCommit.commitFiles();
+                            break;
+                        }
                     }
+                    if (fromStore == null) {
+                        throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
+                    }
+                    metadata = fromStore;
+                } else {
+                    // The BCC has not been uploaded to the object store yet (e.g. the commit was
+                    // created by a flush-by-refresh). Fall back to the SearchDirectory's file metadata.
+                    logger.debug(
+                        () -> format("BCC blob [%s] not yet uploaded for shard [%s], using SearchDirectory metadata", bccBlobName, shardId)
+                    );
+                    metadata = searchDirectory.getBlobLocationForFiles(commitFileNames);
                 }
-                throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
+                innerListener.onResponse(
+                    Optional.of(
+                        new OpenPITContextInfo(
+                            shardId,
+                            indexCommit.getSegmentsFileName(),
+                            context.keepAlive(),
+                            new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
+                            metadata,
+                            new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
+                        )
+                    )
+                );
             }));
         } catch (Exception e) {
-            // Ignore the exception and continue with the next context
             logger.warn(
                 "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
                 e
             );
+            warningCounter.incrementAndGet();
             listener.onResponse(Optional.empty());
         }
     }

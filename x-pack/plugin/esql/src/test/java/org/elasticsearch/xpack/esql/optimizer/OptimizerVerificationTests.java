@@ -533,36 +533,49 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             the SORT after it, or add a LIMIT after the SORT"""));
     }
 
+    // INLINE STATS broadcasts aggregate outputs back onto the original rows via Block#lookup when a BY clause is
+    // present. Several block types don't implement lookup() so INLINE STATS with BY must reject them.
+    // Without BY, InlineJoin.inlineData() converts the single aggregate row to Eval+Literal constants and
+    // Block#lookup() is never called, so those types are safe in the no-BY case.
     public void testDateRangeNotSupportedAsInlineStatsAddedField() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
         assumeTrue("date_range field type must be enabled", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
         assumeTrue("VALUES on date_range must be enabled", EsqlCapabilities.Cap.VALUES_DATE_RANGE.isEnabled());
         var testAnalyzer = analyzer().addIndex("decades", "mapping-decades.json");
 
-        // VALUES(date_range) is a legitimate aggregate output (and works fine under plain STATS), but INLINE STATS
-        // broadcasts aggregate outputs back onto the original rows via Block#lookup, which the date_range block
-        // implementation doesn't support.
         var err = error(testAnalyzer.query("""
             FROM decades
             | INLINE STATS r = VALUES(date_range) BY decade
             """));
 
-        assertThat(err, is("2:16: INLINE STATS cannot use [r] of type [DATE_RANGE] as an aggregate output"));
+        assertThat(err, is("2:16: Data type [DATE_RANGE] of field [r] is not currently supported as INLINE STATS with BY computed output"));
+    }
+
+    public void testDateRangeSupportedAsInlineStatsAddedFieldWithoutBy() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        assumeTrue("date_range field type must be enabled", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        assumeTrue("VALUES on date_range must be enabled", EsqlCapabilities.Cap.VALUES_DATE_RANGE.isEnabled());
+        var testAnalyzer = analyzer().addIndex("decades", "mapping-decades.json");
+
+        optimize(testAnalyzer.query("""
+            FROM decades
+            | INLINE STATS r = VALUES(date_range)
+            """));
     }
 
     public void testExponentialHistogramNotSupportedAsInlineStatsAddedField() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
         var testAnalyzer = analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json");
 
-        // FIRST(exponential_histogram_field, ...) is a legitimate aggregate output (works fine under plain STATS),
-        // but INLINE STATS broadcasts aggregate outputs back onto the original rows via Block#lookup, which the
-        // exponential_histogram block implementation doesn't support.
         var err = error(testAnalyzer.query("""
             FROM exp_histo_sample
             | INLINE STATS r = FIRST(responseTime, @timestamp) BY instance
             """));
 
-        assertThat(err, is("2:16: INLINE STATS cannot use [r] of type [EXPONENTIAL_HISTOGRAM] as an aggregate output"));
+        assertThat(
+            err,
+            is("2:16: Data type [EXPONENTIAL_HISTOGRAM] of field [r] is not currently supported as INLINE STATS with BY computed output")
+        );
     }
 
     public void testDateRangeSupportedAsLookupJoinAddedField() {
@@ -588,7 +601,10 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | INLINE STATS r = FIRST(responseTime, @timestamp) BY instance
             """));
 
-        assertThat(err, is("2:16: INLINE STATS cannot use [r] of type [TDIGEST] as an aggregate output"));
+        assertThat(
+            err,
+            is("2:16: Data type [TDIGEST] of field [r] is not currently supported as INLINE STATS with BY computed output")
+        );
     }
 
     public void testEnrichRemoteRejected() {

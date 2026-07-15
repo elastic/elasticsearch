@@ -1798,3 +1798,37 @@ decade:integer | ct:integer
 1950           | 2
 2000           | 2
 ;
+
+// INLINE STATS without BY is safe for date_range: the aggregate result is broadcast as a Literal constant
+// (via InlineJoin.inlineData) rather than via Block#lookup, so no UnsupportedOperationException is thrown.
+inlineStatsDateRangeNoBy
+required_capability: date_range_field_type_v6
+required_capability: inline_stats
+required_capability: values_date_range
+
+FROM decades
+| WHERE decade == 1900
+| INLINE STATS r = VALUES(date_range)
+| KEEP decade, r
+;
+
+decade:integer | r:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// LOOKUP JOIN with a date_range-mapped field works: LookupJoinExec reads columns straight from the
+// lookup index and never calls Block#lookup, so date_range is supported as an added field.
+lookupJoinDateRange
+required_capability: date_range_field_type_v6
+required_capability: join_lookup_v12
+
+FROM decades
+| WHERE decade == 1900
+| KEEP decade
+| LOOKUP JOIN decades_lookup ON decade
+| KEEP decade, date_range, description
+;
+
+decade:integer | date_range:date_range     | description:keyword
+1900           | 1900-01-01..1910-01-01   | Edwardian Era
+;

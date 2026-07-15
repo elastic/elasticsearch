@@ -419,16 +419,18 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
         // Checked post-optimization (rather than in postAnalysisVerification) because INLINE STATS only becomes a
         // Join - and rightOutputFields() only reflects its aggregate outputs - once its surrogate is substituted in.
-        if (rightIsRealLookupIndex() == false) {
+        if (rightIsRealLookupIndex() == false && config().leftFields().isEmpty() == false) {
             // The message names the command the user actually wrote: an InlineJoin is always the surrogate of
             // INLINE STATS, never something a user can type directly, so "JOIN" here would be a confusing,
             // purely internal term.
+            // InlineJoin without join keys (INLINE STATS without BY) is safe: InlineJoin.inlineData() converts
+            // the single aggregate row to Eval+Literal constants, so Block#lookup() is never called.
             String unsupportedOutputMessage = this instanceof InlineJoin
-                ? "INLINE STATS cannot use [{}] of type [{}] as an aggregate output"
-                : "JOIN with right field [{}] of type [{}] is not supported";
+                ? "Data type [{}] of field [{}] is not currently supported as INLINE STATS with BY computed output"
+                : "Data type [{}] of field [{}] is not currently supported as JOIN computed output";
             for (Attribute rightOutputField : rightOutputFields()) {
                 if (Arrays.stream(UNSUPPORTED_OUTPUT_TYPES).anyMatch(t -> rightOutputField.dataType().equals(t))) {
-                    failures.add(fail(rightOutputField, unsupportedOutputMessage, rightOutputField.name(), rightOutputField.dataType()));
+                    failures.add(fail(rightOutputField, unsupportedOutputMessage, rightOutputField.dataType(), rightOutputField.name()));
                 }
             }
         }

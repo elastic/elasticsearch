@@ -603,6 +603,13 @@ public abstract class FullTextFunction extends Function
         return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
     }
 
+    @Override
+    public boolean contributesToScore() {
+        // Runtime search is evaluated per row rather than through a Lucene query, and does not contribute to the
+        // score (yet).
+        return isRuntimeSearch() == false;
+    }
+
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
         return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }

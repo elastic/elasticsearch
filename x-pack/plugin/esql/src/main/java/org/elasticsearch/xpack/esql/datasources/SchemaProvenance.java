@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources.spi;
+package org.elasticsearch.xpack.esql.datasources;
 
 /**
  * Where a read schema came from — the axis that {@code dynamic} actually selects, and the one input several read-time

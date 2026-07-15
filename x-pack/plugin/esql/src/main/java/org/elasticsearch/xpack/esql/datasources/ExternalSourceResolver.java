@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
-import org.elasticsearch.xpack.esql.datasources.spi.SchemaProvenance;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;

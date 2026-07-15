@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.SchemaProvenance;
 
 import java.io.IOException;
 import java.util.HashMap;

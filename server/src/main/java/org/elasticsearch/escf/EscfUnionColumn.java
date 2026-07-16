@@ -110,15 +110,14 @@ final class EscfUnionColumn extends EscfColumn {
             count,
             windowBitSet(absent, from, count),
             new BytesRef(typeVec.bytes, typeVec.offset + from, count),
-            new IntsRef(offsets.ints, offsets.offset + from, count + 1),
+            sliceOffsets(offsets, from, count),
             data
         );
     }
 
     @Override
     EscfColumnData toColumnData() {
-        int byteFrom = offsets.ints[offsets.offset];
-        BytesReference newData = data.slice(byteFrom, offsets.ints[offsets.offset + docCount] - byteFrom);
+        BytesReference newData = sliceData(offsets, data, docCount);
         int[] newOffsets = rebasedOffsets(offsets, docCount);
         return EscfColumnData.ofUnion(docCount, absent, typeVec, newOffsets, newData);
     }

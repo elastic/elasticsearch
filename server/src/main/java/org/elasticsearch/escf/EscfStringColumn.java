@@ -41,21 +41,7 @@ final class EscfStringColumn extends AbstractVarColumn {
     }
 
     @Override
-    EscfColumn sliceInternal(int from, int count) {
-        // data is kept full/shared; the slice is expressed by adjusting offsets.offset.
-        return new EscfStringColumn(
-            count,
-            windowBitSet(absent, from, count),
-            data,
-            new IntsRef(offsets.ints, offsets.offset + from, count + 1)
-        );
-    }
-
-    @Override
-    EscfColumnData toColumnData() {
-        int byteFrom = offsets.ints[offsets.offset];
-        BytesReference newData = data.slice(byteFrom, offsets.ints[offsets.offset + docCount] - byteFrom);
-        int[] newOffsets = rebasedOffsets(offsets, docCount);
-        return EscfColumnData.ofVarWidth(kind(), docCount, absent, newOffsets, newData);
+    AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets) {
+        return new EscfStringColumn(count, sliceAbsent, sliceData, sliceOffsets);
     }
 }

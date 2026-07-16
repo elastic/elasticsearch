@@ -148,6 +148,12 @@ abstract class EscfColumn implements SliceableColumn {
 
     abstract EscfColumnData toColumnData();
 
+    /**
+     * Extracts a {@code count}-bit window starting at {@code base} from {@code src}, re-indexed to
+     * {@code [0, count)}. Returns {@code null} when {@code src} is {@code null} (dense) or when no
+     * bits in the window are set (also dense), preserving the invariant that a {@code null} absent set
+     * means every document is present.
+     */
     static FixedBitSet windowBitSet(FixedBitSet src, int base, int count) {
         if (src == null) {
             return null;
@@ -165,6 +171,12 @@ abstract class EscfColumn implements SliceableColumn {
         return anySet ? out : null;
     }
 
+    /**
+     * Materializes the {@code count + 1} offset entries from {@code ir}'s current window into a fresh
+     * {@code int[]}, subtracting the first entry so the result always starts at zero. Used when
+     * serializing a windowed column back to {@link EscfColumnData}, where offsets must be
+     * self-contained (not relative to a larger backing array).
+     */
     static int[] rebasedOffsets(IntsRef ir, int count) {
         int base = ir.offset;
         int rebase = ir.ints[base];
@@ -173,5 +185,22 @@ abstract class EscfColumn implements SliceableColumn {
             out[i] = ir.ints[base + i] - rebase;
         }
         return out;
+    }
+
+    /**
+     * Returns a window into {@code offsets} starting at entry {@code from} and covering {@code count}
+     * rows (i.e. {@code count + 1} offset entries — one fence post per row boundary).
+     */
+    static IntsRef sliceOffsets(IntsRef offsets, int from, int count) {
+        return new IntsRef(offsets.ints, offsets.offset + from, count + 1);
+    }
+
+    /**
+     * Slices {@code data} to the byte range referenced by the current window of {@code offsets}
+     * ({@code [offsets[0], offsets[count])}).
+     */
+    static BytesReference sliceData(IntsRef offsets, BytesReference data, int count) {
+        int byteFrom = offsets.ints[offsets.offset];
+        return data.slice(byteFrom, offsets.ints[offsets.offset + count] - byteFrom);
     }
 }

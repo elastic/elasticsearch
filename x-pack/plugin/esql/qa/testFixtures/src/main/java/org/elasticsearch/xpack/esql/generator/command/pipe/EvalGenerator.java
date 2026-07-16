@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -29,8 +28,6 @@ public class EvalGenerator implements CommandGenerator {
     public static final String EVAL = "eval";
     public static final String NEW_COLUMNS = "new_columns";
     public static final CommandGenerator INSTANCE = new EvalGenerator();
-
-    private static final Set<String> UNMAPPED_FIELD_NAMES_SET = Set.of(KeepGenerator.UNMAPPED_FIELD_NAMES);
 
     @Override
     public CommandDescription generate(
@@ -77,12 +74,6 @@ public class EvalGenerator implements CommandGenerator {
             usablePrevious.remove(name);
             usablePrevious.remove("`" + name + "`");
             usablePrevious.remove(rawName);
-            // If this EVAL expression reassigned an unmapped field name, put it back as a
-            // placeholder so subsequent expressions don't re-inject it as an unmapped (null) field.
-            // The server processes EVAL expressions sequentially and sees the reassigned type.
-            if (UNMAPPED_FIELD_NAMES_SET.contains(rawName)) {
-                usablePrevious.put(rawName, new Column(rawName, null, List.of(), false));
-            }
         }
         String cmdString = cmd.toString();
         return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));

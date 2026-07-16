@@ -1493,7 +1493,7 @@ public class EsqlSession {
      * Perform a field caps request for each lookup index. Does not update the minimum transport version.
      */
     private void preAnalyzeLookupIndices(
-        Iterator<IndexPattern> lookupIndices,
+        Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
@@ -1508,7 +1508,7 @@ public class EsqlSession {
     }
 
     private void preAnalyzeLookupIndex(
-        IndexPattern lookupIndexPattern,
+        PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
@@ -1524,27 +1524,19 @@ public class EsqlSession {
             EsqlPlugin.externalBlobStorePool()
         );
 
-        String indexPattern = lookupIndexPattern.indexPattern();
+        String indexPattern = lookupIndexPattern.indexPattern().indexPattern();
         String qualifiedPattern;
         Set<String> lookupIndexScope;
 
-        var split = RemoteClusterAware.splitIndexName(indexPattern);
-        switch (split.clusterAlias()) {
-            // default mode, lookup index needs to be found on every remote
-            case null -> {
-                lookupIndexScope = EsqlCCSUtils.onlyRunning(
-                    executionInfo,
-                    computeLookupJoinIndexScope(plan, indexPattern, result.indexResolution())
-                );
-                qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, indexPattern);
-            }
-            // coordinator mode, lookup index needs to be found only locally
-            case "_coordinator" -> {
-                lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                qualifiedPattern = split.indexExpression();
-            }
-            // any other qualifier is not supported
-            default -> throw new AssertionError("Lookup index name should not include remote, but got: " + indexPattern);
+        if (lookupIndexPattern.isCoordinatorMode()) {
+            lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            qualifiedPattern = RemoteClusterAware.splitIndexName(indexPattern).indexExpression();
+        } else {
+            lookupIndexScope = EsqlCCSUtils.onlyRunning(
+                executionInfo,
+                computeLookupJoinIndexScope(plan, indexPattern, result.indexResolution())
+            );
+            qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, indexPattern);
         }
 
         if (lookupIndexScope.isEmpty()) {

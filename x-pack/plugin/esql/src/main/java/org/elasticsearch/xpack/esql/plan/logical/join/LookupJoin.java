@@ -35,9 +35,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         LogicalPlan left,
         LogicalPlan right,
         List<Attribute> joinFields,
-        @Nullable Expression joinOnConditions
+        @Nullable Expression joinOnConditions,
+        boolean isCoordinatorMode
     ) {
-        this(source, left, right, LEFT, joinFields, joinFields, false, joinOnConditions);
+        this(source, left, right, LEFT, joinFields, joinFields, joinOnConditions, false, isCoordinatorMode);
     }
 
     public LookupJoin(
@@ -47,18 +48,26 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         JoinType type,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
+        Expression joinOnConditions,
         boolean isRemote,
-        Expression joinOnConditions
+        boolean isCoordinatorMode
     ) {
-        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote, isCoordinatorMode);
     }
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
-        this(source, left, right, joinConfig, false);
+        this(source, left, right, joinConfig, false, false);
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
-        super(source, left, right, joinConfig, isRemote);
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinConfig joinConfig,
+        boolean isRemote,
+        boolean isCoordinatorMode
+    ) {
+        super(source, left, right, joinConfig, isRemote, isCoordinatorMode);
     }
 
     /**
@@ -67,12 +76,12 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     @Override
     public LogicalPlan surrogate() {
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Join(source(), left(), right(), config(), isRemote());
+        return new Join(source(), left(), right(), config(), isRemote(), isCoordinatorMode());
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new LookupJoin(source(), left, right, config(), isRemote());
+        return new LookupJoin(source(), left, right, config(), isRemote(), isCoordinatorMode());
     }
 
     @Override
@@ -85,8 +94,9 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
             config().type(),
             config().leftFields(),
             config().rightFields(),
+            config().joinOnConditions(),
             isRemote(),
-            config().joinOnConditions()
+            isCoordinatorMode()
         );
     }
 

@@ -1479,7 +1479,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
+                return new LookupJoin(
+                    join.source(),
+                    join.left(),
+                    join.right(),
+                    config,
+                    join.isRemote() || isRemote,
+                    join.isCoordinatorMode()
+                );
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");

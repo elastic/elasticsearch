@@ -100,7 +100,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
     @Override
     public LogicalPlan surrogate() {
         // left join between the main relation and the local, lookup relation
-        return new Join(source(), child(), localRelation, joinConfig(), false);
+        return new Join(source(), child(), localRelation, joinConfig(), false, false);
     }
 
     public JoinConfig joinConfig() {

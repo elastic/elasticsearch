@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -114,11 +112,14 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private List<Attribute> lazyOutput;
     // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
     private final transient boolean isRemote;
+    // Whether this join should run on the coordinator against its local copy of the lookup index
+    private final transient boolean isCoordinatorMode;
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote, boolean isCoordinatorMode) {
         super(source, left, right);
         this.config = config;
         this.isRemote = isRemote;
+        this.isCoordinatorMode = isCoordinatorMode;
     }
 
     public Join(
@@ -129,15 +130,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         Expression joinOnConditions,
-        boolean isRemote
+        boolean isRemote,
+        boolean isCoordinatorMode
     ) {
-        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote, isCoordinatorMode);
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
         this.isRemote = false;
+        this.isCoordinatorMode = false;
     }
 
     @Override
@@ -183,7 +186,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.leftFields(),
             config.rightFields(),
             config.joinOnConditions(),
-            isRemote
+            isRemote,
+            isCoordinatorMode
         );
     }
 
@@ -294,12 +298,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config, isRemote);
+        return new Join(source(), left(), right(), config, isRemote, isCoordinatorMode);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config, isRemote);
+        return new Join(source(), left, right, config, isRemote, isCoordinatorMode);
     }
 
     @Override
@@ -369,6 +373,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return isRemote;
     }
 
+    public boolean isCoordinatorMode() {
+        return isCoordinatorMode;
+    }
+
     @Override
     public ExecuteLocation executesOn() {
         if (isRemote) {
@@ -406,14 +414,5 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         if (executesOn() == ExecuteLocation.REMOTE) {
             checkRemoteJoin(failures);
         }
-    }
-
-    /**
-     * Whether this join should run on the coordinator against its local copy of the lookup index
-     */
-    public boolean isCoordinatorMode() {
-        return right().anyMatch(
-            node -> node instanceof EsRelation rel && rel.indexMode() == IndexMode.LOOKUP && rel.indexPattern().startsWith("_coordinator:")
-        );
     }
 }

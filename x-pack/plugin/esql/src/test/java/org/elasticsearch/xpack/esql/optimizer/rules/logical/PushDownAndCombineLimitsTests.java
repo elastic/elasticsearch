@@ -230,7 +230,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         }),
         new PushDownLimitTestCase<>(
             Join.class,
-            (plan, attr) -> new Join(Source.EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr), false),
+            (plan, attr) -> new Join(Source.EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr), false, false),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 var limit = as(optimizedPlan.left(), Limit.class);

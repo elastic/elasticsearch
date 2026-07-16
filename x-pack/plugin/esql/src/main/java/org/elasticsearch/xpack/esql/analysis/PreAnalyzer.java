@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -49,10 +50,12 @@ public class PreAnalyzer {
      */
     static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
+    public record LookupIndexPattern(IndexPattern indexPattern, boolean isCoordinatorMode) {}
+
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
-        List<IndexPattern> lookupIndices,
+        List<LookupIndexPattern> lookupIndices,
         Set<LinkedIndexPattern> linkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -83,18 +86,23 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Map<IndexPattern, IndexMode> indexes = new HashMap<>();
-        List<IndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
-            if (p.indexMode() == IndexMode.LOOKUP) {
-                lookupIndices.add(p.indexPattern());
-            } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
-                indexes.put(p.indexPattern(), p.indexMode());
-            } else {
-                IndexMode m1 = p.indexMode();
-                IndexMode m2 = indexes.get(p.indexPattern());
-                throw new IllegalStateException(
-                    "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
-                );
+            if (p.indexMode() != IndexMode.LOOKUP) {
+                if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
+                    indexes.put(p.indexPattern(), p.indexMode());
+                } else {
+                    IndexMode m1 = p.indexMode();
+                    IndexMode m2 = indexes.get(p.indexPattern());
+                    throw new IllegalStateException(
+                        "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                    );
+                }
+            }
+        });
+        List<LookupIndexPattern> lookupIndices = new ArrayList<>();
+        plan.forEachUp(LookupJoin.class, lj -> {
+            if (lj.right() instanceof UnresolvedRelation ur) {
+                lookupIndices.add(new LookupIndexPattern(ur.indexPattern(), lj.isCoordinatorMode()));
             }
         });
 

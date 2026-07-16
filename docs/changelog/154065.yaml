@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 154065
+summary: Add opt-in security config change diff auditing
+type: enhancement

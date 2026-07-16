@@ -189,6 +189,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener);
 
+    /**
+     * Hook invoked from the continuous-config-reload path on {@link #onStart} whenever a new
+     * {@link TransformConfig} is loaded from the index. Subclasses use this to detect changes
+     * to the cross-project cloud credential (via {@link TransformConfig#getCredentialId()}) and
+     * swap the in-memory token + revoke the prior one.
+     */
+    protected abstract void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener);
+
     abstract void doDeleteByQuery(
         DeleteByQueryRequest deleteByQueryRequest,
         ActionListener<BulkByPaginatedSearchResponse> responseListener
@@ -411,9 +419,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
+                        TransformConfig priorConfig = transformConfig;
                         transformConfig = config;
                         logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                        reLoadFieldMappingsListener.onResponse(null);
+                        // Give subclasses a chance to reconcile the cloud token (load new + revoke old)
+                        // when the credentialId on the config has changed.
+                        doMaybeRefreshCloudToken(priorConfig, config, reLoadFieldMappingsListener.map(ignored -> null));
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
@@ -571,7 +582,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 listener.onFailure(
                     new RetentionPolicyException(
                         "found [{}] version conflicts when deleting documents as part of the retention policy.",
-                        bulkByPaginatedSearchResponse.getDeleted()
+                        bulkByPaginatedSearchResponse.getVersionConflicts()
                     )
                 );
                 return;

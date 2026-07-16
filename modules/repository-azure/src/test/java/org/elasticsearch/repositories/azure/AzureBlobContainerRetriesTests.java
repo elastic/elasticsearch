@@ -115,7 +115,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private HttpServer secondaryHttpServer;
 
     @Before
-    public void setUp() throws Exception {
+    public void initializeAzureResources() throws Exception {
         threadPool = new TestThreadPool(
             getTestClass().getName(),
             AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
@@ -126,13 +126,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeAzureResources() throws Exception {
         clientProvider.close();
-        super.tearDown();
         secondaryHttpServer.stop(0);
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
@@ -800,7 +798,15 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
         return new AzureBlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add(randomIdentifier())),
-            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+            new AzureBlobStore(
+                ProjectId.DEFAULT,
+                repositoryMetadata,
+                service,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                RepositoriesMetrics.NOOP,
+                null,
+                null
+            )
         );
     }
 

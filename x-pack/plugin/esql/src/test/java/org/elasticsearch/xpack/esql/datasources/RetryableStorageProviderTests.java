@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -29,6 +35,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RetryableStorageProviderTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -156,11 +171,17 @@ public class RetryableStorageProviderTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 if (asyncCalls.incrementAndGet() < 3) {
                     listener.onFailure(new SocketTimeoutException("timeout"));
                 } else {
-                    listener.onResponse(ByteBuffer.wrap("async-data".getBytes(StandardCharsets.UTF_8)));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap("async-data".getBytes(StandardCharsets.UTF_8)), () -> {}));
                 }
             }
         };
@@ -170,13 +191,14 @@ public class RetryableStorageProviderTests extends ESTestCase {
         StorageObject obj = provider.newObject(StoragePath.of("s3://bucket/file.csv"));
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            PlainActionFuture<ByteBuffer> future = new PlainActionFuture<>();
-            obj.readBytesAsync(0, 10, exec, future);
-            ByteBuffer result = future.actionGet();
-            byte[] bytes = new byte[result.remaining()];
-            result.get(bytes);
-            assertEquals("async-data", new String(bytes, StandardCharsets.UTF_8));
-            assertEquals(3, asyncCalls.get());
+            PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+            obj.readBytesAsync(0, 10, FACTORY, exec, future);
+            try (DirectReadBuffer result = future.actionGet()) {
+                byte[] bytes = new byte[result.buffer().remaining()];
+                result.buffer().get(bytes);
+                assertEquals("async-data", new String(bytes, StandardCharsets.UTF_8));
+                assertEquals(3, asyncCalls.get());
+            }
         } finally {
             exec.shutdown();
             exec.awaitTermination(10, TimeUnit.SECONDS);

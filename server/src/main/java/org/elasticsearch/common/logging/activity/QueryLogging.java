@@ -14,6 +14,11 @@ package org.elasticsearch.common.logging.activity;
  */
 public interface QueryLogging {
     /**
+     * This is the name Log4j logger will use.
+     */
+    String QUERY_LOGGER_NAME = "elasticsearch.querylog";
+
+    /**
      * This is the prefix for all query logging specific fields.
      */
     String ES_QUERY_FIELDS_PREFIX = "elasticsearch.querylog.";
@@ -39,11 +44,10 @@ public interface QueryLogging {
     String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
     /** Query filter */
     String QUERY_FIELD_FILTER = ES_QUERY_FIELDS_PREFIX + "filter";
-
-    /**
-     * This is the name Log4j logger will use.
-     */
-    String QUERY_LOGGER_NAME = "elasticsearch.querylog";
+    /** Params for parametrized queries */
+    String QUERY_FIELD_PARAMS = ES_QUERY_FIELDS_PREFIX + "params";
+    /** Element name under which positional parameters are stored */
+    String QUERY_FIELD_PARAM_POSITIONAL = "?";
 
     /**
      * Did this query come from another cluster?

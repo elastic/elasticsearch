@@ -673,6 +673,7 @@ United States of America  | South San Francisco | fork2         | San Francisco 
 ;
 
 forkBeforeMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -694,6 +695,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 ;
 
 forkBranchWithMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -712,6 +714,7 @@ emp_no:integer | job_positions:keyword          | _fork:keyword
 ;
 
 forkAfterMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees

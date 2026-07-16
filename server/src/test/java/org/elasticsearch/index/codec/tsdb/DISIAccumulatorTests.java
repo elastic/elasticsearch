@@ -14,13 +14,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Random;
@@ -28,7 +28,7 @@ import java.util.Random;
 // Copied from org.apache.lucene.codecs.lucene90.TestIndexedDISI and kept tests that we can run.
 // The test suite has been modified to write jump table using writeJumpTable(...) in this class.
 // (some original tests require access to package protected constructor of IndexedDISI and was removed)
-public class DISIAccumulatorTests extends LuceneTestCase {
+public class DISIAccumulatorTests extends ESTestCase {
 
     public void testEmpty() throws IOException {
         int maxDoc = TestUtil.nextInt(random(), 1, 100000);
@@ -208,7 +208,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
     public void testAllDocs() throws IOException {
         int maxDoc = TestUtil.nextInt(random(), 1, 100000);
         FixedBitSet set = new FixedBitSet(maxDoc);
-        set.set(1, maxDoc);
+        set.set(0, maxDoc);
         try (Directory dir = newDirectory()) {
             doTest(set, dir);
         }

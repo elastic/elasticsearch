@@ -15,18 +15,22 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI7u;
-
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int vectorByteSize;
     final int vectorPitch;
@@ -39,7 +43,11 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
-    public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
+    public static Optional<RandomVectorScorer> create(
+        VectorSimilarityFunction sim,
+        LegacyQuantizedByteVectorValues values,
+        float[] queryVector
+    ) {
         checkDimensions(queryVector.length, values.dimension());
         var input = values.getSlice();
         if (input == null) {
@@ -60,7 +68,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         };
     }
 
-    Int7SQVectorScorer(IndexInput input, QuantizedByteVectorValues values, byte[] queryVector, float queryCorrection) {
+    Int7SQVectorScorer(IndexInput input, LegacyQuantizedByteVectorValues values, byte[] queryVector, float queryCorrection) {
         super(values);
         this.input = input;
         assert queryVector.length == values.getVectorByteLength();
@@ -108,7 +116,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class DotProductScorer extends Int7SQVectorScorer {
-        public DotProductScorer(IndexInput in, QuantizedByteVectorValues values, byte[] query, float correction) {
+        public DotProductScorer(IndexInput in, LegacyQuantizedByteVectorValues values, byte[] query, float correction) {
             super(in, values, query, correction);
         }
 
@@ -121,7 +129,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> dotProductI7u(query, seg, vectorByteSize)
+                seg -> DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize)
             );
             assert dotProduct >= 0;
             float nodeCorrection = Float.intBitsToFloat(input.readInt());
@@ -131,7 +139,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI7uBulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI7uBulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];
@@ -150,7 +158,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class EuclideanScorer extends Int7SQVectorScorer {
-        public EuclideanScorer(IndexInput in, QuantizedByteVectorValues values, byte[] query, float correction) {
+        public EuclideanScorer(IndexInput in, LegacyQuantizedByteVectorValues values, byte[] query, float correction) {
             super(in, values, query, correction);
         }
 
@@ -163,7 +171,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> squareDistanceI7u(query, seg, vectorByteSize)
+                seg -> DISTANCE_FUNCS.squareDistanceI7u(query, seg, vectorByteSize)
             );
             float adjustedDistance = sqDist * scoreCorrectionConstant;
             return VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
@@ -171,7 +179,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::squareDistanceI7uBulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::squareDistanceI7uBulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var squareDistance = scores[i];
@@ -187,7 +195,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class MaxInnerProductScorer extends Int7SQVectorScorer {
-        public MaxInnerProductScorer(IndexInput in, QuantizedByteVectorValues values, byte[] query, float corr) {
+        public MaxInnerProductScorer(IndexInput in, LegacyQuantizedByteVectorValues values, byte[] query, float corr) {
             super(in, values, query, corr);
         }
 
@@ -200,7 +208,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> dotProductI7u(query, seg, vectorByteSize)
+                seg -> DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize)
             );
             assert dotProduct >= 0;
             float nodeCorrection = Float.intBitsToFloat(input.readInt());
@@ -210,7 +218,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI7uBulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI7uBulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];

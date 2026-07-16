@@ -10,6 +10,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -49,6 +52,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_RANGE, NotEqualsLongRangeEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
@@ -61,7 +65,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.VERSION, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.IP, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new),
-        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new)
+        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TDIGEST, NotEqualsTDigestEvaluator.Factory::new),
+        Map.entry(DataType.EXPONENTIAL_HISTOGRAM, NotEqualsExponentialHistogramEvaluator.Factory::new),
+        Map.entry(DataType.HISTOGRAM, NotEqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -82,18 +89,22 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -107,18 +118,22 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -194,6 +209,21 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         return false == lhs.equals(rhs);
     }
 
+    @Evaluator(extraName = "LongRange")
+    static boolean processLongRange(LongRangeBlockBuilder.LongRange lhs, LongRangeBlockBuilder.LongRange rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "TDigest")
+    static boolean processTDigest(TDigestHolder lhs, TDigestHolder rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "ExponentialHistogram")
+    static boolean processExponentialHistogram(ExponentialHistogram lhs, ExponentialHistogram rhs) {
+        return false == ExponentialHistogram.equals(lhs, rhs);
+    }
+
     @Override
     public EsqlBinaryComparison reverse() {
         return this;
@@ -217,17 +247,6 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @Override
     public EsqlBinaryComparison negate() {
         return new Equals(source(), left(), right(), zoneId());
-    }
-
-    @Override
-    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right() instanceof Literal lit
-            && lit.value() instanceof Collection<?> == false
-            && left() instanceof FieldExtract fe
-            && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-            return Translatable.YES;
-        }
-        return super.translatable(pushdownPredicates);
     }
 
     @Override

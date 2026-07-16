@@ -13,6 +13,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,7 +81,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     );
 
     public static final FeatureFlag COALESCE_IGNORED_SOURCE_ENTRIES = new FeatureFlag("ignored_source_fields_per_entry");
-    public static final FeatureFlag IGNORED_SOURCE_AS_DOC_VALUES_FF = new FeatureFlag("ignored_source_as_doc_values");
 
     /*
         Setting to disable encoding and writing values for this field.
@@ -211,7 +211,15 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        // Ignored values are only expected in synthetic mode.
+        // Columnar modes rebuild _source from doc-value columns only and never produce generic per-field ignored source
+        // (canAddIgnoredField() is false); assert that to catch a regression that silently reintroduces a source
+        // fallback. The columnar_stored whole-document blob is written separately, by ColumnarSourceWriter.
+        // Kept as an assert rather than a thrown check for now: canAddIgnoredField() already prevents this, so it can
+        // only fire on a bug, and by this point the value is already lost - throwing here would not recover the source,
+        // only fail indexing - so we guard it in tests for now.
+        assert context.indexSettings().getMode().isStrictColumnar() == false || context.getIgnoredFieldValues().isEmpty()
+            : "columnar mode produced generic _ignored_source entries: " + context.getIgnoredFieldValues();
+        // Per-field ignored source is only written in synthetic source mode.
         if (context.mappingLookup().isSourceSynthetic() == false) {
             assert context.getIgnoredFieldValues().isEmpty();
             return;
@@ -604,9 +612,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static IgnoredSourceFormat ignoredSourceFormat(IndexSettings indexSettings) {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
-        if (IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-            && indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES)
-            && indexSettings.useTimeSeriesDocValuesFormat()) {
+
+        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
+            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
+            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
+
+        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

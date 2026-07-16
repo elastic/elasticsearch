@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.stringContainsInOrder;
  * Regression test guarding against ESQL response warnings going missing when a {@link Driver}
  * hops between worker threads mid-execution.
  * <p>
- *     For {@link Warnings#registerWarning} to work, we need to carefully hand off the thread
+ *     For {@link Warnings#registerException} to work, we need to carefully hand off the thread
  *     context every time the {@link Driver} shifts from one thread to another.
  * </p>
  */
@@ -55,7 +55,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
      *     (where the warning is registered) always runs on thread "A", and the second iteration
      *     (where the driver finishes and the response headers are collected) always runs on a
      *     genuinely different thread "B" that has never had anything stashed on its {@link
-     *     ThreadContext} slot. This relies on {@code maxIterations == 1}, which forces {@link
+     *     ThreadContext} slot. This relies on {@code maxIterations == 1}, which forces {@code
      *     Driver#schedule} to resubmit to the executor after every single loop iteration, and on the
      *     operator chain needing exactly one iteration per page (one page registers the warning, a
      *     second page drains the source and finishes the driver).
@@ -237,7 +237,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         protected Page process(Page page) {
             if (warned.compareAndSet(false, true)) {
                 Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), TEST_SOURCE_LOCATION);
-                warnings.registerWarning(warningMessage);
+                warnings.registerException(IllegalArgumentException.class, warningMessage);
             }
             return page;
         }
@@ -298,7 +298,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             Warning warning = warningsByPageIndex.get(pageIndex.getAndIncrement());
             if (warning != null && warning.warned().compareAndSet(false, true)) {
                 Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
-                warnings.registerWarning(warning.message());
+                warnings.registerException(IllegalArgumentException.class, warning.message());
             }
             return page;
         }

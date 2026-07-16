@@ -10,11 +10,11 @@
 package org.elasticsearch.foreign.processor.model;
 
 /**
- * A single field of a {@code @StructSpecification} struct, either a {@link ScalarFieldModel scalar
- * value} or an {@link ArrayFieldModel array pointer}. Every variant exposes a field name and the
- * native layout type used to read or write the field.
+ * A single field of a {@code @StructSpecification} struct — a scalar value, an array pointer, a
+ * fixed-size inline primitive array, or a fixed-size inline C string. Every variant exposes a
+ * field name and the native layout type used to read or write the field.
  */
-public sealed interface StructFieldModel permits ScalarFieldModel, ArrayFieldModel {
+public sealed interface StructFieldModel permits ScalarFieldModel, ArrayFieldModel, InlineArrayFieldModel, InlineStringFieldModel {
     /** Field name (method name for interfaces, component name for records). */
     String name();
 

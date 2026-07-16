@@ -38,5 +38,19 @@ public final class MemorySegmentAdapter {
         return MethodHandles.insertCoordinates(layout.varHandle(element), 1, 0L);
     }
 
+    /**
+     * Return a {@link VarHandle} for indexed sequence element access within the given memory layout.
+     * The Java 22 variant inserts a fixed offset coordinate at position 1 so callers pass
+     * {@code (segment, 0L, (long) index)} for reads and {@code (segment, 0L, (long) index, value)}
+     * for writes — matching the Java 21 two-path-element VarHandle shape.
+     */
+    public static VarHandle varHandleSequenceWithoutOffset(
+        MemoryLayout layout,
+        MemoryLayout.PathElement group,
+        MemoryLayout.PathElement seq
+    ) {
+        return MethodHandles.insertCoordinates(layout.varHandle(group, seq), 1, 0L);
+    }
+
     private MemorySegmentAdapter() {}
 }

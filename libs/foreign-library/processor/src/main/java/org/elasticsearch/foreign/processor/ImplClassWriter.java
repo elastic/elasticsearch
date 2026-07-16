@@ -139,6 +139,9 @@ class ImplClassWriter {
         // Collect only non-struct-factory methods (methods with @Function)
         List<MethodModel> functionMethods = nativeMethods.stream().filter(m -> m.isStructFactory() == false).toList();
 
+        // Prefix used to build struct interface class descriptors (e.g. "pkg.LibName$StructName")
+        String libraryPrefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
+
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.FINAL, AccessFlag.SUPER);
@@ -174,13 +177,13 @@ class ImplClassWriter {
 
             // @Function method implementations
             for (var nm : functionMethods) {
-                emitNativeFunctionMethod(cb, generatedDesc, nm);
+                emitNativeFunctionMethod(cb, generatedDesc, nm, libraryPrefix);
             }
 
             // @StructFactory method implementations
             for (var nm : nativeMethods) {
                 if (nm.isStructFactory()) {
-                    emitStructFactoryMethod(cb, model, nm);
+                    emitStructFactoryMethod(cb, model, nm, libraryPrefix);
                 }
             }
         });
@@ -317,8 +320,8 @@ class ImplClassWriter {
     // Method body generation
     // -------------------------------------------------------------------------
 
-    private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+    private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm, String libraryPrefix) {
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm, libraryPrefix), ClassFile.ACC_PUBLIC, code -> {
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm);
@@ -478,7 +481,11 @@ class ImplClassWriter {
                 return 1;
             }
             case ADDRESSABLE -> {
-                // Convert Addressable -> long: null becomes 0L, otherwise call segment().address()
+                // Convert Addressable -> long: null becomes 0L, otherwise call segment().address().
+                // Cast to Addressable first so the JVM verifier accepts the invokeinterface regardless
+                // of whether the static param type is Addressable or a struct interface that may not
+                // declare extends Addressable. The runtime type is always the generated $Impl, which
+                // implements Addressable, so the cast never fails.
                 var notNull = cb.newLabel();
                 var end = cb.newLabel();
                 cb.aload(slot);
@@ -487,6 +494,7 @@ class ImplClassWriter {
                 cb.goto_(end);
                 cb.labelBinding(notNull);
                 cb.aload(slot);
+                cb.checkcast(CD_Addressable);
                 cb.invokeinterface(CD_Addressable, "segment", MethodTypeDesc.of(CD_MemorySegment));
                 cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
                 cb.labelBinding(end);
@@ -531,11 +539,17 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     /**
-     * Generates the body for a {@code @StructFactory} method. The factory allocates a native
-     * struct instance and populates its {@code @ArrayField} pointer + length field from the
-     * supplied element array.
+     * Generates the body for a {@code @StructFactory} method. For simple factories (no
+     * {@code @ArrayField}), emits {@code new StructName$Impl()}. For array-backed factories,
+     * allocates a native struct instance and populates its {@code @ArrayField} pointer + length
+     * field from the supplied element array.
      */
-    private static void emitStructFactoryMethod(ClassBuilder cb, LibraryModel model, MethodModel nm) {
+    private static void emitStructFactoryMethod(ClassBuilder cb, LibraryModel model, MethodModel nm, String libraryPrefix) {
+        if (nm.packedElementSimpleName() == null) {
+            emitSimpleStructFactoryMethod(cb, nm, libraryPrefix);
+            return;
+        }
+
         // Resolve the target struct and its array field from the model
         StructModel targetStruct = model.structs()
             .stream()
@@ -554,7 +568,7 @@ class ImplClassWriter {
         }).findFirst().orElseThrow(() -> new AssertionError("Missing length field " + arrayField.lengthFieldName())).type();
 
         // Class descriptors for the generated struct types
-        String prefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
+        String prefix = libraryPrefix;
         ClassDesc structImplDesc = ClassDesc.of(prefix + "$" + nm.structReturnSimpleName() + "$Impl");
         ClassDesc packDesc = ClassDesc.of(prefix + "$" + nm.packedElementSimpleName() + "$Pack");
         ClassDesc elementRecordDesc = ClassDesc.of(prefix + "$" + nm.packedElementSimpleName());
@@ -640,16 +654,44 @@ class ImplClassWriter {
         });
     }
 
+    /**
+     * Generates the body for a simple {@code @StructFactory} method (no {@code @ArrayField}).
+     * Emits {@code return new StructName$Impl()}.
+     */
+    private static void emitSimpleStructFactoryMethod(ClassBuilder cb, MethodModel nm, String libraryPrefix) {
+        ClassDesc structImplDesc = ClassDesc.of(libraryPrefix + "$" + nm.structReturnSimpleName() + "$Impl");
+        ClassDesc structInterfaceDesc = ClassDesc.of(libraryPrefix + "$" + nm.structReturnSimpleName());
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(structInterfaceDesc);
+
+        cb.withMethodBody(nm.methodName(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.new_(structImplDesc);
+            code.dup();
+            code.invokespecial(structImplDesc, "<init>", MethodTypeDesc.of(CD_void));
+            code.areturn();
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Descriptor helpers
     // -------------------------------------------------------------------------
 
-    private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm) {
+    private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm, String libraryPrefix) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        List<String> paramStructNames = nm.paramStructSimpleNames();
         List<ClassDesc> paramDescs = new ArrayList<>();
-        for (var paramType : nm.paramTypes()) {
-            paramDescs.add(javaClassDesc(paramType));
+        for (int i = 0; i < paramTypes.size(); i++) {
+            paramDescs.add(javaClassDescForParam(paramTypes.get(i), paramStructNames.get(i), libraryPrefix));
         }
         return MethodTypeDesc.of(javaClassDesc(nm.returnType()), paramDescs);
+    }
+
+    private static ClassDesc javaClassDescForParam(NativeType paramType, String structSimpleName, String libraryPrefix) {
+        if (paramType == NativeType.ADDRESSABLE && structSimpleName != null) {
+            // Param is a struct interface that may not extend Addressable; use the struct interface type
+            // in the Java method descriptor so callers can pass the struct directly.
+            return ClassDesc.of(libraryPrefix + "$" + structSimpleName);
+        }
+        return javaClassDesc(paramType);
     }
 
     /**

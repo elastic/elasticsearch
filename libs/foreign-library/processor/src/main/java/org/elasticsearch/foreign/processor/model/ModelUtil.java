@@ -57,6 +57,19 @@ final class ModelUtil {
         return null;
     }
 
+    /**
+     * Returns the {@code int} value of the given annotation attribute, or {@code null} if the
+     * attribute is absent or not an {@code Integer}.
+     */
+    static Integer annotationIntValue(AnnotationMirror mirror, String attribute) {
+        for (var entry : mirror.getElementValues().entrySet()) {
+            if (entry.getKey().getSimpleName().contentEquals(attribute)) {
+                return entry.getValue().getValue() instanceof Integer i ? i : null;
+            }
+        }
+        return null;
+    }
+
     /** Finds the first {@code public static} method with the given name on a type. */
     static ExecutableElement findPublicStaticMethod(TypeElement type, String methodName) {
         for (var enclosed : type.getEnclosedElements()) {

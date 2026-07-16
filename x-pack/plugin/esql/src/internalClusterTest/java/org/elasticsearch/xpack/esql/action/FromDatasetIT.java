@@ -172,6 +172,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_rename_strict",
         "employees_headerless_strict",
         "employees_headerless_dynamic",
+        "employees_absent_warn",
         "employees_parity_strict",
         "employees_parity_dynamic",
         "employees_order_strict",
@@ -2186,6 +2187,55 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 assertThat(row.get(2), nullValue()); // department absent -> null
             }
         }
+    }
+
+    /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
+    public void testAbsentDeclaredColumnEmitsResponseWarning() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_absent_warn",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        // Read the coordinator's accumulated response Warning headers at completion (same probe as the coercion tests).
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest("FROM employees_absent_warn | SORT emp_no | LIMIT 5"),
+            ActionListener.running(() -> {
+                try {
+                    internalCluster().getInstance(TransportService.class)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .filter(w -> w.contains("declared column [department] is not present"))
+                        .forEach(warnings::add);
+                } finally {
+                    latch.countDown();
+                }
+            })
+        );
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {

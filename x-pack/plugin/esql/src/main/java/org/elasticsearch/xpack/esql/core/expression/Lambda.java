@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-
 /**
  * A lambda expression, e.g. {@code x -> x + 1} or {@code (x, y) -> x + y}, as accepted by functions
  * that take a lambda argument (e.g. {@code map(field, x -> to_upper(x))}).
@@ -77,10 +75,17 @@ public class Lambda extends Expression {
 
     @Override
     public DataType dataType() {
-        // No function understands lambdas yet; this placeholder makes function-signature
-        // resolution reject a Lambda argument the same way it rejects any other wrong-typed one.
-        // TODO: replace with a first-class LAMBDA data type once lambda-aware functions land
-        return UNSUPPORTED;
+        return DataType.LAMBDA;
+    }
+
+    /**
+     * The upstream references needed to evaluate this lambda are the body's references minus the
+     * parameters, which are bound within this lambda's own scope and must not be treated as
+     * upstream inputs by the enclosing plan node.
+     */
+    @Override
+    public AttributeSet references() {
+        return body().references().subtract(AttributeSet.of(parameters()));
     }
 
     @Override

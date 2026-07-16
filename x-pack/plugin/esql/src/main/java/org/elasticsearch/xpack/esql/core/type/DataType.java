@@ -197,6 +197,12 @@ public enum DataType implements Writeable {
      */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").estimatedSize(1024).supportedOnAllNodes()),
     /**
+     * The type of a lambda expression (e.g. {@code x -> x + 1}). Lambdas are not field types and
+     * cannot be stored or transmitted — this type exists solely to distinguish lambda arguments from
+     * ordinary value expressions during Analyzer resolution.
+     */
+    LAMBDA(builder().typeName("LAMBDA").estimatedSize(0).supportedOnAllNodes()),
+    /**
      * Fields that are always {@code null}, usually created with constant
      * {@code null} values.
      */
@@ -810,6 +816,7 @@ public enum DataType implements Writeable {
     public static boolean isRepresentable(DataType t) {
         return t != OBJECT
             && t != UNSUPPORTED
+            && t != LAMBDA
             && t != DATE_PERIOD
             && t != TIME_DURATION
             && t != BYTE

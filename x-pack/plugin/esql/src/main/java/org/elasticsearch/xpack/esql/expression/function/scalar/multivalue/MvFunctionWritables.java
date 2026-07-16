@@ -37,7 +37,8 @@ public class MvFunctionWritables {
             MvSort.ENTRY,
             MvSum.ENTRY,
             MvUnion.ENTRY,
-            MvZip.ENTRY
+            MvZip.ENTRY,
+            AnyMatch.ENTRY
         );
     }
 }

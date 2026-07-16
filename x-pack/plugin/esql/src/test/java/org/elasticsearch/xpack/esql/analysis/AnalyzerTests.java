@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVe
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -5449,6 +5450,295 @@ public class AnalyzerTests extends ESTestCase {
 
     static Literal literal(int value) {
         return new Literal(EMPTY, value, INTEGER);
+    }
+
+    // ========== Lambda resolution tests ==========
+
+    public void testAnyMatchLambdaParamResolution() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> x == \"Alice\")");
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("r", alias.name());
+        var anyMatch = as(alias.child(), AnyMatch.class);
+        assertTrue("any_match should be resolved", anyMatch.resolved());
+        assertThat(anyMatch.dataType(), equalTo(DataType.BOOLEAN));
+        var lambda = anyMatch.lambda();
+        assertTrue("lambda should be resolved", lambda.resolved());
+        assertThat(lambda.parameters().get(0).dataType(), equalTo(KEYWORD));
+        assertThat(lambda.body().dataType(), equalTo(DataType.BOOLEAN));
+        assertThat(lambda.parameters().get(0), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testAnyMatchLambdaParamShadowsUpstreamColumn() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        // lambda param "salary" shadows the upstream salary column; the param type is INTEGER (from first_name field)
+        var plan = basic().query("FROM test | EVAL r = any_match(salary, salary -> salary > 1000)");
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        var anyMatch = as(alias.child(), AnyMatch.class);
+        assertTrue("any_match should be resolved", anyMatch.resolved());
+        var lambda = anyMatch.lambda();
+        // param is a ReferenceAttribute with INTEGER type (from the field), NOT the upstream FieldAttribute
+        var param = as(lambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.name(), equalTo("salary"));
+        assertThat(param.dataType(), equalTo(INTEGER));
+    }
+
+    public void testAnyMatchLambdaBodyNotBoolean() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = any_match(salary, x -> x + 1)",
+            containsString("argument of [any_match(salary, x -> x + 1)] must be [boolean]")
+        );
+    }
+
+    // ---------- body structure ----------
+
+    public void testAnyMatchLambdaBodyWithBuiltinFunction() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> starts_with(x, \"A\"))");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var lambda = anyMatch.lambda();
+        assertTrue(lambda.resolved());
+        assertThat(lambda.parameters().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(lambda.parameters().get(0).dataType(), equalTo(KEYWORD));
+        assertThat(lambda.body().dataType(), equalTo(DataType.BOOLEAN));
+    }
+
+    public void testAnyMatchLambdaBodyReferencesUpstreamColumn() {
+        // lambda body uses both the lambda param x AND an upstream column last_name
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> x == last_name)");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var lambda = anyMatch.lambda();
+        assertTrue(lambda.resolved());
+        var param = as(lambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(KEYWORD));
+        assertThat(lambda.body().dataType(), equalTo(DataType.BOOLEAN));
+    }
+
+    public void testAnyMatchLambdaBodyIsLiteralBoolean() {
+        // param x is not referenced in the body — it must still be resolved to a typed ReferenceAttribute
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> true)");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var lambda = anyMatch.lambda();
+        assertTrue(lambda.resolved());
+        var param = as(lambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.name(), equalTo("x"));
+        assertThat(param.dataType(), equalTo(KEYWORD));
+    }
+
+    public void testAnyMatchLambdaBodyUsesParamAndUpstreamColumn() {
+        // body compares lambda param (INTEGER) against an upstream column emp_no (INTEGER)
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(salary, x -> x > emp_no)");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var lambda = anyMatch.lambda();
+        assertTrue(lambda.resolved());
+        assertThat(lambda.parameters().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(lambda.parameters().get(0).dataType(), equalTo(INTEGER));
+        assertThat(lambda.body().dataType(), equalTo(DataType.BOOLEAN));
+    }
+
+    // ---------- different field types ----------
+
+    public void testAnyMatchLambdaWithIntegerField() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(salary, x -> x > 1000)");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var param = as(anyMatch.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(INTEGER));
+    }
+
+    public void testAnyMatchLambdaWithDatetimeField() {
+        // hire_date is a date field; param should be DATETIME and body must be boolean
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(hire_date, x -> true)");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var param = as(anyMatch.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(DATETIME));
+    }
+
+    public void testAnyMatchLambdaWithTextField() {
+        // gender is a text field
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(gender, x -> x == \"M\")");
+        var anyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(anyMatch.resolved());
+        var param = as(anyMatch.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(DataType.TEXT));
+    }
+
+    // ---------- error cases ----------
+
+    public void testAnyMatchFieldNotFound() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = any_match(nonexistent_field, x -> x == \"foo\")",
+            containsString("Unknown column [nonexistent_field]")
+        );
+    }
+
+    public void testAnyMatchLambdaBodyRefersToNonExistentColumn() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = any_match(first_name, x -> x == ghost_column)",
+            containsString("Unknown column [ghost_column]")
+        );
+    }
+
+    public void testAnyMatchSecondArgNotLambda() {
+        // When the second argument is not a lambda, resolveType should report a type error
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = any_match(salary, 1)",
+            containsString("second argument of [any_match(salary, 1)] must be [lambda]")
+        );
+    }
+
+    // ---------- multiple lambdas in same EVAL ----------
+
+    public void testTwoAnyMatchInSameEvalClause() {
+        // two any_match calls share no state; each lambda param resolves independently
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r1 = any_match(first_name, x -> x == \"A\"), r2 = any_match(salary, y -> y > 0)");
+        var eval = as(as(plan, Limit.class).child(), Eval.class);
+        var am1 = as(as(eval.fields().get(0), Alias.class).child(), AnyMatch.class);
+        var am2 = as(as(eval.fields().get(1), Alias.class).child(), AnyMatch.class);
+        assertTrue(am1.resolved());
+        assertTrue(am2.resolved());
+        assertThat(as(am1.lambda().parameters().get(0), ReferenceAttribute.class).dataType(), equalTo(KEYWORD));
+        assertThat(as(am2.lambda().parameters().get(0), ReferenceAttribute.class).dataType(), equalTo(INTEGER));
+    }
+
+    public void testTwoAnyMatchSameParamNameDifferentTypes() {
+        // both lambdas use "x" as param name; they should resolve independently to different types
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r1 = any_match(first_name, x -> x == \"A\"), r2 = any_match(salary, x -> x > 0)");
+        var eval = as(as(plan, Limit.class).child(), Eval.class);
+        var am1 = as(as(eval.fields().get(0), Alias.class).child(), AnyMatch.class);
+        var am2 = as(as(eval.fields().get(1), Alias.class).child(), AnyMatch.class);
+        var p1 = as(am1.lambda().parameters().get(0), ReferenceAttribute.class);
+        var p2 = as(am2.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(p1.name(), equalTo("x"));
+        assertThat(p2.name(), equalTo("x"));
+        assertThat(p1.dataType(), equalTo(KEYWORD));
+        assertThat(p2.dataType(), equalTo(INTEGER));
+        // Different lambdas produce distinct ReferenceAttribute instances
+        assertNotEquals(p1.id(), p2.id());
+    }
+
+    // ---------- nested lambdas ----------
+
+    public void testNestedAnyMatchOuterParamUsedInInnerBody() {
+        // any_match(first_name, x -> any_match(last_name, y -> y == x))
+        // outer: x:KEYWORD (from first_name); inner: y:KEYWORD (from last_name)
+        // x in inner body should be the same ReferenceAttribute as the outer lambda's x
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> any_match(last_name, y -> y == x))");
+        var outerAnyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(outerAnyMatch.resolved());
+
+        var outerLambda = outerAnyMatch.lambda();
+        assertTrue(outerLambda.resolved());
+        var outerParam = as(outerLambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(outerParam.name(), equalTo("x"));
+        assertThat(outerParam.dataType(), equalTo(KEYWORD));
+
+        var innerAnyMatch = as(outerLambda.body(), AnyMatch.class);
+        assertTrue(innerAnyMatch.resolved());
+
+        var innerLambda = innerAnyMatch.lambda();
+        assertTrue(innerLambda.resolved());
+        var innerParam = as(innerLambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(innerParam.name(), equalTo("y"));
+        assertThat(innerParam.dataType(), equalTo(KEYWORD));
+
+        // The x inside the inner body should be the same attribute as the outer lambda's x
+        assertThat(innerLambda.body().dataType(), equalTo(DataType.BOOLEAN));
+        var bodyRefs = innerLambda.body().references();
+        assertTrue("inner body should reference outer param x", bodyRefs.stream().anyMatch(a -> a.id().equals(outerParam.id())));
+    }
+
+    public void testNestedAnyMatchInnerParamShadowsOuterParamName() {
+        // any_match(first_name, x -> any_match(last_name, x -> x == "foo"))
+        // outer: x_outer:KEYWORD (from first_name); inner: x_inner:KEYWORD (from last_name)
+        // inner body's x must refer to x_inner, NOT x_outer — different NameIds
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> any_match(last_name, x -> x == \"foo\"))");
+        var outerAnyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(outerAnyMatch.resolved());
+
+        var outerLambda = outerAnyMatch.lambda();
+        var outerParam = as(outerLambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(outerParam.name(), equalTo("x"));
+        assertThat(outerParam.dataType(), equalTo(KEYWORD));
+
+        var innerAnyMatch = as(outerLambda.body(), AnyMatch.class);
+        assertTrue(innerAnyMatch.resolved());
+
+        var innerLambda = innerAnyMatch.lambda();
+        var innerParam = as(innerLambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(innerParam.name(), equalTo("x"));
+        assertThat(innerParam.dataType(), equalTo(KEYWORD));
+
+        // The two "x" params must be distinct attributes
+        assertNotEquals("inner and outer params with the same name must be distinct", outerParam.id(), innerParam.id());
+
+        // Inner body's references must include the inner param, not the outer param
+        var bodyRefs = innerLambda.body().references();
+        assertTrue("inner body should reference inner param", bodyRefs.stream().anyMatch(a -> a.id().equals(innerParam.id())));
+        assertFalse("inner body must NOT reference outer param", bodyRefs.stream().anyMatch(a -> a.id().equals(outerParam.id())));
+    }
+
+    public void testNestedAnyMatchOuterParamNotUsedInInnerBody() {
+        // any_match(first_name, x -> any_match(last_name, y -> y == "foo"))
+        // x (outer) is not used in inner body; both lambdas still fully resolved
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(first_name, x -> any_match(last_name, y -> y == \"foo\"))");
+        var outerAnyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(outerAnyMatch.resolved());
+        var outerLambda = outerAnyMatch.lambda();
+        assertTrue(outerLambda.resolved());
+        assertThat(as(outerLambda.parameters().get(0), ReferenceAttribute.class).dataType(), equalTo(KEYWORD));
+
+        var innerAnyMatch = as(outerLambda.body(), AnyMatch.class);
+        assertTrue(innerAnyMatch.resolved());
+        var innerLambda = innerAnyMatch.lambda();
+        assertTrue(innerLambda.resolved());
+        assertThat(as(innerLambda.parameters().get(0), ReferenceAttribute.class).dataType(), equalTo(KEYWORD));
+    }
+
+    public void testNestedAnyMatchBothParamsUsedInInnerBody() {
+        // any_match(salary, x -> any_match(first_name, y -> y == \"Alice\" AND x > 0))
+        // outer: x:INTEGER (from salary); inner: y:KEYWORD (from first_name)
+        // inner body uses both y and x; x in inner body must be the outer param
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = any_match(salary, x -> any_match(first_name, y -> y == \"Alice\" AND x > 0))");
+        var outerAnyMatch = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue(outerAnyMatch.resolved());
+        var outerParam = as(outerAnyMatch.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(outerParam.dataType(), equalTo(INTEGER));
+
+        var innerAnyMatch = as(outerAnyMatch.lambda().body(), AnyMatch.class);
+        assertTrue(innerAnyMatch.resolved());
+        var innerParam = as(innerAnyMatch.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(innerParam.dataType(), equalTo(KEYWORD));
+
+        // Both outer (x:INTEGER) and inner (y:KEYWORD) params referenced in inner body
+        var bodyRefs = innerAnyMatch.lambda().body().references();
+        assertTrue("inner body references outer param x", bodyRefs.stream().anyMatch(a -> a.id().equals(outerParam.id())));
+        assertTrue("inner body references inner param y", bodyRefs.stream().anyMatch(a -> a.id().equals(innerParam.id())));
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {

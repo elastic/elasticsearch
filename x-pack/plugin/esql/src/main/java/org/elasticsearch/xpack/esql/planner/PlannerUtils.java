@@ -594,8 +594,8 @@ public class PlannerUtils {
             case TDIGEST -> ElementType.TDIGEST;
             case DENSE_VECTOR -> ElementType.FLOAT;
             case DATE_RANGE -> ElementType.LONG_RANGE;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
-                .illegalDataType(dataType);
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, LAMBDA ->
+                throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 

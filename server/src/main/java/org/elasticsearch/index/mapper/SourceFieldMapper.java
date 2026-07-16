@@ -523,6 +523,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
      *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and
      *       normalized values</li>
+     *   <li>{@code <field>._on_failure} (and {@code .counts}) — the {@code doc_values.on_failure=ignore} failure column</li>
      * </ul>
      *
      */
@@ -538,7 +539,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
             || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts)
             || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
-            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts);
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX + counts);
     }
 
     /**

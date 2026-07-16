@@ -18,9 +18,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class CustomElandModelIT extends InferenceBaseRestTest {
 
@@ -174,6 +177,83 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         // Force stop works
         String forceStopEndpoint = org.elasticsearch.common.Strings.format("_ml/trained_models/%s/deployment/_stop?force", inferenceId);
         assertStatusOkOrCreated(client().performRequest(new Request("POST", forceStopEndpoint)));
+    }
+
+    /**
+     * Verifies that when a text-embedding inference endpoint create fails after the model deployment has been started
+     * (the new {@code stopModelDeploymentIfStarted} behavior), the ML deployment is actually stopped and does not
+     * remain running as an orphan.
+     *
+     * <p>The failure is forced by the incompatible-semantic_text-mapping check in
+     * {@code checkForExistingUsesOfInferenceId}: a document is indexed with the semantic_text field
+     * (populating {@code model_settings} in the mapping), then the endpoint is force-deleted, and a recreation
+     * attempt with a different similarity setting triggers the incompatibility which fires after validation has
+     * already deployed the model.
+     */
+    @SuppressWarnings("unchecked")
+    public void testStopsDeployment_WhenCreateFailsAfterDeployment() throws Exception {
+        var modelId = "stop-deployment-on-failure-model";
+        var inferenceId = "stop-deployment-on-failure-inference";
+        var indexName = "stop-deployment-on-failure-index";
+
+        // Upload the text-embedding model (not yet deployed)
+        createMlNodeTextEmbeddingModel(modelId, client());
+
+        // Create the inference endpoint with the default similarity (cosine).
+        // Validation deploys the model and returns the embedding dimensions.
+        putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "model_id": "%s",
+                "num_allocations": 1,
+                "num_threads": 1
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING);
+
+        // Create an index with a semantic_text field referencing the endpoint
+        putSemanticText(inferenceId, indexName);
+
+        // Index a document so that model_settings (task_type, similarity, dimensions, element_type) are
+        // written into the index mapping — required for the incompatibility check to fire later
+        var indexRequest = new Request("PUT", indexName + "/_create/1");
+        indexRequest.setJsonEntity("{\"inference_field\": \"hello world\"}");
+        assertStatusOkOrCreated(client().performRequest(indexRequest));
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        // Force-delete the endpoint (stops the deployment while the index mapping still references it)
+        deleteModel(inferenceId, "force=true");
+
+        // Attempt to recreate the same inference endpoint with an incompatible similarity (dot_product).
+        // The validator redeploys the model, but checkForExistingUsesOfInferenceId then detects the
+        // conflict with the existing mapping and fails. stopModelDeploymentIfStarted must stop the
+        // newly-started deployment.
+        var e = expectThrows(ResponseException.class, () -> putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "model_id": "%s",
+                "num_allocations": 1,
+                "num_threads": 1,
+                "similarity": "dot_product"
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
+        assertThat(e.getMessage(), containsString("incompatible settings"));
+
+        // The deployment that validation started must have been stopped by stopModelDeploymentIfStarted.
+        // Use assertBusy because the ML stop is asynchronous relative to the HTTP response.
+        assertBusy(() -> {
+            var stats = (List<Map<String, Object>>) getTrainedModelStats(modelId).get("trained_model_stats");
+            assertNull(
+                "Deployment should have been stopped after the failed inference endpoint create, but deployment_stats is still present",
+                stats.get(0).get("deployment_stats")
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        deleteIndex(indexName);
     }
 
     static void createTextExpansionModel(String modelId, RestClient client) throws IOException {

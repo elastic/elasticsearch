@@ -3938,7 +3938,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param tokenCountingMetrics   metrics instance for recording token counts per field value
      * @return the analyzer to use for indexing, or null if no mapper service is available
      */
-    static Analyzer buildIndexAnalyzer(MapperService mapperService, TokenCountingMetrics tokenCountingMetrics) {
+    public static Analyzer buildIndexAnalyzer(MapperService mapperService, TokenCountingMetrics tokenCountingMetrics) {
         if (mapperService == null) {
             return null;
         }

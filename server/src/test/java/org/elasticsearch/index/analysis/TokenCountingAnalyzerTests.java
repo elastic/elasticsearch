@@ -11,33 +11,21 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
+public class TokenCountingAnalyzerTests extends ESTestCase {
 
     private final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(telemetryPlugin);
-    }
-
-    @Override
-    public void testFieldHasValue() {}
-
-    @Override
-    public void testFieldHasValueWithEmptyFieldInfos() {}
-
     public void testRecordsTokenCount() throws IOException {
-        var metrics = createTestMapperMetrics().tokenCountingMetrics();
+        var metrics = createMetrics();
         int tokenCount = randomIntBetween(1, 2000);
         String input = IntStream.range(0, tokenCount).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
 
@@ -58,7 +46,7 @@ public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
     }
 
     public void testRecordsPerFieldValue() throws IOException {
-        var metrics = createTestMapperMetrics().tokenCountingMetrics();
+        var metrics = createMetrics();
         int firstCount = randomIntBetween(1, 500);
         int secondCount = randomIntBetween(1, 500);
 
@@ -111,5 +99,11 @@ public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
         // NOOP metrics records to MeterRegistry.NOOP, so nothing shows up in the test telemetry plugin
         var measurements = telemetryPlugin.getLongHistogramMeasurement(TokenCountingMetrics.FIELD_TOKEN_COUNT);
         assertEquals(0, measurements.size());
+    }
+
+    private TokenCountingMetrics createMetrics() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        var meterRegistry = telemetryPlugin.getTelemetryProvider(settings).getMeterRegistry();
+        return new TokenCountingMetrics(meterRegistry);
     }
 }

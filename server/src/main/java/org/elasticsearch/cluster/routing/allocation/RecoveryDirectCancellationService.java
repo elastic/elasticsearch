@@ -180,6 +180,8 @@ public class RecoveryDirectCancellationService {
     }
 
     // visible for testing
+    // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
+    // before the previous cancellations have had time to take effect.
     static DirectCancellationsCandidates computeDirectCancellationCandidates(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final List<DirectCancellationsCandidates.Candidates> candidates = new ArrayList<>();

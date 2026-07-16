@@ -28,7 +28,6 @@ final class SystemJvmOptions {
         String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
 
-        boolean useEntitlements = true;
         return Stream.of(
             Stream.of(
                 /*
@@ -76,12 +75,12 @@ final class SystemJvmOptions {
                 "-Des.distribution.type=" + distroType,
                 "-Des.java.type=" + javaType
             ),
-            maybeEnableNativeAccess(useEntitlements),
+            enableNativeAccess(),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAttachEntitlementAgent(esHome, useEntitlements)
+            attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
 
@@ -130,18 +129,14 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+    private static Stream<String> enableNativeAccess() {
         var enableNativeAccessOptions = new ArrayList<String>();
-        if (Runtime.version().feature() >= 21) {
-            enableNativeAccessOptions.add(
-                "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core"
-            );
-            if (useEntitlements) {
-                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
-                if (Runtime.version().feature() >= 24) {
-                    enableNativeAccessOptions.add("--illegal-native-access=deny");
-                }
-            }
+        enableNativeAccessOptions.add(
+            "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core"
+        );
+        enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+        if (Runtime.version().feature() >= 24) {
+            enableNativeAccessOptions.add("--illegal-native-access=deny");
         }
         return enableNativeAccessOptions.stream();
     }
@@ -157,11 +152,7 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
-        if (useEntitlements == false) {
-            return Stream.empty();
-        }
-
+    private static Stream<String> attachEntitlementAgent(Path esHome) {
         Path dir = esHome.resolve("lib/entitlement-bridge");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);

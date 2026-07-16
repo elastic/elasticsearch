@@ -187,7 +187,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static SystemDataStreamDescriptor changeHistorySystemDataStreamDescriptor() {
         try {
-            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
                 CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE,
                 Map.of(
                     CHANGE_HISTORY_VERSION_VARIABLE,
@@ -213,9 +213,14 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static SystemDataStreamDescriptor workflowsEventsSystemDataStreamDescriptor() {
         try {
-            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
                 WORKFLOWS_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE,
-                Map.of(WORKFLOWS_EVENTS_MANAGED_INDEX_VERSION_VARIABLE, Integer.toString(WORKFLOWS_EVENTS_MAPPINGS_VERSION))
+                Map.of(
+                    KIBANA_WORKFLOWS_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    WORKFLOWS_EVENTS_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(WORKFLOWS_EVENTS_MAPPINGS_VERSION)
+                )
             );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EVENTS_DATA_STREAM_NAME,
@@ -234,9 +239,14 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static SystemDataStreamDescriptor workflowsExecutionDataStreamLogsSystemDataStreamDescriptor() {
         try {
-            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
                 WORKFLOWS_EXECUTION_LOGS_COMPOSABLE_TEMPLATE_RESOURCE,
-                Map.of(WORKFLOWS_EXECUTION_LOGS_MANAGED_INDEX_VERSION_VARIABLE, Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION))
+                Map.of(
+                    KIBANA_WORKFLOWS_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    WORKFLOWS_EXECUTION_LOGS_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION)
+                )
             );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
@@ -254,26 +264,21 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     }
 
     /**
-     * Loads a composable template from {@code org/elasticsearch/kibana/} resources using the same {@code ${variable}}
-     * substitution rules as {@code org.elasticsearch.xpack.core.template.TemplateUtils} (Fleet built-in templates).
+     * Loads a composable template from {@code org/elasticsearch/kibana/} resources with {@code ${variable}} substitution
+     * using the same semantics as {@code org.elasticsearch.xpack.core.template.TemplateUtils}.
      * <p>
      * Templates live in this module (not {@code x-pack} template-resources) so {@code org.elasticsearch.kibana} does not
      * {@code require org.elasticsearch.xcore}. That {@code requires} breaks JPMS plugin layer resolution: the kibana module
      * resolves in a layer where {@code org.elasticsearch.xcore} is not on the module path (see {@code PluginsLoader}).
      */
-    private static ComposableIndexTemplate loadWorkflowsComposableTemplate(String resourceFileName, Map<String, String> variables)
+    private static ComposableIndexTemplate loadDataStreamComposableTemplate(String resourceFileName, Map<String, String> variables)
         throws IOException {
         try (InputStream in = KibanaPlugin.class.getResourceAsStream(resourceFileName)) {
             if (in == null) {
-                throw new IOException("missing workflows template resource [" + resourceFileName + "]");
+                throw new IOException("missing composable template resource [" + resourceFileName + "]");
             }
             String raw = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            String source = substituteWorkflowsTemplateVariables(
-                raw,
-                KIBANA_WORKFLOWS_VERSION_VARIABLE,
-                Version.CURRENT.toString(),
-                variables
-            );
+            String source = substituteTemplateVariables(raw, variables);
             try (
                 var parser = JsonXContent.jsonXContent.createParser(
                     XContentParserConfiguration.EMPTY,
@@ -286,20 +291,15 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     }
 
     /** Same substitution semantics as {@code TemplateUtils.replaceVariables}. */
-    private static String substituteWorkflowsTemplateVariables(
-        String input,
-        String versionProperty,
-        String version,
-        Map<String, String> variables
-    ) {
-        String template = replaceWorkflowsTemplateVariable(input, versionProperty, version);
+    private static String substituteTemplateVariables(String input, Map<String, String> variables) {
+        String template = input;
         for (Map.Entry<String, String> variable : variables.entrySet()) {
-            template = replaceWorkflowsTemplateVariable(template, variable.getKey(), variable.getValue());
+            template = replaceTemplateVariable(template, variable.getKey(), variable.getValue());
         }
         return template;
     }
 
-    private static String replaceWorkflowsTemplateVariable(String input, String variable, String value) {
+    private static String replaceTemplateVariable(String input, String variable, String value) {
         return input.replace("${" + variable + "}", value);
     }
 

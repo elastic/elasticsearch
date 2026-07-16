@@ -81,42 +81,41 @@ public class CancelRecoveriesAction {
         }
     }
 
-    /// Details of a single shard recovery to be cancelled.
-    public record ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted) implements Writeable {
+    /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.
+    public record CancelledInQueue(ShardId shardId, String allocationId) implements Writeable {
 
-        public ShardRecoveryCancellation(StreamInput in) throws IOException {
-            this(new ShardId(in), in.readString(), in.readBoolean());
+        public CancelledInQueue(StreamInput in) throws IOException {
+            this(new ShardId(in), in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             out.writeString(allocationId);
-            out.writeBoolean(cancelIfStarted);
         }
     }
 
-    /// Response containing the allocation IDs of recoveries that were found in the throttling queue and cancelled.
+    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled.
     /// The master can use this information to immediately update cluster state without waiting for a separate
     /// `ShardStateAction.shardFailed` notification from the data node.
     public static class Response extends ActionResponse {
-        private final Set<String> cancelledInQueue;
+        private final Set<CancelledInQueue> cancelledInQueue;
 
-        public Response(Set<String> cancelledInQueue) {
+        public Response(Set<CancelledInQueue> cancelledInQueue) {
             this.cancelledInQueue = Set.copyOf(cancelledInQueue);
         }
 
         public Response(StreamInput in) throws IOException {
-            this.cancelledInQueue = in.readCollectionAsImmutableSet(StreamInput::readString);
+            this.cancelledInQueue = in.readCollectionAsImmutableSet(CancelledInQueue::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(cancelledInQueue);
+            out.writeCollection(cancelledInQueue);
         }
 
-        /// Returns the allocation IDs of recoveries that were cancelled from the throttling queue.
-        public Set<String> cancelledInQueue() {
+        /// Returns the recoveries that were cancelled from the throttling queue.
+        public Set<CancelledInQueue> cancelledInQueue() {
             return cancelledInQueue;
         }
 

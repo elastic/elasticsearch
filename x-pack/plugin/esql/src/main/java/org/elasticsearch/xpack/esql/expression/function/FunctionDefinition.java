@@ -122,6 +122,11 @@ public class FunctionDefinition {
          *     .name("ip_prefix");
          * }
          * to make a capability that looks like {@code fn_ip_prefix_fix_dirty_scratch_leak}.
+         *
+         * <p>Use this when the capability is specific to one function or a small number of
+         * functions. If the capability applies across ES|QL generally, or touches many functions
+         * at once, add it to {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap}
+         * instead.
          */
         public Builder<T> capabilities(String... capabilities) {
             this.capabilities = List.of(capabilities);

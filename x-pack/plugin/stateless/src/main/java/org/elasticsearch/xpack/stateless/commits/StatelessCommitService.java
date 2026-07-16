@@ -925,10 +925,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // (ES-12456)
                     commitState.copyExecutor.execute(() -> {
                         for (ShardId targetShardId : splitTargets) {
-                            try {
-                                objectStoreService.copyCommit(virtualBcc, targetShardId);
-                            } catch (Exception e) {
-                                logger.warn("failed to copy target batched compound commit", e);
+                            while (commitState.isClosed() == false) {
+                                try {
+                                    objectStoreService.copyCommit(virtualBcc, targetShardId);
+                                    break;
+                                } catch (Exception e) {
+                                    logger.warn(
+                                        () -> format(
+                                            "%s failed to copy commit [%s] to split target [%s], retrying",
+                                            virtualBcc.getShardId(),
+                                            virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                            targetShardId
+                                        ),
+                                        e
+                                    );
+                                }
+                            }
+                            if (commitState.isClosed()) {
+                                cleanup();
+                                return;
                             }
                         }
                         afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);

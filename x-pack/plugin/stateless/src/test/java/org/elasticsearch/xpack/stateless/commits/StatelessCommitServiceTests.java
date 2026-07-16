@@ -97,6 +97,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -502,8 +503,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
      * Verifies that a shard's fully-uploaded listener does not fire until that shard's own copy to split
      * targets has completed. With the ordering bug, a gen N+1 copy that completes before gen N's copy
      * would call {@code fireUploadedGenerationListeners(gen_N+1.ccGen)}, which (since gen N &lt; gen N+1)
-     * would also satisfy gen N's listener prematurely. The fix serialises copies via CompletableFuture
-     * chaining so gen N+1's copy only starts after gen N's copy is done.
+     * would also satisfy gen N's listener prematurely. The fix serialises copies via a single-slot
+     * ThrottledTaskRunner so gen N+1's copy only starts after gen N's copy is done.
      */
     public void testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes() throws Exception {
         CountDownLatch gen1CopyBlocker = new CountDownLatch(1);
@@ -610,6 +611,63 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
             safeGet(commit2FullyUploaded);
+        }
+    }
+
+    /**
+     * Verifies that a copy failure causes a retry until successful, and the fully-uploaded generation
+     * listener fires only after the copy eventually succeeds. This ensures all required files are
+     * present at the split target even when early copy attempts fail.
+     */
+    public void testCopyToSplitTargetIsRetriedOnFailure() throws Exception {
+        int failuresBeforeSuccess = randomIntBetween(1, 5);
+        AtomicInteger copyAttempts = new AtomicInteger(0);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedContainer extends FilterBlobContainer {
+                    WrappedContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedContainer(child);
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        int attempt = copyAttempts.incrementAndGet();
+                        if (attempt <= failuresBeforeSuccess) {
+                            throw new IOException("simulated copy failure (attempt " + attempt + ")");
+                        }
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    }
+                }
+                return new WrappedContainer(innerContainer);
+            }
+        }) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(1);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+
+            PlainActionFuture<Void> fullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit1.getGeneration(), fullyUploaded);
+            safeGet(fullyUploaded);
+
+            assertThat(copyAttempts.get(), equalTo(failuresBeforeSuccess + 1));
         }
     }
 

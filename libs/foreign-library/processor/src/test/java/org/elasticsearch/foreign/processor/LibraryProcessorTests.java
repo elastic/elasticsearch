@@ -9,6 +9,11 @@
 
 package org.elasticsearch.foreign.processor;
 
+import java.lang.classfile.ClassFile;
+import java.lang.reflect.AccessFlag;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
  * Tests that {@link LibraryProcessor} emits the correct diagnostics for invalid inputs.
  */
@@ -192,7 +197,7 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
         assertTrue(
             "Expected AbstractLib$Impl.class to be generated",
-            java.nio.file.Files.exists(result.outputDir().resolve("test/AbstractLib$Impl.class"))
+            Files.exists(result.outputDir().resolve("test/AbstractLib$Impl.class"))
         );
     }
 
@@ -243,21 +248,15 @@ public class LibraryProcessorTests extends ProcessorTestCase {
 
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
 
-        java.nio.file.Path classFile = result.outputDir().resolve("test/ProtectedLib$Impl.class");
-        assertTrue("Generated ProtectedLib$Impl.class not found", java.nio.file.Files.exists(classFile));
+        Path classFile = result.outputDir().resolve("test/ProtectedLib$Impl.class");
+        assertTrue("Generated ProtectedLib$Impl.class not found", Files.exists(classFile));
 
         // Parse the bytecode and verify the 'fn' method carries ACC_PROTECTED (not ACC_PUBLIC)
-        var cm = java.lang.classfile.ClassFile.of().parse(java.nio.file.Files.readAllBytes(classFile));
+        var cm = ClassFile.of().parse(Files.readAllBytes(classFile));
         var fnMethod = cm.methods().stream().filter(m -> m.methodName().equalsString("fn")).findFirst();
         assertTrue("fn method not found in ProtectedLib$Impl bytecode", fnMethod.isPresent());
-        assertTrue(
-            "fn method must have ACC_PROTECTED in generated $Impl",
-            fnMethod.get().flags().has(java.lang.reflect.AccessFlag.PROTECTED)
-        );
-        assertFalse(
-            "fn method must not have ACC_PUBLIC in generated $Impl",
-            fnMethod.get().flags().has(java.lang.reflect.AccessFlag.PUBLIC)
-        );
+        assertTrue("fn method must have ACC_PROTECTED in generated $Impl", fnMethod.get().flags().has(AccessFlag.PROTECTED));
+        assertFalse("fn method must not have ACC_PUBLIC in generated $Impl", fnMethod.get().flags().has(AccessFlag.PUBLIC));
     }
 
     /**

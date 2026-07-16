@@ -175,7 +175,7 @@ final class PageColumnReader implements Releasable {
         DataType fileType = info.fileEsqlType();
         if (fileType != null
             && declared != fileType
-            && DeclaredTypeCoercions.fusedInDecode(fileType, declared) == false
+            && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
             && DeclaredTypeCoercions.supports(fileType, declared)) {
             Block physical = readBatchAs(fileType, maxRows, blockFactory);
             try {

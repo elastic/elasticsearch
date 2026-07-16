@@ -32,6 +32,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -52,7 +53,7 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
     @Mock
     private Model mockModel;
     @Mock
-    private ActionListener<Model> mockActionListener;
+    private ActionListener<ModelValidationResult> mockActionListener;
     @Mock
     private ServiceSettings mockServiceSettings;
 
@@ -175,7 +176,7 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
         when(mockServiceSettings.dimensions()).thenReturn(dimensionsSetByUser ? results.getFirstEmbeddingSize() : null);
 
         mockCallToServiceIntegrationValidator(results);
-        verify(mockActionListener).onResponse(mockModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockModel && result.deploymentStarted() == false));
         verify(mockModel).getServiceSettings();
         verify(mockServiceSettings).dimensionsSetByUser();
         verify(mockServiceSettings).dimensions();

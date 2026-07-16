@@ -52,7 +52,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
     @Mock
     private CustomElandEmbeddingModel mockCustomElandEmbeddingModel;
     @Mock
-    private ActionListener<Model> mockActionListener;
+    private ActionListener<ModelValidationResult> mockActionListener;
 
     private ElasticsearchInternalServiceModelValidator underTest;
 
@@ -70,7 +70,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         var mockModel = mock(Model.class);
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
 
-        verify(mockActionListener).onResponse(mockModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockModel && result.deploymentStarted() == false));
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,
             mockInferenceService,
@@ -85,7 +85,9 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
 
         underTest.validate(mockInferenceService, mockCustomElandEmbeddingModel, TIMEOUT, mockActionListener);
 
-        verify(mockActionListener).onResponse(mockCustomElandEmbeddingModel);
+        verify(mockActionListener).onResponse(
+            argThat(result -> result.model() == mockCustomElandEmbeddingModel && result.deploymentStarted() == false)
+        );
         verify(mockCustomElandEmbeddingModel).getTaskType();
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockCustomElandEmbeddingModel, mockActionListener);
     }
@@ -183,7 +185,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         verify(mockInferenceService).updateModelWithEmbeddingDetails(eq(customElandEmbeddingModel), eq(dimensions));
         verify(mockActionListener).delegateFailureAndWrap(any());
         verify(mockActionListener).delegateResponse(any());
-        verify(mockActionListener).onResponse(mockUpdatedModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockUpdatedModel && result.deploymentStarted()));
         verify(mockInferenceServiceResults).getFirstEmbeddingSize();
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,
@@ -285,7 +287,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), any(), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
         verify(mockActionListener).delegateResponse(any());
-        verify(mockActionListener).onResponse(mockUpdatedModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockUpdatedModel && result.deploymentStarted()));
         verify(mockInferenceService).updateModelWithEmbeddingDetails(eq(customElandEmbeddingModel), eq(dimensions));
         verify(mockInferenceServiceResults).getFirstEmbeddingSize();
         verifyNoMoreInteractions(
@@ -351,7 +353,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         verify(mockInferenceService).updateModelWithEmbeddingDetails(eq(elasticDeployedModel), eq(dimensions));
         verify(mockActionListener).delegateFailureAndWrap(any());
         verify(mockActionListener).delegateResponse(any());
-        verify(mockActionListener).onResponse(mockUpdatedModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockUpdatedModel && result.deploymentStarted()));
         verify(mockInferenceServiceResults).getFirstEmbeddingSize();
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,

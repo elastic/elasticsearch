@@ -31,23 +31,26 @@ public class ElasticsearchInternalServiceModelValidator implements ModelValidato
     }
 
     @Override
-    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener) {
         if (requiresDeploymentValidation(model)) {
             // Deploy the model before running the validation inference request. Validation calls service.infer(),
             // which fails with "Model [...] must be deployed to use" if the deployment has not been started.
             // Fixes https://github.com/elastic/elasticsearch/issues/144871. For ElasticDeployedModel (an
             // existing deployment) start()/stop() are no-ops, so it's ok to call start().
+            // Return deploymentStarted=true so the caller can skip starting the deployment a second time.
             service.start(model, timeout, listener.delegateFailureAndWrap((startedListener, ignored) -> {
                 var stopOnFailure = startedListener.delegateResponse((l, e) -> stopModelDeployment(service, model, l, e));
                 serviceIntegrationValidator.validate(
                     service,
                     model,
                     timeout,
-                    stopOnFailure.delegateFailureAndWrap((l, results) -> l.onResponse(postValidate(service, model, results)))
+                    stopOnFailure.delegateFailureAndWrap(
+                        (l, results) -> l.onResponse(new ModelValidationResult(postValidate(service, model, results), true))
+                    )
                 );
             }));
         } else {
-            listener.onResponse(model);
+            listener.onResponse(new ModelValidationResult(model, false));
         }
     }
 
@@ -56,7 +59,7 @@ public class ElasticsearchInternalServiceModelValidator implements ModelValidato
             && model.getTaskType() == TaskType.TEXT_EMBEDDING;
     }
 
-    private void stopModelDeployment(InferenceService service, Model model, ActionListener<Model> listener, Exception e) {
+    private void stopModelDeployment(InferenceService service, Model model, ActionListener<ModelValidationResult> listener, Exception e) {
         service.stop(model, ActionListener.wrap(stopped -> listener.onFailure(e), stopException -> {
             stopException.addSuppressed(e);
             listener.onFailure(

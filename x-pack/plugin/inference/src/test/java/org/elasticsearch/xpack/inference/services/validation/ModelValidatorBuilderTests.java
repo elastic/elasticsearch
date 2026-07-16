@@ -121,7 +121,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
         when(rerankModel.getTaskType()).thenReturn(TaskType.RERANK);
 
         var timeout = randomPositiveTimeValue();
-        var listener = new TestPlainActionFuture<Model>();
+        var listener = new TestPlainActionFuture<ModelValidationResult>();
         modelValidator.validate(mockService, rerankModel, timeout, listener);
         listener.actionGet(TEST_REQUEST_TIMEOUT);
 

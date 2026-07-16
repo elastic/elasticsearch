@@ -13,6 +13,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -611,7 +612,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static IgnoredSourceFormat ignoredSourceFormat(IndexSettings indexSettings) {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
-        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES) && indexSettings.useTimeSeriesDocValuesFormat()) {
+
+        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
+            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
+            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
+
+        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

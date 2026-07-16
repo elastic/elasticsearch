@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -40,9 +41,12 @@ import java.util.Set;
  * This is NOT {@code EsqlDataTypeConverter.commonType()}, which allows LONG→DOUBLE (lossy above 2^53).
  * <p>
  * Under {@code UNION_BY_NAME}, any pair the lossless table cannot widen falls back to
- * {@link DataType#KEYWORD} (the cross-type join): values from numerically-typed files are stringified
- * via {@code ColumnMapping}'s per-block cast and a single response {@code Warning} header per
- * affected column tells the user what happened. This matches the industry baseline (DuckDB,
+ * {@link DataType#KEYWORD} (the cross-type join), and a single response {@code Warning} header per
+ * affected column tells the user what happened. How the wider (or KEYWORD) type is produced depends
+ * on the format: columnar files (Parquet, ORC) read the physically-typed value and stringify it via
+ * {@code ColumnMapping}'s per-block cast, while text files (CSV, TSV, NDJSON) are pinned to the
+ * reconciled type and read it at that type directly (see {@code readsColumnsAtReconciledType}). This
+ * matches the industry baseline (DuckDB,
  * ClickHouse, Spark all widen to string as the cross-type floor) and turns "samplers disagreed"
  * — the normal steady state for sampling-based readers — from a hard error into a benign
  * widening. Users who want the strict-mismatch error can opt into {@code schema_resolution =
@@ -62,7 +66,10 @@ import java.util.Set;
  * <dl>
  *   <dt><b>File schema</b> (per-file, file shape)</dt>
  *   <dd>What's literally in one file. Parquet/ORC: read from the file footer. CSV/NDJSON:
- *       inferred from a byte sample. Carried per-file on {@link FileSplit#readSchema()}.</dd>
+ *       inferred from a byte sample. Carried per-file on {@link FileSplit#readSchema()} as the
+ *       reader's read pin. Under UNION_BY_NAME this pin is the effective read schema after
+ *       reconciliation overrides: for text formats a widened column is pinned to its reconciled
+ *       type so the reader reads at that type directly rather than the narrower sampled type.</dd>
  *
  *   <dt><b>Unified schema</b> (one for the whole table)</dt>
  *   <dd>The cross-file harmonized schema. Produced here as {@link Result#unifiedSchema()}:
@@ -86,7 +93,8 @@ import java.util.Set;
  * <pre>
  *   a.csv = [name:keyword, age:int]
  *   b.csv = [age:long, name:keyword, city:keyword]
- *   query: EXTERNAL "*.csv" WITH {"schema_resolution": "union_by_name"}
+ *   dataset "my_dataset" over *.csv, configured with schema_resolution=union_by_name
+ *   query: FROM my_dataset
  *          | KEEP name, city
  *          | SORT name
  *
@@ -113,7 +121,9 @@ public final class SchemaReconciliation {
     /**
      * Per-file schema information collected during reconciliation.
      *
-     * @param fileSchema the original schema from this file
+     * @param fileSchema the effective read schema the reader is pinned to for this file: the file's
+     *                   inferred/footer schema, after any reconciliation overrides (a shape-conflict
+     *                   winner's shape, or a text format's columns pinned to their reconciled types)
      * @param mapping column mapping from unified schema to file schema, null for identity mapping
      * @param statistics optional statistics from file metadata
      */
@@ -121,10 +131,13 @@ public final class SchemaReconciliation {
         ExternalSchema fileSchema,
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
-        // PRE-overlay file types, physical-keyed; null means fileSchema IS the inferred schema (no declared overlay ran),
-        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated only where the declared
-        // overlay rebuilds this info (ExternalSourceResolver.applyNonStrictOverlay) so the split-level stats boundary can
-        // normalize footer stats with the file's real inferred types instead of the overlaid declared types.
+        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema (nothing retyped this file),
+        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated by the UNION_BY_NAME pin
+        // (reconcileUnionByName / pinToReconciledTypes) with the full pre-pin type map, and by the declared overlay
+        // (ExternalSourceResolver.applyNonStrictOverlay), which preserves an upstream pin's snapshot when present and
+        // otherwise snapshots its own pre-overlay types. It lets stats boundaries recover the file's real inferred types:
+        // the split-level boundary normalizes footer range stats with them instead of the retyped types, and the
+        // resolve/commit boundaries identify the retyped (pinned) column set to safe-miss its read-schema-blind cached stats.
         @Nullable Map<String, DataType> inferredTypes
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
@@ -372,10 +385,28 @@ public final class SchemaReconciliation {
             // resolveShapeConflicts for why this is what actually routes the file's real values
             // through the per-file shape-conflict/ErrorPolicy handling at read time.
             List<Attribute> fileSchema = shapeConflictOverrides.getOrDefault(filePath, meta.schema());
+            Map<String, DataType> inferredTypes = null;
+            if (readsColumnsAtReconciledType(meta.sourceType())) {
+                // Text readers parse each token at the pinned read type, so pin every widened column
+                // to its reconciled type. The reader then reads at the wider type directly (raw text
+                // for KEYWORD) instead of parsing at the narrower sampled type and failing on a value
+                // the sample never saw, which would otherwise null-fill or abort the read before the
+                // ColumnMapping cast could run. See readsColumnsAtReconciledType for why this is
+                // scoped to sample-inferring text formats.
+                List<Attribute> prePin = fileSchema;
+                fileSchema = pinToReconciledTypes(fileSchema, unified);
+                if (fileSchema != prePin) {
+                    // At least one column was pinned above its inferred type. Carry the pre-pin (inferred) types
+                    // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
+                    // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
+                    // safe-miss rather than fold a stale count/extremum.
+                    inferredTypes = typeMap(prePin);
+                }
+            }
             SourceStatistics stats = meta.statistics().orElse(null);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));
         }
 
         return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
@@ -740,6 +771,90 @@ public final class SchemaReconciliation {
         }
 
         return new ColumnMapping(globalToLocal, anyCasts ? casts : null);
+    }
+
+    /**
+     * Whether a format's reader parses each value at the pinned read type, so pinning a widened
+     * column to its reconciled type makes the reader read at the wider type directly. This holds
+     * for the sample-inferring text formats (CSV, TSV, NDJSON): their readers convert each token to
+     * the read schema's type (a KEYWORD read type yields the raw token), so an out-of-sample value
+     * that does not fit the narrower sampled type survives at the wider reconciled type instead of
+     * being destroyed at parse time. Columnar formats (Parquet, ORC) instead read the
+     * physically-typed value and rely on {@link ColumnMapping}'s post-read cast to widen it, so
+     * they must not be pinned here (there is no parse-time loss to avoid, and their readers do not
+     * honor a read type that disagrees with the footer-declared type).
+     */
+    private static boolean readsColumnsAtReconciledType(String sourceType) {
+        return READS_AT_RECONCILED_TYPE_FORMATS.contains(sourceType);
+    }
+
+    /**
+     * The sample-inferring text formats whose readers parse each token at the pinned read type, so a
+     * widened column can be pinned to its reconciled type (see {@link #readsColumnsAtReconciledType}).
+     * The columnar-vs-text axis lives here as a single documented constant, mirroring the sibling
+     * {@link #supportsShapeConflictResolution} check and {@code ExternalSourceResolver.FILE_TYPED_FORMATS},
+     * rather than on the {@code FormatReader} SPI. A new sample-inferring text reader must be added here
+     * to receive the pin.
+     */
+    private static final Set<String> READS_AT_RECONCILED_TYPE_FORMATS = Set.of("csv", "tsv", "ndjson");
+
+    /**
+     * Returns {@code fileSchema} with each column that {@link #shouldPinAtReconciledType safely reads
+     * at its reconciled type} replaced by an attribute of that reconciled type, preserving the column
+     * name and nullability. Returns the input list unchanged when no column needs pinning.
+     */
+    private static List<Attribute> pinToReconciledTypes(List<Attribute> fileSchema, Map<String, MergeEntry> unified) {
+        List<Attribute> pinned = null;
+        for (int i = 0; i < fileSchema.size(); i++) {
+            Attribute attr = fileSchema.get(i);
+            MergeEntry unifiedEntry = unified.get(attr.name());
+            if (unifiedEntry != null && shouldPinAtReconciledType(attr.dataType(), unifiedEntry.type)) {
+                if (pinned == null) {
+                    pinned = new ArrayList<>(fileSchema);
+                }
+                pinned.set(i, new ReferenceAttribute(Source.EMPTY, null, attr.name(), unifiedEntry.type, attr.nullable(), null, false));
+            }
+        }
+        return pinned != null ? pinned : fileSchema;
+    }
+
+    /**
+     * Physical-name-keyed type map of the given schema attributes. Used to snapshot a file's pre-pin
+     * (inferred) column types before {@link #pinToReconciledTypes} retypes them, so downstream code can
+     * recover which columns were pinned.
+     */
+    private static Map<String, DataType> typeMap(List<Attribute> schema) {
+        Map<String, DataType> types = new HashMap<>(schema.size());
+        for (Attribute attr : schema) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
+    }
+
+    /**
+     * Whether a text reader parsing a column directly at {@code reconciled} is equivalent to (or, for
+     * KEYWORD, the intended replacement of) reading it at the sampled {@code inferred} type and then
+     * applying {@link ColumnMapping}'s post-read cast.
+     * <ul>
+     *   <li>KEYWORD: the widened column is a string, so the reader returns the raw token. This is the
+     *       point of the pin: an out-of-sample non-numeric value survives verbatim instead of being
+     *       destroyed by a numeric parse before the cast can run.</li>
+     *   <li>LONG / DOUBLE: the reader's typed parse at the wider numeric type is exactly the sampled
+     *       type widened, so an out-of-sample value that overflows the narrower type (e.g. a value
+     *       above {@code Integer.MAX_VALUE} in an INTEGER-sampled column reconciled to LONG) still
+     *       parses instead of failing.</li>
+     * </ul>
+     * DATE_NANOS is deliberately excluded: a text reader parsing an epoch number at DATE_NANOS reads
+     * it as epoch-nanos, not the epoch-millis a DATETIME column holds, so a DATETIME to DATE_NANOS
+     * widening stays on the post-read cast that rescales the unit rather than a raw parse. Text
+     * inference produces only BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, and KEYWORD, so DATE_NANOS as
+     * a reconciled type reaches this predicate only from a declared schema.
+     */
+    private static boolean shouldPinAtReconciledType(DataType inferred, DataType reconciled) {
+        if (inferred == reconciled) {
+            return false;
+        }
+        return reconciled == DataType.KEYWORD || reconciled == DataType.LONG || reconciled == DataType.DOUBLE;
     }
 
     private static void validateNoDuplicateColumns(StoragePath filePath, List<Attribute> schema) {

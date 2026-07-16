@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.junit.Before;
 
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.containsString;
  * <ul>
  *   <li>{@link SemiJoin}/{@link AntiJoin} nodes for AND-conjunct {@code IN}/{@code NOT IN}
  *       (the row-filtering shape, most efficient for the common case);</li>
- *   <li>{@link LeftSemiJoin} nodes for {@code InSubquery} occurrences embedded in {@code OR}
+ *   <li>{@link MarkJoin} nodes for {@code InSubquery} occurrences embedded in {@code OR}
  *       (or under {@code NOT}/{@code AND} below {@code OR}); each emits a synthetic boolean
  *       mark attribute that the rewritten {@code WHERE} condition references, so SQL
  *       three-valued logic flows through the surrounding boolean expression naturally.</li>
@@ -422,14 +422,14 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals("main", main.indexPattern().indexPattern());
     }
 
-    // ---- positive: OR disjuncts with IN subquery → LeftSemiJoin per InSubquery + Filter on marks ----
+    // ---- positive: OR disjuncts with IN subquery → MarkJoin per InSubquery + Filter on marks ----
 
     /**
      * {@code WHERE x IN (FROM sub1) OR y IN (FROM sub2)} rewrites to (from top down):
      * <pre>
      * Project[main.output]
      *   Filter[$m1 OR $m2]
-     *     LeftSemiJoin[?y → $m2, left=LeftSemiJoin[?x → $m1, left=main, right=sub1], right=sub2]
+     *     MarkJoin[?y → $m2, left=MarkJoin[?x → $m1, left=main, right=sub1], right=sub2]
      * </pre>
      */
     public void testDisjunctiveInSubquery() {
@@ -439,15 +439,15 @@ public class InSubqueryResolverTests extends ESTestCase {
         Attribute leftMark = as(or.left(), Attribute.class);
         Attribute rightMark = as(or.right(), Attribute.class);
         // Outer (latest stacked) join is sub2 ($m2 is the right operand of OR)
-        LeftSemiJoin outer = as(filter.child(), LeftSemiJoin.class);
-        assertEquals(JoinTypes.LEFT_SEMI, outer.config().type());
+        MarkJoin outer = as(filter.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, outer.config().type());
         assertEquals("y", outer.config().leftFields().get(0).name());
         assertEquals(rightMark.id(), outer.markAttribute().id());
         UnresolvedRelation outerRight = as(outer.right(), UnresolvedRelation.class);
         assertEquals("sub2", outerRight.indexPattern().indexPattern());
         // Inner (first stacked) join is sub1
-        LeftSemiJoin inner = as(outer.left(), LeftSemiJoin.class);
-        assertEquals(JoinTypes.LEFT_SEMI, inner.config().type());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, inner.config().type());
         assertEquals("x", inner.config().leftFields().get(0).name());
         assertEquals(leftMark.id(), inner.markAttribute().id());
         UnresolvedRelation innerRight = as(inner.right(), UnresolvedRelation.class);
@@ -460,7 +460,7 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     /**
      * {@code WHERE x NOT IN (FROM sub1) OR y NOT IN (FROM sub2)}: each {@code NOT IN} is rewritten as
-     * {@code NOT $mN}, where {@code $mN} is the mark from a {@link LeftSemiJoin}. The {@code NOT}s and
+     * {@code NOT $mN}, where {@code $mN} is the mark from a {@link MarkJoin}. The {@code NOT}s and
      * the {@code OR} are evaluated by the standard expression machinery — three-valued logic falls
      * out for free.
      */
@@ -472,10 +472,10 @@ public class InSubqueryResolverTests extends ESTestCase {
         Attribute leftMark = as(leftNot.field(), Attribute.class);
         Not rightNot = as(or.right(), Not.class);
         Attribute rightMark = as(rightNot.field(), Attribute.class);
-        LeftSemiJoin outer = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin outer = as(filter.child(), MarkJoin.class);
         assertEquals("y", outer.config().leftFields().get(0).name());
         assertEquals(rightMark.id(), outer.markAttribute().id());
-        LeftSemiJoin inner = as(outer.left(), LeftSemiJoin.class);
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
         assertEquals("x", inner.config().leftFields().get(0).name());
         assertEquals(leftMark.id(), inner.markAttribute().id());
         UnresolvedRelation main = as(inner.left(), UnresolvedRelation.class);
@@ -491,10 +491,10 @@ public class InSubqueryResolverTests extends ESTestCase {
         Attribute leftMark = as(or.left(), Attribute.class);
         Not rightNot = as(or.right(), Not.class);
         Attribute rightMark = as(rightNot.field(), Attribute.class);
-        LeftSemiJoin outer = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin outer = as(filter.child(), MarkJoin.class);
         assertEquals("y", outer.config().leftFields().get(0).name());
         assertEquals(rightMark.id(), outer.markAttribute().id());
-        LeftSemiJoin inner = as(outer.left(), LeftSemiJoin.class);
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
         assertEquals("x", inner.config().leftFields().get(0).name());
         assertEquals(leftMark.id(), inner.markAttribute().id());
         UnresolvedRelation main = as(inner.left(), UnresolvedRelation.class);
@@ -508,7 +508,7 @@ public class InSubqueryResolverTests extends ESTestCase {
      * <pre>
      * Project[main.output]
      *   Filter[$m OR a > 5]
-     *     LeftSemiJoin[?x → $m, left=main, right=sub]
+     *     MarkJoin[?x → $m, left=main, right=sub]
      * </pre>
      */
     public void testDisjunctiveInSubqueryWithOtherPredicate() {
@@ -517,13 +517,13 @@ public class InSubqueryResolverTests extends ESTestCase {
         Or or = as(filter.condition(), Or.class);
         Attribute mark = as(or.left(), Attribute.class);
         as(or.right(), GreaterThan.class);
-        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
-        assertEquals(JoinTypes.LEFT_SEMI, lsj.config().type());
-        assertEquals("x", lsj.config().leftFields().get(0).name());
-        assertEquals(mark.id(), lsj.markAttribute().id());
-        UnresolvedRelation right = as(lsj.right(), UnresolvedRelation.class);
+        MarkJoin mj = as(filter.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, mj.config().type());
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        UnresolvedRelation right = as(mj.right(), UnresolvedRelation.class);
         assertEquals("sub", right.indexPattern().indexPattern());
-        UnresolvedRelation main = as(lsj.left(), UnresolvedRelation.class);
+        UnresolvedRelation main = as(mj.left(), UnresolvedRelation.class);
         assertEquals("main", main.indexPattern().indexPattern());
     }
 
@@ -539,13 +539,13 @@ public class InSubqueryResolverTests extends ESTestCase {
         Attribute xMark = as(innerOr.left(), Attribute.class);
         Attribute yMark = as(innerOr.right(), Attribute.class);
         // Stacking order matches expression-tree traversal order: x → y → z (z is outermost).
-        LeftSemiJoin zJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin zJoin = as(filter.child(), MarkJoin.class);
         assertEquals("z", zJoin.config().leftFields().get(0).name());
         assertEquals(zMark.id(), zJoin.markAttribute().id());
-        LeftSemiJoin yJoin = as(zJoin.left(), LeftSemiJoin.class);
+        MarkJoin yJoin = as(zJoin.left(), MarkJoin.class);
         assertEquals("y", yJoin.config().leftFields().get(0).name());
         assertEquals(yMark.id(), yJoin.markAttribute().id());
-        LeftSemiJoin xJoin = as(yJoin.left(), LeftSemiJoin.class);
+        MarkJoin xJoin = as(yJoin.left(), MarkJoin.class);
         assertEquals("x", xJoin.config().leftFields().get(0).name());
         assertEquals(xMark.id(), xJoin.markAttribute().id());
         UnresolvedRelation main = as(xJoin.left(), UnresolvedRelation.class);
@@ -576,7 +576,7 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 OR w NOT IN (FROM sub2)))}
      * <p>
      * The boolean expression has every {@link InSubquery} replaced by a fresh mark attribute, and
-     * each rewrite stacks one {@link LeftSemiJoin} below the {@link Filter}. The plain comparison
+     * each rewrite stacks one {@link MarkJoin} below the {@link Filter}. The plain comparison
      * predicates ({@code y == 1}, {@code z < 0}) survive untouched in the boolean tree.
      */
     public void testDisjunctiveOrChainWithInSubquery() {
@@ -594,13 +594,13 @@ public class InSubqueryResolverTests extends ESTestCase {
         Not wNot = as(or3.right(), Not.class);
         Attribute wMark = as(wNot.field(), Attribute.class);
 
-        // Two LeftSemiJoins, stacked in declaration order: x first, w on top.
-        LeftSemiJoin wJoin = as(filter.child(), LeftSemiJoin.class);
+        // Two MarkJoins, stacked in declaration order: x first, w on top.
+        MarkJoin wJoin = as(filter.child(), MarkJoin.class);
         assertEquals("w", wJoin.config().leftFields().get(0).name());
         assertEquals(wMark.id(), wJoin.markAttribute().id());
         UnresolvedRelation wRight = as(wJoin.right(), UnresolvedRelation.class);
         assertEquals("sub2", wRight.indexPattern().indexPattern());
-        LeftSemiJoin xJoin = as(wJoin.left(), LeftSemiJoin.class);
+        MarkJoin xJoin = as(wJoin.left(), MarkJoin.class);
         assertEquals("x", xJoin.config().leftFields().get(0).name());
         assertEquals(xMark.id(), xJoin.markAttribute().id());
         UnresolvedRelation xRight = as(xJoin.right(), UnresolvedRelation.class);
@@ -615,7 +615,7 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 AND w NOT IN (FROM sub2)))}
      * <p>
      * Both {@link InSubquery}s sit under {@code OR} (the inner {@code AND} is itself a child of
-     * {@code OR}), so each becomes a {@link LeftSemiJoin} feeding a single {@link Filter}.
+     * {@code OR}), so each becomes a {@link MarkJoin} feeding a single {@link Filter}.
      */
     public void testDisjunctiveOrChainWithConjunctiveInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 AND w NOT IN (FROM sub2)))");
@@ -632,10 +632,10 @@ public class InSubqueryResolverTests extends ESTestCase {
         Not wNot = as(rightAnd.right(), Not.class);
         Attribute wMark = as(wNot.field(), Attribute.class);
 
-        LeftSemiJoin wJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin wJoin = as(filter.child(), MarkJoin.class);
         assertEquals("w", wJoin.config().leftFields().get(0).name());
         assertEquals(wMark.id(), wJoin.markAttribute().id());
-        LeftSemiJoin xJoin = as(wJoin.left(), LeftSemiJoin.class);
+        MarkJoin xJoin = as(wJoin.left(), MarkJoin.class);
         assertEquals("x", xJoin.config().leftFields().get(0).name());
         assertEquals(xMark.id(), xJoin.markAttribute().id());
     }
@@ -646,7 +646,7 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE a > 0 AND (x IN (FROM sub1) OR y == 1)}: the first conjunct is a plain predicate
      * and survives in the final {@link Filter}; the second conjunct contains an {@code OR} with an
      * {@link InSubquery} inside, so the {@code IN} is replaced by a mark attribute and a
-     * {@link LeftSemiJoin} is stacked below the filter.
+     * {@link MarkJoin} is stacked below the filter.
      */
     public void testConjunctOfPredicateAndDisjunctiveInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE a > 0 AND (x IN (FROM sub1) OR y == 1)");
@@ -658,27 +658,27 @@ public class InSubqueryResolverTests extends ESTestCase {
         Attribute xMark = as(or.left(), Attribute.class);
         as(or.right(), Equals.class);
 
-        LeftSemiJoin xJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin xJoin = as(filter.child(), MarkJoin.class);
         assertEquals("x", xJoin.config().leftFields().get(0).name());
         assertEquals(xMark.id(), xJoin.markAttribute().id());
         UnresolvedRelation main = as(xJoin.left(), UnresolvedRelation.class);
         assertEquals("main", main.indexPattern().indexPattern());
     }
 
-    // ---- positive: mixing AND-conjunct IN subquery (SemiJoin) with OR-context IN subquery (LeftSemiJoin) ----
+    // ---- positive: mixing AND-conjunct IN subquery (SemiJoin) with OR-context IN subquery (MarkJoin) ----
 
     /**
      * {@code WHERE x IN (FROM sub1) AND (y IN (FROM sub2) OR a > 0)} mixes both rewrite paths:
      * <ul>
      *   <li>{@code x IN (FROM sub1)} is a top-level AND conjunct → {@link SemiJoin} stacked on top</li>
-     *   <li>{@code y IN (FROM sub2)} is inside an {@code OR} → {@link LeftSemiJoin} stacked below the
+     *   <li>{@code y IN (FROM sub2)} is inside an {@code OR} → {@link MarkJoin} stacked below the
      *       remaining filter</li>
      * </ul>
      */
-    public void testMixedSemiJoinAndLeftSemiJoin() {
+    public void testMixedSemiJoinAndMarkJoin() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) AND (y IN (FROM sub2) OR a > 0)");
-        // SemiJoin for x is stacked on TOP of Filter on TOP of LeftSemiJoin for y.
-        // The synthetic mark attribute introduced by the LeftSemiJoin is stripped by the analyzer's
+        // SemiJoin for x is stacked on TOP of Filter on TOP of MarkJoin for y.
+        // The synthetic mark attribute introduced by the MarkJoin is stripped by the analyzer's
         // planWithoutSyntheticAttributes (post-resolution); the resolver itself does not add a Project.
         SemiJoin xJoin = as(plan, SemiJoin.class);
         assertEquals(JoinTypes.SEMI, xJoin.config().type());
@@ -691,8 +691,8 @@ public class InSubqueryResolverTests extends ESTestCase {
         Attribute yMark = as(or.left(), Attribute.class);
         as(or.right(), GreaterThan.class);
 
-        LeftSemiJoin yJoin = as(filter.child(), LeftSemiJoin.class);
-        assertEquals(JoinTypes.LEFT_SEMI, yJoin.config().type());
+        MarkJoin yJoin = as(filter.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, yJoin.config().type());
         assertEquals("y", yJoin.config().leftFields().get(0).name());
         assertEquals(yMark.id(), yJoin.markAttribute().id());
         UnresolvedRelation yRight = as(yJoin.right(), UnresolvedRelation.class);
@@ -708,8 +708,8 @@ public class InSubqueryResolverTests extends ESTestCase {
      * <p>
      * The whole expression is a single AND-conjunct (top-level OR). Both {@link InSubquery}s reach
      * boolean position through {@code OR}/{@code AND}/{@code NOT} only, so both become
-     * {@link LeftSemiJoin}s. The previous resolver rejected this query as "Complicated IN subquery";
-     * with the LEFT SEMI rewrite it is supported.
+     * {@link MarkJoin}s. The previous resolver rejected this query as "Complicated IN subquery";
+     * with the MARK rewrite it is supported.
      */
     public void testNestedConjunctiveAndDisjunctiveInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))");
@@ -723,10 +723,10 @@ public class InSubqueryResolverTests extends ESTestCase {
         Not wNot = as(innerOr.right(), Not.class);
         Attribute wMark = as(wNot.field(), Attribute.class);
 
-        LeftSemiJoin wJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin wJoin = as(filter.child(), MarkJoin.class);
         assertEquals("w", wJoin.config().leftFields().get(0).name());
         assertEquals(wMark.id(), wJoin.markAttribute().id());
-        LeftSemiJoin xJoin = as(wJoin.left(), LeftSemiJoin.class);
+        MarkJoin xJoin = as(wJoin.left(), MarkJoin.class);
         assertEquals("x", xJoin.config().leftFields().get(0).name());
         assertEquals(xMark.id(), xJoin.markAttribute().id());
     }

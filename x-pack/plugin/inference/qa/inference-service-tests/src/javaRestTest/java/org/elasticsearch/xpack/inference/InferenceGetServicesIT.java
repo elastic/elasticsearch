@@ -25,8 +25,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void enqueueAuthorizedResponse() throws Exception {
         // Ensure the mock EIS server has an authorized response ready before each test because each test will
         // use the services API which makes a call to EIS
         mockEISServer.enqueueAuthorizeAllModelsResponse();

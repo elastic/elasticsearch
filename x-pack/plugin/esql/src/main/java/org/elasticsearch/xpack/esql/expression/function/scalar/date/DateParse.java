@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -74,6 +75,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
     @FunctionInfo(
         returnType = "date",
+        briefSummary = "Parses a string into a date using the specified format.",
         description = "Returns a date by parsing the second argument using the format specified in the first argument.",
         examples = @Example(file = "docs", tag = "dateParse")
     )
@@ -271,7 +273,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
 
         String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
-        ZoneId timezone = configuration().zoneId();
+        ZoneId timezone = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
         try {
             if (timezoneAsString != null) {
                 timezone = ZoneId.of(timezoneAsString);

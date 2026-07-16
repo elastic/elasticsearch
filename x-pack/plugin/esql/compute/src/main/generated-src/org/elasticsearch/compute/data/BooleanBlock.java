@@ -78,7 +78,12 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     }
 
     @Override
-    BooleanBlock filter(boolean mayContainDuplicates, int... positions);
+    BooleanBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

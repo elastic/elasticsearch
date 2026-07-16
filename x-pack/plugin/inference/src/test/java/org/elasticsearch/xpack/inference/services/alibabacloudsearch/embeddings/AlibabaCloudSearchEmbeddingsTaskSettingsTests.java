@@ -56,7 +56,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireS
     public void testFromMap_WhenInputTypeIsNull() {
         InputType inputType = null;
         MatcherAssert.assertThat(
-            AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
+            AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(new HashMap<>()),
             is(new AlibabaCloudSearchEmbeddingsTaskSettings(inputType))
         );
     }

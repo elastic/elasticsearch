@@ -10,12 +10,19 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -23,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
 
@@ -37,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -55,6 +64,7 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
+    private final ExternalSourceMetrics externalSourceMetrics;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -62,10 +72,84 @@ public final class DataSourceModule implements Closeable {
         Settings settings,
         BlockFactory blockFactory,
         ExecutorService executor,
-        DataSourceCredentials credentials
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            null,
+            null,
+            null,
+            null,
+            LocalFileAccess.UNRESTRICTED
+        );
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            LocalFileAccess.UNRESTRICTED
+        );
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess
     ) {
         this.capabilities = capabilities;
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials);
+        // Node telemetry sink for external-source read metrics; NOOP when no registry is supplied (tests).
+        this.externalSourceMetrics = meterRegistry == null ? ExternalSourceMetrics.NOOP : new ExternalSourceMetrics(meterRegistry);
+        LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
+        // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
+        // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
+        RetryScheduler retryScheduler = threadPool == null
+            ? RetryScheduler.DIRECT
+            : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
+        this.storageProviderRegistry = new StorageProviderRegistry(
+            settings,
+            credentials,
+            managedIdentityEnabled,
+            retryScheduler,
+            effectiveLocalFileAccess
+        );
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
@@ -81,7 +165,15 @@ public final class DataSourceModule implements Closeable {
         Map<String, String> registeredSchemes = new HashMap<>();
 
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            LazyPluginState state = new LazyPluginState(plugin, settings, executor);
+            LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService);
+
+            // A DataSourcePlugin's storageProviders(StorageProviderServices) may allocate node-level
+            // resources (e.g. token-file watchers). This SPI-discovery instance never receives the
+            // node Plugin#close(), so close it here when the module shuts down. Anonymous test plugins
+            // that only implement DataSourcePlugin (not Plugin) are not Closeable and are skipped.
+            if (plugin instanceof Closeable closeablePlugin) {
+                closeables.add(closeablePlugin);
+            }
 
             // Storage providers: register a delegating factory per declared scheme
             for (String scheme : plugin.supportedSchemes()) {
@@ -195,7 +287,9 @@ public final class DataSourceModule implements Closeable {
             codecRegistry,
             settings,
             executor,
-            blockFactory
+            blockFactory,
+            effectiveLocalFileAccess,
+            externalSourceMetrics
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -233,6 +327,20 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
+    /** The node-level external-source telemetry holder, or {@link ExternalSourceMetrics#NOOP} when no registry was supplied. */
+    public ExternalSourceMetrics externalSourceMetrics() {
+        return externalSourceMetrics;
+    }
+
+    /**
+     * Convenience overload that backs BOTH registry roles with a single executor. This collapses the
+     * page-consumer/coordination role and the read/parse role onto one pool, which is the exact wiring that
+     * deadlocks multi-file text reads in production (a full pool of blocked parser workers with no free thread
+     * left to run the drain that consumes them). It is safe only for synchronous / single-threaded callers
+     * (e.g. {@code Runnable::run} in tests). Production wiring must use
+     * {@link #createOperatorFactoryRegistry(Executor, Executor)} with two distinct pools —
+     * see {@code TransportEsqlQueryAction}.
+     */
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
         return createOperatorFactoryRegistry(executor, executor);
     }
@@ -249,22 +357,36 @@ public final class DataSourceModule implements Closeable {
         private final DataSourcePlugin plugin;
         private final Settings settings;
         private final ExecutorService executor;
+        @Nullable
+        private final Environment environment;
+        @Nullable
+        private final ResourceWatcherService resourceWatcherService;
         private volatile Map<String, StorageProviderFactory> storageFactoriesCache;
         private volatile Map<String, FormatReaderFactory> formatFactoriesCache;
         private volatile Map<String, ConnectorFactory> connectorFactoriesCache;
         private volatile Map<String, TableCatalogFactory> catalogFactoriesCache;
 
-        LazyPluginState(DataSourcePlugin plugin, Settings settings, ExecutorService executor) {
+        LazyPluginState(
+            DataSourcePlugin plugin,
+            Settings settings,
+            ExecutorService executor,
+            @Nullable Environment environment,
+            @Nullable ResourceWatcherService resourceWatcherService
+        ) {
             this.plugin = plugin;
             this.settings = settings;
             this.executor = executor;
+            this.environment = environment;
+            this.resourceWatcherService = resourceWatcherService;
         }
 
         Map<String, StorageProviderFactory> storageFactories() {
             if (storageFactoriesCache == null) {
                 synchronized (this) {
                     if (storageFactoriesCache == null) {
-                        storageFactoriesCache = plugin.storageProviders(settings, executor);
+                        storageFactoriesCache = plugin.storageProviders(
+                            new StorageProviderServices(settings, executor, environment, resourceWatcherService)
+                        );
                     }
                 }
             }

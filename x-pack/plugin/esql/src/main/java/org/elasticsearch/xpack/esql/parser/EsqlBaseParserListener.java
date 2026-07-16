@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
@@ -826,16 +827,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   */
-  void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   */
-  void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
    * @param ctx the parse tree
    */
@@ -845,6 +836,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void exitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
@@ -875,6 +886,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#ipLocationCommand}.
+   * @param ctx the parse tree
+   */
+  void enterIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#ipLocationCommand}.
+   * @param ctx the parse tree
+   */
+  void exitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree

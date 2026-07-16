@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -123,8 +124,14 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a query string query and returns true if it matches the row.",
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
             @Example(file = "qstr-function", tag = "qstr-with-options", applies_to = "stack: ga 9.1.0") }
@@ -333,7 +340,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
-        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+        if (options() == null && QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -341,7 +348,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        queryStringOptions.putIfAbsent(
+            TIME_ZONE_FIELD.getPreferredName(),
+            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
+        );
         return queryStringOptions;
     }
 

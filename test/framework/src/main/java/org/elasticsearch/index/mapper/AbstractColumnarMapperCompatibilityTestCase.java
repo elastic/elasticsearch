@@ -31,57 +31,7 @@ import java.util.List;
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
  * same Lucene fields as the conventional x-content parse path for the same documents.
- *
- * <h2>Motivation</h2>
- * The branch introduces a second, independent mapping code path. Alongside the existing row-major
- * path ({@link FieldMapper#parse} → {@link LuceneDocument}), metadata mappers now implement a
- * columnar batch path:
- * <ul>
- *   <li>{@link FieldMapper#supportsColumnarParse(org.elasticsearch.index.IndexSettings)} — capability gate.</li>
- *   <li>{@link MetadataFieldMapper#preColumnarParse(BatchMappingContext)} /
- *       {@link MetadataFieldMapper#postColumnarParse(BatchMappingContext)} — invoked once per batch;
- *       a mapper reads per-doc values off {@link IndexRequest}s and attaches one
- *       whole-batch {@link org.elasticsearch.sourcebatch.SliceableColumn} via
- *       {@link BatchMappingContext#addColumn}.</li>
- * </ul>
- * {@link MappedColumns#rowCursor()} is then used to reconstruct per-document
- * {@link IndexableField} lists (the "row cursor on the Lucene columns"), which this test compares
- * against the x-content parse output.
- *
- * <h2>Parity contract</h2>
- * The test verifies <em>whole-document parity</em>: every field produced by the x-content path
- * must appear in the columnar output with the same name, field-type attributes, and field value,
- * and vice versa. Note:
- * <ul>
- *   <li>Numeric field values are compared via {@link IndexableField#numericValue()} to avoid the
- *       spurious {@code binaryValue()} that {@code ColumnLongField} exposes for doc-values-only
- *       fields (where the binary representation is not consulted by the indexing chain).</li>
- *   <li>String field values are normalized to {@link BytesRef} before comparison so that string and
- *       binary representations of the same data compare equal.</li>
- * </ul>
- *
- * <h2>Constraints on test configurations</h2>
- * For whole-document parity to hold, each call to
- * {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Scenario...)} must use index
- * settings and a mapping such that every {@link MetadataFieldMapper} invoked on the x-content path
- * also supports and performs the same work on the columnar path, and vice versa. In practice:
- * <ul>
- *   <li>Use <em>synthetic source</em> (no stored {@code _source} field — avoids SourceFieldMapper
- *       divergence).</li>
- *   <li>Disable recovery source ({@code indices.recovery.recovery_source.enabled=false}) so
- *       {@link SourceFieldMapper} is a no-op on both paths.</li>
- *   <li>Avoid time-series / data-stream index modes ({@code TimeSeriesIdFieldMapper} and
- *       {@code TimeSeriesRoutingHashFieldMapper} opt out of columnar parsing).</li>
- *   <li>Use only scenarios where the source does not trigger any ignored-field or doc-count
- *       logic, since those mappers have no columnar output yet.</li>
- *   <li>If routing is tested with {@code doc_values=false} and a routing value is present, note that
- *       the columnar path currently cannot emit the {@code _field_names} entry that x-content adds
- *       (see the TODO in {@link RoutingFieldMapper#preColumnarParse(BatchMappingContext)}). Such
- *       tests should be annotated {@code @AwaitsFix} until columnar {@code _field_names} support
- *       lands.</li>
- * </ul>
- *
- * <h2>Usage</h2>
+ * <p>
  * Subclasses write {@code public void testXxx()} methods and call
  * {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Scenario...)} directly, passing
  * their own mapping, index settings, and scenarios. This allows a single subclass to define multiple

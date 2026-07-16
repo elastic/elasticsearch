@@ -795,7 +795,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     }
 
     private void assertDeepCopy(B block, List<List<V>> expected) {
-        BlockFactory targetFactory = block.blockFactory();
+        // Distinct factory, same breaker: verifies deepCopy ownership without losing cranky CB coverage.
+        BlockFactory sourceFactory = block.blockFactory();
+        BlockFactory targetFactory = new BlockFactory(sourceFactory.breaker(), sourceFactory.bigArrays());
         try (Block copy = block.deepCopy(targetFactory)) {
             assertValues(castBlock(copy), expected);
             assertThat(copy, equalTo(block));

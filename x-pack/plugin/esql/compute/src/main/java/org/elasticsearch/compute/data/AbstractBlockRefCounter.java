@@ -27,11 +27,6 @@ import java.util.Objects;
  * {@link #makeRefCountsAtomic()} before doing that, e.g. from
  * {@link Block#allowPassingToDifferentDriver()}, to switch to a thread-safe implementation that
  * uses {@code synchronized} blocks around the same {@code int} field.
- * <p>
- * The {@code promoted} flag is intentionally non-volatile: {@link #makeRefCountsAtomic()} must be
- * called by the sole owning thread before the block is published to other threads, so the
- * happens-before established by that publication (e.g. a thread-pool work queue) guarantees
- * visibility without a volatile read on every operation.
  */
 public abstract class AbstractBlockRefCounter implements RefCounted, Releasable {
 
@@ -40,7 +35,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
      * When {@code true}, all ref-count mutations are guarded by {@code synchronized(this)}.
      * Set once by the owning thread before safe publication; never cleared.
      */
-    private boolean promoted = false;
+    private boolean atomic;
     private Releasable onClose;
 
     /**
@@ -63,10 +58,10 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
      * Switches this object's reference counting to a thread-safe mode, guarding all subsequent
      * mutations with {@code synchronized(this)}. Must be called by the single thread that currently
      * owns this object, before any reference to it can be used concurrently from more than one
-     * thread. Idempotent: a no-op if already promoted.
+     * thread. Idempotent: a no-op if already atomic.
      */
     public final void makeRefCountsAtomic() {
-        promoted = true;
+        atomic = true;
     }
 
     @Override
@@ -78,7 +73,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
 
     @Override
     public final boolean tryIncRef() {
-        if (promoted) {
+        if (atomic) {
             synchronized (this) {
                 if (refCount <= 0) {
                     return false;
@@ -98,7 +93,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
     @Override
     public final boolean decRef() {
         boolean closed;
-        if (promoted) {
+        if (atomic) {
             synchronized (this) {
                 assert refCount > 0 : AbstractRefCounted.INVALID_DECREF_MESSAGE;
                 closed = --refCount == 0;
@@ -116,7 +111,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
 
     @Override
     public final boolean hasReferences() {
-        if (promoted) {
+        if (atomic) {
             synchronized (this) {
                 return refCount > 0;
             }

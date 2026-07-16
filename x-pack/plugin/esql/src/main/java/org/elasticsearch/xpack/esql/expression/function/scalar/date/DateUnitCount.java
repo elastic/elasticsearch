@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ public class DateUnitCount extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Counts how many smaller time units fit within a larger time unit for a date.",
         description = "Counts how many `to_unit` values are contained in a single `from_unit` period for `date`.",
         examples = @Example(
             description = "Count the number of days in February for a timestamp using explicit units.",
@@ -152,7 +154,7 @@ public class DateUnitCount extends EsqlConfigurationFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dateEvaluator = toEvaluator.apply(date);
-        var zoneId = configuration().zoneId();
+        var zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
 
         DateDiff.Part dst = foldedPart(toUnit, toEvaluator.foldCtx());
         DateDiff.Part src = foldedPart(fromUnit, toEvaluator.foldCtx());

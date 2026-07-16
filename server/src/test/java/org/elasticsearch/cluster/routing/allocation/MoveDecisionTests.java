@@ -13,7 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -21,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for the {@link MoveDecision} class.
@@ -89,6 +93,67 @@ public class MoveDecisionTests extends ESTestCase {
 
         decision = MoveDecision.move(Decision.NO, AllocationDecision.YES, node2, null);
         assertEquals("node2", decision.getTargetNode().getId());
+    }
+
+    public void testCanRemainDecisionsXContent() throws IOException {
+        // --- canRemain = YES ---
+
+        // debug ON → Multi with YES sub-decisions: can_remain_decisions present
+        Decision.Multi yesMulti = new Decision.Multi();
+        yesMulti.add(Decision.single(Type.YES, "filter_decider", "no filter applied"));
+        yesMulti.add(Decision.single(Type.YES, "disk_decider", "enough disk space"));
+        String debugOnJson = toJsonObject(MoveDecision.rebalance(yesMulti, Decision.YES, AllocationDecision.NO, null, 3, null));
+        assertThat(debugOnJson, containsString("can_remain_on_current_node\":\"yes\""));
+        assertThat(debugOnJson, containsString("can_remain_decisions"));
+        assertThat(debugOnJson, containsString("filter_decider"));
+        assertThat(debugOnJson, containsString("no filter applied"));
+        assertThat(debugOnJson, containsString("disk_decider"));
+        assertThat(debugOnJson, containsString("enough disk space"));
+
+        // EXCLUDE_YES_DECISIONS → empty Multi (all YES filtered out): can_remain_decisions absent
+        String excludeYesJson = toJsonObject(
+            MoveDecision.rebalance(new Decision.Multi(), Decision.YES, AllocationDecision.NO, null, 3, null)
+        );
+        assertThat(excludeYesJson, containsString("can_remain_on_current_node\":\"yes\""));
+        assertThat(excludeYesJson, not(containsString("can_remain_decisions")));
+
+        // debug OFF → Decision.YES singleton: can_remain_decisions absent
+        String debugOffYesJson = toJsonObject(MoveDecision.rebalance(Decision.YES, Decision.YES, AllocationDecision.NO, null, 3, null));
+        assertThat(debugOffYesJson, containsString("can_remain_on_current_node\":\"yes\""));
+        assertThat(debugOffYesJson, not(containsString("can_remain_decisions")));
+
+        // --- canRemain = NO ---
+
+        // debug ON → Multi with YES+NO sub-decisions (type=NO): can_remain_decisions present
+        Decision.Multi debugOnNoMulti = new Decision.Multi();
+        debugOnNoMulti.add(Decision.single(Type.NO, "filter_decider", "filter says no"));
+        debugOnNoMulti.add(Decision.single(Type.YES, "disk_decider", "enough disk space"));
+        String debugOnNoJson = toJsonObject(MoveDecision.move(debugOnNoMulti, AllocationDecision.NO, null, new ArrayList<>()));
+        assertThat(debugOnNoJson, containsString("can_remain_on_current_node\":\"no\""));
+        assertThat(debugOnNoJson, containsString("can_remain_decisions"));
+        assertThat(debugOnNoJson, containsString("filter says no"));
+        assertThat(debugOnNoJson, containsString("disk_decider"));
+        assertThat(debugOnNoJson, containsString("enough disk space"));
+
+        // EXCLUDE_YES_DECISIONS → Multi with NO only (YES filtered out): can_remain_decisions present
+        Decision.Multi excludeYesNoMulti = new Decision.Multi();
+        excludeYesNoMulti.add(Decision.single(Type.NO, "filter_decider", "filter says no"));
+        String excludeYesNoJson = toJsonObject(MoveDecision.move(excludeYesNoMulti, AllocationDecision.NO, null, new ArrayList<>()));
+        assertThat(excludeYesNoJson, containsString("can_remain_on_current_node\":\"no\""));
+        assertThat(excludeYesNoJson, containsString("can_remain_decisions"));
+        assertThat(excludeYesNoJson, containsString("filter says no"));
+
+        // debug OFF → Single NO (specific decider): can_remain_decisions present with decider and explanation
+        Decision.Single singleNo = new Decision.Single(Type.NO, "filter_decider", "filter says no");
+        String debugOffNoJson = toJsonObject(MoveDecision.move(singleNo, AllocationDecision.NO, null, new ArrayList<>()));
+        assertThat(debugOffNoJson, containsString("can_remain_on_current_node\":\"no\""));
+        assertThat(debugOffNoJson, containsString("can_remain_decisions"));
+        assertThat(debugOffNoJson, containsString("filter_decider"));
+        assertThat(debugOffNoJson, containsString("filter says no"));
+    }
+
+    private static String toJsonObject(MoveDecision moveDecision) {
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(moveDecision::toXContentChunked));
     }
 
     public void testSerialization() throws IOException {

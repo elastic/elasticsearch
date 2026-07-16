@@ -47,20 +47,21 @@ create logsdb data stream with host.name as keyword:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -69,7 +70,7 @@ create logsdb data stream with host.name as keyword:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
@@ -98,20 +99,21 @@ create logsdb data stream with host.name as keyword and timestamp as date:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -120,7 +122,7 @@ create logsdb data stream with host.name as keyword and timestamp as date:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
@@ -152,20 +154,21 @@ create logsdb data stream with message as pattern text, and timestamp as date:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -174,7 +177,7 @@ create logsdb data stream with message as pattern text, and timestamp as date:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: null }
@@ -209,20 +212,21 @@ create logsdb data stream with host.name as keyword, message as pattern text, an
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -231,7 +235,7 @@ create logsdb data stream with host.name as keyword, message as pattern text, an
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
@@ -263,20 +267,21 @@ create logsdb data stream with host.name as keyword, message as pattern text, an
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -285,7 +290,7 @@ create logsdb data stream with host.name as keyword, message as pattern text, an
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
@@ -318,20 +323,21 @@ create logsdb data stream with host.name as integer and timestamp as date:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -340,7 +346,7 @@ create logsdb data stream with host.name as integer and timestamp as date:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
@@ -367,20 +373,21 @@ create logsdb data stream with no host.name and timestamp as date:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: [ "logsdb" ]
+          index_patterns: [ "logs-logsdb-test" ]
+          priority: 1000
           data_stream: { }
           composed_of: [ "logsdb-mappings" ]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -389,7 +396,7 @@ create logsdb data stream with no host.name and timestamp as date:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: "true" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
   - match: { .$backing_index.defaults.index.sort.field: [ "host.name", "@timestamp" ] }
@@ -417,20 +424,21 @@ create logsdb data stream with host as keyword and timestamp as date:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: [ "logsdb" ]
+          index_patterns: [ "logs-logsdb-test" ]
+          priority: 1000
           data_stream: { }
           composed_of: [ "logsdb-mappings" ]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -439,7 +447,7 @@ create logsdb data stream with host as keyword and timestamp as date:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: null }
@@ -470,21 +478,22 @@ create logsdb data stream with host as keyword:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -493,7 +502,7 @@ create logsdb data stream with host as keyword:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: null }
@@ -530,21 +539,22 @@ create logsdb data stream with host as text and multi fields:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -553,7 +563,7 @@ create logsdb data stream with host as text and multi fields:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: null }
@@ -587,21 +597,22 @@ create logsdb data stream with host as text:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -610,7 +621,7 @@ create logsdb data stream with host as text:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: null }
@@ -646,21 +657,22 @@ create logsdb data stream with host as text and name as double:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -669,7 +681,7 @@ create logsdb data stream with host as text and name as double:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
   - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
@@ -699,20 +711,21 @@ create logsdb data stream with non-default sort field:
       indices.put_index_template:
         name: "logsdb-index-template"
         body:
-          index_patterns: ["logsdb"]
+          index_patterns: ["logs-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["logsdb-mappings"]
       allowed_warnings:
-        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+        - "index template [logsdb-index-template] has index patterns [logs-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
 
   - is_true: acknowledged
   - do:
       indices.get_data_stream:
-        name: "logsdb"
+        name: "logs-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -721,7 +734,7 @@ create logsdb data stream with non-default sort field:
       indices.get_settings:
         index: $backing_index
         include_defaults: true
-  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.sort.field: [ "some_field" ] }
   - match: { .$backing_index.defaults.index.sort.order: [ "asc" ] }
   - match: { .$backing_index.defaults.index.sort.mode: [ "min" ] }

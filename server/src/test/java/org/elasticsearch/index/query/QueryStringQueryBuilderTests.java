@@ -757,6 +757,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     /**
+     * A deeply nested query string must fail with a {@link QueryShardException} rather than a {@link StackOverflowError}.
+     */
+    public void testToQueryWithDeeplyNestedParentheses() {
+        int depth = 100000;
+        String queryString = "(".repeat(depth) + TEXT_FIELD_NAME + ":value" + ")".repeat(depth);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
+    /**
      * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
      */
     public void testToQueryRegExpQueryMaxDeterminizedStatesParsing() throws Exception {
@@ -1449,7 +1462,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testQueryStringCircuitBreakerTripsWithManyRegexps() {
         assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
             StringJoiner joiner = new StringJoiner(" OR ");
-            IntStream.range(0, 50).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
+            IntStream.range(0, 100).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
             return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
         });
     }

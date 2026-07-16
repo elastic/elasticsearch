@@ -37,7 +37,7 @@ public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
             return convert(value, nullValue, format);
         }
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        if (hasDocValues(fieldMapping, false)) {
             var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue, format)).filter(Objects::nonNull);
             // Columnar index modes preserve arrival order via offsets
             boolean preserveOrder = params.indexMode().isColumnar();

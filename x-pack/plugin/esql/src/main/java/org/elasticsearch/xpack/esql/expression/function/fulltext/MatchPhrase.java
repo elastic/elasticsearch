@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
 
@@ -63,6 +68,8 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
+        // in-development runtime search support; move to capabilities(...) when released
+        .snapshotCapabilities("runtime_filter")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -77,6 +84,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match_phrase query on the specified field.",
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
             specified field.
@@ -89,13 +97,23 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             match_phrase query.
             All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
-            `MATCH_PHRASE` returns true if the provided query matches the row.""",
+            `MATCH_PHRASE` returns true if the provided query matches the row.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field", applies_to = "stack: ga 9.1.0") }
     )
     public MatchPhrase(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
-        @Param(name = "query", type = { "keyword" }, description = "Value to find in the provided field.") Expression matchPhraseQuery,
+        @Param(
+            name = "query",
+            type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Value to find in the provided field."
+        ) Expression matchPhraseQuery,
         @MapParam(
             name = "options",
             params = {
@@ -225,4 +243,53 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
+    /**
+     * Runtime search on non-index-mapped expressions is under development and enabled in snapshot builds only,
+     * advertised through the snapshot-only {@code fn_match_phrase_runtime_filter} function capability declared on
+     * {@link #DEFINITION}.
+     */
+    public static boolean runtimeSearchEnabled() {
+        return Build.current().isSnapshot();
+    }
+
+    @Override
+    protected boolean isRuntimeSearch() {
+        // Runtime match_phrase currently supports only text expressions.
+        // TODO keyword expressions still require an index-mapped field.
+        return runtimeSearchEnabled() && fieldAsFieldAttribute() == null && (field.dataType() == TEXT || field.dataType() == NULL);
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (fieldAsFieldAttribute() == null) {
+            return Translatable.NO;
+        }
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        super.fieldVerifier(plan, function, field, failures);
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+        if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (false == isRuntimeSearch()) {
+            // we push down match_phrase to the shards as a Lucene query.
+            return super.toEvaluator(toEvaluator);
+        }
+
+        return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+    }
 }

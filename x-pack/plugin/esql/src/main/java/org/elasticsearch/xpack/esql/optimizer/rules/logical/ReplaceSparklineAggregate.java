@@ -209,7 +209,11 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         // For the same reason, ReplaceAggregateNestedExpressionWithEval has already run and will not run again. Apply it here so
         // that non-trivial scalar expressions in the inner aggregate's field (e.g. SUM(SIN(salary))) are extracted into a preceding
         // Eval, ensuring the physical planner assigns a correctly-typed channel to the aggregator.
-        phase1Plan = new ReplaceAggregateNestedExpressionWithEval().apply(phase1Plan);
+        // Use locally-unique synthetic names: the same surrogate may also appear standalone in this STATS (e.g. WEIGHTED_AVG used both
+        // directly and inside SPARKLINE), in which case its inner expression was already extracted into an identically-named synthetic
+        // Eval by the global pass. Reusing that name here would make one of the two extractions be dropped by output-attribute merging,
+        // leaving a dangling reference.
+        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true).apply(phase1Plan);
         return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 

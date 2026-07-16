@@ -111,7 +111,8 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             limit,
             sorts,
             estimatedPerRowSortSize,
-            true // scoring
+            true, // scoring
+            () -> 0L
         );
     }
 

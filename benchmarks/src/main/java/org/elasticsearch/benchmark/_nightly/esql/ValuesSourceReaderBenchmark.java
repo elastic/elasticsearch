@@ -282,6 +282,7 @@ public class ValuesSourceReaderBenchmark {
             null,
             null,
             false,
+            false,
             false
         ).blockLoader(new BenchContext());
     }
@@ -323,7 +324,8 @@ public class ValuesSourceReaderBenchmark {
             reuseColumnLoaders,
             0,
             PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
-            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+            () -> 0L
         );
         long sum = 0;
         for (Page page : pages) {

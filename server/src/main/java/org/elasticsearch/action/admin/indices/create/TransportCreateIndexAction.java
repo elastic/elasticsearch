@@ -151,6 +151,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             updateRequest = buildManagedSystemIndexUpdateRequest(request, cause, descriptor, projectId);
         } else {
             updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt, projectId);
+            updateRequest.systemIndexDescriptor(mainDescriptor);
         }
 
         createIndexService.createIndex(
@@ -230,6 +231,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         return new CreateIndexClusterStateUpdateRequest(cause, projectId, indexName, request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mappings(mappings)
-            .settings(settings);
+            .settings(settings)
+            .systemIndexDescriptor(descriptor);
     }
 }

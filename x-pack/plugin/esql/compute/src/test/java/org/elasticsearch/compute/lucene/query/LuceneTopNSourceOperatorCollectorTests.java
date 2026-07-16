@@ -368,7 +368,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             randomIntBetween(10, 100),
             sorts,
             randomLongBetween(10, 20),
-            needsScore
+            needsScore,
+            () -> 0L
         );
     }
 

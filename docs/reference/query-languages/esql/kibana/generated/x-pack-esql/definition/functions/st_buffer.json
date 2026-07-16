@@ -16,7 +16,10 @@
           "name" : "distance",
           "type" : "double",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -34,7 +37,10 @@
           "name" : "distance",
           "type" : "float",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -52,7 +58,10 @@
           "name" : "distance",
           "type" : "integer",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -70,7 +79,10 @@
           "name" : "distance",
           "type" : "long",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -88,7 +100,10 @@
           "name" : "distance",
           "type" : "double",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -106,7 +121,10 @@
           "name" : "distance",
           "type" : "float",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -124,7 +142,10 @@
           "name" : "distance",
           "type" : "integer",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -142,7 +163,10 @@
           "name" : "distance",
           "type" : "long",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -160,7 +184,10 @@
           "name" : "distance",
           "type" : "double",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -178,7 +205,10 @@
           "name" : "distance",
           "type" : "float",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -196,7 +226,10 @@
           "name" : "distance",
           "type" : "integer",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -214,7 +247,10 @@
           "name" : "distance",
           "type" : "long",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -232,7 +268,10 @@
           "name" : "distance",
           "type" : "double",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -250,7 +289,10 @@
           "name" : "distance",
           "type" : "float",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -268,7 +310,10 @@
           "name" : "distance",
           "type" : "integer",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -286,7 +331,10 @@
           "name" : "distance",
           "type" : "long",
           "optional" : false,
-          "description" : "Buffer distance in the units of the input spatial reference system"
+          "description" : "Buffer distance in the units of the input spatial reference system",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

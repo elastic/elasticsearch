@@ -34,18 +34,18 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
-        return bitSet(d) ? SourceValueType.TRUE : SourceValueType.FALSE;
+    byte typeByteForPresent(int row) {
+        return bitSet(row) ? SourceValueType.TRUE : SourceValueType.FALSE;
     }
 
     @Override
-    boolean getBooleanValue(int d) {
-        return bitSet(d);
+    boolean getBooleanValue(int row) {
+        return bitSet(row);
     }
 
-    private boolean bitSet(int d) {
+    private boolean bitSet(int row) {
         // values is null or covers [0, docCount), so no length guard is needed.
-        return values != null && values.get(d);
+        return values != null && values.get(row);
     }
 
     @Override

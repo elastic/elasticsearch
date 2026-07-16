@@ -43,8 +43,8 @@ final class EscfArrayColumn extends EscfColumn {
 
     @Override
     ArrayReader getArrayValue(int row) {
-        int elemFrom = rowOffsets.ints[rowOffsets.offset + row];
-        int elemTo = rowOffsets.ints[rowOffsets.offset + row + 1];
+        int elemFrom = intAt(rowOffsets, row);
+        int elemTo = intAt(rowOffsets, row + 1);
         return new ColumnarArrayReader(child, elemFrom, elemTo);
     }
 
@@ -57,8 +57,8 @@ final class EscfArrayColumn extends EscfColumn {
     @Override
     EscfColumnData toColumnData() {
         int[] newRowOffsets = rebasedOffsets(rowOffsets, docCount);
-        int elemFrom = rowOffsets.ints[rowOffsets.offset];
-        int elemTo = rowOffsets.ints[rowOffsets.offset + docCount];
+        int elemFrom = intAt(rowOffsets, 0);
+        int elemTo = intAt(rowOffsets, docCount);
         // Slice the child to the element range referenced by this window, then materialize it.
         EscfColumnData childData = child.sliceInternal(elemFrom, elemTo - elemFrom).toColumnData();
         return EscfColumnData.ofArray(docCount, absent, newRowOffsets, childData);

@@ -28,14 +28,15 @@ abstract class AbstractVarColumn extends EscfColumn {
         super(docCount, absent);
         this.data = data;
         this.offsets = offsets;
+        assert offsets.length == docCount + 1;
     }
 
     abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets);
 
     @Override
     final BytesRef getBinaryValue(int row) {
-        int off = offsets.ints[offsets.offset + row];
-        return data.slice(off, offsets.ints[offsets.offset + row + 1] - off).toBytesRef();
+        int off = intAt(offsets, row);
+        return data.slice(off, intAt(offsets, row + 1) - off).toBytesRef();
     }
 
     @Override

@@ -30,7 +30,7 @@ final class EscfBinaryColumn extends AbstractVarColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.BINARY;
     }
 

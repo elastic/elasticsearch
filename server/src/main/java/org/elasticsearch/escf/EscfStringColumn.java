@@ -30,13 +30,13 @@ final class EscfStringColumn extends AbstractVarColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.STRING;
     }
 
     @Override
-    Text getStringValue(int d) {
-        BytesRef ref = getBinaryValue(d);
+    Text getStringValue(int row) {
+        BytesRef ref = getBinaryValue(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 

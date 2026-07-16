@@ -69,45 +69,45 @@ abstract class EscfColumn implements SliceableColumn {
         };
     }
 
-    final boolean isAbsent(int d) {
-        if (d < 0 || d >= docCount) {
+    final boolean isAbsent(int row) {
+        if (row < 0 || row >= docCount) {
             return true;
         }
         // absent is always null or a FixedBitSet covering [0, docCount), so no length guard is needed.
-        return absent != null && absent.get(d);
+        return absent != null && absent.get(row);
     }
 
-    final byte getTypeByte(int d) {
-        if (d < 0 || d >= docCount || isAbsent(d)) {
+    final byte getTypeByte(int row) {
+        if (row < 0 || row >= docCount || isAbsent(row)) {
             return SourceValueType.ABSENT;
         }
-        return typeByteForPresent(d);
+        return typeByteForPresent(row);
     }
 
-    /** The {@link SourceValueType} byte for document {@code d}, which is known to be present. */
-    abstract byte typeByteForPresent(int d);
+    /** The {@link SourceValueType} byte for document {@code row}, which is known to be present. */
+    abstract byte typeByteForPresent(int row);
 
-    final boolean isNull(int d) {
-        return getTypeByte(d) == SourceValueType.NULL;
+    final boolean isNull(int row) {
+        return getTypeByte(row) == SourceValueType.NULL;
     }
 
     // Typed value getters — default to throwing; subtypes override what they support.
 
-    boolean getBooleanValue(int d) {
+    boolean getBooleanValue(int row) {
         throw notA("boolean");
     }
 
-    long getLongValue(int d) {
+    long getLongValue(int row) {
         throw notA("long");
     }
 
-    double getDoubleValue(int d) {
+    double getDoubleValue(int row) {
         throw notA("double");
     }
 
     /** Narrows {@link #getLongValue} to an {@code int}, throwing if out of range. */
-    int getIntValue(int d) {
-        long val = getLongValue(d);
+    int getIntValue(int row) {
+        long val = getLongValue(row);
         if (val < Integer.MIN_VALUE || val > Integer.MAX_VALUE) {
             throw new ArithmeticException("Long value " + val + " does not fit in int");
         }
@@ -115,23 +115,23 @@ abstract class EscfColumn implements SliceableColumn {
     }
 
     /** Narrows {@link #getDoubleValue} to a {@code float}. */
-    float getFloatValue(int d) {
-        return (float) getDoubleValue(d);
+    float getFloatValue(int row) {
+        return (float) getDoubleValue(row);
     }
 
-    Text getStringValue(int d) {
+    Text getStringValue(int row) {
         throw notA("string");
     }
 
-    BytesRef getBinaryValue(int d) {
+    BytesRef getBinaryValue(int row) {
         throw notA("binary");
     }
 
-    ArrayReader getArrayValue(int d) {
+    ArrayReader getArrayValue(int row) {
         throw notA("array");
     }
 
-    KeyValueReader getKeyValue(int d) {
+    KeyValueReader getKeyValue(int row) {
         throw notA("key-value");
     }
 
@@ -200,7 +200,17 @@ abstract class EscfColumn implements SliceableColumn {
      * ({@code [offsets[0], offsets[count])}).
      */
     static BytesReference sliceData(IntsRef offsets, BytesReference data, int count) {
-        int byteFrom = offsets.ints[offsets.offset];
-        return data.slice(byteFrom, offsets.ints[offsets.offset + count] - byteFrom);
+        int byteFrom = intAt(offsets, 0);
+        return data.slice(byteFrom, intAt(offsets, count) - byteFrom);
+    }
+
+    /** Returns the {@code i}-th logical entry of an {@link IntsRef}, accounting for its {@code offset}. */
+    static int intAt(IntsRef ir, int i) {
+        return ir.ints[ir.offset + i];
+    }
+
+    /** Returns the {@code i}-th logical byte of a {@link BytesRef}, accounting for its {@code offset}. */
+    static byte byteAt(BytesRef br, int i) {
+        return br.bytes[br.offset + i];
     }
 }

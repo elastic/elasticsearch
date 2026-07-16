@@ -46,62 +46,62 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
-        return typeVec.bytes[typeVec.offset + d];
+    byte typeByteForPresent(int row) {
+        return byteAt(typeVec, row);
     }
 
     @Override
-    boolean getBooleanValue(int d) {
-        byte t = typeVec.bytes[typeVec.offset + d];
+    boolean getBooleanValue(int row) {
+        byte t = byteAt(typeVec, row);
         if (t == SourceValueType.TRUE) {
             return true;
         }
         if (t == SourceValueType.FALSE) {
             return false;
         }
-        throw new IllegalStateException("Doc " + d + " is not boolean, type=" + SourceValueType.name(t));
+        throw new IllegalStateException("Doc " + row + " is not boolean, type=" + SourceValueType.name(t));
     }
 
     @Override
-    long getLongValue(int d) {
-        return data.getLongLE(offsets.ints[offsets.offset + d]);
+    long getLongValue(int row) {
+        return data.getLongLE(intAt(offsets, row));
     }
 
     @Override
-    double getDoubleValue(int d) {
-        return Double.longBitsToDouble(data.getLongLE(offsets.ints[offsets.offset + d]));
+    double getDoubleValue(int row) {
+        return Double.longBitsToDouble(data.getLongLE(intAt(offsets, row)));
     }
 
     @Override
-    Text getStringValue(int d) {
-        BytesRef ref = value(d);
+    Text getStringValue(int row) {
+        BytesRef ref = value(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 
     @Override
-    BytesRef getBinaryValue(int d) {
-        return value(d);
+    BytesRef getBinaryValue(int row) {
+        return value(row);
     }
 
     @Override
-    ArrayReader getArrayValue(int d) {
-        boolean fixed = typeVec.bytes[typeVec.offset + d] == SourceValueType.FIXED_ARRAY;
+    ArrayReader getArrayValue(int row) {
+        boolean fixed = byteAt(typeVec, row) == SourceValueType.FIXED_ARRAY;
         // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
-        BytesRef ref = value(d);
+        BytesRef ref = value(row);
         return new InlineArrayReader(ref.bytes, ref.offset, ref.length, fixed);
     }
 
     @Override
-    KeyValueReader getKeyValue(int d) {
+    KeyValueReader getKeyValue(int row) {
         // KeyValueReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
-        BytesRef ref = value(d);
+        BytesRef ref = value(row);
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
-    /** The contiguous bytes for document {@code d}'s value, sliced from the payload (zero-copy when contiguous). */
-    private BytesRef value(int d) {
-        int off0 = offsets.ints[offsets.offset + d];
-        return data.slice(off0, offsets.ints[offsets.offset + d + 1] - off0).toBytesRef();
+    /** The contiguous bytes for document {@code row}'s value, sliced from the payload (zero-copy when contiguous). */
+    private BytesRef value(int row) {
+        int off0 = intAt(offsets, row);
+        return data.slice(off0, intAt(offsets, row + 1) - off0).toBytesRef();
     }
 
     @Override

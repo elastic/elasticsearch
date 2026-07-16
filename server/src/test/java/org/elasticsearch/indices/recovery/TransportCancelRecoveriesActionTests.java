@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -56,6 +58,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
+    private ClusterService clusterService;
     private IndicesService indicesService;
     private DeterministicTaskQueue taskQueue;
     private ThrottlingRecoveryService throttlingRecoveryService;
@@ -64,7 +67,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
     @Before
     public void setupAction() throws Exception {
         taskQueue = new DeterministicTaskQueue();
-        final var clusterService = mock(ClusterService.class);
+        clusterService = mock(ClusterService.class);
         indicesService = mock(IndicesService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("test-node"));
@@ -157,6 +160,55 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             equalTo(Set.of(cancelledInQueue(allocationId1, shardId1), cancelledInQueue(allocationId2, shardId2)))
         );
         assertThrows((RecoveryCancelledException.class), indexShard::ensureRecoveryNotCancelled);
+    }
+
+    public void testStaleTermRequestIsIgnored() {
+        final var runningShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var runningAllocationId = UUIDs.randomBase64UUID();
+        final var queuedShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
+        final var queuedAllocationId = UUIDs.randomBase64UUID();
+
+        throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
+            RecoveryListener.NOOP,
+            newRecoveryState(runningShardId),
+            runningAllocationId,
+            new RecoveryStats(),
+            ignored -> {}
+        );
+
+        throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
+            RecoveryListener.NOOP,
+            newRecoveryState(queuedShardId),
+            queuedAllocationId,
+            new RecoveryStats(),
+            ignored -> fail("recovery should remain queued")
+        );
+        taskQueue.runAllRunnableTasks();
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
+
+        when(clusterService.state()).thenReturn(
+            ClusterState.builder(ClusterState.EMPTY_STATE)
+                .metadata(
+                    Metadata.builder(ClusterState.EMPTY_STATE.metadata())
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder(ClusterState.EMPTY_STATE.coordinationMetadata()).term(1L).build()
+                        )
+                        .build()
+                )
+                .build()
+        );
+
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        action.execute(
+            mock(Task.class),
+            new CancelRecoveriesAction.Request(0L, 0L, List.of(new ShardRecoveryCancellation(queuedShardId, queuedAllocationId, true))),
+            responseFuture
+        );
+
+        assertTrue(responseFuture.actionGet().cancelledInQueue().isEmpty());
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
     }
 
     public void testCancelIfStartedFalseCancelsQueuedRecoveryButSkipsDirectCancellation() throws Exception {

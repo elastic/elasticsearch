@@ -625,7 +625,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
     private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
-            // BooleanQuery does not collapse a single MatchAllDocsQuery clause, so we skip it here since it adds nothing to the knn filter.
+            // MatchAllDocsQuery adds no selectivity; skip to avoid materializing a full-index bitset via CachingEnableFilterQuery.
             if (f.getClass() != MatchAllDocsQuery.class) {
                 builder.add(f, BooleanClause.Occur.FILTER);
             }

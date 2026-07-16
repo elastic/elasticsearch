@@ -23,8 +23,7 @@ import java.util.Arrays;
  */
 public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
-    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
 

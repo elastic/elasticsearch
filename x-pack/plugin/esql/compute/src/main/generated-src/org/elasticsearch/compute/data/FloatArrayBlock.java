@@ -25,8 +25,7 @@ import java.util.BitSet;
  */
 public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayBlock.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayBlock.class);
 
     private final FloatArrayVector vector;
 

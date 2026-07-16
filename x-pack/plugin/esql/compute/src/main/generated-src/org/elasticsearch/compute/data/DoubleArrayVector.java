@@ -32,7 +32,7 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
         + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class)
         // TODO: remove this if/when we account for memory used by Pages
-        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final double[] values;
 

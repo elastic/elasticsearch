@@ -29,10 +29,9 @@ public final class Constant$Type$Vector extends AbstractVector implements $Type$
 
 $if(BytesRef)$
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
-        .shallowSizeOfInstance(BytesRef.class) + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+        .shallowSizeOfInstance(BytesRef.class);
 $else$
-    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
 $endif$
 
     private final $type$ value;

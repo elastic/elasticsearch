@@ -26,7 +26,7 @@ import java.util.Arrays;
 public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
-        .shallowSizeOfInstance(BytesRef.class) + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+        .shallowSizeOfInstance(BytesRef.class);
     private final BytesRef value;
 
     ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {

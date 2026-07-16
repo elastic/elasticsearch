@@ -25,8 +25,7 @@ import java.util.BitSet;
  */
 public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
     private final IntArrayVector vector;
 

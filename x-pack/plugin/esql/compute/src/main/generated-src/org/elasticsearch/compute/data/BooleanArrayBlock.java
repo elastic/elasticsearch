@@ -25,8 +25,7 @@ import java.util.BitSet;
  */
 public final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayBlock.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayBlock.class);
 
     private final BooleanArrayVector vector;
 

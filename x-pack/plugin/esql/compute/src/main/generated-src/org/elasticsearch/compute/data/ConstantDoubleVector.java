@@ -23,8 +23,7 @@ import java.util.Arrays;
  */
 public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
-    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
     private final double value;
 

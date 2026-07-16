@@ -33,8 +33,7 @@ public final class ConstantNullBlock extends AbstractBlockRefCounter
         LongRangeBlock,
         TDigestBlock {
 
-    public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class)
-        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+    public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
     private BlockFactory blockFactory;
 

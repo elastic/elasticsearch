@@ -504,13 +504,11 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
                             l2.map(aVoid -> {
-                                if (targetsToWarm.isEmpty() == false) {
-                                    var timestampByBlob = Maps.<BlobFile, Long>newHashMapWithExpectedSize(targetsToWarm.size());
-                                    for (var entry : targetsToWarm.entrySet()) {
-                                        timestampByBlob.put(entry.getKey(), entry.getValue().timestampMillis());
-                                    }
-                                    searchDirectory.backfillMetadataReadTimestamps(timestampByBlob);
+                                var timestampByBlob = Maps.<BlobFile, Long>newHashMapWithExpectedSize(targetsToWarm.size());
+                                for (var entry : targetsToWarm.entrySet()) {
+                                    timestampByBlob.put(entry.getKey(), entry.getValue().timestampMillis());
                                 }
+                                searchDirectory.backfillMetadataReadTimestamps(timestampByBlob, true);
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })
                         );

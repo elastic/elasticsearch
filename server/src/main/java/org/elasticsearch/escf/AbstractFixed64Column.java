@@ -26,7 +26,7 @@ abstract class AbstractFixed64Column extends EscfColumn {
     }
 
     /** The raw little-endian 8-byte slot for document {@code d}. */
-    final long rawLong(int d) {
-        return data.getLongLE(d * 8);
+    final long rawLong(int row) {
+        return data.getLongLE(row * 8);
     }
 }

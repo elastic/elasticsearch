@@ -559,9 +559,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCompletesWithMultipleHandlers
   issue: https://github.com/elastic/elasticsearch/issues/153747
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndComplexEval}
-  issue: https://github.com/elastic/elasticsearch/issues/153752
 - class: org.elasticsearch.index.codec.tsdb.ES819DocValuesDuelTests
   method: testDuel
   issue: https://github.com/elastic/elasticsearch/issues/153763

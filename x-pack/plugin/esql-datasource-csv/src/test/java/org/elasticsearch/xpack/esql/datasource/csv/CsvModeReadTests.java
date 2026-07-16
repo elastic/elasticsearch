@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.Before;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -46,9 +47,8 @@ public class CsvModeReadTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -164,10 +164,14 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals("he said \"hi\"", values.get(0).get(1));
     }
 
-    /** Splitter dispatch is decided once, by the quoting knob: no-quote modes take the terminator scan. */
+    /**
+     * Splitter dispatch is decided once, from the (quoting, escaping) pair: only plain (no quoting, no
+     * escaping) takes the strided terminator scan. Escaped keeps quoting off but escaping on, and a
+     * backslash-escaped raw newline is in-field content, so it needs the escape-aware quote-state splitter.
+     */
     public void testSplitterDispatchByQuoting() throws IOException {
         assertThat(tsvReader(Map.of("mode", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
         // The .tsv baseline is plain, so an unconfigured TSV reader takes the terminator scan; quoting is opt-in.
         assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(tsvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));

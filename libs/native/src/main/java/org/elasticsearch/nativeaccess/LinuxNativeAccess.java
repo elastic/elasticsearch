@@ -177,7 +177,7 @@ public class LinuxNativeAccess extends PosixNativeAccess {
         final int bogusArg = 0xf7a46a5c;
 
         // test seccomp(BOGUS)
-        long ret = linuxLibc.syscall(arch.seccomp, bogusArg, 0, 0);
+        long ret = linuxLibc.syscall(arch.seccomp, bogusArg, 0, null);
         if (ret != -1) {
             throw new UnsupportedOperationException("seccomp unavailable: seccomp(BOGUS_OPERATION) returned " + ret);
         } else {
@@ -193,7 +193,7 @@ public class LinuxNativeAccess extends PosixNativeAccess {
         }
 
         // test seccomp(VALID, BOGUS)
-        ret = linuxLibc.syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, bogusArg, 0);
+        ret = linuxLibc.syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, bogusArg, null);
         if (ret != -1) {
             throw new UnsupportedOperationException("seccomp unavailable: seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG) returned " + ret);
         } else {
@@ -308,13 +308,13 @@ public class LinuxNativeAccess extends PosixNativeAccess {
         int method = 1;
         // install filter, if this works, after this there is no going back!
         // first try it with seccomp(SECCOMP_SET_MODE_FILTER), falling back to prctl()
-        if (linuxLibc.syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, prog.address()) != 0) {
+        if (linuxLibc.syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, prog) != 0) {
             method = 0;
             int errno1 = libc.errno();
             if (logger.isDebugEnabled()) {
                 logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...", libc.strerror(errno1));
             }
-            if (linuxLibc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, prog.address(), 0, 0) != 0) {
+            if (linuxLibc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, prog.segment().address(), 0, 0) != 0) {
                 int errno2 = libc.errno();
                 throw new UnsupportedOperationException(
                     "seccomp(SECCOMP_SET_MODE_FILTER): " + libc.strerror(errno1) + ", prctl(PR_SET_SECCOMP): " + libc.strerror(errno2)

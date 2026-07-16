@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.parser.EndpointMetadataParser;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -354,9 +353,7 @@ public class ModelRegistry implements ClusterStateListener {
             .setQuery(queryBuilder)
             .setSize(2)
             .setAllowPartialSearchResults(false);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -396,9 +393,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
         var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN).setQuery(queryBuilder).setSize(1).setTrackTotalHits(false);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -421,23 +416,16 @@ public class ModelRegistry implements ClusterStateListener {
             addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
         });
 
-        QueryBuilder queryBuilder;
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            queryBuilder = QueryBuilders.boolQuery()
-                .filter(matchEndpointsQuery())
-                .filter(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
-        } else {
-            queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
-        }
+        QueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(matchEndpointsQuery())
+            .filter(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
 
         var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(10_000)
             .setTrackTotalHits(false)
             .addSort(MODEL_ID_FIELD, SortOrder.ASC);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -472,21 +460,14 @@ public class ModelRegistry implements ClusterStateListener {
             addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds.values(), delegate);
         });
 
-        QueryBuilder queryBuilder;
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            queryBuilder = matchEndpointsQuery();
-        } else {
-            queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.existsQuery(TASK_TYPE_FIELD));
-        }
+        QueryBuilder queryBuilder = matchEndpointsQuery();
 
         var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(10_000)
             .setTrackTotalHits(false)
             .addSort(MODEL_ID_FIELD, SortOrder.ASC);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -1088,31 +1069,6 @@ public class ModelRegistry implements ClusterStateListener {
         );
     }
 
-    /**
-     * Returns true if the model registry contains the provided inference entity id. This includes both preconfigured and user created
-     * inference endpoints.
-     * @param inferenceEntityId the id to search for
-     * @return true if we find a match and false if not
-     */
-    private boolean containsInferenceEndpointId(String inferenceEntityId) {
-        // This checks an in memory cache local to the node. The cache should be the same across all nodes as it is populated in the
-        // inference plugin on boot up (excluding an upgrade scenario where the plugins could be different).
-        // This primarily holds endpoints registered by the ElasticsearchInternalService
-        if (defaultConfigIds.containsKey(inferenceEntityId)) {
-            return true;
-        }
-
-        // This checks the cluster state for user created endpoints as well as EIS preconfigured endpoints
-        if (lastMetadata.get() != null) {
-            var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
-            var state = ModelRegistryClusterStateMetadata.fromState(project);
-            var allInferenceIds = state.getInferenceIds();
-            return allInferenceIds.contains(inferenceEntityId);
-        }
-
-        return false;
-    }
-
     public boolean isReady() {
         if (lastMetadata.get() == null) {
             return false;
@@ -1244,7 +1200,6 @@ public class ModelRegistry implements ClusterStateListener {
         Client client
     ) {
         boolean includeDocType = indexName.equals(InferenceIndex.INDEX_NAME)
-            && InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
             && InferenceIndex.inferenceIndexHasV4Mappings(clusterState, featureService);
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             Map<String, String> params = includeDocType

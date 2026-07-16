@@ -17,8 +17,8 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -52,7 +52,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
     }
 
     public void testExplicitMetrics() throws Exception {
-        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
+        Map<String, Predicate<Number>> valueAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(
                 entry("es.test.long_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
                 entry("es.test.double_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
@@ -63,7 +63,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
             )
         );
 
-        Map<String, Integer> histogramAssertions = new HashMap<>(
+        Map<String, Integer> histogramAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(entry("es.test.double_histogram.histogram", 2), entry("es.test.long_histogram.histogram", 2))
         );
 
@@ -127,7 +127,8 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
     }
 
     public void testJvmMetrics() throws Exception {
-        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
+        // Concurrent because the RecordingApmServer consumer thread mutates this map while the main thread reads it.
+        Map<String, Predicate<Number>> valueAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(
                 entry("system.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
                 entry("system.process.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),

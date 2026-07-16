@@ -11,6 +11,16 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import java.util.Arrays;
 
+/**
+ * Information on centroid assignments.
+ * Does not contain the actual centroids (which may be large)
+ *
+ * @param numCentroids          The number of centroids there are
+ * @param assignments           Array mapping the vector ordinal to its centroid
+ * @param overspillAssignments  Overspill information with additional centroid for each vector ordinal
+ * @param globalCentroid        The overall global centroid
+ * @param centroidSlices        Slice information
+ */
 public record CentroidAssignments(
     int numCentroids,
     int[] assignments,
@@ -21,9 +31,6 @@ public record CentroidAssignments(
 
     public CentroidAssignments(int numCentroids, int[] assignments, OverspillAssignments overspillAssignments, float[] globalCentroid) {
         this(numCentroids, assignments, overspillAssignments, globalCentroid, null);
-        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
-            : "assignments and overspillAssignments must have the same length";
-
     }
 
     public CentroidAssignments {

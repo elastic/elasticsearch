@@ -282,8 +282,16 @@ public class Enrich extends UnaryPlan
 
         this.forEachDown(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
+                // Name the actual limitation for federated sources (which always execute on the coordinator) rather than
+                // leaving it as a bare positional statement - the generic message otherwise reads like an ordering quirk.
+                String reason = u instanceof ExternalRelation
+                    ? "; federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH"
+                    : "";
                 failures.add(
-                    fail(this, "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source())
+                    fail(
+                        this,
+                        "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source() + reason
+                    )
                 );
             }
         });

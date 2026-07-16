@@ -71,10 +71,7 @@ public class MethodHandleResolverClassTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.MyLib", source);
 
-        assertFalse(
-            "Expected compilation to fail when resolver doesn't implement MethodHandleResolver",
-            result.success()
-        );
+        assertFalse("Expected compilation to fail when resolver doesn't implement MethodHandleResolver", result.success());
         boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("cannot be converted to"));
         assertTrue("Expected type mismatch error but got: " + result.errors(), hasError);
     }
@@ -109,10 +106,7 @@ public class MethodHandleResolverClassTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.MyLib", source);
 
-        assertFalse(
-            "Expected compilation to fail when resolver has no no-arg constructor",
-            result.success()
-        );
+        assertFalse("Expected compilation to fail when resolver has no no-arg constructor", result.success());
         boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have a public no-arg constructor"));
         assertTrue("Expected error about no-arg constructor but got: " + result.errors(), hasError);
     }

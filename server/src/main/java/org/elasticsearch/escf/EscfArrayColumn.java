@@ -43,9 +43,9 @@ final class EscfArrayColumn extends EscfColumn {
 
     @Override
     ArrayReader getArrayValue(int row) {
-        int start = rowOffsets.ints[rowOffsets.offset + row];
-        int end = rowOffsets.ints[rowOffsets.offset + row + 1];
-        return new ColumnarArrayReader(child, start, end);
+        int elemFrom = rowOffsets.ints[rowOffsets.offset + row];
+        int elemTo = rowOffsets.ints[rowOffsets.offset + row + 1];
+        return new ColumnarArrayReader(child, elemFrom, elemTo);
     }
 
     @Override

@@ -96,27 +96,41 @@ public class CancelRecoveriesAction {
         }
     }
 
-    /// Response containing the allocation IDs of recoveries that were found in the throttling queue and cancelled.
-    /// The master can use this information to immediately update cluster state without waiting for a separate
-    /// `ShardStateAction.shardFailed` notification from the data node.
-    public static class Response extends ActionResponse {
-        private final Set<String> cancelledInQueue;
+    /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.
+    public record CancelledInQueue(String allocationId, ShardId shardId) implements Writeable {
 
-        public Response(Set<String> cancelledInQueue) {
-            this.cancelledInQueue = Set.copyOf(cancelledInQueue);
-        }
-
-        public Response(StreamInput in) throws IOException {
-            this.cancelledInQueue = in.readCollectionAsImmutableSet(StreamInput::readString);
+        public CancelledInQueue(StreamInput in) throws IOException {
+            this(in.readString(), new ShardId(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(cancelledInQueue);
+            out.writeString(allocationId);
+            shardId.writeTo(out);
+        }
+    }
+
+    /// Response containing the recoveries that were found in the throttling queue and cancelled.
+    /// The master can use this information to immediately update cluster state without waiting for a separate
+    /// `ShardStateAction.shardFailed` notification from the data node.
+    public static class Response extends ActionResponse {
+        private final Set<CancelledInQueue> cancelledInQueue;
+
+        public Response(Set<CancelledInQueue> cancelledInQueue) {
+            this.cancelledInQueue = Set.copyOf(cancelledInQueue);
         }
 
-        /// Returns the allocation IDs of recoveries that were cancelled from the throttling queue.
-        public Set<String> cancelledInQueue() {
+        public Response(StreamInput in) throws IOException {
+            this.cancelledInQueue = in.readCollectionAsImmutableSet(CancelledInQueue::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(cancelledInQueue);
+        }
+
+        /// Returns the recoveries that were cancelled from the throttling queue.
+        public Set<CancelledInQueue> cancelledInQueue() {
             return cancelledInQueue;
         }
 

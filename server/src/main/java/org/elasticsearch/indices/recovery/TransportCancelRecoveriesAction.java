@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -97,7 +98,11 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
-        listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
+        final Set<CancelRecoveriesAction.CancelledInQueue> response = new HashSet<>(cancelledInQueue.size());
+        for (String allocationId : cancelledInQueue) {
+            response.add(new CancelRecoveriesAction.CancelledInQueue(allocationId, toCancel.get(allocationId)));
+        }
+        listener.onResponse(new CancelRecoveriesAction.Response(response));
     }
 
     private void tryCancelStartedRecovery(ShardId shardId, String allocationId) {

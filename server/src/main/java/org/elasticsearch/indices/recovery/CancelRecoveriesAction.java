@@ -95,7 +95,7 @@ public class CancelRecoveriesAction {
         }
     }
 
-    /// Response containing the allocation IDs of recoveries that were found in the throttling queue and cancelled.
+    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled.
     /// The master can use this information to immediately update cluster state without waiting for a separate
     /// `ShardStateAction.shardFailed` notification from the data node.
     public static class Response extends ActionResponse {

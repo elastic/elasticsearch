@@ -748,9 +748,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataFilterModifiedInExcludesAll [ndjson.zst/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/153610
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/153569
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testDataStreams
   issue: https://github.com/elastic/elasticsearch/issues/153414

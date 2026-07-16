@@ -5825,10 +5825,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Object tryParseDateNanos(String value, int columnIndex) {
             // Mirrors tryParseDatetime exactly, one rail down: a column with a declared `format` parses strictly with
             // that ES DateFormatter, overriding the epoch shortcut and the file-level datetime_format, for THIS column
-            // only. Both rails go through EsqlDataTypeConverter.dateNanosToLong, so the declared and file-level formats
-            // agree with each other. No cross-format claim here, unlike tryParseDatetime: the columnar readers' string
-            // -> date_nanos coercion (DeclaredTypeCoercions.scalarCoercer) still uses the no-format overload, and NDJSON
-            // has no date_nanos support at all.
+            // only. Every rail goes through EsqlDataTypeConverter.dateNanosToLong — the SAME string -> date_nanos
+            // conversion the columnar declared coercion (DeclaredTypeCoercions.scalarCoercer, which threads the
+            // declared format) and the NDJSON decode arm use — so identical bytes with an identical declared format
+            // yield the same instant across every format. A bare numeric cell is epoch NANOS: the declared type names
+            // the numeric unit (datetime = millis, date_nanos = nanos; see DeclaredTypeCoercions).
             if (columnIndex >= 0
                 && declaredFormatters != null
                 && columnIndex < declaredFormatters.length
@@ -5852,15 +5853,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 }
                 Long epoch = parseEpoch(value);
-                if (epoch == null) {
+                if (epoch == null || epoch < 0) {
+                    // A negative epoch has no date_nanos representation (the TO_DATE_NANOS range rule), so it fails the
+                    // cell through the error policy rather than ever emitting a negative nanos long.
                     lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
                 }
                 return epoch;
             }
             if (looksNumeric(value)) {
                 Long epoch = parseEpoch(value);
-                if (epoch != null) {
+                if (epoch != null && epoch >= 0) {
                     return epoch;
+                }
+                if (epoch != null) {
+                    // A negative epoch is not a representable date_nanos; fail the cell rather than emit it.
+                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
                 }
                 // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }

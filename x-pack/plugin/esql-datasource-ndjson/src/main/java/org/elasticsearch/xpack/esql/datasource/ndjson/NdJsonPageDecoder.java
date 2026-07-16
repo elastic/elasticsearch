@@ -1613,7 +1613,17 @@ public class NdJsonPageDecoder implements Closeable {
                     return;
                 }
                 while (parser.nextToken() != JsonToken.END_ARRAY) {
-                    decodeValue(parser, true);
+                    try {
+                        decodeValue(parser, true);
+                    } catch (PoisonedPositionException e) {
+                        // Drain the rest of this nested array, then rethrow so the
+                        // enclosing array handler can drain its own remaining elements
+                        // and cancel the position entry correctly.
+                        while (parser.nextToken() != JsonToken.END_ARRAY) {
+                            parser.skipChildren();
+                        }
+                        throw e;
+                    }
                 }
                 return;
             }
@@ -1938,6 +1948,11 @@ public class NdJsonPageDecoder implements Closeable {
                 // first bad field), not once per bad field. The record's scratch is discarded, so no null-fill is
                 // needed and further coercion failures on the same doomed record must not consume the budget again.
                 parser.skipChildren();
+                if (inArray) {
+                    // Inside an array, a normal return would let the array loop call endPositionEntry with no
+                    // values appended — an AssertionError. Throw so the array handler drains and cancels instead.
+                    throw PoisonedPositionException.INSTANCE;
+                }
                 return;
             }
             String value = parser.getValueAsString();

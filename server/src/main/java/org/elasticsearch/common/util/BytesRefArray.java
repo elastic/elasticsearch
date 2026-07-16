@@ -715,6 +715,9 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
          * written. {@code targetByteOffset} must be {@code >= 0} and {@code <= size()}.
          */
         void truncateTo(long targetByteOffset) {
+            if (targetByteOffset == size()) {
+                return;
+            }
             int targetPageIndex = (int) (targetByteOffset >> PAGE_SHIFT);
             int targetPagePos = (int) (targetByteOffset & PAGE_MASK);
             for (int i = pageCount - 1; i > targetPageIndex; i--) {

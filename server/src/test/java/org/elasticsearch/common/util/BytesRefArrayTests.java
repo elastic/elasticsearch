@@ -380,6 +380,47 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    public void testTruncateNoOpAtPageBoundary() {
+        // Append one entry of exactly PAGE_SIZE_IN_BYTES bytes. After the append the byte stream's
+        // currentPagePos == PAGE_SIZE, so size() == PAGE_SIZE. Calling truncateTo(1) passes
+        // lastOffset == PAGE_SIZE to Bytes.truncateTo — the boundary that previously computed
+        // targetPageIndex == pageCount and threw ArrayIndexOutOfBoundsException.
+        int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(1, mockBigArrays())) {
+            BytesRef v = new BytesRef(new byte[pageSize]);
+            array.append(v);
+            array.truncateTo(1); // no-op: keep the single entry
+            assertThat(array.size(), equalTo(1L));
+            BytesRef scratch = new BytesRef();
+            assertThat(array.get(0, scratch), equalTo(v));
+        }
+    }
+
+    public void testTruncateMultiPageRelease() {
+        // Fill enough entries to span multiple internal pages, truncate back, verify that
+        // all released-page bytes are gone and the kept entries still read correctly.
+        int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        int entrySize = pageSize / 2 + 1; // each entry straddles a page boundary
+        int total = 6;
+        int kept = 2;
+        try (BytesRefArray array = new BytesRefArray(total, mockBigArrays())) {
+            List<BytesRef> values = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                byte[] data = new byte[entrySize];
+                java.util.Arrays.fill(data, (byte) i);
+                BytesRef v = new BytesRef(data);
+                array.append(v);
+                values.add(BytesRef.deepCopyOf(v));
+            }
+            array.truncateTo(kept);
+            assertThat(array.size(), equalTo((long) kept));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < kept; i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
+            }
+        }
+    }
+
     private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

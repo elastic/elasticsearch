@@ -794,6 +794,77 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * A coercion failure inside a nested array (array of arrays flattened) must not let the poison
+     * escape past the inner END_ARRAY — otherwise the outer array's drain loop stops too early and
+     * sibling fields on the same record read the wrong tokens and come back null.
+     *
+     * <p>Input: {@code {"v":[[10,"notanumber"],30],"w":1}} under {@code null_field}.
+     * Expected: {@code v} is null (whole position cancelled), {@code w} is 1.
+     */
+    public void testNestedArrayPoisonDrainsToInnerEndArray() throws IOException {
+        String ndjson = "{\"v\":[[10,\"notanumber\"],30],\"w\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://nested-array-poison",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            assertEquals(1, v.getPositionCount());
+            assertEquals(1, w.getPositionCount());
+            assertTrue("v is null because its nested array was poisoned", v.isNull(0));
+            assertFalse("w must not be null — sibling field after the poisoned array", w.isNull(0));
+            assertEquals(1L, w.getLong(w.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * Under {@code skip_row}, two poisoned arrays in the same record must not assert.
+     * The first array sets {@code rowDroppedBySkipRow = true}; the second array then re-enters
+     * {@code coercionFailure} with {@code rowDroppedBySkipRow} already set and {@code inArray = true}.
+     * Without the fix the early return exits without throwing {@code PoisonedPositionException}, so
+     * the array loop calls {@code endPositionEntry} with no values appended → {@code AssertionError}.
+     */
+    public void testSkipRowTwoPoisonedArraysNoAssert() throws IOException {
+        String ndjson = "{\"a\":[\"x\"],\"b\":[\"y\"]}\n{\"a\":[1],\"b\":[2]}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("a", DataType.LONG), attribute("b", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://skip-row-two-arrays",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock a = page.getBlock(0);
+            LongBlock b = page.getBlock(1);
+            assertEquals("only the clean second row survives", 1, a.getPositionCount());
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
+            assertEquals(2L, b.getLong(b.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
      * Drift pin. setupBuilders no longer enumerates the type -> shape mapping; it derives it from the shared
      * authority. Every declarable type must therefore build, with the shape that authority prescribes, and no
      * type may reach unsupportedTypeForNdjson. This is what stops the next declarable type repeating the

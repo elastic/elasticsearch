@@ -91,11 +91,7 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
     }
 
     public void testMissingFieldReturnsNoDocs() throws IOException {
-        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(
-            VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }),
-            "missing",
-            null
-        );
+        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }), "missing", null);
         assertEquals(NO_DOCS_INSTANCE, query.toQuery(createSearchExecutionContext()));
     }
 

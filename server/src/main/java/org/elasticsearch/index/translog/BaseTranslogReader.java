@@ -178,13 +178,13 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         assert location.generation() == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation();
         ByteBuffer buffer = ByteBuffer.allocate(location.size());
         final Translog.Record record = readRecord(checksummedStream(buffer, location.translogLocation(), location.size(), null));
-        if (location.isBatchRow()) {
-            if (!(record instanceof Translog.IndexBatch indexBatch)) {
-                throw new IOException("Location has row index set but is not a batch record");
+        if (record instanceof Translog.IndexBatch indexBatch) {
+            if (location.isBatchRow() == false) {
+                throw new IOException("Record at location is a batch; use a location with batchRowIndex to read a single row");
             }
-            // Return the Index operation at that row from the batch record
             return indexBatch.getIndexOp(location.batchRowIndex());
         }
+        assert location.isBatchRow() == false : "Location set for a non batch record";
         return (Translog.Operation) record;
     }
 }

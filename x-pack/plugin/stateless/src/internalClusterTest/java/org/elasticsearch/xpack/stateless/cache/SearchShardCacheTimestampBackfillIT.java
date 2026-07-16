@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatelessPluginIntegTestCase {
+public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPluginIntegTestCase {
 
     // A small region so a BCC blob spans several cache regions, exercising the multi-region metadata-read path.
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(64);
@@ -80,12 +80,13 @@ public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatele
             // so each flush() below produces its own BCC blob (one compound commit per blob).
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueHours(12))
-            // Keep the recovery-time metadata read the one that stamps (and backfills) the BCC regions: disable prewarming and any
-            // prefetch so nothing stamps the regions with a real timestamp ahead of it.
+            // Keep the metadata read (during recovery or a new commit notification) the one that stamps (and backfills) the BCC regions:
+            // disable prewarming and any prefetch so nothing stamps the regions with a real timestamp ahead of it.
             .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
-            // Recovery backfills referenced BCC metadata-read regions only after parsing referenced CCs via this path.
+            // Both recovery and new commit notifications backfill referenced BCC metadata-read regions only after parsing referenced CCs
+            // via this path.
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             // Enough room to keep every region cached for the duration of the test (no eviction).
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(64))
@@ -262,6 +263,87 @@ public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatele
                         everyItem(equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
                     );
                 }
+            }
+        });
+    }
+
+    /**
+     * With the search shard already recovered, indexes several flushes (each its own multi-region BCC blob) and verifies that each new
+     * commit notification backfills the cache-region timestamps of the BCC blob it reads: the metadata read first stamps regions with
+     * {@code BACKFILL_IN_PROGRESS_TIMESTAMP} and the backfill then resolves them to the blob's real data timestamp.
+     */
+    public void testNewCommitNotificationBackfillsMetadataReadRegions() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        var searchNode = startSearchNode();
+        var indexName = randomIdentifier();
+        // All documents (across every flush) share this @timestamp, so every commit's range is [T, T], midpoint exactly T.
+        long timestamp = randomLongBetween(1, MAX_MILLIS_BEFORE_9999);
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    // Disable merges so each flush's segment is never merged away and stays referenced by the latest commit.
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            ).setMapping("@timestamp", "type=date")
+        );
+        // The replica lands on the search node, which then receives a new commit notification for each flush below.
+        ensureGreen(indexName);
+
+        int iterations = randomIntBetween(2, 4);
+        for (int i = 0; i < iterations; i++) {
+            // Index enough sizeable documents that the flush's segment - and therefore its BCC blob - spans several cache regions.
+            indexDocs(
+                indexName,
+                between(500, 800),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.<String, Object>of("@timestamp", timestamp, "field", randomAlphaOfLength(1024))
+            );
+            refresh(indexName);
+            flush(indexName);
+        }
+
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
+
+        // Enumerate the BCC blobs the search shard's notifications should have read (and thus stamped/backfilled).
+        List<FileCacheKey> blobKeys = new ArrayList<>();
+        var commitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
+        for (var blob : commitsContainer.listBlobs(operationPurpose).entrySet()) {
+            var blobName = blob.getKey();
+            if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                blobKeys.add(new FileCacheKey(shardId, primaryTerm, blobName));
+            }
+        }
+        assertThat("the test needs several BCC blobs to exercise the per-notification backfill", blobKeys.size(), greaterThanOrEqualTo(2));
+
+        var cacheService = (CapturingCacheService) internalCluster().getInstance(
+            StatelessPlugin.SharedBlobCacheServiceSupplier.class,
+            searchNode
+        ).get();
+
+        assertBusy(() -> {
+            // The BCC blobs the notifications actually read (and thus stamped/backfilled) on the search node.
+            var readBlobKeys = blobKeys.stream()
+                .filter(k -> cacheService.capturedTimestamps(k).isEmpty() == false)
+                .collect(Collectors.toSet());
+            assertThat("new commit notifications must read at least two BCC blobs", readBlobKeys.size(), greaterThanOrEqualTo(2));
+
+            for (var cacheKey : readBlobKeys) {
+                var captured = cacheService.capturedTimestamps(cacheKey);
+                assertThat(
+                    "a metadata read stamps regions with BACKFILL_IN_PROGRESS_TIMESTAMP before they are backfilled",
+                    captured,
+                    hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
+                );
+
+                var live = cacheService.liveTimestamps(cacheKey);
+                assertThat("the notification must leave live cache regions for blob " + cacheKey, live, not(empty()));
+                assertThat("backfill must resolve the header region to the blob's data timestamp", live, hasItem(timestamp));
+                assertThat(
+                    "backfill must leave no live region stamped BACKFILL_IN_PROGRESS_TIMESTAMP",
+                    live,
+                    not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+                );
             }
         });
     }

@@ -924,7 +924,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        assertCauseMessageContains(
+            ex,
+            "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
+                + "(the source is a federated data source, not an index)"
+        );
     }
 
     public void testKQLOnDatasetRejected() {
@@ -934,7 +938,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[KQL] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[KQL] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
     public void testQSTROnDatasetRejected() {
@@ -944,7 +952,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE QSTR(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[QSTR] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[QSTR] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
     public void testMatchPhraseAfterSubqueryRejected() {
@@ -954,7 +966,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
             FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
             """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        assertCauseMessageContains(
+            ex,
+            "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
+                + "(the source is a federated data source, not an index)"
+        );
     }
 
     // Mixed data types across subquery branches

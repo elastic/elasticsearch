@@ -49,7 +49,8 @@ public class TokenCountFieldMapper extends FieldMapper {
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     public static class Builder extends FieldMapper.Builder {
@@ -141,6 +142,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 null,
                 null,
                 isSyntheticSource,
+                false,
                 false
             );
         }
@@ -247,6 +249,11 @@ public class TokenCountFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override

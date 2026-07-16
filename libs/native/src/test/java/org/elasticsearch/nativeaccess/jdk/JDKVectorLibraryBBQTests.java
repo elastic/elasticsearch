@@ -307,6 +307,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
     public void testBulkSparse() {
         assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == VectorSimilarityFunctions.BBQType.D1Q4);
 
         final int numVecs = randomIntBetween(2, 101);
         final TestData testData = createTestData(numVecs, size, type);
@@ -335,6 +336,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
     public void testBulkSparseScattered() {
         assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == VectorSimilarityFunctions.BBQType.D1Q4);
 
         final int numVecs = randomIntBetween(2, 101);
         final int indexVectorBytes = BBQTestUtils.numBytes(size, type.dataBits());
@@ -377,6 +379,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
     public void testBulkSparseIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == VectorSimilarityFunctions.BBQType.D1Q4);
         final int indexVectorBytes = BBQTestUtils.numBytes(size, type.dataBits());
         final int queryVectorBytes = queryBytes(size);
         int count = 3;
@@ -501,19 +504,24 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
     }
 
     long nativeSimilarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (long) getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.SINGLE)
-                .invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1(a, b, length);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4(a, b, length);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2(a, b, length);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4(a, b, length);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4(a, b, length);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4Packed(a, b, length);
+        };
     }
 
     void nativeSimilarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK).invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1Bulk(a, b, dims, count, result);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4Bulk(a, b, dims, count, result);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2Bulk(a, b, dims, count, result);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4Bulk(a, b, dims, count, result);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4Bulk(a, b, dims, count, result);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulk(a, b, dims, count, result);
         }
     }
 
@@ -526,20 +534,18 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK_OFFSETS)
-                .invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
         }
     }
 
     void nativeSimilarityBulkSparse(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK_SPARSE)
-                .invokeExact(addresses, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        assert type == VectorSimilarityFunctions.BBQType.D1Q4 : "BulkSparse only wired for D1Q4";
+        getVectorDistance().dotProductD1Q4BulkSparse(addresses, b, dims, count, result);
     }
 }

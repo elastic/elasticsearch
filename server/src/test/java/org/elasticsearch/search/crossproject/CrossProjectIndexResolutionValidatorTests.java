@@ -43,8 +43,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     private boolean useProjectRouting;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initProjectRouting() throws Exception {
         useProjectRouting = randomBoolean();
     }
 
@@ -62,12 +61,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         // we matched resource locally thus no error
@@ -89,12 +88,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -105,12 +104,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -133,12 +132,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -149,12 +148,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
         var e = CrossProjectIndexResolutionValidator.validate(
@@ -176,12 +175,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remoteExceptions = Map.of("P1", new Exception("Unable to connect to [P1]"));
@@ -206,12 +205,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         // logs does not exist in the remote responses and ignore_unavailable is set to true. We do not expect an error.
@@ -230,14 +229,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "logs*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         // Mimic no response from P1 project.
@@ -249,12 +245,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "not-logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("not-logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -278,14 +274,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "logs*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         // Mimic no response from P1 project.
@@ -297,12 +290,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "not-logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("not-logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -319,7 +312,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testMissingResponseFromLinkedProjectsForQualifiedExpressionWithStrictIgnoreUnavailable() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs"))),
+            null
         );
 
         // Mimic no response from P1 project.
@@ -331,12 +325,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "not-logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("not-logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -357,7 +351,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testMissingResponseFromLinkedProjectsForQualifiedExpressionWithLenientIgnoreUnavailable() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs"))),
+            null
         );
 
         // Mimic no response from P1 project.
@@ -369,12 +364,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "not-logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("not-logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -390,19 +385,18 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
-        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [-*]");
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                        exception
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            "authorization errors while resolving [-*]"
         );
 
         var remote = Map.of(
@@ -413,12 +407,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("authorization errors while resolving [logs]")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "authorization errors while resolving [logs]"
             )
         );
 
@@ -434,7 +428,6 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailableAndProjectRouting() {
-        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [-*]");
         final String projectRouting = "_alias:P1";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
@@ -443,7 +436,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     ResolvedIndexExpression.LocalExpressions.NONE, // no local resolution since it is excluded by project routing
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -454,12 +448,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            exception
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "authorization errors while resolving [-*]"
             )
         );
 
@@ -477,7 +471,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     ResolvedIndexExpression.LocalExpressions.NONE, // no local resolution since it is excluded by project routing
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -488,12 +483,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -510,12 +505,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "_origin:logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
         // we matched locally thus no error
@@ -538,12 +533,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     original,
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
         var e = CrossProjectIndexResolutionValidator.validate(
@@ -560,7 +555,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs"))),
+            null
         );
 
         var remote = Map.of(
@@ -571,12 +567,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -598,10 +594,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -612,12 +609,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -635,10 +632,10 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testUnauthorizedQualifiedExpressionWithStrictIgnoreUnavailable() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs"))),
+            null
         );
 
-        final var exception = new ElasticsearchSecurityException("action is unauthorized for indices [-*]");
         var remote = Map.of(
             "P1",
             new ResolvedIndexExpressions(
@@ -647,12 +644,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            exception
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "action is unauthorized for indices [-*]"
             )
         );
 
@@ -674,12 +671,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs-es"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         // we matched resource locally thus no error
@@ -691,14 +688,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "shared-index-missing*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:shared-index-missing*")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -707,14 +701,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 List.of(
                     new ResolvedIndexExpression(
                         "shared-index-missing*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -737,12 +728,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
         var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, Map.of(), Map.of());
@@ -758,8 +749,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of()
                 ),
@@ -767,12 +757,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "metrics",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("metrics"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
         var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, Map.of(), Map.of());
@@ -788,12 +778,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -804,12 +794,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -826,8 +816,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of()
                 ),
@@ -835,12 +824,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "missing",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("missing"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
         // One index exists so the overall result is non-empty — no error expected
@@ -852,14 +841,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "logs*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -870,12 +856,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs-es"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -888,14 +874,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "logs*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -904,14 +887,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 List.of(
                     new ResolvedIndexExpression(
                         "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -926,14 +906,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "logs*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -942,14 +919,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 List.of(
                     new ResolvedIndexExpression(
                         "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -966,12 +940,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "_origin:logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs-es"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
         // we matched locally thus no error
@@ -992,14 +966,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
@@ -1021,12 +992,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "_origin:" + indexExpression,
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("local-index-1", "local-index-2"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             );
             assertNull(
                 CrossProjectIndexResolutionValidator.validate(
@@ -1042,7 +1013,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(new ResolvedIndexExpression("P1:logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs*")))
+            List.of(new ResolvedIndexExpression("P1:logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs*"))),
+            null
         );
 
         var remote = Map.of(
@@ -1053,12 +1025,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs-es"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -1080,14 +1052,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -1096,14 +1065,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 List.of(
                     new ResolvedIndexExpression(
                         "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -1125,10 +1091,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
                     Set.of("P1:logs*")
                 )
-            )
+            ),
+            null
         );
 
         var remote = Map.of(
@@ -1137,14 +1104,11 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 List.of(
                     new ResolvedIndexExpression(
                         "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
         var e = CrossProjectIndexResolutionValidator.validate(
@@ -1166,12 +1130,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs", "P2:logs")
                 )
-            )
+            ),
+            null
         );
         var remote = Map.of(
             "P1",
@@ -1181,26 +1145,23 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "Unauthorized for -*"
             ),
             "P2",
             new ResolvedIndexExpressions(
                 List.of(
                     new ResolvedIndexExpression(
                         "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -1215,12 +1176,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs", "P2:logs")
                 )
-            )
+            ),
+            null
         );
         var remote = Map.of(
             "P1",
@@ -1230,12 +1191,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "Unauthorized for -*"
             )
         );
 
@@ -1252,8 +1213,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "metrics",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:metrics", "P2:metrics")
                 ),
@@ -1261,12 +1221,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs", "P2:logs")
                 )
-            )
+            ),
+            null
         );
         var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
         remote.put(
@@ -1277,8 +1237,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     ),
@@ -1286,12 +1245,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "Unauthorized for -*"
             )
         );
         remote.put(
@@ -1302,21 +1261,17 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     ),
                     new ResolvedIndexExpression(
                         "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                "Unauthorized for -*"
             )
         );
 
@@ -1333,8 +1288,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "*:metrics",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:metrics", "P2:metrics")
                 ),
@@ -1342,12 +1296,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "*:logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs", "P2:logs")
                 )
-            )
+            ),
+            null
         );
         var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
         remote.put(
@@ -1358,8 +1312,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     ),
@@ -1367,12 +1320,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     )
-                )
+                ),
+                "Unauthorized for -*"
             )
         );
         remote.put(
@@ -1383,21 +1336,17 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchSecurityException("Unauthorized for -*")
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
                         ),
                         Set.of()
                     ),
                     new ResolvedIndexExpression(
                         "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        ),
+                        new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS),
                         Set.of()
                     )
-                )
+                ),
+                "Unauthorized for -*"
             )
         );
 
@@ -1416,8 +1365,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     originalExpression,
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:metrics", "P2:metrics")
                 ),
@@ -1425,12 +1373,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     randomFrom("logs", "*:logs"),
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs", "P2:logs")
                 )
-            )
+            ),
+            null
         );
         var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
         remote.put(
@@ -1441,8 +1389,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     ),
@@ -1450,12 +1397,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
         remote.put(
@@ -1466,8 +1413,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     ),
@@ -1475,12 +1421,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -1503,12 +1449,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     randomFrom("logs", "*:logs"),
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     Set.of("P1:logs", "P2:logs")
                 )
-            )
+            ),
+            null
         );
         var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
         remote.put(
@@ -1519,8 +1465,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     ),
@@ -1528,12 +1473,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
         remote.put(
@@ -1544,8 +1489,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "metrics",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     ),
@@ -1553,12 +1497,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of()
                     )
-                )
+                ),
+                null
             )
         );
 
@@ -1575,12 +1519,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of("P1:logs")
                 )
-            )
+            ),
+            null
         );
 
         String projectRouting = "_alias:_origin";
@@ -1604,8 +1548,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 new ResolvedIndexExpression("-logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs")),
                 new ResolvedIndexExpression("-logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs*"))
             );
-            final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion));
-            var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+            final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion), null);
+            var remote = Map.of("P1", new ResolvedIndexExpressions(List.of(), null));
 
             assertNull(
                 CrossProjectIndexResolutionValidator.validate(
@@ -1632,13 +1576,13 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("metrics"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of("P1:*")
                     ),
                     resolvedExclusion
-                )
+                ),
+                null
             );
             var remote = Map.of(
                 "P1",
@@ -1648,12 +1592,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                             "*",
                             new ResolvedIndexExpression.LocalExpressions(
                                 Set.of("remote-metrics"),
-                                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                                null
+                                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                             ),
                             Set.of()
                         )
-                    )
+                    ),
+                    null
                 )
             );
 
@@ -1676,8 +1620,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             new ResolvedIndexExpression(expression, ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:" + expression)),
             new ResolvedIndexExpression(expression, ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:" + expression))
         );
-        final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion));
-        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+        final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion), null);
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of(), null));
 
         var ex = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
@@ -1696,17 +1640,18 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     "-shared-index-1",
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
                     Set.of("P1:-shared-index-1")
                 ),
                 new ResolvedIndexExpression(
                     "-shared-index-2",
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
                     Set.of("P1:-shared-index-2")
                 )
-            )
+            ),
+            null
         );
-        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of(), null));
 
         var ex = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
@@ -1726,20 +1671,20 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "*:logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of("P1:logs")
                 ),
                 new ResolvedIndexExpression(
                     randomFrom("P1:-*", "P*:-*"),
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
                     Set.of()
                 )
-            )
+            ),
+            null
         );
 
-        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of(), null));
 
         assertNull(
             CrossProjectIndexResolutionValidator.validate(
@@ -1759,20 +1704,20 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     "*:logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                     ),
                     Set.of("P1:logs")
                 ),
                 new ResolvedIndexExpression(
                     randomFrom("P1:-*", "P*:-*", "P1:-logs"),
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
                     Set.of("P1:-*")
                 )
-            )
+            ),
+            null
         );
 
-        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of(), null));
 
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
@@ -1916,12 +1861,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "*:logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                         ),
                         Set.of("linked-1:logs")
                     )
-                )
+                ),
+                null
             ),
             Map.of(
                 "linked-1",
@@ -1931,12 +1876,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                             "logs",
                             new ResolvedIndexExpression.LocalExpressions(
                                 Set.of("logs"),
-                                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                                null
+                                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                             ),
                             Set.of()
                         )
-                    )
+                    ),
+                    null
                 )
             ),
             Map.of()
@@ -1954,12 +1899,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         "*:logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         ),
                         Set.of("linked-1:logs")
                     )
-                )
+                ),
+                null
             ),
             Map.of(
                 "linked-1",
@@ -1969,12 +1914,12 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                             "logs",
                             new ResolvedIndexExpression.LocalExpressions(
                                 Set.of("logs"),
-                                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                                null
+                                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                             ),
                             Set.of()
                         )
-                    )
+                    ),
+                    null
                 )
             ),
             Map.of()
@@ -2003,20 +1948,17 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         var resolvedLocally = randomFrom(
             new ResolvedIndexExpression.LocalExpressions(
                 Set.of(),
-                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                null
+                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
             ),
             new ResolvedIndexExpression.LocalExpressions(
                 Set.of(),
-                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                new ElasticsearchSecurityException("authorization errors while resolving [" + expression + "]")
+                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
             ),
-            new ResolvedIndexExpression.LocalExpressions(
-                Set.of(expression),
-                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                null
-            )
+            new ResolvedIndexExpression.LocalExpressions(Set.of(expression), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS)
         );
-        return new ResolvedIndexExpressions(List.of(new ResolvedIndexExpression(expression, resolvedLocally, Set.of(remoteExpressions))));
+        return new ResolvedIndexExpressions(
+            List.of(new ResolvedIndexExpression(expression, resolvedLocally, Set.of(remoteExpressions))),
+            "authorization errors while resolving [-*]"
+        );
     }
 }

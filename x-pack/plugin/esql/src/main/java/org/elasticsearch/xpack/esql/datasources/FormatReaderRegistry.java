@@ -126,12 +126,10 @@ public class FormatReaderRegistry {
             throw new IllegalArgumentException("Object name cannot be null or empty");
         }
 
-        int lastDot = objectName.lastIndexOf('.');
-        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+        String extension = trailingExtension(objectName);
+        if (extension == null) {
             throw new IllegalArgumentException("Cannot infer format from object name without extension: " + objectName);
         }
-
-        String extension = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
 
         // Check for compound extension (e.g. .csv.gz)
         if (codecRegistry != null) {
@@ -140,26 +138,7 @@ public class FormatReaderRegistry {
                 FormatReader inner = byExtension(stripped);
                 DecompressionCodec codec = codecRegistry.byExtension(extension);
                 if (codec != null) {
-                    if (inner.supportsWholeFileCompression() == false) {
-                        throw new IllegalArgumentException(
-                            "Format ["
-                                + inner.formatName()
-                                + "] does not support whole-file compression; the ["
-                                + extension
-                                + "] suffix is not valid on ["
-                                + objectName
-                                + "]. Use an uncompressed file and rely on the format's built-in column compression instead."
-                        );
-                    }
-                    // On release builds the text-format codec surface is limited to the benchmarked set; the
-                    // remaining codecs (bzip2, snappy, lz4, brotli) stay available on snapshot builds only. This
-                    // runs after the whole-file veto so Parquet/ORC still report the more specific error above.
-                    if (Build.current().isSnapshot() == false && GA_TEXT_CODECS.contains(codec.name()) == false) {
-                        throw new IllegalArgumentException(
-                            "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
-                        );
-                    }
-                    return new CompressionDelegatingFormatReader(inner, codec);
+                    return wrapWithCodec(inner, codec, extension, objectName);
                 }
             }
         }
@@ -167,6 +146,75 @@ public class FormatReaderRegistry {
         Supplier<FormatReader> supplier = byExtension.get(extension);
         Check.notNull(supplier, "No format reader registered for extension: {}. Supported: {}", extension, byExtension.keySet());
         return supplier.get();
+    }
+
+    /**
+     * Resolves the named format reader and, if {@code objectName} carries a trailing compression-codec
+     * extension (e.g. {@code .gz}), wraps it in a {@link CompressionDelegatingFormatReader} — applying the
+     * same whole-file-compression-support check and GA-codec gate as {@link #byExtension(String)}.
+     * <p>
+     * Used when the caller already knows the format via an explicit {@code format}/{@code reader} config
+     * override: without this, an explicit override would resolve the plain reader and feed it the resource's
+     * compressed bytes unchanged (the compressed-read-under-explicit-format fix). {@code objectName} with no
+     * compression suffix (the common case) returns the plain reader unchanged.
+     */
+    public FormatReader byNameForObject(String formatName, String objectName) {
+        FormatReader inner = byName(formatName);
+        if (codecRegistry == null || Strings.isNullOrEmpty(objectName)) {
+            return inner;
+        }
+        String extension = trailingExtension(objectName);
+        if (extension == null) {
+            return inner;
+        }
+        DecompressionCodec codec = codecRegistry.byExtension(extension);
+        if (codec == null) {
+            return inner;
+        }
+        return wrapWithCodec(inner, codec, extension, objectName);
+    }
+
+    /**
+     * Returns {@code objectName}'s trailing extension (e.g. {@code ".gz"}), lower-cased, or {@code null}
+     * if there is no dot or the dot is the last character. Shared by {@link #byExtension(String)} and
+     * {@link #byNameForObject(String, String)} so the two paths cannot diverge on how the compression
+     * suffix is detected; callers decide separately whether a missing extension is an error.
+     */
+    private static String trailingExtension(String objectName) {
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+            return null;
+        }
+        return objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Applies the whole-file-compression veto and the release-build GA-codec gate, then wraps {@code inner}
+     * in a {@link CompressionDelegatingFormatReader} for {@code codec}. Shared by {@link #byExtension(String)}
+     * (compound-extension inference) and {@link #byNameForObject(String, String)} (explicit format/reader
+     * override), so the two paths cannot diverge on which codecs/formats are compatible.
+     */
+    private static FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
+        if (inner.supportsWholeFileCompression() == false) {
+            throw new IllegalArgumentException(
+                "Format ["
+                    + inner.formatName()
+                    + "] does not support whole-file compression; the ["
+                    + extension
+                    + "] suffix is not valid on ["
+                    + objectName
+                    + "]. Use an uncompressed file and rely on the format's built-in column compression instead."
+            );
+        }
+        // On release builds the text-format codec surface is limited to the benchmarked set; the
+        // remaining codecs (bzip2, snappy, lz4, brotli) stay available on snapshot builds only. This
+        // runs after the whole-file veto so Parquet/ORC still report the more specific error above.
+        if (Build.current().isSnapshot() == false && GA_TEXT_CODECS.contains(codec.name()) == false) {
+            throw new IllegalArgumentException(
+                "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
+            );
+        }
+        return new CompressionDelegatingFormatReader(inner, codec);
     }
 
     /**

@@ -219,6 +219,105 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             return "DirectRescoreKnnVectorQuery[" + innerQuery + "]";
         }
 
+        /**
+         * A ring buffer that allows doc data to be prefetched, and then actually scored at a later point
+         * using a bulk scorer
+         */
+        private static class PrefetchRing {
+            private final int[] docIds;
+            private final int[] docBases;
+            private final VectorScorer[] scorer;
+
+            /*
+             * Only one bulk scorer can be created for a VectorScorer at once,
+             * so we need to re-use any created bulk scorer in subsequent batches
+             * for the same scorer. Might as well store them here.
+             */
+            private VectorScorer previousScorer;
+            private VectorScorer.Bulk previousBulkScorer;
+
+            private int head;
+            private int size;
+
+            PrefetchRing() {
+                this.docIds = new int[PREFETCH_BUFFER_SIZE];
+                this.docBases = new int[PREFETCH_BUFFER_SIZE];
+                this.scorer = new VectorScorer[PREFETCH_BUFFER_SIZE];
+            }
+
+            static int ringIdx(int head, int idx) {
+                return (head + idx) % PREFETCH_BUFFER_SIZE;
+            }
+
+            void advance(int count) {
+                int newHead = ringIdx(head, count);
+
+                // clear the scorers so the RingIterator doesn't pick up stale entries
+                // if iteration over a single leaf loops all the way round
+                if (newHead > head) {
+                    Arrays.fill(scorer, head, newHead, null);
+                } else {
+                    Arrays.fill(scorer, head, PREFETCH_BUFFER_SIZE, null);
+                    Arrays.fill(scorer, 0, newHead, null);
+                }
+
+                head = newHead;
+                size -= count;
+            }
+
+            void append(int doc, int docBase, VectorScorer vecScorer) {
+                int idx = ringIdx(head, size);
+                docIds[idx] = doc;
+                docBases[idx] = docBase;
+                scorer[idx] = vecScorer;
+                size++;
+            }
+        }
+
+        /**
+         * A lazy docID iterator over {@link PrefetchRing} for a specific scorer
+         */
+        static class RingIterator extends DocIdSetIterator {
+
+            private final PrefetchRing ring;
+            private final VectorScorer scorer;
+            private final int startIdx;
+            private int idx = 0;    // just start on startIdx without needing an initial advance
+
+            RingIterator(PrefetchRing ring, VectorScorer scorer, int startIdx) {
+                this.ring = ring;
+                this.scorer = scorer;
+                this.startIdx = startIdx;
+            }
+
+            @Override
+            public int docID() {
+                if (idx == NO_MORE_DOCS) {
+                    return idx;
+                }
+                return ring.docIds[PrefetchRing.ringIdx(startIdx, idx)];
+            }
+
+            @Override
+            public int nextDoc() {
+                idx++;
+                if (ring.scorer[PrefetchRing.ringIdx(startIdx, idx)] != scorer) {
+                    idx = NO_MORE_DOCS;
+                }
+                return docID();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return slowAdvance(target);
+            }
+
+            @Override
+            public long cost() {
+                return BULK_SCORE_SIZE;
+            }
+        }
+
         @Override
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
             Query innerRewritten = innerQuery.rewrite(indexSearcher);
@@ -229,11 +328,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             List<ScoreDoc> results = new ArrayList<>(10);
-            int[] ringDocIDs = new int[PREFETCH_BUFFER_SIZE];
-            int[] ringDocBases = new int[PREFETCH_BUFFER_SIZE];
-            VectorScorer[] ringScorers = new VectorScorer[PREFETCH_BUFFER_SIZE];
-            int ringHead = 0;
-            int ringCount = 0;
+
+            PrefetchRing ring = new PrefetchRing();
 
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
@@ -256,7 +352,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 final IndexInput input = getIndexSliceOrNull(knnVectorValues);
                 KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
                 DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
-                VectorScorer vecScorer = knnVectorValues.rescorer(floatTarget);
+                VectorScorer rescorer = knnVectorValues.rescorer(floatTarget);
 
                 int doc;
                 while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -267,26 +363,18 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                         input.prefetch((long) ord * vectorByteSize, vectorByteSize);
                     }
 
-                    if (ringCount == PREFETCH_BUFFER_SIZE) {
-                        int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, buffer, results);
-                        assert scored > 0;
-                        ringHead = (ringHead + scored) % PREFETCH_BUFFER_SIZE;
-                        ringCount -= scored;
+                    if (ring.size == PREFETCH_BUFFER_SIZE) {
+                        int scored = scoreEntries(ring, buffer, results);
+                        ring.advance(scored);
                     }
 
-                    int ringTail = (ringHead + ringCount) % PREFETCH_BUFFER_SIZE;
-                    ringDocIDs[ringTail] = doc;
-                    ringDocBases[ringTail] = leaf.docBase;
-                    ringScorers[ringTail] = vecScorer;
-                    ringCount++;
+                    ring.append(doc, leaf.docBase, rescorer);
                 }
             }
 
-            while (ringCount > 0) {
-                int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, buffer, results);
-                assert scored > 0;
-                ringHead = (ringHead + scored) % PREFETCH_BUFFER_SIZE;
-                ringCount -= scored;
+            while (ring.size > 0) {
+                int scored = scoreEntries(ring, buffer, results);
+                ring.advance(scored);
             }
 
             return new KnnScoreDocQuery(results.toArray(ScoreDoc[]::new), indexSearcher.getIndexReader());
@@ -296,59 +384,36 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             return vectorValues instanceof HasIndexSlice h ? h.getSlice() : null;
         }
 
-        private static int scoreEntries(
-            int[] ringDocIds,
-            int[] ringDocBases,
-            VectorScorer[] ringScorers,
-            int ringHead,
-            int ringCount,
-            DocAndFloatFeatureBuffer buffer,
-            List<ScoreDoc> results
-        ) throws IOException {
-            int docBase = ringDocBases[ringHead];
-            VectorScorer scorer = ringScorers[ringHead];
+        private static int scoreEntries(PrefetchRing ring, DocAndFloatFeatureBuffer buffer, List<ScoreDoc> results) throws IOException {
+            int docBase = ring.docBases[ring.head];
+            VectorScorer scorer = ring.scorer[ring.head];
 
-            // find up to BULK_SCORE_SIZE docs for this scorer to score
-            int count = 1;
-            for (; count < BULK_SCORE_SIZE && count < ringCount; count++) {
-                int idx = (ringHead + count) % PREFETCH_BUFFER_SIZE;
-                if (ringScorers[idx] != scorer || ringDocBases[idx] != docBase) break;    // scorer has changed - stop there
+            // create the bulk scorer from this scorer if it's not created already
+            VectorScorer.Bulk bulkScorer;
+            if (ring.previousScorer == scorer) {
+                // re-use the bulk scorer from the previous batch
+                bulkScorer = ring.previousBulkScorer;
+            } else {
+                // first use of this scorer - create a new bulk scorer
+                RingIterator iterator = new RingIterator(ring, scorer, ring.head);
+                scorer.iterator().advance(ring.docIds[ring.head]);
+                bulkScorer = scorer.bulk(iterator);
+
+                // and record it for any subsequent batches
+                ring.previousScorer = scorer;
+                ring.previousBulkScorer = bulkScorer;
             }
 
-            final int docIdCount = count;
-            DocIdSetIterator iterator = new DocIdSetIterator() {
-                private int idx = 0;    // just start at 0, we know where we're going from
+            // find up to BULK_SCORE_SIZE docs for this scorer to score
+            int count = 0;
+            for (; count < BULK_SCORE_SIZE && count < ring.size; count++) {
+                int idx = PrefetchRing.ringIdx(ring.head, count);
+                if (ring.scorer[idx] != scorer) break;    // scorer has changed - stop there
+            }
+            assert count > 0;
 
-                private int docID(int idx) {
-                    assert idx < docIdCount;
-                    return ringDocIds[(ringHead + idx) % PREFETCH_BUFFER_SIZE];
-                }
-
-                @Override
-                public int docID() {
-                    return idx == docIdCount ? DocIdSetIterator.NO_MORE_DOCS : docID(idx);
-                }
-
-                @Override
-                public int nextDoc() {
-                    if (idx < docIdCount) idx++;
-                    return docID();
-                }
-
-                @Override
-                public int advance(int target) throws IOException {
-                    return slowAdvance(target);
-                }
-
-                @Override
-                public long cost() {
-                    return docIdCount;
-                }
-            };
-
-            scorer.iterator().advance(ringDocIds[ringHead]);
-
-            scorer.bulk(iterator).nextDocsAndScores(DocIdSetIterator.NO_MORE_DOCS, null, buffer);
+            int maxDocId = ring.docIds[PrefetchRing.ringIdx(ring.head, count - 1)] + 1; // upTo is EXCLUSIVE
+            bulkScorer.nextDocsAndScores(maxDocId, null, buffer);
             assert buffer.size == count;
 
             for (int d = 0; d < buffer.size; d++) {

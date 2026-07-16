@@ -46,6 +46,10 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         .unaryValueTransformation(ToDegrees::new)
         .description("Converts input values from radians to degrees for all elements in the input vector.")
         .example("deg(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For `NaN` or infinite inputs, {{es}} returns `null` and emits a warning, instead of returning the value unchanged."
+        )
         .name("deg");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
@@ -102,6 +106,12 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
     @Override
     public DataType dataType() {
         return DOUBLE;
+    }
+
+    @Override
+    public boolean isNoop() {
+        // Computes even when the input is already double, so it's never a no-op.
+        return false;
     }
 
     @ConvertEvaluator(warnExceptions = { ArithmeticException.class })

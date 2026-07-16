@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Validates data source + dataset settings at CRUD time. No blocking I/O. {@link #validateDataset}
@@ -26,6 +27,17 @@ public interface DataSourceValidator {
      * travels into cluster state. Throws {@link ValidationException} if invalid.
      */
     Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings);
+
+    /**
+     * Merge-aware variant used when a PUT replaces an existing data source: {@code existingSecretKeys}
+     * names secret fields already stored for it, so a request that omits one still satisfies
+     * credential-completeness checks. The returned map, like {@link #validateDatasource(Map)}, contains only
+     * the fields present in {@code datasourceSettings}; carrying the omitted secret's stored value forward is
+     * the caller's job. The default ignores {@code existingSecretKeys} and delegates to the single-arg overload.
+     */
+    default Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings, Set<String> existingSecretKeys) {
+        return validateDatasource(datasourceSettings);
+    }
 
     /**
      * Validates dataset settings. Returns plain values — datasets carry no secrets. Parent passed for

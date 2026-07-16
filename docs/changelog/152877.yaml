@@ -1,0 +1,6 @@
+area: "ES|QL"
+issues:
+ - 152876
+pr: 152877
+summary: Fix errors/warnings with spatial functions that parse invalid BBOX
+type: bug

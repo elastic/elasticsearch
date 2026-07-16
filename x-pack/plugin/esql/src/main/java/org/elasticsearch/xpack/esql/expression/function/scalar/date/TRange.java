@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfiguration
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -106,13 +107,20 @@ public class TRange extends EsqlConfigurationFunction
         @Param(
             name = START_TIME_OR_OFFSET_PARAMETER,
             type = { "time_duration", "date_period", "date", "date_nanos", "keyword", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = """
                  Offset from NOW for the single parameter mode. Start time for two parameter mode.
                  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds.
                 """
         ) Expression first,
-        @Param(name = END_TIME_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
-            Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
+        @Param(
+            name = END_TIME_PARAMETER,
+            type = { "keyword", "long", "date", "date_nanos" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = """
+                Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""",
+            optional = true
+        ) Expression second,
         Expression timestamp,
         Configuration configuration
     ) {
@@ -270,7 +278,7 @@ public class TRange extends EsqlConfigurationFunction
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
-            var zonedDateTime = ZonedDateTime.ofInstant(base, configuration().zoneId());
+            var zonedDateTime = ZonedDateTime.ofInstant(base, QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()));
             return zonedDateTime.minus(amount).toInstant();
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
@@ -283,7 +291,10 @@ public class TRange extends EsqlConfigurationFunction
 
         if (value instanceof BytesRef bytesRef) {
             try {
-                long millis = dateTimeToLong(bytesRef.utf8ToString(), DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()));
+                long millis = dateTimeToLong(
+                    bytesRef.utf8ToString(),
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()))
+                );
                 return Instant.ofEpochMilli(millis);
             } catch (Exception e) {
                 throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);

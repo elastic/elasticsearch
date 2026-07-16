@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -285,17 +286,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "buckets",
             type = { "integer", "long", "double", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to,
@@ -434,7 +438,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             int b = ((Number) buckets.fold(foldContext)).intValue();
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
-            var rounding = new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding();
+            var rounding = new DateRoundingPicker(b, f, t, QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())).pickRounding();
             if (UP.equals(roundingConvention)) {
                 rounding = Rounding.ToUpperRounding.createRounding(rounding);
             }
@@ -446,7 +450,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         } else {
             // `buckets` is the bucket length, use it directly
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-            prepared = DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max, offset, roundingConvention);
+            prepared = DateTrunc.createRounding(
+                buckets.fold(foldContext),
+                QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                min,
+                max,
+                offset,
+                roundingConvention
+            );
         }
 
         return prepared;

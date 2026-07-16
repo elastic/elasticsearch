@@ -65,6 +65,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
@@ -114,6 +115,7 @@ public class KnnSearcher {
     private final Path indexPath;
     private final Path queryPath;
     private final int numDocs;
+    private final int numDeletedDocs;
     private final int numQueryVectors;
     private final KnnIndexTester.IndexType indexType;
     private final boolean sliced;
@@ -128,6 +130,7 @@ public class KnnSearcher {
         this.indexPath = indexPath;
         this.queryPath = testConfiguration.queryVectors();
         this.numDocs = testConfiguration.numDocs();
+        this.numDeletedDocs = testConfiguration.numDeletedDocs();
         this.numQueryVectors = testConfiguration.numQueries();
         this.dim = testConfiguration.dimensions();
         this.similarityFunction = testConfiguration.vectorSpace();
@@ -428,7 +431,7 @@ public class KnnSearcher {
                     ? new IndexSearcher(reader, executorService)
                     : new IndexSearcher(reader);
 
-                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced;
+                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
                 // warm up
                 for (int i = 0; i < totalSearches; i++) {
@@ -546,6 +549,8 @@ public class KnnSearcher {
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+        finalResults.exact = searchParameters.exact();
+        finalResults.exactQuantized = searchParameters.exactQuantized();
         if (finalResults.totalIndexVectors > 0) {
             finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;
         }
@@ -628,6 +633,7 @@ public class KnnSearcher {
                 indexPath,
                 queryPath,
                 numDocs,
+                numDeletedDocs,
                 numQueryVectors,
                 sampledPartitions,
                 params.topK(),
@@ -701,6 +707,7 @@ public class KnnSearcher {
                 docPath,
                 queryPath,
                 numDocs,
+                numDeletedDocs,
                 numQueryVectors,
                 searchParameters.topK(),
                 similarityFunction.ordinal(),
@@ -733,12 +740,12 @@ public class KnnSearcher {
     private boolean isNewer(Path path, List<Path> paths, Path... others) throws IOException {
         FileTime modified = Files.getLastModifiedTime(path);
         for (Path p : paths) {
-            if (Files.getLastModifiedTime(p).compareTo(modified) >= 0) {
+            if (p != null && Files.exists(p) && Files.getLastModifiedTime(p).compareTo(modified) >= 0) {
                 return false;
             }
         }
         for (Path other : others) {
-            if (Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
+            if (other != null && Files.exists(other) && Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
                 return false;
             }
         }
@@ -746,6 +753,9 @@ public class KnnSearcher {
     }
 
     TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
+        if (searchParameters.exact()) {
+            return doExactVectorQuery(vector, searcher, filterQuery, searchParameters);
+        }
         Query knnQuery;
         if (searchParameters.overSamplingFactor() > 1f) {
             throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
@@ -779,6 +789,9 @@ public class KnnSearcher {
         BytesRef partition,
         TestConfiguration testConfiguration
     ) throws IOException {
+        if (searchParameters.exact()) {
+            return doExactVectorQuery(vector, searcher, filterQuery, searchParameters);
+        }
         Query knnQuery;
         final int resultK = searchParameters.topK();
         int overSampledTopK = resultK;
@@ -842,6 +855,22 @@ public class KnnSearcher {
         QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
         queryProfilerProvider.profile(profiler);
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+    }
+
+    private TopDocs doExactVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters)
+        throws IOException {
+        DenseVectorQuery exactQuery = searchParameters.exactQuantized()
+            ? DenseVectorQuery.Floats.codecScored(vector, VECTOR_FIELD)
+            : DenseVectorQuery.Floats.rawScored(vector, VECTOR_FIELD, similarityFunction, false);
+        return searcher.search(exactQuery.filteredBy(filterQuery), searchParameters.topK());
+    }
+
+    private TopDocs doExactVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters)
+        throws IOException {
+        DenseVectorQuery exactQuery = searchParameters.exactQuantized()
+            ? DenseVectorQuery.Bytes.codecScored(vector, VECTOR_FIELD)
+            : DenseVectorQuery.Bytes.rawScored(vector, VECTOR_FIELD, similarityFunction);
+        return searcher.search(exactQuery.filteredBy(filterQuery), searchParameters.topK());
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {
@@ -933,6 +962,11 @@ public class KnnSearcher {
         }
     }
 
+    /**
+     * {@link ComputeNNFloatTask} and {@link ComputeNNByteTask} deliberately score with Lucene's
+     * {@link FunctionQuery}/{@link FloatVectorSimilarityFunction}/{@link ByteVectorSimilarityFunction}
+     * rather than {@link DenseVectorQuery} to establish correctness.
+     */
     static class ComputeNNFloatTask implements Callable<Void> {
 
         private final int queryOrd;

@@ -368,7 +368,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (enabled) {
                 var config = blContext.blockLoaderFunctionConfig();
                 if (config instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata tsm) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetrics());
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetricFields());
                 }
                 return new SourceFieldBlockLoader();
             }
@@ -496,8 +496,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mode != Mode.COLUMNAR_STORED) {
             return;
         }
-        // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
-        assert context.nonRootDocuments().iterator().hasNext() == false;
         try (var builder = XContentFactory.jsonBuilder()) {
             columnarSourceWriter.write(context, builder);
             BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
@@ -525,6 +523,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
      *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and
      *       normalized values</li>
+     *   <li>{@code <field>._on_failure} (and {@code .counts}) — the {@code doc_values.on_failure=ignore} failure column</li>
      * </ul>
      *
      */
@@ -540,7 +539,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
             || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts)
             || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
-            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts);
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX + counts);
     }
 
     /**

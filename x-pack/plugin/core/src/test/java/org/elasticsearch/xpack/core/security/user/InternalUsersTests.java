@@ -264,7 +264,12 @@ public class InternalUsersTests extends ESTestCase {
         );
         checkClusterAccess(InternalUsers.DATA_STREAM_LIFECYCLE_USER, role, randomFrom(sampleClusterActions), true);
 
-        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*", ".workflows*");
+        final List<String> allowedSystemDataStreams = Arrays.asList(
+            ".fleet-actions-results",
+            ".fleet-fileds*",
+            ".workflows*",
+            ".kibana_change_history*"
+        );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
                 assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));

@@ -164,7 +164,7 @@ public class ShardFailedTaskExecutorTests extends ESAllocationTestCase {
             tasks,
             task -> fail("unexpectedly succeeded: " + task),
             (task, e) -> {
-                if (e instanceof ShardStateAction.NoLongerPrimaryShardException noLongerPrimaryShardException) {
+                if (e instanceof NoLongerPrimaryShardException noLongerPrimaryShardException) {
                     assertThat(noLongerPrimaryShardException.getShardId(), equalTo(task.entry().getShardId()));
                     assertThat(
                         noLongerPrimaryShardException.getMessage(),

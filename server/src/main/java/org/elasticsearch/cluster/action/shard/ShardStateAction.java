@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -46,8 +45,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -329,19 +326,6 @@ public class ShardStateAction {
                 null
             );
         }
-    }
-
-    public static final class NoLongerPrimaryShardException extends ElasticsearchException {
-
-        public NoLongerPrimaryShardException(ShardId shardId, String msg) {
-            super(msg);
-            setShard(shardId);
-        }
-
-        public NoLongerPrimaryShardException(StreamInput in) throws IOException {
-            super(in);
-        }
-
     }
 
 }

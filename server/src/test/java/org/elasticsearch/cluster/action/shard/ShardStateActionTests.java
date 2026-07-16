@@ -322,10 +322,7 @@ public class ShardStateActionTests extends ESTestCase {
             listener
         );
 
-        ShardStateAction.NoLongerPrimaryShardException catastrophicError = new ShardStateAction.NoLongerPrimaryShardException(
-            failedShard.shardId(),
-            "dummy failure"
-        );
+        NoLongerPrimaryShardException catastrophicError = new NoLongerPrimaryShardException(failedShard.shardId(), "dummy failure");
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         transport.handleRemoteError(capturedRequests[0].requestId(), catastrophicError);
 
@@ -333,7 +330,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         final Exception failure = listener.failure.get();
         assertNotNull(failure);
-        assertThat(failure, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+        assertThat(failure, instanceOf(NoLongerPrimaryShardException.class));
         assertThat(failure.getMessage(), equalTo(catastrophicError.getMessage()));
     }
 

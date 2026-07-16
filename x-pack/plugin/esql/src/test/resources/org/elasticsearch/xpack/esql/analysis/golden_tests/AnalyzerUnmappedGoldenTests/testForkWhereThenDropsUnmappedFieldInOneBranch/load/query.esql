@@ -1,0 +1,4 @@
+SET unmapped_fields="load"; FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
+       (WHERE true)
+| SORT @timestamp, _fork

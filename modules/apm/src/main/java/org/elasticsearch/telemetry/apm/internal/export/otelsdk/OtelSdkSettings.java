@@ -137,7 +137,9 @@ public final class OtelSdkSettings {
     );
 
     /**
-     * Whether the per-instrument collection-time gauge ({@code es.apm.metrics.instrument.collection.time}) is emitted.
+     * Whether the per-instrument collection-time histogram ({@code es.apm.metrics.instrument.collection_time.histogram}) is
+     * recorded. Off by default because it adds one series per observable instrument; enable it at runtime to attribute metric
+     * collection cost to a specific instrument, then disable it again.
      */
     public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
         "telemetry.metrics.instrument_timing.enabled",

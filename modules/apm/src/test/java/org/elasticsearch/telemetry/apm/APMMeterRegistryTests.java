@@ -211,8 +211,6 @@ public class APMMeterRegistryTests extends ESTestCase {
 
         registry.registerLongGauge("es.test.timed.current", "", "", () -> new LongWithAttributes(7L, Collections.emptyMap()));
 
-        // This is the first cycle that will be measured, the data will go on the second cycle.
-        reader.collectAllMetrics();
         List<String> timedInstruments = collectionTimeInstruments(reader.collectAllMetrics());
         assertThat(timedInstruments, contains("es.test.timed.current"));
 
@@ -221,7 +219,7 @@ public class APMMeterRegistryTests extends ESTestCase {
 
     private static List<String> collectionTimeInstruments(Collection<MetricData> metrics) {
         return metrics.stream()
-            .filter(m -> m.getName().equals("es.apm.metrics.instrument.collection.time"))
+            .filter(m -> m.getName().equals("es.apm.metrics.instrument.collection_time.histogram"))
             .flatMap(m -> m.getData().getPoints().stream())
             .map(p -> p.getAttributes().get(AttributeKey.stringKey("es_instrument_name")))
             .toList();

@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 public class APMMeterRegistry implements MeterRegistry {
     private static final Logger logger = LogManager.getLogger(APMMeterRegistry.class);
 
-    static final String INSTRUMENT_COLLECT_DURATION = "es.apm.metrics.instrument.collection.time";
+    static final String INSTRUMENT_COLLECT_DURATION = "es.apm.metrics.instrument.collection_time.histogram";
     static final String INSTRUMENT_ATTRIBUTE = "es_instrument_name";
 
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
@@ -70,33 +70,26 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private Meter meter;
 
-    private final Map<String, Double> instrumentCollectDurations = ConcurrentCollections.newConcurrentMap();
+    private final DoubleHistogram instrumentCollectDuration;
+
+    /**
+     * Gates recording of the per-instrument collection-time histogram. Off by default because the {@link #INSTRUMENT_ATTRIBUTE}
+     * attribute adds one series per instrument; toggled at runtime through {@code telemetry.metrics.instrument_timing.enabled}.
+     * With delta temporality, not recording while disabled means no data points are exported for the metric.
+     */
     private volatile boolean instrumentTimingEnabled = false;
 
     public APMMeterRegistry(Meter meter) {
         this.meter = meter;
-        // Registered directly (not through registerDoublesGauge) so the gauge does not time its own callback.
-        register(
-            doubleGauges,
-            new DoubleGaugeAdapter(
+        this.instrumentCollectDuration = register(
+            doubleHistograms,
+            new DoubleHistogramAdapter(
                 meter,
                 INSTRUMENT_COLLECT_DURATION,
-                "Duration of an observable instrument's callback during the most recent metric collection cycle",
-                "s",
-                this::collectInstrumentDurations,
-                deregisterFunc(doubleGauges)
+                "Time an observable instrument's callback takes during a metric collection cycle",
+                "s"
             )
         );
-    }
-
-    private Collection<DoubleWithAttributes> collectInstrumentDurations() {
-        if (instrumentTimingEnabled == false) {
-            return List.of();
-        }
-        return instrumentCollectDurations.entrySet()
-            .stream()
-            .map(e -> new DoubleWithAttributes(e.getValue(), Map.of(INSTRUMENT_ATTRIBUTE, e.getKey())))
-            .toList();
     }
 
     public void setInstrumentTimingEnabled(boolean enabled) {
@@ -298,6 +291,7 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     private <T> Supplier<T> timed(String name, Supplier<T> observer) {
+        Map<String, Object> attributes = Map.of(INSTRUMENT_ATTRIBUTE, name);
         return () -> {
             if (instrumentTimingEnabled == false) {
                 return observer.get();
@@ -306,7 +300,7 @@ public class APMMeterRegistry implements MeterRegistry {
             try {
                 return observer.get();
             } finally {
-                instrumentCollectDurations.put(name, (System.nanoTime() - start) / 1_000_000_000d);
+                instrumentCollectDuration.record((System.nanoTime() - start) / 1_000_000_000d, attributes);
             }
         };
     }

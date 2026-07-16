@@ -405,7 +405,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     /**
-     * Builds a lexical query for the supplied field name, preserving the function's options.
+     * Builds a lexical query for the supplied field name.
      */
     public QueryBuilder asLexicalQueryBuilder(String fieldName) {
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions()).toQueryBuilder();

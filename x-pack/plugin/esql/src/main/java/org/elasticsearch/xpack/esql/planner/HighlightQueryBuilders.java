@@ -16,6 +16,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -147,17 +149,33 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Builds the query used by HIGHLIGHT. MATCH and MATCH_PHRASE are rebuilt as lexical queries using the ON column
-     * name. This works for runtime and union-typed columns, and avoids using an inference query for {@code semantic_text}.
-     * QSTR and KQL already resolve their fields, so they use the normal coordinator translation.
+     * Builds the query used by HIGHLIGHT. For MATCH and MATCH_PHRASE, use the builder resolved on the coordinator
+     * when it is a lexical query for the ON column. This preserves the function options, which are serialized only
+     * as part of the resolved builder. Otherwise, build a lexical query for the ON column. The fallback covers
+     * {@code semantic_text}, union-typed columns, and runtime columns. QSTR and KQL resolve their own fields and use
+     * the standard translation path.
      */
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
             case Or or -> QueryBuilders.boolQuery().should(build(or.left())).should(build(or.right()));
             case Not not -> QueryBuilders.boolQuery().mustNot(build(not.field()));
-            case Match match -> match.asLexicalQueryBuilder(fieldName(match.field()));
-            case MatchPhrase matchPhrase -> matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
+            // TODO: Preserve options when rebuilding these queries. Match and MatchPhrase serialize their options
+            // only through the resolved builder, so rebuilding drops MATCH options for semantic_text and union-typed
+            // columns on remote nodes. Fix this by serializing the options directly or resolving a separate lexical
+            // builder for HIGHLIGHT.
+            case Match match -> {
+                String onField = fieldName(match.field());
+                yield match.queryBuilder() instanceof MatchQueryBuilder resolved && resolved.fieldName().equals(onField)
+                    ? resolved
+                    : match.asLexicalQueryBuilder(onField);
+            }
+            case MatchPhrase matchPhrase -> {
+                String onField = fieldName(matchPhrase.field());
+                yield matchPhrase.queryBuilder() instanceof MatchPhraseQueryBuilder resolved && resolved.fieldName().equals(onField)
+                    ? resolved
+                    : matchPhrase.asLexicalQueryBuilder(onField);
+            }
             case QueryString queryString -> pushdownQueryBuilder(queryString);
             case Kql kql -> pushdownQueryBuilder(kql);
             default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");

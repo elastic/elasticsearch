@@ -58,12 +58,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-<<<<<<< HEAD
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
-=======
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 

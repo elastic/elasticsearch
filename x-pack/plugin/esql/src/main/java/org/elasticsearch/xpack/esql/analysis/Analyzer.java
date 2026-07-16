@@ -1651,11 +1651,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (loadAlignAcrossBranches
                         && forkLoadableUnmappedKeywordNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
-<<<<<<< HEAD
-                        toLoad.add(insistKeyword(attr));
-=======
-                        toLoad.add(unmappedResolution == UnmappedResolution.LOAD ? unmappedKeyword(attr) : nullifyField(attr));
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
+                        toLoad.add(unmappedKeyword(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
@@ -1776,72 +1772,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-<<<<<<< HEAD
          * Whether a keyword loaded at this branch's source would reach the branch output: true only if walking column-preserving
          * unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
-=======
-         * Unmapped fields a {@link Project} in a FORK branch drops outright, in the projection input but neither surfaced nor referenced
-         * (a plain {@code DROP}, not a {@code RENAME}). Detects both materialization markers: {@link PotentiallyUnmappedKeywordEsField}
-         * under {@code load} and {@link MissingEsField} under {@code nullify}. Keyed by name, first occurrence wins. A field consumed by an
-         * {@link Aggregate} (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a
-         * {@code FORK} column.
-         */
-        private static Map<String, FieldAttribute> unmappedFieldsDroppedByProjection(Fork fork) {
-            Map<String, FieldAttribute> byName = new LinkedHashMap<>();
-            for (LogicalPlan branch : fork.children()) {
-                branch.forEachDown(Project.class, project -> {
-                    Set<String> survivingNames = project.outputSet().names();
-                    Set<String> referencedNames = project.references().names();
-                    for (Attribute attr : project.child().output()) {
-                        if (attr instanceof FieldAttribute fa
-                            // We can ignore PUNKs here since they are by definition mapped in some indices (whereas
-                            // PotentiallyUnmappedKeywordEsField can be entirely unmapped).
-                            && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)
-                            && survivingNames.contains(fa.name()) == false
-                            && referencedNames.contains(fa.name()) == false) {
-                            byName.putIfAbsent(fa.name(), fa);
-                        }
-                    }
-                });
-            }
-            return byName;
-        }
-
-        /**
-         * Mutates {@code outputUnion} in place, inserting a loader for each dropped unmapped fields missing from it right before the
-         * {@code _fork} discriminator, so a {@code DROP}-mentioned field lands where a {@code WHERE}/{@code KEEP}-mentioned one would and
-         * {@code _fork} stays last.
-         */
-        private static void addDroppedUnmappedFieldsMissingFromUnion(
-            List<Attribute> outputUnion,
-            Map<String, FieldAttribute> droppedUnmappedFields
-        ) {
-            if (droppedUnmappedFields.isEmpty()) {
-                return;
-            }
-            Set<String> unionNames = new HashSet<>(Expressions.names(outputUnion));
-            List<Attribute> loaders = new ArrayList<>();
-            for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedFields.entrySet()) {
-                if (unionNames.contains(entry.getKey()) == false) {
-                    FieldAttribute dropped = entry.getValue();
-                    // Match how the field was materialized: a nullified MissingEsField under nullify, else an insisted keyword under load.
-                    loaders.add(dropped.field() instanceof MissingEsField ? nullifyField(dropped) : unmappedKeyword(dropped));
-                }
-            }
-            if (loaders.isEmpty()) {
-                return;
-            }
-            int forkFieldIndex = Iterables.indexOf(outputUnion, a -> a.name().equals(Fork.FORK_FIELD));
-            if (forkFieldIndex < 0) {
-                forkFieldIndex = outputUnion.size();
-            }
-            outputUnion.addAll(forkFieldIndex, loaders);
-        }
-
-        /**
-         * Whether an unmapped field materialized at this branch's source would reach the branch output: true only if walking
-         * column-preserving unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
             if (plan instanceof EsRelation esRelation) {

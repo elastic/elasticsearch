@@ -666,6 +666,12 @@ public class EsqlDataTypeConverter {
             return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
+        } catch (ArithmeticException e) {
+            // An in-range epoch (e.g. a huge epoch_second) can parse to a valid Instant and then overflow when
+            // Instant.toEpochMilli scales it. Remap so it flows through the readers' per-cell error policy (null/warn
+            // or fail_fast) rather than escaping as an ArithmeticException that hard-fails the whole read — the same
+            // contract coerceToUnsignedLong keeps for its overflow.
+            throw new IllegalArgumentException("epoch value overflows a long when scaled to milliseconds: " + dateTime, e);
         }
     }
 

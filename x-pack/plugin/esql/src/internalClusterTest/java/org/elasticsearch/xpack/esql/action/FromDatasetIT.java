@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -42,12 +43,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -56,12 +59,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration for {@code FROM <dataset>}: creates a data source and a dataset via the
@@ -88,6 +95,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     // declared-format read path must not have.
     private static final long ACCESS_LOG_EPOCH_MILLIS = 971211336000L;
     private static final String ACCESS_LOG_FORMAT = "dd/MMM/yyyy:HH:mm:ss Z";
+    // A numeric epoch-second token and the instant it names, shared across the cross-format parity test so a single
+    // declared `format: epoch_second` reads the same instant from every carrier (Parquet int64, CSV/TSV/NDJSON token).
+    private static final long EPOCH_SECOND_TOKEN = 1704067200L; // 2024-01-01T00:00:00Z, in seconds
+    private static final long EPOCH_SECOND_MILLIS = 1704067200000L;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -169,6 +180,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_strict_multi",
         "employees_nonstrict_multi",
         "employees_rename_strict",
+        "employees_headerless_strict",
+        "employees_headerless_dynamic",
+        "employees_absent_warn",
+        "employees_parity_strict",
+        "employees_parity_dynamic",
+        "employees_order_strict",
+        "employees_order_dynamic",
         "employees_rename_nonstrict",
         "employees_rename_keep",
         "employees_ndjson_rename_strict",
@@ -227,7 +245,42 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "mapped_ds_for_subquery",
         "ndjson_mv_coerce",
         "logs_ts_declared_long",
-        "logs_date_inferred"
+        "logs_date_inferred",
+        "rp_micros",
+        "rp_nanos",
+        "rp_millis",
+        "rp_bare_s",
+        "rp_bare_ms",
+        "rp_date",
+        "rpn_bare_ns",
+        "rpn_bare_s",
+        "rpn_micros",
+        "rp_prune_s",
+        "rpn_prune_s",
+        "scale_diff_a",
+        "scale_diff_b",
+        "scale_diff_c",
+        "scale_diff_d",
+        "scale_diff_e",
+        "scale_diff_f",
+        "scale_diff_g",
+        "scale_xdecl_seconds",
+        "scale_xdecl_millis",
+        "cb_inferred",
+        "cb_nonstrict",
+        "cb_strict",
+        "cb_ndjson_inferred",
+        "cb_ndjson_nonstrict",
+        "cb_ndjson_strict",
+        "epoch_ovf_pq_null",
+        "epoch_ovf_pq_skip",
+        "epoch_ovf_pq_fail",
+        "epoch_ovf_csv_null",
+        "epoch_ovf_csv_skip",
+        "epoch_ovf_csv_fail",
+        "epoch_ovf_nj_null",
+        "epoch_ovf_nj_skip",
+        "epoch_ovf_nj_fail"
     );
 
     /**
@@ -297,6 +350,22 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testFromDatasetWhereMvInRange() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        // mv_in_range is source-agnostic: over a dataset there is no Lucene pushdown, so it runs in the compute engine
+        // over the blocks the CSV reader produces. emp_no in [2,3] keeps Bob(2) and Carol(3), drops Alice(1).
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE mv_in_range(emp_no, 2, 3) | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(0), equalTo(3));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
     public void testFromExtensionlessResourceDrivenByExplicitFormat() throws Exception {
         // The headline fix: a resource with no file extension carries no inferable format, so the dataset's
         // explicit `format` setting is the only thing that can select the reader. The fixture is pipe-delimited
@@ -326,12 +395,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testStrictDeclaredSchemaUsesDeclaredNamesAndTypesSkippingInference() throws Exception {
+    public void testStrictDeclaredNamesAbsentFromHeaderReadNull() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
-        // The declaration relabels the columns and pins emp_no's type to LONG (inference would have produced INTEGER),
-        // proving the declared mapping is used and inference is skipped.
+        // A declared schema binds by name. The declaration names id/name, which the file (header emp_no,first_name)
+        // does not have and no `path` maps, so both read null with a warning. To rename emp_no->id the supported
+        // mechanism is `path` — see testStrictDeclaredSchemaRenamesColumnsViaSource.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
@@ -353,19 +422,80 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | SORT id | LIMIT 10"), TIMEOUT)) {
+        // Both declared names are absent from the file, so every row reads null — the declaration over-claims the file.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | LIMIT 10"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("id"));
             assertThat(columns.get(1).name(), equalTo("name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), nullValue());
+                assertThat(row.get(1), nullValue());
+            }
+        }
+    }
+
+    public void testStrictDeclaredDateNanosReadsWholeNumberAsEpochNanos() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // The headline user story: a lake column holding a raw epoch-nanoseconds whole number can now be pinned to
+        // date_nanos. Inference would have produced LONG (a bare number carries no unit), so declaring the column is
+        // the only way to present it at its real precision — and the declared type is what names the unit: under
+        // `date_nanos` the number IS epoch-nanos (under `datetime` it would be epoch-millis).
+        Path nanosFixture = createTempDir().resolve("events.csv");
+        Files.writeString(
+            nanosFixture,
+            String.join(
+                "\n",
+                "id,event_time",
+                "1,1700000000123456789",
+                "2,1700000000000000000",
+                // sub-millisecond digits survive: the whole point of the type
+                "3,1700000000999999999"
+            ) + "\n"
+        );
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("event_time", new DatasetFieldMapping("date_nanos", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "events_nanos",
+                    "local_ds",
+                    nanosFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM events_nanos | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(1).name(), equalTo("event_time"));
+            assertThat(
+                "the column presents as date_nanos, not the long inference would have given",
+                response.columns().get(1).type().typeName(),
+                equalTo("date_nanos")
+            );
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
-            // declared LONG => values are Long, not the Integer inference would have produced
-            assertThat(rows.get(0).get(0), equalTo(1L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(2).get(0), equalTo(3L));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+            // Rendered at nanosecond precision — the identity epoch-nanos reinterpret, no rescaling. (The renderer
+            // trims trailing zeros, so a whole-second instant shows as .000Z; the sub-millisecond digits below are
+            // the ones that would have been lost had the number been read as epoch-millis.)
+            assertThat(rows.get(0).get(1).toString(), equalTo("2023-11-14T22:13:20.123456789Z"));
+            assertThat(rows.get(1).get(1).toString(), equalTo("2023-11-14T22:13:20.000Z"));
+            assertThat(rows.get(2).get(1).toString(), equalTo("2023-11-14T22:13:20.999999999Z"));
         }
     }
 
@@ -413,8 +543,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDeclaredSchemaRenamesColumnsViaSource() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. CSV is read
-        // positionally, so the declared order must match the file order; the logical names id/name are what the query sees.
+        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. A declared
+        // path binds by name, so the declared order need not match the file's; the logical names id/name are what the
+        // query sees. This declaration happens to be in file order, which is why it passed even when binding was
+        // positional — see testStrictAndDynamicAgreeOnFullyDeclaredHeaderlessCsv for the case that pins the binding.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
@@ -448,6 +580,129 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
             assertThat(rows.get(2).get(0), equalTo(3L));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The #1307 invariant, in product terms: strict and dynamic are orthogonal to every other dimension. Over the same
+     * file, with a declaration that names every physical column, the two must return identical results — a declaration
+     * that covers the whole file leaves inference nothing to decide, so the dynamic knob cannot matter.
+     * <p>
+     * The declaration is deliberately NOT in file order: {@code dept} is declared first but names {@code col2}. Binding
+     * a declared path by its declaration position — the bug — serves col0's value under {@code dept} on the strict read
+     * while dynamic reads it correctly, so the two disagree. Binding by name makes the knob a no-op, as it must be.
+     */
+    public void testStrictAndDynamicAgreeOnFullyDeclaredHeaderlessCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-headerless-", ".csv");
+        Files.writeString(headerless, String.join("\n", "1,Alice,Engineering", "2,Bob,Sales", "3,Carol,Support") + "\n");
+
+        // Every physical column of the file is declared, in an order that does not match the file's.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+
+        registerHeaderlessCsv("employees_headerless_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_headerless_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        List<List<Object>> strictRows = queryRows("FROM employees_headerless_strict | KEEP id, name, dept | SORT id | LIMIT 10");
+        List<List<Object>> dynamicRows = queryRows("FROM employees_headerless_dynamic | KEEP id, name, dept | SORT id | LIMIT 10");
+
+        // Both must be right, not merely equal: agreement alone would also hold if the two broke the same way.
+        assertThat(strictRows, hasSize(3));
+        assertThat(strictRows.get(0).get(0), equalTo(1L));                          // col0, retyped LONG
+        assertThat(strictRows.get(0).get(1).toString(), equalTo("Alice"));          // col1
+        assertThat(strictRows.get(0).get(2).toString(), equalTo("Engineering"));    // col2, NOT col0's value
+        assertThat(strictRows.get(2).get(2).toString(), equalTo("Support"));
+
+        assertThat(strictRows, equalTo(dynamicRows));
+    }
+
+    /**
+     * The #1307 invariant in its strongest form: a declaration that covers the whole file IN FILE ORDER reads
+     * IDENTICALLY under strict and dynamic — same column names, same column ORDER, same values — with NO {@code KEEP}
+     * to normalize. This is the case where the two modes must not diverge on any dimension.
+     */
+    public void testStrictAndDynamicFullyAgreeNoKeepInFileOrder() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-parity-", ".csv");
+        Files.writeString(headerless, String.join("\n", "1,Alice,Engineering", "2,Bob,Sales", "3,Carol,Support") + "\n");
+
+        // Declared in file order: col0 -> id, col1 -> name, col2 -> dept. Declaration order == file order, so column
+        // order cannot diverge and the two modes must agree on everything.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+
+        registerHeaderlessCsv("employees_parity_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_parity_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        try (
+            var strict = run(syncEsqlQueryRequest("FROM employees_parity_strict | SORT id | LIMIT 10"), TIMEOUT);
+            var dynamic = run(syncEsqlQueryRequest("FROM employees_parity_dynamic | SORT id | LIMIT 10"), TIMEOUT)
+        ) {
+            assertThat(columnNames(strict), equalTo(List.of("id", "name", "dept")));
+            assertThat(columnNames(strict), equalTo(columnNames(dynamic)));   // names + ORDER agree, no KEEP
+            assertThat(getValuesList(strict), equalTo(getValuesList(dynamic))); // values agree
+        }
+    }
+
+    /**
+     * Column ORDER is the one dimension strict and dynamic still diverge on for an OUT-of-file-order declaration:
+     * strict emits declaration order, dynamic emits file order. Pinned here as the known divergence tracked by the
+     * column-order convergence follow-up (a dynamic-side change, out of #1307's binding scope).
+     */
+    public void testStrictDynamicColumnOrderDivergesOutOfFileOrder() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-order-", ".csv");
+        Files.writeString(headerless, "1,Alice,Engineering\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+
+        registerHeaderlessCsv("employees_order_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_order_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        try (
+            var strict = run(syncEsqlQueryRequest("FROM employees_order_strict | LIMIT 1"), TIMEOUT);
+            var dynamic = run(syncEsqlQueryRequest("FROM employees_order_dynamic | LIMIT 1"), TIMEOUT)
+        ) {
+            assertThat(columnNames(strict), equalTo(List.of("dept", "id", "name")));   // declaration order
+            assertThat(columnNames(dynamic), equalTo(List.of("id", "name", "dept")));  // file order
+        }
+    }
+
+    private static List<String> columnNames(EsqlQueryResponse response) {
+        return response.columns().stream().map(ColumnInfo::name).toList();
+    }
+
+    /** Registers {@code file} as a headerless CSV dataset, so a declared path names a physical column as {@code col<N>}. */
+    private void registerHeaderlessCsv(String name, Path file, DatasetMapping.Dynamic dynamic, Map<String, DatasetFieldMapping> properties)
+        throws Exception {
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "header_row", false)),
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
+                )
+            )
+        );
+    }
+
+    private List<List<Object>> queryRows(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return getValuesList(response);
         }
     }
 
@@ -665,11 +920,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredDateFormatOnParquetRejected() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A declared date `format` is a text-parse pattern; columnar formats carry native typed values, so it is
-        // rejected loudly at query resolution rather than silently ignored.
-        Path parquet = writeParquetRenameFixture();
+        // A declared date `format` applies as a string parse pattern, or as the epoch unit / parse dialect of a numeric
+        // column — but never on an already-temporal physical (an annotated TIMESTAMP infers as datetime), where it
+        // could never apply. Such a declaration is rejected loudly at query resolution rather than silently ignored.
+        Path parquet = createTempDir().resolve("ts.parquet");
+        Files.write(parquet, timestampMillisFixtureBytes(1_000L, 2_000L, 3_000L));
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -691,6 +948,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_parquet_format | LIMIT 5"), TIMEOUT).close());
         assertThat(e.getMessage(), containsString("[format] on column [ts]"));
         assertThat(e.getMessage(), containsString("parquet"));
+        assertThat(e.getMessage(), containsString("datetime"));
     }
 
     public void testDeclaredDateFormatNdjsonParsesZoneAware() throws Exception {
@@ -767,9 +1025,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Compressed .csv.gz goes through CompressionDelegatingFormatReader; the declared format must reach the wrapped
-        // CSV reader (a missing wrapper override would silently drop it and diverge from the uncompressed result). The
-        // format/compression is driven by the compound `.csv.gz` extension — an explicit `format` override would bypass
-        // the extension-based compression wrapping entirely, so leave it off.
+        // CSV reader (a missing wrapper override would silently drop it and diverge from the uncompressed result). Format
+        // here is inferred from the compound `.csv.gz` extension; testExplicitFormatOverGzipCsvReads covers the sibling
+        // case of an explicit `format` setting composing with the same compression suffix.
         Path gz = createTempFile("dataset-date-fixture-", ".csv.gz");
         byte[] csv = ("ts:keyword,note:keyword\n10/Oct/2000:13:55:36 -0700,alpha\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gz))) {
@@ -809,17 +1067,40 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // sourceType from the file name; before the compound-extension fix it last-dotted to "gz" and the query failed
         // with "No operator factory for sourceType: gz". It must now resolve to "csv" (through the compression-unwrapping
         // registry) and read the row. Regression guard for the strict compound-extension read fix.
-        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false));
+        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false), "col0", "col1");
+    }
+
+    public void testExplicitFormatOverGzipCsvReads() throws Exception {
+        // Regression guard for the compressed-read-under-explicit-format fix: an explicit `format` setting used
+        // to bypass compression detection entirely (FormatNameResolver.resolveReader looked the format up by
+        // name with no regard for the resource's outer compression suffix), so this query used to fail trying
+        // to parse raw gzip bytes as CSV. `format: csv` must now compose with the `.csv.gz` suffix exactly like
+        // the extension-inferred path does.
+        assertStrictGzippedTextReads(
+            "logs_csv_gz_explicit_format",
+            ".csv.gz",
+            "some_ts,alpha\n",
+            Map.of("header_row", false, "format", "csv"),
+            "col0",
+            "col1"
+        );
     }
 
     public void testStrictOverGzipTsvReads() throws Exception {
-        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false));
+        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false), "col0", "col1");
     }
 
     public void testStrictOverGzipNdjsonReads() throws Exception {
         // NDJSON is read by JSON key, so no header_row setting applies; the compound `.ndjson.gz` must still resolve
         // through the compression-unwrapping registry to the "ndjson" reader rather than last-dotting to "gz".
-        assertStrictGzippedTextReads("logs_ndjson_gz_strict", ".ndjson.gz", "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n", Map.of());
+        assertStrictGzippedTextReads(
+            "logs_ndjson_gz_strict",
+            ".ndjson.gz",
+            "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n",
+            Map.of(),
+            null,
+            null
+        );
     }
 
     public void testStrictOverGzipCsvGlobReads() throws Exception {
@@ -832,9 +1113,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeGzip(root.resolve("part2.csv.gz"), "ts_c,gamma\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Headerless text binds a DECLARED schema by name against col<N>, so ts/note bind via `path` to col0/col1.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("keyword", null));
-        properties.put("note", new DatasetFieldMapping("keyword", null));
+        properties.put("ts", new DatasetFieldMapping("keyword", "col0"));
+        properties.put("note", new DatasetFieldMapping("keyword", "col1"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
@@ -869,14 +1151,23 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * compound extension and asserts {@code note} reads back as {@code alpha} — i.e. the strict path resolved the
      * reader through the compound extension (not the "gz" codec suffix).
      */
-    private void assertStrictGzippedTextReads(String datasetName, String ext, String content, Map<String, Object> settings)
-        throws Exception {
+    private void assertStrictGzippedTextReads(
+        String datasetName,
+        String ext,
+        String content,
+        Map<String, Object> settings,
+        String tsPath,
+        String notePath
+    ) throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path gz = createTempFile("dataset-strict-", ext);
         writeGzip(gz, content);
+        // Under a strict (DECLARED) schema, columns bind by name against the file's physical names. A headerless text
+        // file names its columns col<N> by position, so the declaration must bind ts/note to col0/col1 via `path`;
+        // NDJSON binds by JSON key, where the logical names ts/note already match, so it needs no path.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("keyword", null));
-        properties.put("note", new DatasetFieldMapping("keyword", null));
+        properties.put("ts", new DatasetFieldMapping("keyword", tsPath));
+        properties.put("note", new DatasetFieldMapping("keyword", notePath));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -905,11 +1196,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredDateFormatOnStrictParquetRejected() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A declared date format on a columnar column is rejected in STRICT mode too, not just non-strict — the strict
-        // resolution path bypasses the non-strict overlay's reject, so it must guard the columnar case itself.
-        Path parquet = writeParquetRenameFixture();
+        // A declared date format on a never-applicable physical (an annotated TIMESTAMP infers as datetime) is rejected
+        // in STRICT mode too, not just non-strict — the strict resolution path bypasses the non-strict overlay's
+        // reject, so it must guard the case itself.
+        Path parquet = createTempDir().resolve("ts.parquet");
+        Files.write(parquet, timestampMillisFixtureBytes(1_000L, 2_000L, 3_000L));
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -934,6 +1227,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertThat(e.getMessage(), containsString("[format] on column [ts]"));
         assertThat(e.getMessage(), containsString("parquet"));
+        assertThat(e.getMessage(), containsString("datetime"));
     }
 
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
@@ -1304,6 +1598,52 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(2).toString(), equalTo("gamma"));
             assertThat(rows.get(1).get(0), equalTo("2000-10-10T20:55:37.000Z"));
             assertThat(rows.get(1).get(1).toString(), equalTo("2"));
+            assertThat(rows.get(1).get(2).toString(), equalTo("beta"));
+        }
+    }
+
+    public void testNumericEpochFormatCoercionUnderDeferredExtraction() throws Exception {
+        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces: ParquetColumnExtractor
+        // never consults fusedInDecode — it always decodes at the file type and coerces through castBlock with the
+        // column's declared formatter — so the deferred (TopN-materialized) read of an int64 + epoch_second column must
+        // produce the SAME instant as the eager scan. Pins extractor/eager parity for the new numeric-format arm.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetDeferredCoerceFixture(); // physical int64 id = 1,2,3
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts_epoch", DatasetFieldMapping.withFormat("date", "id", "epoch_second")); // int64 -> date via epoch unit
+        properties.put("event_ts", new DatasetFieldMapping("keyword", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+        properties.put("pri", new DatasetFieldMapping("integer", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_deferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        // Three kept non-sort columns crosses DEFERRED_COLUMN_MIN, so ts_epoch is materialized by the extractor.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM epoch_deferred | SORT pri DESC | KEEP ts_epoch, event_ts, msg | LIMIT 2"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            // pri 30 -> id 3 -> 3 epoch SECONDS = 3000ms; pri 20 -> id 2 -> 2000ms. An epoch-millis reinterpret
+            // (the un-defused fused path) would instead yield 1970-01-01T00:00:00.003Z / .002Z.
+            assertThat(rows.get(0).get(0), equalTo("1970-01-01T00:00:03.000Z"));
+            assertThat(rows.get(0).get(2).toString(), equalTo("gamma"));
+            assertThat(rows.get(1).get(0), equalTo("1970-01-01T00:00:02.000Z"));
             assertThat(rows.get(1).get(2).toString(), equalTo("beta"));
         }
     }
@@ -1984,12 +2324,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
     }
 
-    public void testStrictCsvDeclaredWiderThanFileRejected() throws Exception {
-        // Strict (dynamic: false) binds text columns POSITIONALLY — the declared names replace the header's names in
-        // order (DuckDB columns= / ClickHouse structure semantics), so declared-vs-header NAMES are deliberately not
-        // cross-checked (renaming by position is a feature; see testStrictDeclaredSchemaUsesDeclaredNames...). What
-        // IS checked at first read: a declaration WIDER than the file's header — the file can't supply the declared
-        // columns (drifted file, or the wrong file), so it fails loudly instead of null-splicing every row.
+    public void testStrictCsvDeclaredColumnAbsentReadsNullPartialMatch() throws Exception {
+        // A declared schema binds by name. emp_no/first_name are in the 2-column file and bind; the extra declared
+        // `department` is absent, so it reads null with one per-dataset warning while the other two read real data.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Map<String, DatasetFieldMapping> tooWide = new LinkedHashMap<>();
         tooWide.put("emp_no", new DatasetFieldMapping("integer", null));
@@ -2011,12 +2348,69 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 )
             )
         );
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | LIMIT 5"), TIMEOUT).close()
+        // The partial-match case: emp_no/first_name are present and read real data; the extra declared `department`
+        // is absent from the 2-column file, so it reads null (with a per-dataset warning) rather than failing.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(3));
+            assertThat(columns.get(2).name(), equalTo("department"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1)); // emp_no present (declared integer)
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // first_name present
+            for (List<Object> row : rows) {
+                assertThat(row.get(2), nullValue()); // department absent -> null
+            }
+        }
+    }
+
+    /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
+    public void testAbsentDeclaredColumnEmitsResponseWarning() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_absent_warn",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
         );
-        assertThat(e.getMessage(), containsString("declared schema has 3 columns"));
-        assertThat(e.getMessage(), containsString("has 2"));
+
+        // Read the coordinator's accumulated response Warning headers at completion (same probe as the coercion tests).
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest("FROM employees_absent_warn | SORT emp_no | LIMIT 5"),
+            ActionListener.running(() -> {
+                try {
+                    internalCluster().getInstance(TransportService.class)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .filter(w -> w.contains("declared column [department] is not present"))
+                        .forEach(warnings::add);
+                } finally {
+                    latch.countDown();
+                }
+            })
+        );
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -2051,6 +2445,27 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("no read-time conversion exists for this pair"));
         assertThat(e.getMessage(), containsString("emp_no"));
         assertThat(e.getMessage(), containsString("long"));
+    }
+
+    /** Annotated TIMESTAMP(MILLIS) fixture — infers as {@code datetime} (MICROS/NANOS infer as {@code date_nanos}). */
+    private byte[] timestampMillisFixtureBytes(long... millisValues) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message logs { required int64 ts (TIMESTAMP(MILLIS,true)); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long millis : millisValues) {
+                Group g = factory.newGroup();
+                g.add("ts", millis);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
     }
 
     private byte[] timestampMicrosFixtureBytes(long... microsValues) throws IOException {
@@ -2253,6 +2668,1100 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testDeclaredEpochSecondFormatOnParquetLongCoerces() throws Exception {
+        // A whole-number Parquet column declared `date` WITH `format: epoch_second` reads the int64 as epoch SECONDS,
+        // not the default epoch-millis reinterpret: emp_no 1 -> 1000ms. The format is the epoch unit, exactly as the
+        // text readers already treat a numeric token. The column defuses off the fused long->datetime reinterpret onto
+        // castBlock, which parses through the format. ts::long recovers the raw epoch millis.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetRenameFixture(); // emp_no int64 = 1,2,3
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_parquet_nonstrict",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM epoch_parquet_nonstrict | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(1000L)); // emp_no=1 -> 1 second -> 1000 ms
+        }
+    }
+
+    public void testDeclaredEpochSecondFormatOnStrictParquetLongCoerces() throws Exception {
+        // Same as the non-strict case above, but a STRICT (Dynamic.FALSE) declaration — the strict resolution path
+        // legalizes format-on-numeric identically. emp_no 1 -> 1000ms.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetRenameFixture();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_parquet_strict",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM epoch_parquet_strict | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(1000L));
+        }
+    }
+
+    /**
+     * The acceptance test: ONE declaration — {@code {type: date, format: epoch_second}} — reads the SAME instant from a
+     * numeric epoch-second token regardless of carrier. Parquet holds it as a physical int64 (defused off the fused
+     * reinterpret, parsed through the format); CSV / TSV / NDJSON hold it as a numeric token (the text readers'
+     * existing declared-format-over-numeric semantic). All four land on {@link #EPOCH_SECOND_MILLIS}. ORC shares the
+     * same {@code castBlock} coercion arm but has its OWN routing code, pinned separately by
+     * {@code OrcFormatReaderTests.testLongDeclaredDatetimeHonorsEpochSecondFormat}.
+     */
+    public void testDeclaredEpochSecondFormatSameInstantAcrossFormats() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        Path parquet = writeParquetEpochSecondFixture();
+        assertEpochSecondMs("epoch_parquet", "parquet", parquet.toUri().toString());
+
+        Path csv = createTempFile("dataset-epoch-", ".csv");
+        Files.writeString(csv, "ts:long\n" + EPOCH_SECOND_TOKEN + "\n");
+        assertEpochSecondMs("epoch_csv", "csv", csv.toUri().toString());
+
+        Path tsv = createTempFile("dataset-epoch-", ".tsv");
+        Files.writeString(tsv, "ts:long\n" + EPOCH_SECOND_TOKEN + "\n");
+        assertEpochSecondMs("epoch_tsv", "tsv", tsv.toUri().toString());
+
+        Path ndjson = createTempFile("dataset-epoch-", ".ndjson");
+        Files.writeString(ndjson, "{\"ts\":" + EPOCH_SECOND_TOKEN + "}\n");
+        assertEpochSecondMs("epoch_ndjson", "ndjson", ndjson.toUri().toString());
+    }
+
+    /**
+     * The ClickBench shape. One COMPOSITE declaration — {@code "yyyy-MM-dd HH:mm:ss||epoch_second"} — serves a column
+     * whose CARRIER differs per file format: ClickBench's {@code EventTime} is a bare int64 of Unix seconds in parquet
+     * (the upstream file carries no logical-type annotation) but the string {@code "2013-07-14 20:38:47"} in NDJSON.
+     * ES multi-format patterns try alternatives left-to-right, and string-vs-number is unambiguous, so neither
+     * alternative can shadow the other. Both carriers must land on the identical instant under ONE mapping.
+     * <p>
+     * (Contrast {@code "epoch_second||epoch_millis"}, which would be a silent wrong-answer generator: every millis
+     * value also parses as seconds, so the first alternative always wins. Composite alternatives must be mutually
+     * unambiguous — this test pins the safe pairing.)
+     */
+    public void testCompositeFormatServesNumericAndStringCarriers() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        String composite = "yyyy-MM-dd HH:mm:ss||epoch_second";
+
+        // parquet: bare int64 Unix seconds -> the epoch_second alternative fires
+        Path parquet = writeParquetEpochSecondFixture();
+        assertCompositeMs("composite_parquet", "parquet", parquet.toUri().toString(), composite);
+
+        // ndjson: the same instant as a calendar STRING -> the calendar alternative fires
+        Path ndjson = createTempFile("dataset-composite-", ".ndjson");
+        Files.writeString(ndjson, "{\"ts\":\"2024-01-01 00:00:00\"}\n");
+        assertCompositeMs("composite_ndjson", "ndjson", ndjson.toUri().toString(), composite);
+
+        // csv: same calendar string token
+        Path csv = createTempFile("dataset-composite-", ".csv");
+        Files.writeString(csv, "ts:keyword\n2024-01-01 00:00:00\n");
+        assertCompositeMs("composite_csv", "csv", csv.toUri().toString(), composite);
+    }
+
+    public void testAnnotatedTimestampMicrosDeclaredDateNarrows() throws Exception {
+        // The Spark/Arrow/Iceberg shape: their parquet writers annotate a timestamp column as TIMESTAMP(MICROS), which
+        // infers as date_nanos. Declaring it `date` — the conventional dashboard type — narrows nanos->millis, so the
+        // column can be a Kibana time field. Before the narrowing this failed resolution outright ("declared type [date]
+        // cannot be read from the file's type [date_nanos]"). The annotation carries the unit, so no format is involved.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        // 2024-01-01T00:00:00.123456Z in MICROS — sub-millisecond digits present, so truncation is observable
+        Files.write(parquet, timestampMicrosFixtureBytes(1704067200_123_456L));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("date", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "annotated_ts_micros",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM annotated_ts_micros | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            // micros -> millis: the .456 microsecond remainder truncates away
+            assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
+        }
+    }
+
+    /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
+    private void assertCompositeMs(String datasetName, String format, String location, String composite) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, composite));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    location,
+                    null,
+                    new HashMap<>(Map.of("format", format)),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("composite format on [" + format + "]", rows, hasSize(1));
+            assertThat(
+                "composite format must read the same instant from the [" + format + "] carrier",
+                rows.get(0).get(0),
+                equalTo(EPOCH_SECOND_MILLIS)
+            );
+        }
+    }
+
+    /** Declares {ts: date, format: epoch_second} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
+    private void assertEpochSecondMs(String datasetName, String format, String location) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    location,
+                    null,
+                    new HashMap<>(Map.of("format", format)),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("format [" + format + "]", rows, hasSize(1));
+            assertThat("format [" + format + "] must read the same instant", rows.get(0).get(0), equalTo(EPOCH_SECOND_MILLIS));
+        }
+    }
+
+    /** Single-column int64 fixture holding the shared epoch-second token, for the cross-format parity test. */
+    private Path writeParquetEpochSecondFixture() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message e { required int64 ts; }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            Group g = factory.newGroup();
+            g.add("ts", EPOCH_SECOND_TOKEN);
+            writer.write(g);
+        }
+        Path tempFile = createTempDir().resolve("epoch.parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
+    /**
+     * Reads REAL parquet written by pyarrow (the writer pandas/Spark/Iceberg use), not by this test's own fixture
+     * code, across every timestamp shape a lake file actually carries. Each file holds the same instant
+     * (2024-01-01T00:00:00Z); each declaration must recover it. This is the end-to-end proof of the unit rule:
+     * the annotation wins where present, else the format, else the type.
+     * <p>
+     * Files are generated by {@code realParquet(...)} below from bytes captured out of pyarrow, so the test is
+     * hermetic but the bytes are genuinely third-party.
+     */
+    public void testRealParquetTimestampShapesAllReachTheSameInstant() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long expected = 1704067200000L; // 2024-01-01T00:00:00Z
+
+        // annotated TIMESTAMP(MICROS) -> infers date_nanos -> declared `date` narrows
+        assertRealParquet("rp_micros", "annotated_micros", new DatasetFieldMapping("date", null), expected);
+        // annotated TIMESTAMP(NANOS) -> infers date_nanos -> declared `date` narrows
+        assertRealParquet("rp_nanos", "annotated_nanos", new DatasetFieldMapping("date", null), expected);
+        // annotated TIMESTAMP(MILLIS) -> infers date -> native
+        assertRealParquet("rp_millis", "annotated_millis", new DatasetFieldMapping("date", null), expected);
+        // bare int64 seconds (the ClickBench shape) -> the format names the unit
+        assertRealParquet("rp_bare_s", "bare_seconds", DatasetFieldMapping.withFormat("date", null, "epoch_second"), expected);
+        // bare int64 millis -> no format, the type names the unit
+        assertRealParquet("rp_bare_ms", "bare_millis", new DatasetFieldMapping("date", null), expected);
+        // annotated DATE (days) -> infers date, day-scaled
+        assertRealParquet("rp_date", "annotated_date", new DatasetFieldMapping("date", null), expected);
+    }
+
+    /** The date_nanos half of the rule, over the same real files. */
+    public void testRealParquetTimestampShapesReachDateNanos() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long expectedNanos = 1704067200000000000L;
+
+        // bare int64 nanos -> no format, the type names the unit (nanos)
+        assertRealParquetNanos("rpn_bare_ns", "bare_nanos", new DatasetFieldMapping("date_nanos", null), expectedNanos);
+        // bare int64 seconds -> the format overrides the type's unit
+        assertRealParquetNanos(
+            "rpn_bare_s",
+            "bare_seconds",
+            DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+            expectedNanos
+        );
+        // annotated TIMESTAMP(MICROS) -> infers date_nanos -> native, exact
+        assertRealParquetNanos("rpn_micros", "annotated_micros", new DatasetFieldMapping("date_nanos", null), expectedNanos);
+    }
+
+    /**
+     * The differential invariant for every unit/scaling bug on this axis: <b>the engine's answer with its
+     * optimizations enabled must equal the answer computed from fully-decoded data</b>. Filter pushdown, TopN
+     * threshold skipping and stats-answered aggregates each decide what NOT to read by comparing against RAW file
+     * statistics; a declared {@code format} (or a scaling annotation) makes the decoded value a different number
+     * than the raw one, and every such decision then silently drops rows.
+     *
+     * <p>Ground truth is a plain {@code KEEP} with no filter, sort or aggregate — that engages no pruning at all, so
+     * it observes only decode, which is tested separately. Everything else is asserted against it.
+     *
+     * <p>The fixture is deliberately 4 columns wide and multi-row-group: the TopN threshold rail only engages past
+     * {@code InsertExternalFieldExtraction.DEFERRED_COLUMN_MIN} (3) deferred columns, and a skip decision needs a
+     * second row group to skip. A narrow or single-group fixture would go green without executing the bug.
+     */
+    public void testScalingDifferentialAcrossFilterSortAndAggregate() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Raw epoch SECONDS across two row groups; the largest instant deliberately lives in the second group so a
+        // unit-blind DESC threshold skips exactly the group holding the right answer. Here the rescale is driven by a
+        // declared FORMAT over a bare int64; the annotation-driven twin below drives it from the file's own annotation.
+        long[] rawSeconds = new long[2000];
+        for (int i = 0; i < rawSeconds.length; i++) {
+            rawSeconds[i] = 1704067200L + i * 60L; // ascending, so the LARGEST lives in the LAST row group
+        }
+        Path file = writeScalingFixture("scale_seconds", rawSeconds);
+
+        // strict x dynamic is an axis, not a footnote: they take different resolution paths (strict pins the
+        // declaration, dynamic overlays it onto inference) and must agree on every other dimension.
+        runScalingDifferential(
+            List.of(
+                new ScalingCell(
+                    "scale_diff_a",
+                    "dynamic: date + epoch_second",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_b",
+                    "dynamic: date_nanos + epoch_second",
+                    DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_c",
+                    "dynamic: date + epoch_millis (identity)",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_d",
+                    "dynamic: long, no declaration (control)",
+                    new DatasetFieldMapping("long", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_e",
+                    "STRICT: date + epoch_second",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "scale_diff_f",
+                    "STRICT: date_nanos + epoch_second",
+                    DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "scale_diff_g",
+                    "STRICT: date + epoch_millis (identity)",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                    DatasetMapping.Dynamic.FALSE
+                )
+            ),
+            file,
+            rawSeconds.length
+        );
+    }
+
+    /**
+     * Annotation-driven twin of {@link #testScalingDifferentialAcrossFilterSortAndAggregate}: the file itself carries a
+     * {@code TIMESTAMP(MICROS)} annotation (the Spark / pandas / Iceberg default shape), so the decode scales relative
+     * to the raw footer statistics with <b>no declared format at all</b>. Three sub-cells the format-driven twin can
+     * never reach, because its fixture is a bare {@code int64}:
+     * <ul>
+     *   <li><b>inferred {@code date_nanos}</b> — decode is {@code ScaleUp x1000} (raw micros to nanos); the TopN rail
+     *       must map the raw micros stat up before comparing, or DESC skips the group holding the true max;</li>
+     *   <li><b>declared {@code date}</b> — decode is {@code ScaleDown /1000} (raw micros to millis); here ASC is the
+     *       wrong-answer side, the raw stat reading 1000x larger than the decoded bound;</li>
+     *   <li><b>declared {@code long}</b> — the sort type carries no relation, so only {@code sortColumnAnnotationScales}
+     *       stops the raw passthrough; revert it and the wrong extremum returns silently.</li>
+     * </ul>
+     * Exercises both the row-group stats rail and the page-index rail over a rescaled annotation.
+     */
+    public void testScalingDifferentialOverAnnotatedSortColumns() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Raw MICROS across two row groups, ascending so the largest lives in the last group.
+        long[] rawMicros = new long[2000];
+        for (int i = 0; i < rawMicros.length; i++) {
+            rawMicros[i] = 1704067200_000_000L + i * 60_000_000L;
+        }
+        Path file = writeScalingFixture("scale_micros", rawMicros, "TIMESTAMP(MICROS,true)");
+
+        runScalingDifferential(
+            List.of(
+                new ScalingCell(
+                    "ascale_a",
+                    "dynamic: TIMESTAMP(MICROS) -> date_nanos (ScaleUp x1000)",
+                    new DatasetFieldMapping("date_nanos", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "ascale_b",
+                    "dynamic: TIMESTAMP(MICROS) declared date (ScaleDown /1000)",
+                    new DatasetFieldMapping("date", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "ascale_c",
+                    "dynamic: TIMESTAMP(MICROS) declared long (annotation still scales)",
+                    new DatasetFieldMapping("long", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "ascale_d",
+                    "STRICT: TIMESTAMP(MICROS) -> date_nanos",
+                    new DatasetFieldMapping("date_nanos", null),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "ascale_e",
+                    "STRICT: TIMESTAMP(MICROS) declared date",
+                    new DatasetFieldMapping("date", null),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "ascale_f",
+                    "STRICT: TIMESTAMP(MICROS) declared long",
+                    new DatasetFieldMapping("long", null),
+                    DatasetMapping.Dynamic.FALSE
+                )
+            ),
+            file,
+            rawMicros.length
+        );
+    }
+
+    /** A cell of the scaling differential: one dataset declaration over the shared fixture. */
+    private record ScalingCell(String dataset, String name, DatasetFieldMapping mapping, DatasetMapping.Dynamic dynamic) {}
+
+    /**
+     * Drives every {@link ScalingCell} over {@code file} and asserts the filter / TopN / aggregate paths all agree with
+     * fully-decoded ground truth (a plain {@code KEEP} that engages no pruning). Shared by the format-driven and
+     * annotation-driven differentials so the two cannot drift on what "agree" means.
+     */
+    private void runScalingDifferential(List<ScalingCell> cells, Path file, int rowCount) throws Exception {
+        List<String> failures = new ArrayList<>();
+        for (ScalingCell cell : cells) {
+            registerScalingDataset(cell.dataset(), file, cell.mapping(), cell.dynamic());
+            List<Long> truth = scalingGroundTruth(cell.dataset());
+            assertThat("[" + cell.name() + "] ground truth must see every row", truth, hasSize(rowCount));
+            assertThat("ground truth is capped by the LIMIT below, keep the fixture under it", rowCount, lessThan(10000));
+            long min = truth.stream().mapToLong(Long::longValue).min().getAsLong();
+            long max = truth.stream().mapToLong(Long::longValue).max().getAsLong();
+
+            // Filter pushdown: row-group stats, dictionary, bloom and page-index all ride the same predicate.
+            record Probe(String what, String query, Object expected) {}
+            List<Probe> probes = List.of(
+                new Probe(
+                    "WHERE == min",
+                    "FROM " + cell.dataset() + " | WHERE ts == " + literalFor(cell.mapping(), min) + " | STATS c = COUNT(*)",
+                    truth.stream().filter(v -> v == min).count()
+                ),
+                new Probe(
+                    "WHERE >= max",
+                    "FROM " + cell.dataset() + " | WHERE ts >= " + literalFor(cell.mapping(), max) + " | STATS c = COUNT(*)",
+                    truth.stream().filter(v -> v >= max).count()
+                ),
+                // The TopN threshold rail only engages past InsertExternalFieldExtraction.DEFERRED_COLUMN_MIN (3)
+                // DEFERRED columns, so these MUST project the filler columns too. Projecting ts alone defers
+                // nothing, the rule never fires, and the probe passes without ever running the code it targets.
+                new Probe(
+                    "SORT ASC LIMIT 1 (wide)",
+                    "FROM " + cell.dataset() + " | SORT ts ASC | LIMIT 1 | EVAL v = ts::long | KEEP v, id, pri, msg",
+                    min
+                ),
+                new Probe(
+                    "SORT DESC LIMIT 1 (wide)",
+                    "FROM " + cell.dataset() + " | SORT ts DESC | LIMIT 1 | EVAL v = ts::long | KEEP v, id, pri, msg",
+                    max
+                ),
+                new Probe("STATS MIN", "FROM " + cell.dataset() + " | STATS m = MIN(ts) | EVAL v = m::long | KEEP v", min),
+                new Probe("STATS MAX", "FROM " + cell.dataset() + " | STATS m = MAX(ts) | EVAL v = m::long | KEEP v", max),
+                new Probe("STATS COUNT", "FROM " + cell.dataset() + " | STATS c = COUNT(ts)", (long) rowCount)
+            );
+            for (Probe probe : probes) {
+                try (var response = run(syncEsqlQueryRequest(probe.query()), TIMEOUT)) {
+                    List<List<Object>> rows = getValuesList(response);
+                    Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+                    if (Objects.equals(probe.expected(), actual) == false) {
+                        failures.add(
+                            "["
+                                + cell.name()
+                                + "] "
+                                + probe.what()
+                                + ": expected "
+                                + probe.expected()
+                                + " but got "
+                                + actual
+                                + "  (query: "
+                                + probe.query()
+                                + ")"
+                        );
+                    }
+                }
+            }
+        }
+        assertTrue("the engine disagreed with fully-decoded ground truth:\n  " + String.join("\n  ", failures), failures.isEmpty());
+    }
+
+    /**
+     * Two datasets over the SAME file with DIFFERENT declarations must each get their own answer. The warm stats
+     * entry is keyed on path+mtime+config and carries no declared-schema component, so an extremum harvested under
+     * one declaration can be served to the other — both are {@code Long}, so nothing downstream notices the x1000.
+     */
+    public void testCrossDeclarationWarmStatsDoNotContaminate() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long[] rawSeconds = { 1704067200L, 1704153600L };
+        Path file = writeScalingFixture("scale_shared", rawSeconds);
+
+        registerScalingDataset("scale_xdecl_seconds", file, DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+        registerScalingDataset("scale_xdecl_millis", file, new DatasetFieldMapping("long", null));
+
+        // Warm the cache through the declared-format dataset first, then read the undeclared one.
+        List<Long> declared = scalingGroundTruth("scale_xdecl_seconds");
+        assertThat(declared, contains(1704067200000L, 1704153600000L));
+        for (int i = 0; i < 2; i++) { // second pass reads warm
+            try (var response = run(syncEsqlQueryRequest("FROM scale_xdecl_millis | STATS m = MIN(ts) | KEEP m"), TIMEOUT)) {
+                assertThat(
+                    "an undeclared read must see the file's RAW seconds, never the neighbouring dataset's rescaled millis",
+                    getValuesList(response).get(0).get(0),
+                    equalTo(1704067200L)
+                );
+            }
+        }
+    }
+
+    /** The ESQL literal for a value in this declaration's decoded domain. */
+    private static String literalFor(DatasetFieldMapping mapping, long decoded) {
+        return switch (mapping.type()) {
+            case "date" -> "TO_DATETIME(" + decoded + ")";
+            case "date_nanos" -> "TO_DATE_NANOS(" + decoded + ")";
+            default -> String.valueOf(decoded);
+        };
+    }
+
+    /**
+     * Decoded values with NO filter, NO sort and NO aggregate — the one query shape that engages no pruning at all,
+     * so it observes decode only. Sorting happens in the test, never in the query: a SORT could engage the very
+     * TopN rail whose correctness this is supposed to be the yardstick for.
+     */
+    private List<Long> scalingGroundTruth(String dataset) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | LIMIT 5000"), TIMEOUT)) {
+            List<Long> out = new ArrayList<>();
+            for (List<Object> row : getValuesList(response)) {
+                out.add(((Number) row.get(0)).longValue());
+            }
+            out.sort(Long::compareTo);
+            return out;
+        }
+    }
+
+    private void registerScalingDataset(String dataset, Path file, DatasetFieldMapping ts) throws Exception {
+        registerScalingDataset(dataset, file, ts, DatasetMapping.Dynamic.TRUE);
+    }
+
+    /**
+     * @param dynamic {@code FALSE} pins the declaration AS the schema, so it must name every column the file has —
+     *                a strict read does no inference to fall back on. That difference in path is exactly why both
+     *                modes belong in the matrix: they must agree on every other axis.
+     */
+    private void registerScalingDataset(String dataset, Path file, DatasetFieldMapping ts, DatasetMapping.Dynamic dynamic)
+        throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", ts);
+        if (dynamic == DatasetMapping.Dynamic.FALSE) {
+            properties.put("id", new DatasetFieldMapping("long", null));
+            properties.put("pri", new DatasetFieldMapping("integer", null));
+            properties.put("msg", new DatasetFieldMapping("keyword", null));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
+                )
+            )
+        );
+    }
+
+    /**
+     * 4 columns (so the TopN deferred-extraction threshold engages) and one row group per row (so there is always a
+     * later group for a unit-blind threshold to wrongly skip).
+     */
+    private Path writeScalingFixture(String name, long[] rawTs) throws IOException {
+        return writeScalingFixture(name, rawTs, null);
+    }
+
+    /**
+     * As {@link #writeScalingFixture(String, long[])} but optionally annotates the {@code ts} column with a parquet
+     * logical type (e.g. {@code TIMESTAMP(MICROS,true)}), so the file itself — not a declared format — drives the
+     * decode rescale. The raw values are written as-is; the annotation only changes how the reader interprets them.
+     */
+    private Path writeScalingFixture(String name, long[] rawTs, String tsAnnotation) throws IOException {
+        String tsColumn = tsAnnotation == null ? "required int64 ts" : "required int64 ts (" + tsAnnotation + ")";
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message scaling { " + tsColumn + "; required int64 id; required int32 pri; required binary msg (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(conf)
+                .withType(schema)
+                .withRowGroupSize(256L)
+                .withPageSize(64)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rawTs.length; i++) {
+                Group g = factory.newGroup();
+                g.add("ts", rawTs[i]);
+                g.add("id", (long) i);
+                g.add("pri", i);
+                g.add("msg", "m" + i);
+                writer.write(g);
+            }
+        }
+        Path tempFile = createTempDir().resolve(name + ".parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
+    /**
+     * Real-data validation against a genuine ClickBench parquet file (bare int64 {@code EventTime} of Unix seconds),
+     * across all THREE declaration modes — inferred, non-strict, strict — with ground truth computed from the raw
+     * seconds independently of the product. Skipped unless {@code -Dclickbench.real.parquet=<path>} points at a real
+     * file, so CI does not carry the bytes. Values pinned from the actual file used in this run.
+     */
+    private java.nio.file.Path realClickBenchLocal;
+
+    public void testRealClickBenchEventTimeAcrossAllThreeModes() throws Exception {
+        String realPath = System.getProperty("tests.clickbench.real.parquet");
+        assumeTrue("set -Dtests.clickbench.real.parquet to a real hits.parquet", realPath != null);
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        long maxSec = 1375127873L;      // real EventTime max in this file
+        long minSec = 1372795438L;      // real EventTime min
+        String maxIso = "2013-07-29T19:57:53.000Z";
+
+        // MODE 1 — INFERRED: no declaration; EventTime infers as long, unit is raw seconds.
+        registerReal("cb_inferred", realPath, null);
+        assertQ("cb_inferred INF ==", "FROM cb_inferred | WHERE EventTime == " + maxSec + " | STATS c = COUNT(*)", 1L);
+        assertQ("cb_inferred INF MAX", "FROM cb_inferred | STATS m = MAX(EventTime)", maxSec);
+        assertQ("cb_inferred INF MIN", "FROM cb_inferred | STATS m = MIN(EventTime)", minSec);
+        assertQ(
+            "cb_inferred INF SORT DESC",
+            "FROM cb_inferred | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxSec
+        );
+
+        // MODE 2 — NON-STRICT: dynamic:true, declare EventTime {date, epoch_second}; unit becomes millis.
+        registerReal("cb_nonstrict", realPath, DatasetMapping.Dynamic.TRUE);
+        assertQ("cb_nonstrict ==", "FROM cb_nonstrict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("cb_nonstrict >=", "FROM cb_nonstrict | WHERE EventTime >= TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "cb_nonstrict SORT DESC",
+            "FROM cb_nonstrict | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxSec * 1000L
+        );
+        assertQ("cb_nonstrict MAX", "FROM cb_nonstrict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v", maxSec * 1000L);
+        assertQ("cb_nonstrict MIN", "FROM cb_nonstrict | STATS m = MIN(EventTime) | EVAL v = m::long | KEEP v", minSec * 1000L);
+
+        // MODE 3 — STRICT: dynamic:false, EventTime {date, epoch_second} pinned as the schema.
+        registerReal("cb_strict", realPath, DatasetMapping.Dynamic.FALSE);
+        assertQ("cb_strict ==", "FROM cb_strict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "cb_strict SORT DESC",
+            "FROM cb_strict | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxSec * 1000L
+        );
+        assertQ("cb_strict MAX", "FROM cb_strict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v", maxSec * 1000L);
+    }
+
+    private void assertQ(String label, String query, Object expected) {
+        assertQ(label, query, expected, TIMEOUT);
+    }
+
+    private void assertQ(String label, String query, Object expected, org.elasticsearch.core.TimeValue timeout) {
+        try (var response = run(syncEsqlQueryRequest(query), timeout)) {
+            List<List<Object>> rows = getValuesList(response);
+            Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+            assertThat(label + " :: " + query, actual, equalTo(expected));
+        }
+    }
+
+    private void registerReal(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
+        // Copy into the allowlisted temp dir the harness permits (esql.datasource.local_allowed_paths); the real
+        // download lives outside it. One copy is shared across the three registrations via a per-test cache.
+        if (realClickBenchLocal == null) {
+            realClickBenchLocal = createTempDir().resolve("hits.parquet");
+            Files.copy(org.elasticsearch.core.PathUtils.get(realPath), realClickBenchLocal);
+        }
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        DatasetMapping mapping = null;
+        if (mode != null) {
+            props.put("EventTime", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+            if (mode == DatasetMapping.Dynamic.FALSE) {
+                // strict pins the declaration, so name the columns the queries touch.
+                props.put("EventDate", new DatasetFieldMapping("integer", null));
+            }
+            mapping = new DatasetMapping(new DatasetMapping.Mappings(mode, props));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    realClickBenchLocal.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+    }
+
+    /**
+     * Real-data validation against a genuine ClickBench NDJSON file, whose {@code EventTime} is a calendar STRING
+     * ({@code "2013-07-28 15:03:05"}) — the text-carrier shape — declared {@code {date, format: "yyyy-MM-dd HH:mm:ss"}}.
+     * Mirrors {@link #testRealClickBenchEventTimeAcrossAllThreeModes} across all three declaration modes with ground
+     * truth computed independently ({@code jq}/python over the raw strings), so the declared-format decode, filter and
+     * aggregate carriers are exercised end-to-end on genuine third-party bytes. Skipped unless
+     * {@code -Dtests.clickbench.real.ndjson=<path>} points at a decompressed {@code hits_*.ndjson}; values pinned from
+     * {@code ndjson/industry-standard/.../hits_109.ndjson} (442,467 rows).
+     */
+    private java.nio.file.Path realClickBenchNdjsonLocal;
+
+    public void testRealClickBenchNdjsonEventTimeAcrossAllThreeModes() throws Exception {
+        String realPath = System.getProperty("tests.clickbench.real.ndjson");
+        assumeTrue("set -Dtests.clickbench.real.ndjson to a decompressed hits_*.ndjson", realPath != null);
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        String minStr = "2013-07-27 20:00:00";
+        String maxStr = "2013-07-28 19:59:59";
+        long minMillis = 1374955200000L; // 2013-07-27T20:00:00.000Z
+        long maxMillis = 1375041599000L; // 2013-07-28T19:59:59.000Z
+        String maxIso = "2013-07-28T19:59:59.000Z";
+        long count = 442467L;
+        // A full scan of the ~1 GB decompressed file per query needs longer than the shared 30s wait.
+        org.elasticsearch.core.TimeValue slow = org.elasticsearch.core.TimeValue.timeValueMinutes(10);
+
+        // MODE 1 — INFERRED: no declaration; EventTime infers as keyword. The pattern is lexically monotone, so the
+        // string extrema coincide with the chronological ones.
+        registerRealNdjson("cb_ndjson_inferred", realPath, null);
+        assertQ("cb_ndjson_inferred MAX", "FROM cb_ndjson_inferred | STATS m = MAX(EventTime)", maxStr, slow);
+        assertQ("cb_ndjson_inferred MIN", "FROM cb_ndjson_inferred | STATS m = MIN(EventTime)", minStr, slow);
+        assertQ("cb_ndjson_inferred COUNT", "FROM cb_ndjson_inferred | STATS c = COUNT(*)", count, slow);
+
+        // MODE 2 — NON-STRICT: dynamic:true, declare EventTime {date, format}; the string decodes to epoch millis.
+        registerRealNdjson("cb_ndjson_nonstrict", realPath, DatasetMapping.Dynamic.TRUE);
+        assertQ(
+            "cb_ndjson_nonstrict ==",
+            "FROM cb_ndjson_nonstrict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)",
+            4L,
+            slow
+        );
+        assertQ(
+            "cb_ndjson_nonstrict SORT DESC",
+            "FROM cb_ndjson_nonstrict | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxMillis,
+            slow
+        );
+        assertQ(
+            "cb_ndjson_nonstrict MAX",
+            "FROM cb_ndjson_nonstrict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v",
+            maxMillis,
+            slow
+        );
+        assertQ(
+            "cb_ndjson_nonstrict MIN",
+            "FROM cb_ndjson_nonstrict | STATS m = MIN(EventTime) | EVAL v = m::long | KEEP v",
+            minMillis,
+            slow
+        );
+
+        // MODE 3 — STRICT: dynamic:false, EventTime {date, format} pinned as the schema.
+        registerRealNdjson("cb_ndjson_strict", realPath, DatasetMapping.Dynamic.FALSE);
+        assertQ(
+            "cb_ndjson_strict ==",
+            "FROM cb_ndjson_strict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)",
+            4L,
+            slow
+        );
+        assertQ("cb_ndjson_strict MAX", "FROM cb_ndjson_strict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v", maxMillis, slow);
+    }
+
+    private void registerRealNdjson(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
+        if (realClickBenchNdjsonLocal == null) {
+            realClickBenchNdjsonLocal = createTempDir().resolve("hits.ndjson");
+            Files.copy(org.elasticsearch.core.PathUtils.get(realPath), realClickBenchNdjsonLocal);
+        }
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        DatasetMapping mapping = null;
+        if (mode != null) {
+            props.put("EventTime", DatasetFieldMapping.withFormat("date", null, "yyyy-MM-dd HH:mm:ss"));
+            mapping = new DatasetMapping(new DatasetMapping.Mappings(mode, props));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    realClickBenchNdjsonLocal.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+    }
+
+    /**
+     * Epoch-scaling overflow on the COLUMNAR (parquet) path: an int64 declared {@code {date, format: epoch_second}}
+     * whose value cannot scale to millis ({@code Long.MAX_VALUE} seconds × 1000) must fail PER CELL — never abort the
+     * whole read on a bare {@code ArithmeticException}, never emit a wrong value. A columnar batch cannot drop a single
+     * row, so {@code skip_row} degrades to the same null+warn as {@code null_field} (see {@code ErrorPolicy}); only
+     * {@code fail_fast} aborts. This is the overflow leg of the error-mode matrix the string-token tests do not reach.
+     */
+    public void testParquetDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
+        Path parquet = writeScalingFixture("epoch_ovf", new long[] { good0, overflow, good2 });
+
+        // null_field and skip_row: the bad cell nulls, both good rows survive (skip_row cannot drop a columnar row).
+        for (String mode : List.of("null_field", "skip_row")) {
+            String ds = mode.equals("null_field") ? "epoch_ovf_pq_null" : "epoch_ovf_pq_skip";
+            putEpochOverflowDataset(ds, "parquet", parquet.toUri().toString(), mode, false);
+            try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat("columnar " + mode + " keeps every position", rows, hasSize(3));
+                assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+                assertThat("the overflowing epoch-second cell nulls under " + mode, rows.get(1).get(0), equalTo(null));
+                assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+            }
+        }
+        assertLenientWarning("FROM epoch_ovf_pq_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // fail_fast: the read aborts with a sensible per-cell error, not a bare ArithmeticException.
+        putEpochOverflowDataset("epoch_ovf_pq_fail", "parquet", parquet.toUri().toString(), "fail_fast", false);
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM epoch_ovf_pq_fail | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT).close()
+        );
+        assertFalse("fail_fast overflow must not surface as a bare ArithmeticException", failure instanceof ArithmeticException);
+    }
+
+    /**
+     * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. Text readers ARE
+     * row-oriented, so {@code skip_row} genuinely drops the bad record (two rows survive), while {@code null_field}
+     * keeps it with a null cell — the distinction columnar readers cannot make. {@code fail_fast} aborts.
+     */
+    public void testCsvDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L;
+        Path csv = createTempFile("epoch-ovf-", ".csv");
+        Files.writeString(csv, "pri:integer,ts:long\n1," + good0 + "\n2," + Long.MAX_VALUE + "\n3," + good2 + "\n");
+
+        // null_field: bad cell nulls, all three rows survive.
+        putEpochOverflowDataset("epoch_ovf_csv_null", "csv", csv.toUri().toString(), "null_field", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_csv_null | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat("the overflowing cell nulls under null_field", rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+        }
+        assertLenientWarning("FROM epoch_ovf_csv_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // skip_row: the bad record is dropped whole — only the two good rows survive.
+        putEpochOverflowDataset("epoch_ovf_csv_skip", "csv", csv.toUri().toString(), "skip_row", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_csv_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("text skip_row drops the malformed record", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
+
+        // fail_fast: aborts.
+        putEpochOverflowDataset("epoch_ovf_csv_fail", "csv", csv.toUri().toString(), "fail_fast", true);
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM epoch_ovf_csv_fail | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT).close()
+        );
+        assertFalse("fail_fast overflow must not surface as a bare ArithmeticException", failure instanceof ArithmeticException);
+    }
+
+    /**
+     * Epoch-scaling overflow on the NDJSON (text) path: the row-oriented twin of the CSV test — {@code skip_row} drops
+     * the malformed record, {@code null_field} nulls the cell, {@code fail_fast} aborts.
+     */
+    public void testNdjsonDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L;
+        String content = "{\"pri\":1,\"ts\":" + good0 + "}\n{\"pri\":2,\"ts\":" + Long.MAX_VALUE + "}\n{\"pri\":3,\"ts\":" + good2 + "}\n";
+        Path ndjson = createTempFile("epoch-ovf-", ".ndjson");
+        Files.writeString(ndjson, content);
+
+        // null_field: bad cell nulls, all three rows survive.
+        putEpochOverflowDataset("epoch_ovf_nj_null", "ndjson", ndjson.toUri().toString(), "null_field", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_nj_null | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat("the overflowing cell nulls under null_field", rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+        }
+        assertLenientWarning("FROM epoch_ovf_nj_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // skip_row: the bad record is dropped whole.
+        putEpochOverflowDataset("epoch_ovf_nj_skip", "ndjson", ndjson.toUri().toString(), "skip_row", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_nj_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("text skip_row drops the malformed record", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
+
+        // fail_fast: aborts.
+        putEpochOverflowDataset("epoch_ovf_nj_fail", "ndjson", ndjson.toUri().toString(), "fail_fast", true);
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM epoch_ovf_nj_fail | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT).close()
+        );
+        assertFalse("fail_fast overflow must not surface as a bare ArithmeticException", failure instanceof ArithmeticException);
+    }
+
+    /**
+     * Registers a {@code {ts: date, format: epoch_second}} dataset over {@code location} with the given {@code error_mode}.
+     * {@code declarePri} names {@code pri} in the mapping too, for the text fixtures whose ordering column the query sorts on.
+     */
+    private void putEpochOverflowDataset(String name, String format, String location, String errorMode, boolean declarePri)
+        throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+        if (declarePri) {
+            props.put("pri", new DatasetFieldMapping("integer", null));
+        }
+        HashMap<String, Object> settings = new HashMap<>(Map.of("format", format, "error_mode", errorMode));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    "local_ds",
+                    location,
+                    null,
+                    settings,
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props))
+                )
+            )
+        );
+    }
+
+    /** Runs {@code query} and asserts at least one response {@code Warning} header surfaced (the lenient malformed-cell announcement). */
+    private void assertLenientWarning(String query) throws Exception {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+            try {
+                internalCluster().getInstance(TransportService.class)
+                    .getThreadPool()
+                    .getThreadContext()
+                    .getResponseHeaders()
+                    .getOrDefault("Warning", List.of())
+                    .forEach(warnings::add);
+            } finally {
+                latch.countDown();
+            }
+        }));
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertThat("a lenient malformed-cell read must emit a response Warning header", warnings, not(empty()));
+    }
+
+    /**
+     * A declared {@code format} names the epoch unit, so decode rescales the raw value — but the parquet footer
+     * statistics stay in the file's RAW unit. A filter whose bound is pushed in the DECODED unit gets compared against
+     * those raw stats and prunes the row group that genuinely matches, returning nothing.
+     *
+     * <p>Pruning is not RECHECK-recoverable: RECHECK re-applies exact semantics to rows that were READ, and a pruned
+     * row group is never decoded at all. The sibling shape-recovery tests never filter, so they cannot see this.
+     */
+    public void testDeclaredEpochSecondFormatDoesNotPruneTheMatchingRowGroup() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // bare int64 holding 1704067200 (seconds); decode scales it to 1704067200000 millis.
+        List<List<Object>> rows = runRealParquetFiltered(
+            "rp_prune_s",
+            "bare_seconds",
+            DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+            "ts == TO_DATETIME(\"2024-01-01T00:00:00.000Z\")"
+        );
+        assertThat("the row matches the filter and must not be pruned by a raw-unit stats comparison", rows, hasSize(1));
+    }
+
+    /** The date_nanos half: decode scales seconds by 1e9 while the footer stats stay raw seconds. */
+    public void testDeclaredEpochSecondFormatDoesNotPruneTheMatchingRowGroupForDateNanos() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        List<List<Object>> rows = runRealParquetFiltered(
+            "rpn_prune_s",
+            "bare_seconds",
+            DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+            "ts == TO_DATE_NANOS(\"2024-01-01T00:00:00.000Z\")"
+        );
+        assertThat("the row matches the filter and must not be pruned by a raw-unit stats comparison", rows, hasSize(1));
+    }
+
+    /** Like {@link #runRealParquet} but applies a WHERE, so the filter reaches parquet pushdown and row-group pruning. */
+    private List<List<Object>> runRealParquetFiltered(String dataset, String fixture, DatasetFieldMapping ts, String where)
+        throws Exception {
+        Path file = createTempDir().resolve(fixture + ".parquet");
+        Files.write(file, RealParquetFixtures.bytes(fixture));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", ts);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE " + where + " | KEEP ts"), TIMEOUT)) {
+            return getValuesList(response);
+        }
+    }
+
+    private void assertRealParquet(String dataset, String fixture, DatasetFieldMapping ts, long expectedMillis) throws Exception {
+        try (var response = runRealParquet(dataset, fixture, ts)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(fixture, rows, hasSize(greaterThanOrEqualTo(1)));
+            assertThat("[" + fixture + "] must recover the instant", rows.get(0).get(0), equalTo(expectedMillis));
+        }
+    }
+
+    private void assertRealParquetNanos(String dataset, String fixture, DatasetFieldMapping ts, long expectedNanos) throws Exception {
+        try (var response = runRealParquet(dataset, fixture, ts)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(fixture, rows, hasSize(greaterThanOrEqualTo(1)));
+            assertThat("[" + fixture + "] must recover the nanos instant", rows.get(0).get(0), equalTo(expectedNanos));
+        }
+    }
+
+    private EsqlQueryResponse runRealParquet(String dataset, String fixture, DatasetFieldMapping ts) throws Exception {
+        Path file = createTempDir().resolve(fixture + ".parquet");
+        Files.write(file, RealParquetFixtures.bytes(fixture));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", ts);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                )
+            )
+        );
+        return run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | SORT v | LIMIT 1"), TIMEOUT);
+    }
+
     private byte[] parquetRenameFixtureBytes() throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType(
             "message employees { required int64 emp_no; required binary first_name (UTF8); required int32 salary;"
@@ -2288,9 +3797,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Strict declaration RENAMES emp_no/first_name to id/name via `path`, per file, by name (each file carries the
+        // same header). This is the strict multi-file rail: the declared schema is pinned once and bound to every
+        // file's own header without a per-file schema inference read.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("long", null));
-        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(

@@ -697,6 +697,17 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * master node while it is being stopped asynchronously by the disruption thread.
      */
     private void waitForStableCluster(int nodeCount) throws Exception {
+        // The disruption latch fires before the async disruption thread finishes stopping the
+        // node. If we probe cluster health while the node is still shutting down,
+        // ensureStableCluster can route the health request via the dying node's local client,
+        // whose response future is never completed (no transport disconnect fires for in-JVM
+        // client calls, and the node's scheduler that would enforce the request timeout is
+        // gone), hanging the test until the suite timeout. Wait for the disruption to actually
+        // finish first.
+        for (Thread t : disruptionThreadsToJoin) {
+            t.join(TimeUnit.SECONDS.toMillis(60));
+            assertFalse("disruption thread [" + t.getName() + "] did not finish in time", t.isAlive());
+        }
         assertBusy(() -> {
             try {
                 ensureStableCluster(nodeCount);

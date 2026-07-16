@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -109,9 +111,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     private BlockFactory blockFactory;
     private PlainCompressionCodecFactory codecFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodecAndClearFooterCache() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         codecFactory = new PlainCompressionCodecFactory();
         // Every test in this class writes to the same in-memory path ("memory://correctness_test.parquet")
@@ -123,10 +124,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() {
         codecFactory.release();
-        super.tearDown();
     }
 
     // --- Explicit V1/V2 x compression matrix ---

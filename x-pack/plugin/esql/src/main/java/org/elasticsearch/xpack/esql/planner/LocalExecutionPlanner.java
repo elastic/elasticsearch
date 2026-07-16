@@ -1495,7 +1495,7 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 ctx -> lookupFromIndexService,
-                RemoteClusterAware.splitIndexName(esRelation.indexPattern()).indexExpression(),
+                esRelation.indexPattern(),
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),

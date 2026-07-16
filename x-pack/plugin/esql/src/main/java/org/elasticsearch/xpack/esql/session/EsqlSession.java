@@ -1514,6 +1514,9 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
+        String localPattern = lookupIndexPattern.indexPattern().indexPattern();
+        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
+            : "Lookup index name should not include remote, but got: " + localPattern;
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
@@ -1524,19 +1527,18 @@ public class EsqlSession {
             EsqlPlugin.externalBlobStorePool()
         );
 
-        String indexPattern = lookupIndexPattern.indexPattern().indexPattern();
         String qualifiedPattern;
         Set<String> lookupIndexScope;
 
         if (lookupIndexPattern.isCoordinatorMode()) {
             lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            qualifiedPattern = RemoteClusterAware.splitIndexName(indexPattern).indexExpression();
+            qualifiedPattern = RemoteClusterAware.splitIndexName(localPattern).indexExpression();
         } else {
             lookupIndexScope = EsqlCCSUtils.onlyRunning(
                 executionInfo,
-                computeLookupJoinIndexScope(plan, indexPattern, result.indexResolution())
+                computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
             );
-            qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, indexPattern);
+            qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern);
         }
 
         if (lookupIndexScope.isEmpty()) {
@@ -1546,7 +1548,7 @@ public class EsqlSession {
             // non-lookup ones), causing a spurious error. Return an invalid resolution instead
             // so that analyzedPlan() throws a VerificationException that analyzeWithRetry can
             // catch and retry without the filter.
-            listener.onResponse(result.addLookupIndexResolution(indexPattern, IndexResolution.notFound(indexPattern)));
+            listener.onResponse(result.addLookupIndexResolution(localPattern, IndexResolution.notFound(localPattern)));
             return;
         }
 
@@ -1555,14 +1557,14 @@ public class EsqlSession {
         // it should already have been determined during the main index resolution.
         indexResolver.resolveLookupIndices(
             qualifiedPattern,
-            result.wildcardJoinIndices().contains(indexPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
             listener.map(
-                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, indexPattern, executionInfo, indexResolution)
+                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution)
             )
         );
     }

@@ -363,6 +363,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                         written.add(String.valueOf(range.dir()));
                     }
                 }
+                if (written.isEmpty() == false && labels.isEmpty() == false) {
+                    deleteStaleFlatFiles(testName);
+                }
                 List<String> failures = new ArrayList<>();
                 for (Tuple<VersionRange, TransportVersion> check : checkPlan(ranges)) {
                     if (written.contains(String.valueOf(check.v1().dir()))) {
@@ -465,6 +468,22 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .flatMap(r -> r.sampled().stream().map(v -> Tuple.tuple(r, v)))
                 .toList();
             return List.of(randomFrom(union));
+        }
+
+        /** A test that gained its first label leaves its flat files behind — unread, they would linger in the diff. */
+        private void deleteStaleFlatFiles(String testName) throws IOException {
+            Path testDir = outputDir(testName, null);
+            if (Files.notExists(testDir)) {
+                return;
+            }
+            List<Path> stale;
+            try (var files = Files.list(testDir)) {
+                stale = files.filter(f -> f.getFileName().toString().endsWith(".expected")).toList();
+            }
+            for (Path file : stale) {
+                logger.info("Deleting [{}] — superseded by per-range directories", file);
+                Files.delete(file);
+            }
         }
 
         private Test test(String testName, String rangeDir, TransportVersion version, boolean writeReference) {

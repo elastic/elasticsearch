@@ -745,7 +745,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.lambda() != null) {
             return visitLambda(ctx.lambda());
         }
-        return expression(ctx.booleanExpression());
+        // Use typedParsing (not expression()) to avoid charging a depth unit for the functionParam
+        // grammar rule, which is a grammar-level indirection for lambda support, not a user-visible
+        // nesting level. This preserves the pre-lambda depth-counting semantics.
+        return typedParsing(this, ctx.booleanExpression(), Expression.class);
     }
 
     @Override

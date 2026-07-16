@@ -1061,3 +1061,64 @@ warning:Line 4:3: [FILLNULL] field [d] of type [datetime] has no default fill va
 d:datetime | a:ip | i:integer
 null       | null | 0
 ;
+
+fillNullThenMatchOnFilledKeywordField
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| WHERE match(gender, "Unknown")
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+fillNullThenMatchOperatorOnFilledKeywordField
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| WHERE gender : "F"
+| STATS c = COUNT(*)
+;
+
+c:long
+33
+;
+
+fillNullThenMatchOnFilledFieldReturnsRows
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM employees
+| WHERE emp_no <= 10012
+| FILLNULL WITH "Unknown" gender
+| WHERE match(gender, "Unknown")
+| KEEP emp_no, gender
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword
+10010          | Unknown
+10011          | Unknown
+10012          | Unknown
+;
+
+fillNullThenMatchOnFilledTextField
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM books
+| WHERE book_no == "2130"
+| FILLNULL WITH "" title
+| WHERE match(title, "The J. R. R. Tolkien Audio Collection")
+| KEEP book_no, title
+;
+
+book_no:keyword | title:keyword
+2130            | The J. R. R. Tolkien Audio Collection
+;

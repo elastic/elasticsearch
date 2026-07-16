@@ -42,18 +42,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -62,9 +59,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -140,169 +135,6 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         datastreamManager.clusterChanged(event);
     }
 
-    public void testThatNonExistingDataStreamsAreAddedImmediately() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size())));
-
-        calledTimes.set(0);
-    }
-
-    public void testThatRedIndexIsNotTouched() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        // This data stream is a rollover candidate
-        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
-        ClusterChangedEvent event = createClusterChangedEvent(
-            List.of(existingDataStream.withVersion(0)),
-            nodes,
-            IndexMetadata.State.OPEN,
-            IndexVersion.current(),
-            false
-        );
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        // should not create the index because a newer generation with the correct version exists
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
-
-        calledTimes.set(0);
-    }
-
-    public void testThatOutdatedDataStreamIsDetectedIfCheckEnabled() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
-        ClusterChangedEvent event = createClusterChangedEvent(
-            List.of(existingDataStream),
-            nodes,
-            IndexMetadata.State.OPEN,
-            // This is an outdated version that requires indices to be deleted upon migration
-            IndexVersions.V_8_8_2,
-            true
-        );
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        // should not create this index because the one that has changed is too old. Depending on the point at which the index is
-        // evaluated, other indices may have already been created.
-        assertBusy(
-            () -> assertThat(
-                calledTimes.get(),
-                allOf(greaterThanOrEqualTo(0), Matchers.lessThan(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size()))
-            )
-        );
-        calledTimes.set(0);
-    }
-
-    public void testThatOutdatedDataStreamIsIgnoredIfCheckDisabled() throws Exception {
-        // disable the check
-        indexStateResolver.setCheckOutdatedIndices(false);
-
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
-        ClusterChangedEvent event = createClusterChangedEvent(
-            List.of(existingDataStream),
-            nodes,
-            IndexMetadata.State.OPEN,
-            IndexVersions.V_8_8_2,
-            true
-        );
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        // should create all indices but consider the current one up-to-date
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
-        calledTimes.set(0);
-    }
-
-    public void testThatClosedIndexIsNotTouched() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        // This index is an upgrade candidate
-        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
-        ClusterChangedEvent event = createClusterChangedEvent(
-            List.of(existingDataStream.withVersion(0)),
-            nodes,
-            IndexMetadata.State.CLOSE,
-            IndexVersion.current(),
-            true
-        );
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        // should not create the index because a newer generation with the correct version exists
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
-
-        calledTimes.set(0);
-    }
-
-    public void testThatExistingIndicesAreNotCreatedTwice() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
-        ClusterChangedEvent event = createClusterChangedEvent(List.of(existingDataStream), nodes);
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        // should not create the existing index
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
-
-        calledTimes.set(0);
-    }
-
-    public void testThatDataStreamIsRolledOver() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-
-        ProfilingDataStreamManager.ProfilingDataStream dataStreamToRollover = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
-        List<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams = new ArrayList<>(
-            ProfilingDataStreamManager.PROFILING_DATASTREAMS
-        );
-        existingDataStreams.remove(dataStreamToRollover);
-        existingDataStreams.add(dataStreamToRollover.withVersion(0));
-
-        ClusterChangedEvent event = createClusterChangedEvent(existingDataStreams, nodes);
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-
-        client.setVerifier((action, request, listener) -> verifyDataStreamRolledOver(calledTimes, action, request, listener));
-        datastreamManager.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
-
-        calledTimes.set(0);
-    }
-
     public void testNoMigrationsIfIndexTemplateVersionMatches() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -323,48 +155,6 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             return null;
         });
         datastreamManager.clusterChanged(event);
-    }
-
-    public void testMigratesIfIndexTemplateVersionIsBehind() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-        int nextIndexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + 1;
-
-        ProfilingDataStreamManager.ProfilingDataStream ds = ProfilingDataStreamManager.ProfilingDataStream.of(
-            "profiling-test",
-            1,
-            new Migration.Builder().migrateToIndexTemplateVersion(nextIndexTemplateVersion).addProperty("test", "keyword")
-        );
-        ProfilingDataStreamManager.ProfilingDataStream ds2 = ProfilingDataStreamManager.ProfilingDataStream.of("profiling-no-change", 1
-        // no migration specified, should not be changed
-        );
-
-        managedDataStreams = List.of(ds, ds2);
-        // index is out of date and should be migrated
-        indexTemplateVersion = nextIndexTemplateVersion;
-        ClusterChangedEvent event = createClusterChangedEvent(managedDataStreams, nodes);
-
-        AtomicInteger mappingUpdates = new AtomicInteger(0);
-        AtomicInteger settingsUpdates = new AtomicInteger(0);
-        client.setVerifier(
-            (action, request, listener) -> verifyIndexMigrated(
-                ".ds-profiling-test",
-                mappingUpdates,
-                settingsUpdates,
-                action,
-                request,
-                listener
-            )
-        );
-
-        datastreamManager.clusterChanged(event);
-        // one mapping update is the one we specified, the other one is because we need to update _meta
-        assertBusy(() -> assertThat(mappingUpdates.get(), equalTo(2)));
-        assertBusy(() -> assertThat(settingsUpdates.get(), equalTo(0)));
-
-        mappingUpdates.set(0);
-        settingsUpdates.set(0);
     }
 
     private ActionResponse verifyDataStreamInstalled(

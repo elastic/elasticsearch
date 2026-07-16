@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -46,7 +48,7 @@ public class KvIndexResolverTests extends ESTestCase {
     public void testResolveSingleIndex() {
         String indexPattern = "profiling-stacktraces";
         Index[] concreteIndices = new Index[] { idx(".profiling-stacktraces-v001-000001") };
-        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.lenientExpandOpen()), eq(indexPattern)))
             .thenReturn(concreteIndices);
 
         List<Index> resolvedIndices = resolver.resolve(ClusterState.EMPTY_STATE, indexPattern, Instant.MIN, Instant.MAX);
@@ -60,7 +62,7 @@ public class KvIndexResolverTests extends ESTestCase {
         Index stGen2 = idx(".profiling-stacktraces-v001-000002");
         Index stGen3 = idx(".profiling-stacktraces-v001-000003");
         Index[] concreteIndices = new Index[] { stGen1, stGen2, stGen3 };
-        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.lenientExpandOpen()), eq(indexPattern)))
             .thenReturn(concreteIndices);
 
         Metadata.Builder metaBuilder = new Metadata.Builder();
@@ -99,7 +101,7 @@ public class KvIndexResolverTests extends ESTestCase {
         Index stGen2 = idx(".profiling-stacktraces-v001-000002");
         Index stGen3 = idx(".profiling-stacktraces-v001-000003");
         Index[] concreteIndices = new Index[] { stGen1, stGen2, stGen3 };
-        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.lenientExpandOpen()), eq(indexPattern)))
             .thenReturn(concreteIndices);
 
         Metadata.Builder metaBuilder = new Metadata.Builder();
@@ -133,17 +135,21 @@ public class KvIndexResolverTests extends ESTestCase {
         assertEquals(stGen1, resolvedIndices.get(1));
     }
 
-    private IndexMetadata metadata(Index index, long creationDate) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+    public void testResolveDataStreamOnly() {
+        String indexPattern = "profiling-stacktraces";
+        Index dsBackingIndex = idx(".ds-profiling-stacktraces-000001");
+
+        DataStream dataStream = DataStream.builder(indexPattern, List.of(dsBackingIndex))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
             .build();
-        return IndexMetadata.builder(index.getName())
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .creationDate(creationDate)
-            .build();
+        Metadata.Builder metaBuilder = new Metadata.Builder();
+        metaBuilder.put(dataStream);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).build();
+
+        List<Index> resolvedIndices = resolver.resolve(clusterState, indexPattern, Instant.MIN, Instant.MAX);
+        assertEquals(1, resolvedIndices.size());
+        assertEquals(dsBackingIndex, resolvedIndices.get(0));
     }
 
     public void testResolveAllIndices() {
@@ -151,7 +157,7 @@ public class KvIndexResolverTests extends ESTestCase {
         Index stV1 = idx(".profiling-stacktraces-v001-000001");
         Index stV2 = idx(".profiling-stacktraces-v002-000001");
         Index[] concreteIndices = new Index[] { stV1, stV2 };
-        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.lenientExpandOpen()), eq(indexPattern)))
             .thenReturn(concreteIndices);
 
         Metadata.Builder metaBuilder = new Metadata.Builder();
@@ -178,5 +184,18 @@ public class KvIndexResolverTests extends ESTestCase {
         assertEquals(2, resolvedIndices.size());
         assertEquals(stV1, resolvedIndices.get(0));
         assertEquals(stV2, resolvedIndices.get(1));
+    }
+
+    private IndexMetadata metadata(Index index, long creationDate) {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        return IndexMetadata.builder(index.getName())
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(creationDate)
+            .build();
     }
 }

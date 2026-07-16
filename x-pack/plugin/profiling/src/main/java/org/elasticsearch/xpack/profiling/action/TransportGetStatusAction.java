@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.profiling.ProfilingPlugin;
 import org.elasticsearch.xpack.profiling.persistence.EventsIndex;
 import org.elasticsearch.xpack.profiling.persistence.IndexStateResolver;
 import org.elasticsearch.xpack.profiling.persistence.ProfilingDataStreamManager;
-import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexManager;
 import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexTemplateRegistry;
 
 public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatusAction.Request, GetStatusAction.Response> {
@@ -149,16 +148,13 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private boolean isResourcesCreated(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
             boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
-            return templatesCreated && indicesCreated && dataStreamsCreated;
+            return templatesCreated && dataStreamsCreated;
         }
 
         private boolean isAnyPre891Data(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
-            boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
-            return indicesPre891 || dataStreamsPre891;
+            return ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
         }
 
         private IndexStateResolver indexStateResolver(ClusterState state) {

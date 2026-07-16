@@ -25,7 +25,7 @@ public class KibanaPluginTests extends ESTestCase {
         assertThat(
             new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY).stream().map(SystemIndexDescriptor::getIndexPattern).toList(),
             contains(
-                ".kibana_*",
+                KibanaPlugin.KIBANA_SYSTEM_INDEX_PATTERN,
                 ".reporting-*",
                 ".chat-*",
                 ".contextengine-*",
@@ -52,6 +52,16 @@ public class KibanaPluginTests extends ESTestCase {
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {
         assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-internal"));
         assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-state"));
+    }
+
+    public void testNoSystemIndexPatternCoversKibanaChangeHistoryDataStream() {
+        var indexDescriptors = new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY);
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
+    }
+
+    public void testKibanaIndexDescriptorCoversOtherKibanaIndices() {
+        assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_8.8.1"));
+        assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_task_manager_8.8.1"));
     }
 
     public void testKibanaFeaturePassesSystemIndicesOverlapChecks() {

@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    "profiling-hosts*"
+    "profiling-stackframes"
   ],
   "data_stream": {},
   "template": {
@@ -9,15 +9,16 @@
     }
   },
   "composed_of": [
-    "profiling-hosts",
-    "profiling-hosts@custom"
+    "profiling-stackframes",
+    "profiling-stackframes@custom",
+    "profiling-hot-tier"
   ],
   "ignore_missing_component_templates": [
-    "profiling-hosts@custom"
+    "profiling-stackframes@custom"
   ],
   "priority": 100,
   "_meta": {
-    "description": "Index template for profiling-hosts",
+    "description": "Data stream template for profiling-stackframes",
     "managed": true
   },
   "version": ${xpack.profiling.template.version}

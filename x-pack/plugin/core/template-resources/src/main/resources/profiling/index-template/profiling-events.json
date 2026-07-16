@@ -5,15 +5,17 @@
   "data_stream": {
     "hidden": false
   },
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
   "composed_of": [
     "profiling-events",
-    "profiling-events@custom",
-    "profiling-ilm",
-    "profiling-ilm@custom"
+    "profiling-events@custom"
   ],
   "ignore_missing_component_templates": [
-    "profiling-events@custom",
-    "profiling-ilm@custom"
+    "profiling-events@custom"
   ],
   "priority": 100,
   "_meta": {

@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.RestStatus;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Resolves aliases that point to multiple key/value indices.
@@ -45,26 +47,44 @@ public class KvIndexResolver {
     }
 
     /**
-     *
-     * Resolves aliases that point to multiple K/V indices. When resolving indices it sorts indices by their creation timestamp (or
-     * lifecycle origination date, if specified) and assumes that an index contains data from its creation until the creation of the next
-     * index plus an overlap that is controlled by <code>kvIndexOverlapPeriod</code>. It will only return matching indices within the
-     * specified time range.
+     * Resolves indices for a given index pattern. Supports both K/V indices (legacy) and data streams. If both a K/V
+     * index and a data stream exist for the same name, an exception is thrown — mixed schemas are not supported.
+     * Users must delete legacy K/V indices before data stream queries can proceed.
      *
      * @param clusterState The current cluster state.
      * @param indexPattern An index pattern to match.
-     * @param eventStart The earliest point in time to consider
-     * @param eventEnd The latest point in time to consider
-     * @return A list of indices that match both the provided index pattern and the time range between event start and end.
+     * @param eventStart The earliest point in time to consider (used for K/V index time-range filtering).
+     * @param eventEnd The latest point in time to consider (used for K/V index time-range filtering).
+     * @return A list of indices matching the provided index pattern and time range.
+     * @throws IllegalStateException if both K/V indices and a data stream exist for the same name.
      */
     public List<Index> resolve(ClusterState clusterState, String indexPattern, Instant eventStart, Instant eventEnd) {
-        Index[] indices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, indexPattern);
+        // Check data stream first. concreteIndices() may also expand a DS name to its backing indices,
+        // so we use hasAlias() to detect KV indices (which expose an alias with the same name) rather
+        // than relying on concreteIndices() returning non-empty as the mixed-schema signal.
+        DataStream dataStream = clusterState.metadata().getProject().dataStreams().get(indexPattern);
+
+        if (dataStream != null) {
+            if (clusterState.metadata().getProject().hasAlias(indexPattern)) {
+                throw new ElasticsearchStatusException(
+                    "Both K/V indices and a data stream exist for ["
+                        + indexPattern
+                        + "]. Mixed schemas are not supported. Delete the K/V indices to continue using the data stream.",
+                    RestStatus.CONFLICT
+                );
+            }
+            List<Index> dsIndices = dataStream.getIndices();
+            log.debug("Resolved [{}] to data stream backing indices {}.", indexPattern, dsIndices.stream().map(Index::getName).toList());
+            return Collections.unmodifiableList(dsIndices);
+        }
+
+        // K/V index path: filter by time range when multiple indices exist.
+        Index[] kvIndices = resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
         List<Index> matchingIndices = new ArrayList<>();
-        // find matching index for the current time range (indices are non-overlapping)
-        if (indices.length > 1) {
+        if (kvIndices.length > 1) {
             List<Tuple<Index, Instant>> indicesWithTime = new ArrayList<>();
             Map<String, IndexMetadata> indicesMetadata = clusterState.getMetadata().getProject().indices();
-            for (Index i : indices) {
+            for (Index i : kvIndices) {
                 IndexMetadata indexMetadata = indicesMetadata.get(i.getName());
                 // Prefer ILM creation date over the actual creation date. This is mainly intended for testing as
                 // during regular operation the actual creation date should suffice. Using LIFECYCLE_ORIGINATION_DATE
@@ -91,25 +111,10 @@ public class KvIndexResolver {
                 intervalEnd = intervalStart.plusMillis(kvIndexOverlapPeriod.millis());
             }
         }
-        // either we have only one index or there was no overlap in time ranges
         if (matchingIndices.isEmpty()) {
-            log.debug("Querying all indices for [" + indexPattern + "].");
-            matchingIndices.addAll(Arrays.asList(indices));
+            matchingIndices.addAll(Arrays.asList(kvIndices));
         }
-
-        if (log.isDebugEnabled()) {
-            log.debug(
-                "Resolved index pattern ["
-                    + indexPattern
-                    + "] in time range ["
-                    + eventStart
-                    + ", "
-                    + eventEnd
-                    + "] to indices ["
-                    + matchingIndices.stream().map(Index::getName).collect(Collectors.joining(", "))
-                    + "]."
-            );
-        }
+        log.debug("Resolved [{}] to K/V indices {}.", indexPattern, matchingIndices.stream().map(Index::getName).toList());
         return Collections.unmodifiableList(matchingIndices);
     }
 }

@@ -83,8 +83,19 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
      */
     public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN = ".workflows~(-events*|-execution-data-stream-logs*)";
 
+    /**
+     * Matches Kibana saved-object system <strong>indices</strong> under {@code .kibana_}, but not the
+     * {@code .kibana_change_history} data stream (which Kibana manages via its own index template).
+     * A plain {@code .kibana_*} pattern is invalid here: it would match {@code .kibana_change_history},
+     * and {@link org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService} asserts that a data
+     * stream whose name matches a {@link SystemIndexDescriptor} must instead be registered as a
+     * {@link org.elasticsearch.indices.SystemDataStreamDescriptor}. Uses the same complement style as
+     * {@link #WORKFLOWS_INDEX_DESCRIPTOR}; see {@link SystemIndexDescriptor} for pattern syntax.
+     */
+    public static final String KIBANA_SYSTEM_INDEX_PATTERN = ".kibana_~(change_history*)";
+
     public static final SystemIndexDescriptor KIBANA_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".kibana_*")
+        .setIndexPattern(KIBANA_SYSTEM_INDEX_PATTERN)
         .setDescription("Kibana saved objects system index")
         .setAliasName(".kibana")
         .setType(Type.EXTERNAL_UNMANAGED)

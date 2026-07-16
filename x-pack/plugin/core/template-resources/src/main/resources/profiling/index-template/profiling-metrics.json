@@ -3,15 +3,17 @@
     "profiling-metrics*"
   ],
   "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
   "composed_of": [
     "profiling-metrics",
-    "profiling-metrics@custom",
-    "profiling-ilm",
-    "profiling-ilm@custom"
+    "profiling-metrics@custom"
   ],
   "ignore_missing_component_templates": [
-    "profiling-metrics@custom",
-    "profiling-ilm@custom"
+    "profiling-metrics@custom"
   ],
   "priority": 100,
   "_meta": {

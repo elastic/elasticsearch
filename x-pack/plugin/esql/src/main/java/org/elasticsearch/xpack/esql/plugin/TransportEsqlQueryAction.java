@@ -437,26 +437,32 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void collectMetrics(Result result) {
+        // Currently, the metrics are only collected when the query has federated sources, since we are not planning
+        // to do any per-query billing otherwise, so no point in collecting the metrics.
         if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
             // don't even bother to create a map
             return;
         }
-        var ci = result.completionInfo();
-        var qp = result.executionInfo().queryProfile();
-        metricsCollector.onQueryCompleted(
-            Map.of(
-                QueryMetricsListener.PLANNING_NANOS,
-                qp.planning().timeSpan().durationInNanos(),
-                QueryMetricsListener.CPU_NANOS,
-                ci.cpuNanos(),
-                QueryMetricsListener.READ_NANOS,
-                ci.readNanos(),
-                QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
-                qp.splitDiscoveryNanos(),
-                QueryMetricsListener.BYTES_READ,
-                ci.bytesRead()
-            )
-        );
+        try {
+            var ci = result.completionInfo();
+            var qp = result.executionInfo().queryProfile();
+            metricsCollector.onQueryCompleted(
+                Map.of(
+                    QueryMetricsListener.PLANNING_NANOS,
+                    qp.planning().timeSpan().durationInNanos(),
+                    QueryMetricsListener.CPU_NANOS,
+                    ci.cpuNanos(),
+                    QueryMetricsListener.READ_NANOS,
+                    ci.readNanos(),
+                    QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                    qp.splitDiscoveryNanos(),
+                    QueryMetricsListener.BYTES_READ,
+                    ci.bytesRead()
+                )
+            );
+        } catch (Exception ex) {
+            logger.warn("failed to collect query metrics", ex);
+        }
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {

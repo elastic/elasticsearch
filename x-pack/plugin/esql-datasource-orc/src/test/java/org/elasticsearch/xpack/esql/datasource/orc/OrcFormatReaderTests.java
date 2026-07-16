@@ -1549,6 +1549,151 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testLongDeclaredDatetimeHonorsEpochSecondFormat() throws Exception {
+        // An ORC int64 column declared `datetime` defuses off the fused epoch-millis reinterpret when it carries a
+        // declared `format`: with epoch_second the value 1704067200 reads as epoch SECONDS (1704067200000 millis, routed
+        // through castBlock); with NO format the same value takes the fused reinterpret as epoch MILLIS. Pins the
+        // ORC-local routing driven by fusedInDecode(LONG, DATETIME, hasDeclaredFormat) — the ORC twin of the parquet pin.
+        long token = 1704067200L; // 2024-01-01T00:00:00Z, in seconds
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = token;
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+
+        OrcFormatReader withFormat = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            CloseableIterator<Page> it = withFormat.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("epoch_second format must parse the int64 as seconds", 1704067200000L, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("no format must take the fused epoch-millis reinterpret", token, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testLongDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        // The epoch-scaling overflow leg of the unit rule: an int64 declared `date` WITH `format: epoch_second` scales
+        // the raw seconds to millis (x1000). A value too large to scale (Long.MAX_VALUE seconds) must FAIL PER CELL and
+        // route through the reader's error policy — never a bare ArithmeticException escaping castBlock, never a whole-
+        // read abort that also drops the good rows. Columnar readers cannot drop a single row, so skip_row degrades to
+        // the same null+warn as null_field here (ErrorPolicy Javadoc); only fail_fast aborts.
+        long good = 1704067200L; // 2024-01-01T00:00:00Z in seconds -> 1704067200000 millis
+        long overflow = Long.MAX_VALUE; // as epoch-seconds this cannot scale to millis
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector col = (LongColumnVector) batch.cols[0];
+            col.vector[0] = good;
+            col.vector[1] = overflow;
+            col.vector[2] = good;
+        });
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+
+        // null_field and skip_row: the overflow cell nulls, both good rows survive, one Warning per bad cell.
+        for (ErrorPolicy lenient : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    createStorageObject(orcData),
+                    new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, lenient)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("skip_row cannot drop a row in a columnar batch — every position survives", 3, page.getPositionCount());
+                LongBlock longs = (LongBlock) page.getBlock(0);
+                assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(0)));
+                assertTrue("the overflowing epoch-second cell reads as null under " + lenient.mode(), longs.isNull(1));
+                assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(2)));
+                page.releaseBlocks();
+            }
+            List<String> warnings = drainWarnings();
+            assertFalse("the nulled overflow cell must emit a Warning under " + lenient.mode(), warnings.isEmpty());
+            assertTrue("Warning should name the column, got: " + warnings, warnings.toString().contains("[ts]"));
+        }
+
+        // fail_fast: the same overflow aborts the read with a sensible per-cell error — not a bare ArithmeticException.
+        OrcFormatReader strict = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        Exception failure = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = strict.readRange(
+                    createStorageObject(orcData),
+                    new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertFalse(
+            "fail_fast overflow must fail with a sensible message, not a bare ArithmeticException",
+            failure instanceof ArithmeticException
+        );
+        assertTrue("fail_fast must not leak coercion warnings", drainWarnings().isEmpty());
+    }
+
+    /**
+     * Real-data validation against a genuine ClickBench ORC file, whose {@code EventTime} is a bare int64 of Unix
+     * seconds — the exact epoch-scaling shape the unit rule targets. Declared {@code {date, format: epoch_second}}, the
+     * column must decode seconds to millis and its MIN/MAX/COUNT must match ground truth computed independently with
+     * pyarrow. Skipped unless {@code -Dtests.clickbench.real.orc=<path>} points at a real {@code hits_*.orc}, so CI does
+     * not carry the bytes. ORC cannot ride {@code FromDatasetIT}'s flat classpath (a commons-lang3 JarHell collision),
+     * so this validates the reader's decode arm directly rather than the full query path. Values pinned from
+     * {@code orc/zstd/1-stripe-per-file/hits_140.orc}.
+     */
+    public void testRealClickBenchOrcEventTimeEpochSecond() throws Exception {
+        String realPath = System.getProperty("tests.clickbench.real.orc");
+        assumeTrue("set -Dtests.clickbench.real.orc to a real hits_*.orc", realPath != null);
+        byte[] orcData = Files.readAllBytes(org.elasticsearch.core.PathUtils.get(realPath));
+
+        long expectedCount = 344064L;
+        long expectedMinMillis = 1372968000000L; // 2013-07-04T20:00:00Z
+        long expectedMaxMillis = 1374436797000L; // 2013-07-21T19:59:57Z
+
+        OrcFormatReader reader = (OrcFormatReader) declaredReader("EventTime").withDeclaredDateFormats(Map.of("EventTime", "epoch_second"));
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "EventTime", DataType.DATETIME));
+        long count = 0;
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("EventTime"), 8192, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    assertFalse("real EventTime holds no nulls", block.isNull(p));
+                    long v = block.getLong(block.getFirstValueIndex(p));
+                    count++;
+                    min = Math.min(min, v);
+                    max = Math.max(max, v);
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("row count", expectedCount, count);
+        assertEquals("MIN(EventTime) decoded to epoch millis", expectedMinMillis, min);
+        assertEquals("MAX(EventTime) decoded to epoch millis", expectedMaxMillis, max);
+    }
+
     public void testInt32ToLongCoerces() throws Exception {
         // An INT32 ORC column read as `long` widens losslessly — a pure widening the inferred path takes with no declared
         // signal (plain reader), so this pins the widening-compatible branch of the null-fill gate, not the declared escape.

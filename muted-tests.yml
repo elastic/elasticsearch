@@ -424,12 +424,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_columnar_keyword/Test mv_min}
-  issue: https://github.com/elastic/elasticsearch/issues/147379
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_columnar_keyword/Test mv max}
-  issue: https://github.com/elastic/elasticsearch/issues/147379
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -802,9 +796,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.S3ManagedIdentityAuthIT
   method: testQueryFailsWhenWrongCredentialIsUsed
   issue: https://github.com/elastic/elasticsearch/issues/153821
-- class: org.elasticsearch.upgrades.NodeShutdownUpgradeIT
-  method: testShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/153970
 - class: org.elasticsearch.xpack.esql.action.S3ManagedIdentityAuthIT
   method: testManagedIdentityAuthReadsRowsAndUsesWorkloadIdentityCredential
   issue: https://github.com/elastic/elasticsearch/issues/153820
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSearchAtDone
+  issue: https://github.com/elastic/elasticsearch/issues/154008
+- class: org.elasticsearch.xpack.transform.integration.TransformScheduleNowIT
+  method: testScheduleNowWithoutDefer
+  issue: https://github.com/elastic/elasticsearch/issues/154010
+- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
+  method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
+  issue: https://github.com/elastic/elasticsearch/issues/153652
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesIT
+  method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
+  issue: https://github.com/elastic/elasticsearch/issues/153613
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
+  issue: https://github.com/elastic/elasticsearch/issues/153638

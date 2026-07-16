@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
@@ -320,14 +321,19 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled
     ) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled);
+        CollectedSplits collected = collectExternalSplits(plan, configuration, execInfo, isCancelled);
+        // Fragment-path discovery may have rewritten exhaustively-pruned relations to FileList.EMPTY; use the
+        // rewritten plan from here on so the empty-splits (coordinator-local) and distributed paths both read nothing
+        // for those relations instead of scanning the whole dataset only to have a downstream row filter drop it all.
+        PhysicalPlan resolvedPlan = collected.plan();
+        List<ExternalSplit> externalSplits = collected.splits();
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
+            return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
         ExternalDistributionContext context = new ExternalDistributionContext(
-            plan,
+            resolvedPlan,
             externalSplits,
             clusterService.state().nodes(),
             configuration.pragmas()
@@ -341,11 +347,14 @@ public class ComputeService {
                 externalSplits.size(),
                 distributionPlan.nodeAssignments().size()
             );
-            return new ExternalDistributionResult(plan, distributionPlan, List.of());
+            return new ExternalDistributionResult(resolvedPlan, distributionPlan, List.of());
         }
 
-        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, externalSplits);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, externalSplits);
     }
+
+    /** Bundles the (possibly rewritten) plan produced by split discovery with the splits collected from it. */
+    private record CollectedSplits(PhysicalPlan plan, List<ExternalSplit> splits) {}
 
     record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
@@ -353,7 +362,7 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(
+    private CollectedSplits collectExternalSplits(
         PhysicalPlan plan,
         Configuration configuration,
         EsqlExecutionInfo execInfo,
@@ -365,7 +374,8 @@ public class ComputeService {
         // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
         // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
         // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
-        // needs to record scan stats here.
+        // needs to record scan stats here. On that top-level path the phase already swapped any
+        // exhaustively-pruned ExternalSourceExec to FileList.EMPTY, so the plan is returned unchanged here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
@@ -374,7 +384,7 @@ public class ComputeService {
                 // here, the one place it is observable — no scan operator runs for a warm relation.
                 recordExternalWarmAggregates(execInfo, plan);
             } else {
-                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
+                PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -382,10 +392,11 @@ public class ComputeService {
                         splits.addAll(coalesced);
                     }
                 }
+                return new CollectedSplits(rewritten, splits);
             }
             // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
-        return splits;
+        return new CollectedSplits(plan, splits);
     }
 
     /**
@@ -506,7 +517,7 @@ public class ComputeService {
         );
     }
 
-    private void discoverSplitsFromFragments(
+    private PhysicalPlan discoverSplitsFromFragments(
         PhysicalPlan plan,
         List<ExternalSplit> splits,
         int maxRecordBytes,
@@ -514,9 +525,14 @@ public class ComputeService {
         BooleanSupplier isCancelled
     ) {
         if (operatorFactoryRegistry == null) {
-            return;
+            return plan;
         }
-        plan.forEachDown(FragmentExec.class, fragment -> {
+        return plan.transformDown(FragmentExec.class, fragment -> {
+            // Relations whose coordinator-side discovery pruned every file. Their fragment must be rewritten to read
+            // FileList.EMPTY so the operator scans nothing; a downstream row filter still runs, so the answer (0 rows)
+            // is unchanged. Identity is stable because guardedRelations returns the relation instances living in the
+            // fragment tree, so the transformDown below can swap them by reference.
+            List<ExternalRelation> exhaustivelyPruned = new ArrayList<>();
             // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
             // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
             // recovered before the lowering or partition pruning never sees the predicate at all.
@@ -530,9 +546,28 @@ public class ComputeService {
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
+                    // The phase swaps an exhaustively-pruned source's fileList to FileList.EMPTY (its authoritative,
+                    // row-count-safe verdict). Detect that swap by identity and propagate it into the fragment's logical
+                    // relation so coordinator-local execution reads nothing; a downstream row filter still runs, so the
+                    // answer (0 rows) is unchanged.
+                    if (withSplits.fileList() == FileList.EMPTY) {
+                        exhaustivelyPruned.add(guarded.relation());
+                    }
                 }
                 recordExternalScanStats(execInfo, result);
             }
+            if (exhaustivelyPruned.isEmpty()) {
+                return fragment;
+            }
+            LogicalPlan rewrittenFragment = fragment.fragment().transformDown(ExternalRelation.class, relation -> {
+                for (ExternalRelation pruned : exhaustivelyPruned) {
+                    if (relation == pruned) {
+                        return relation.withFileList(FileList.EMPTY);
+                    }
+                }
+                return relation;
+            });
+            return fragment.withFragment(rewrittenFragment);
         });
     }
 

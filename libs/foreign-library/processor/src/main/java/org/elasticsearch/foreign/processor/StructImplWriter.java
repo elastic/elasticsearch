@@ -349,7 +349,10 @@ final class StructImplWriter {
         });
     }
 
-    /** Emits a setter for an inline array field: {@code void name(int index, <type> value) { name$vh.set(segment, (long) index, value); }}. */
+    /**
+     * Emits a setter for an inline array field:
+     * {@code void name(int index, <type> value) { name$vh.set(segment, (long) index, value); }}.
+     */
     private static void emitInlineArrayFieldSetter(ClassBuilder cb, ClassDesc structImplDesc, InlineArrayFieldModel field) {
         ClassDesc elemDesc = primitiveClassDesc(field.elementType());
         // slot 0=this, slot 1=index (int), slot 2+=value (primitive, may be wide)
@@ -389,7 +392,10 @@ final class StructImplWriter {
         });
     }
 
-    /** Emits a setter for an inline string field: {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }}. */
+    /**
+     * Emits a setter for an inline string field:
+     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }}.
+     */
     private static void emitInlineStringFieldSetter(
         ClassBuilder cb,
         ClassDesc structImplDesc,

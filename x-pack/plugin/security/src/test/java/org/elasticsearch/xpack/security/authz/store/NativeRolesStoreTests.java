@@ -12,10 +12,15 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetRequestBuilder;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -41,12 +46,15 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.MockLicenseState;
@@ -62,6 +70,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -71,6 +81,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
@@ -86,6 +97,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -110,6 +122,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -730,6 +745,126 @@ public class NativeRolesStoreTests extends ESTestCase {
         verify(client, times(1)).bulk(any(BulkRequest.class), any());
     }
 
+    /**
+     * Settings that enable the expensive before/after diff capture, so that {@link NativeRolesStore} takes the GET +
+     * compare-and-swap path that records reliable before-images.
+     */
+    private static Settings diffCaptureEnabledSettings() {
+        return Settings.builder().put("xpack.security.audit.logfile.events.emit_security_config_change_diff", true).build();
+    }
+
+    /**
+     * When before/after diff auditing is enabled, a bulk put-roles request fans out to per-role GET + compare-and-swap upserts
+     * (instead of a single batched bulk request) and tags the response with the reliable before-image of each role that already
+     * existed. Here one role pre-exists (captured as an "updated" item with a before-image) and one is new (a "created" item with
+     * no before-image).
+     */
+    @SuppressWarnings("unchecked")
+    public void testBulkPutRolesCapturesBeforeImagesWhenDiffAuditingEnabled() throws Exception {
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault(), diffCaptureEnabledSettings());
+
+        // The authoritative "before" image that the GET will return for the pre-existing role.
+        final RoleDescriptor existingBefore = new RoleDescriptor("existing-role", new String[] { "monitor" }, null, null);
+        final BytesReference existingSource = BytesReference.bytes(rolesStore.createRoleXContentBuilder(existingBefore));
+
+        // The "after" states requested by the bulk call: an update to the existing role, plus a brand-new role.
+        final RoleDescriptor existingAfter = new RoleDescriptor("existing-role", new String[] { "monitor", "manage" }, null, null);
+        final RoleDescriptor newRole = new RoleDescriptor("new-role", new String[] { "all" }, null, null);
+
+        // Fresh index request builder per call so the two conditional writes do not share underlying request state.
+        when(client.prepareIndex(SECURITY_MAIN_ALIAS)).thenAnswer(inv -> new IndexRequestBuilder(client));
+        when(client.prepareGet(eq(SECURITY_MAIN_ALIAS), anyString())).thenAnswer(
+            inv -> new GetRequestBuilder(client, SECURITY_MAIN_ALIAS).setId(inv.getArgument(1))
+        );
+
+        doAnswer(inv -> {
+            final GetRequest getRequest = inv.getArgument(0);
+            final ActionListener<GetResponse> getListener = (ActionListener<GetResponse>) inv.getArgument(1);
+            if (getRequest.id().equals("role-existing-role")) {
+                getListener.onResponse(
+                    new GetResponse(new GetResult(SECURITY_MAIN_ALIAS, getRequest.id(), 3, 1, 1, true, existingSource, Map.of(), Map.of()))
+                );
+            } else {
+                getListener.onResponse(
+                    new GetResponse(
+                        new GetResult(
+                            SECURITY_MAIN_ALIAS,
+                            getRequest.id(),
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                            -1,
+                            false,
+                            null,
+                            Map.of(),
+                            Map.of()
+                        )
+                    )
+                );
+            }
+            return null;
+        }).when(client).get(any(GetRequest.class), any());
+
+        doAnswer(inv -> {
+            final IndexRequest indexRequest = inv.getArgument(0);
+            final ActionListener<IndexResponse> indexListener = (ActionListener<IndexResponse>) inv.getArgument(1);
+            final boolean created = indexRequest.opType() == DocWriteRequest.OpType.CREATE;
+            indexListener.onResponse(
+                new IndexResponse(new ShardId(new Index(SECURITY_MAIN_ALIAS, "_na_"), 0), indexRequest.id(), 4, 1, 2, created)
+            );
+            return null;
+        }).when(client).index(any(IndexRequest.class), any());
+
+        doAnswer(inv -> {
+            final ActionListener<ClearRolesCacheResponse> cacheListener = (ActionListener<ClearRolesCacheResponse>) inv.getArgument(2);
+            cacheListener.onResponse(mock(ClearRolesCacheResponse.class));
+            return null;
+        }).when(client).execute(eq(ClearRolesCacheAction.INSTANCE), any(), any());
+
+        final PlainActionFuture<BulkRolesResponse> future = new PlainActionFuture<>();
+        rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, List.of(existingAfter, newRole), future);
+        final BulkRolesResponse response = future.actionGet();
+
+        // The batched bulk API is never used on the diff-capture path; each role is written with its own conditional request.
+        verify(client, times(0)).bulk(any(BulkRequest.class), any());
+        verify(client, times(2)).get(any(GetRequest.class), any());
+        verify(client, times(2)).index(any(IndexRequest.class), any());
+
+        final Map<String, BulkRolesResponse.Item> itemsByName = new HashMap<>();
+        for (BulkRolesResponse.Item item : response.getItems()) {
+            itemsByName.put(item.getRoleName(), item);
+        }
+        assertThat(itemsByName.keySet(), equalTo(Set.of("existing-role", "new-role")));
+        assertThat(itemsByName.get("existing-role").isFailed(), is(false));
+        assertThat(itemsByName.get("existing-role").getResultType(), equalTo("updated"));
+        assertThat(itemsByName.get("new-role").isFailed(), is(false));
+        assertThat(itemsByName.get("new-role").getResultType(), equalTo("created"));
+
+        // The pre-existing role carries a reliable before-image; the newly created role has none.
+        final RoleDescriptor capturedBefore = response.getPreviousRoleDescriptor("existing-role");
+        assertThat(capturedBefore, is(notNullValue()));
+        assertThat(capturedBefore.getName(), equalTo("existing-role"));
+        assertThat(capturedBefore.getClusterPrivileges(), arrayContaining("monitor"));
+        assertThat(response.getPreviousRoleDescriptor("new-role"), is(nullValue()));
+    }
+
+    /**
+     * With diff auditing disabled (the default), a bulk put-roles request keeps using the cheap batched bulk request and never
+     * issues a GET, so no before-image is captured.
+     */
+    public void testBulkPutRolesUsesBatchedPathWhenDiffAuditingDisabled() {
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
+
+        final RoleDescriptor role = new RoleDescriptor("some-role", new String[] { "monitor" }, null, null);
+
+        final AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, List.of(role), ActionListener.wrap(response::set, exception::set));
+
+        assertNull(exception.get());
+        verify(client, times(1)).bulk(any(BulkRequest.class), any());
+        verify(client, times(0)).get(any(GetRequest.class), any());
+    }
+
     public void testBulkDeleteRoles() {
         final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
@@ -823,6 +958,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(LoggingAuditTrail.EMIT_CONFIG_CHANGE_DIFF))
+        );
         return clusterService;
     }
 

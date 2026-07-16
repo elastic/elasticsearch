@@ -11,6 +11,7 @@ import io.netty.channel.Channel;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAct
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -3198,6 +3200,64 @@ public class LoggingAuditTrailTests extends ESTestCase {
     protected static InetAddress forge(String hostname, String address) throws IOException {
         final byte bytes[] = InetAddress.getByName(address).getAddress();
         return InetAddress.getByAddress(hostname, bytes);
+    }
+
+    /**
+     * The opt-in {@code security_config_change_diff} audit level emits one post-execution diff record per successfully upserted
+     * role of a bulk put-roles request, each correlated to the request by request.id and carrying a top-level {@code created}
+     * flag plus (because the diff setting is enabled here) the reliable before/after states and changed fields. Failed items
+     * produce no record.
+     */
+    public void testSecurityConfigChangeDiffForBulkPutRoles() throws Exception {
+        // A dedicated audit trail that opts in to the diff level and the (expensive) before/after diff capture; the default
+        // `auditTrail` used by the other tests intentionally does not emit these records.
+        final Settings diffSettings = Settings.builder()
+            .put(settings)
+            .putList(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), "security_config_change_diff")
+            .put(LoggingAuditTrail.EMIT_CONFIG_CHANGE_DIFF.getKey(), true)
+            .build();
+        final Logger diffLogger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
+        final LoggingAuditTrail diffAuditTrail = new LoggingAuditTrail(diffSettings, clusterService, diffLogger, threadContext);
+
+        // "after" (requested) states: an update to an existing role, and a brand-new role.
+        final RoleDescriptor existingAfter = new RoleDescriptor("role_existing", new String[] { "monitor", "manage" }, null, null);
+        final RoleDescriptor newRole = new RoleDescriptor("role_new", new String[] { "all" }, null, null);
+        final BulkPutRolesRequest request = new BulkPutRolesRequest(List.of(existingAfter, newRole));
+
+        // Response as the store would produce it: the existing role updated (with a captured before-image) and the new role created.
+        final RoleDescriptor existingBefore = new RoleDescriptor("role_existing", new String[] { "monitor" }, null, null);
+        final BulkRolesResponse response = new BulkRolesResponse.Builder().addItem(
+            BulkRolesResponse.Item.success("role_existing", DocWriteResponse.Result.UPDATED)
+        ).addItem(BulkRolesResponse.Item.success("role_new", DocWriteResponse.Result.CREATED)).build();
+        response.setPreviousRoleDescriptors(Map.of("role_existing", existingBefore));
+
+        final String requestId = randomRequestId();
+        diffAuditTrail.coordinatingActionResponse(requestId, createAuthentication(), ActionTypes.BULK_PUT_ROLES.name(), request, response);
+
+        final List<String> output = CapturingLogger.output(diffLogger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+
+        // One diff record per successfully upserted role, in the order of the response items.
+        final String updatedRecord = output.get(0);
+        assertThat(updatedRecord, containsString("\"event.type\":\"security_config_change_diff\""));
+        assertThat(updatedRecord, containsString("\"event.action\":\"put_role\""));
+        assertThat(updatedRecord, containsString("\"request.id\":\"" + requestId + "\""));
+        assertThat(updatedRecord, containsString("\"created\":false"));
+        assertThat(updatedRecord, containsString("\"put\":{\"role\":{\"name\":\"role_existing\""));
+        assertThat(updatedRecord, containsString("\"before\":{"));
+        assertThat(updatedRecord, containsString("\"after\":{"));
+        assertThat(updatedRecord, containsString("\"changed_fields\":[\"cluster\"]"));
+
+        final String createdRecord = output.get(1);
+        assertThat(createdRecord, containsString("\"event.type\":\"security_config_change_diff\""));
+        assertThat(createdRecord, containsString("\"request.id\":\"" + requestId + "\""));
+        assertThat(createdRecord, containsString("\"created\":true"));
+        assertThat(createdRecord, containsString("\"put\":{\"role\":{\"name\":\"role_new\""));
+        // A newly-created role has no before-image, hence a null "before" and no "changed_fields".
+        assertThat(createdRecord, containsString("\"before\":null"));
+        assertThat(createdRecord, not(containsString("\"changed_fields\"")));
+
+        CapturingLogger.output(diffLogger.getName(), Level.INFO).clear();
     }
 
     private Authentication createAuthentication() {

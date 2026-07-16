@@ -12,8 +12,10 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.LinkedList;
@@ -24,6 +26,15 @@ import java.util.stream.Collectors;
 public class BulkRolesResponse extends ActionResponse implements ToXContentObject {
 
     private final List<Item> items;
+
+    /**
+     * The reliable "before" images of the upserted roles, keyed by role name, captured by {@code NativeRolesStore} during an
+     * opt-in compare-and-swap bulk upsert and consumed by {@code LoggingAuditTrail} to emit per-role before/after diff audit
+     * records. This is transient audit-only state: this response is local-only (never serialized, see {@link #writeTo}), so this
+     * map never crosses the wire nor appears in the REST response body. A role is absent from the map when diff capture is
+     * disabled or when it did not previously exist (i.e. the operation created it).
+     */
+    private transient Map<String, RoleDescriptor> previousRoleDescriptors = Map.of();
 
     public static class Builder {
 
@@ -140,6 +151,15 @@ public class BulkRolesResponse extends ActionResponse implements ToXContentObjec
 
     public List<Item> getItems() {
         return items;
+    }
+
+    public void setPreviousRoleDescriptors(Map<String, RoleDescriptor> previousRoleDescriptors) {
+        this.previousRoleDescriptors = previousRoleDescriptors;
+    }
+
+    @Nullable
+    public RoleDescriptor getPreviousRoleDescriptor(String roleName) {
+        return previousRoleDescriptors.get(roleName);
     }
 
 }

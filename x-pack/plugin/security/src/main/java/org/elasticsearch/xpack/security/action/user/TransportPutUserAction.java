@@ -55,15 +55,19 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         if (validationException != null) {
             listener.onFailure(validationException);
         } else {
-            usersStore.putUser(request, new ActionListener<Boolean>() {
+            usersStore.putUserWithPreviousState(request, new ActionListener<NativeUsersStore.PutUserResult>() {
                 @Override
-                public void onResponse(Boolean created) {
-                    if (created) {
+                public void onResponse(NativeUsersStore.PutUserResult result) {
+                    if (result.created()) {
                         logger.info("added user [{}]", request.username());
                     } else {
                         logger.info("updated user [{}]", request.username());
                     }
-                    listener.onResponse(new PutUserResponse(created));
+                    final PutUserResponse response = new PutUserResponse(result.created());
+                    // Carry the reliable before-image (if captured) to the audit trail via a transient, non-serialized response
+                    // field. It is null unless diff auditing is enabled and the user previously existed, and never holds a password.
+                    response.setPreviousUser(result.previousUser(), result.previousHadPassword());
+                    listener.onResponse(response);
                 }
 
                 @Override

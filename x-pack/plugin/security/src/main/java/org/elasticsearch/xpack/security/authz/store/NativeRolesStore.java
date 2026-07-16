@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -27,15 +29,20 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -60,6 +67,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
@@ -76,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -145,6 +154,22 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final NamedXContentRegistry xContentRegistry;
 
+    /**
+     * Whether opt-in before/after ({@code security_config_change_diff}) auditing is enabled, via the dynamic
+     * {@link LoggingAuditTrail#EMIT_CONFIG_CHANGE_DIFF} setting. When {@code true}, {@link #putRoleWithPreviousState} swaps its
+     * cheap last-write-wins upsert for a GET + compare-and-swap read-modify-write so it can capture a reliable before-image;
+     * otherwise the extra read + retry cost is not paid.
+     */
+    private volatile boolean emitConfigChangeDiff;
+
+    /**
+     * Backoff used to retry the compare-and-swap upsert when a concurrent writer causes a version conflict.
+     */
+    private static final BackoffPolicy CONFIG_CHANGE_DIFF_RETRY_BACKOFF = BackoffPolicy.exponentialBackoff(
+        TimeValue.timeValueMillis(10),
+        5
+    );
+
     public NativeRolesStore(
         Settings settings,
         Client client,
@@ -162,6 +187,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.reservedRoleNameChecker = reservedRoleNameChecker;
         this.xContentRegistry = xContentRegistry;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
+        this.emitConfigChangeDiff = LoggingAuditTrail.EMIT_CONFIG_CHANGE_DIFF.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(LoggingAuditTrail.EMIT_CONFIG_CHANGE_DIFF, emit -> this.emitConfigChangeDiff = emit);
     }
 
     public boolean isEnabled() {
@@ -518,6 +546,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void putRole(final WriteRequest.RefreshPolicy refreshPolicy, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+        putRoleWithPreviousState(refreshPolicy, role, listener.map(PutRoleResult::created));
+    }
+
+    /**
+     * Upsert a role, optionally capturing a reliable "before" image for before/after auditing.
+     * <p>
+     * When before/after auditing is disabled ({@link #emitConfigChangeDiff} is {@code false}) this behaves exactly like the
+     * historical last-write-wins upsert and
+     * reports a {@code null} previous state. When it is {@code true} the write becomes a GET + compare-and-swap read-modify-write:
+     * the current document is read first (yielding the authoritative before-image plus its {@code _seq_no}/{@code _primary_term}),
+     * then the replacement is indexed conditionally on that version. A concurrent modification produces a
+     * {@link VersionConflictEngineException}, which is retried (re-reading the latest before-image) with
+     * {@link #CONFIG_CHANGE_DIFF_RETRY_BACKOFF}. This closes the time-of-check-to-time-of-use race that makes a naive "read then
+     * unconditionally write" before-image unreliable, at the cost of an extra read round-trip and possible retries under
+     * contention. If retries are exhausted the version conflict is surfaced to the caller (the write does not silently fall back
+     * to last-write-wins), so the auditor never records a before-image that does not correspond to the persisted write.
+     */
+    public void putRoleWithPreviousState(
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final RoleDescriptor role,
+        final ActionListener<PutRoleResult> listener
+    ) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
@@ -526,6 +576,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
         if (validationException != null) {
             listener.onFailure(validationException);
+            return;
+        }
+
+        if (emitConfigChangeDiff) {
+            putRoleCapturingPreviousState(refreshPolicy, role, CONFIG_CHANGE_DIFF_RETRY_BACKOFF.iterator(), listener);
             return;
         }
 
@@ -544,7 +599,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             public void onResponse(DocWriteResponse indexResponse) {
                                 final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                                 logger.trace("Created role: [{}]", indexRequest);
-                                clearRoleCache(role.getName(), listener, created);
+                                clearRoleCache(role.getName(), listener, new PutRoleResult(created, null));
                             }
 
                             @Override
@@ -560,6 +615,77 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onFailure(exception);
         }
     }
+
+    /**
+     * One attempt of the GET + compare-and-swap upsert, re-invoked (with backoff) on version conflict.
+     */
+    private void putRoleCapturingPreviousState(
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final RoleDescriptor role,
+        final Iterator<TimeValue> backoff,
+        final ActionListener<PutRoleResult> listener
+    ) {
+        securityIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForRole(role.getName())).request(),
+                    ActionListener.<GetResponse>wrap(getResponse -> {
+                        final IndexRequest indexRequest = createRoleIndexRequest(role);
+                        indexRequest.setRefreshPolicy(refreshPolicy);
+                        final RoleDescriptor previous;
+                        if (getResponse.isExists()) {
+                            // capture the authoritative before-image and pin the write to this exact version
+                            previous = transformRole(getResponse);
+                            indexRequest.setIfSeqNo(getResponse.getSeqNo()).setIfPrimaryTerm(getResponse.getPrimaryTerm());
+                        } else {
+                            // no document yet: require a create so a racing create is detected as a conflict rather than silently lost
+                            previous = null;
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE);
+                        }
+                        executeAsyncWithOrigin(
+                            client.threadPool().getThreadContext(),
+                            SECURITY_ORIGIN,
+                            indexRequest,
+                            ActionListener.<DocWriteResponse>wrap(indexResponse -> {
+                                final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                logger.trace("put role [{}] capturing previous state (created={})", role.getName(), created);
+                                clearRoleCache(role.getName(), listener, new PutRoleResult(created, previous));
+                            }, e -> {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException && backoff.hasNext()) {
+                                    final TimeValue delay = backoff.next();
+                                    logger.debug(
+                                        "version conflict capturing before-image for role [{}]; retrying after [{}]",
+                                        role.getName(),
+                                        delay
+                                    );
+                                    client.threadPool()
+                                        .schedule(
+                                            () -> putRoleCapturingPreviousState(refreshPolicy, role, backoff, listener),
+                                            delay,
+                                            client.threadPool().generic()
+                                        );
+                                } else {
+                                    logger.error(() -> "failed to put role [" + role.getName() + "] with before-image capture", e);
+                                    listener.onFailure(e);
+                                }
+                            }),
+                            client::index
+                        );
+                    }, listener::onFailure),
+                    client::get
+                )
+            );
+    }
+
+    /**
+     * Result of an upsert, carrying whether the role was created (vs updated) and, when before/after
+     * diff auditing is enabled, the reliable "before" image ({@code null} when the role did not previously exist or when diff
+     * capture is disabled).
+     */
+    public record PutRoleResult(boolean created, @Nullable RoleDescriptor previous) {}
 
     public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
@@ -579,6 +705,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
         }
+
+        if (emitConfigChangeDiff) {
+            putRolesCapturingPreviousState(refreshPolicy, roles, validateRoleDescriptors, listener);
+            return;
+        }
+
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         Map<String, Exception> validationErrorByRoleName = new HashMap<>();
 
@@ -630,6 +762,93 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client::bulk
                 )
             );
+    }
+
+    /**
+     * Bulk upsert that captures a reliable "before" image per role for before/after auditing. This is the bulk analog of
+     * {@link #putRoleWithPreviousState}: it fans out to the single-role GET + compare-and-swap upsert
+     * ({@link #putRoleCapturingPreviousState}) for each role and then assembles the same {@link BulkRolesResponse} shape, tagging
+     * the response with the captured before-images. Because reliably pinning each write to the exact version it replaced requires
+     * a conditional (optimistic-concurrency) write per document, this opt-in audit mode trades the single batched bulk request
+     * for N conditional writes; it is only reached when {@link #emitConfigChangeDiff} is set, so
+     * the normal bulk path keeps its cheap batched last-write-wins upsert. Individual role failures (including exhausted
+     * compare-and-swap retries) surface as failed items, exactly as in the batched path; a NOOP update is reported as UPDATED
+     * because the conditional write always rewrites the document.
+     */
+    private void putRolesCapturingPreviousState(
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final Collection<RoleDescriptor> roles,
+        final boolean validateRoleDescriptors,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
+        final Map<String, Exception> validationErrorByRoleName = new HashMap<>();
+        final List<RoleDescriptor> rolesToWrite = new ArrayList<>(roles.size());
+        for (RoleDescriptor role : roles) {
+            Exception validationException;
+            try {
+                validationException = validateRoleDescriptors ? validateRoleDescriptor(role) : null;
+            } catch (Exception e) {
+                validationException = e;
+            }
+            if (validationException != null) {
+                validationErrorByRoleName.put(role.getName(), validationException);
+            } else {
+                rolesToWrite.add(role);
+            }
+        }
+
+        final List<String> roleNames = roles.stream().map(RoleDescriptor::getName).toList();
+
+        if (rolesToWrite.isEmpty()) {
+            bulkResponseWithOnlyValidationErrors(roleNames, validationErrorByRoleName, listener);
+            return;
+        }
+
+        // Collect the per-role outcomes (or write failures) as they complete; the RefCountingRunnable fires once all have.
+        final Map<String, PutRoleResult> resultByRoleName = new ConcurrentHashMap<>();
+        final Map<String, Exception> writeErrorByRoleName = new ConcurrentHashMap<>();
+        try (
+            RefCountingRunnable refs = new RefCountingRunnable(
+                () -> assembleBulkResponse(roleNames, validationErrorByRoleName, resultByRoleName, writeErrorByRoleName, listener)
+            )
+        ) {
+            for (RoleDescriptor role : rolesToWrite) {
+                final Releasable ref = refs.acquire();
+                putRoleWithPreviousState(refreshPolicy, role, ActionListener.runAfter(ActionListener.wrap(result -> {
+                    resultByRoleName.put(role.getName(), result);
+                }, e -> writeErrorByRoleName.put(role.getName(), e)), ref::close));
+            }
+        }
+    }
+
+    private static void assembleBulkResponse(
+        final List<String> roleNames,
+        final Map<String, Exception> validationErrorByRoleName,
+        final Map<String, PutRoleResult> resultByRoleName,
+        final Map<String, Exception> writeErrorByRoleName,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
+        final BulkRolesResponse.Builder builder = new BulkRolesResponse.Builder();
+        final Map<String, RoleDescriptor> previousByRoleName = new HashMap<>();
+        for (String roleName : roleNames) {
+            if (validationErrorByRoleName.containsKey(roleName)) {
+                builder.addItem(BulkRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName)));
+            } else if (writeErrorByRoleName.containsKey(roleName)) {
+                builder.addItem(BulkRolesResponse.Item.failure(roleName, writeErrorByRoleName.get(roleName)));
+            } else {
+                final PutRoleResult result = resultByRoleName.get(roleName);
+                final DocWriteResponse.Result resultType = result.created()
+                    ? DocWriteResponse.Result.CREATED
+                    : DocWriteResponse.Result.UPDATED;
+                builder.addItem(BulkRolesResponse.Item.success(roleName, resultType));
+                if (result.previous() != null) {
+                    previousByRoleName.put(roleName, result.previous());
+                }
+            }
+        }
+        final BulkRolesResponse response = builder.build();
+        response.setPreviousRoleDescriptors(previousByRoleName);
+        listener.onResponse(response);
     }
 
     private IndexRequest createRoleIndexRequest(final RoleDescriptor role) throws IOException {

@@ -848,7 +848,12 @@ public class Security extends Plugin
         components.add(tokenService);
 
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, systemIndices.getMainIndexManager());
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(
+            settings,
+            client,
+            systemIndices.getMainIndexManager(),
+            clusterService
+        );
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
             settings,
             client,

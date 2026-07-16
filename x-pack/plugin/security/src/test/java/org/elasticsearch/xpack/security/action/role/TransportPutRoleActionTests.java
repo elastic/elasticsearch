@@ -103,10 +103,10 @@ public class TransportPutRoleActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 3;
             @SuppressWarnings("unchecked")
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[2];
+            ActionListener<NativeRolesStore.PutRoleResult> listener = (ActionListener<NativeRolesStore.PutRoleResult>) args[2];
             listener.onFailure(e);
             return null;
-        }).when(rolesStore).putRole(eq(request.getRefreshPolicy()), any(RoleDescriptor.class), anyActionListener());
+        }).when(rolesStore).putRoleWithPreviousState(eq(request.getRefreshPolicy()), any(RoleDescriptor.class), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
@@ -125,6 +125,10 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), is(sameInstance(e)));
-        verify(rolesStore, times(1)).putRole(eq(request.getRefreshPolicy()), any(RoleDescriptor.class), anyActionListener());
+        verify(rolesStore, times(1)).putRoleWithPreviousState(
+            eq(request.getRefreshPolicy()),
+            any(RoleDescriptor.class),
+            anyActionListener()
+        );
     }
 }

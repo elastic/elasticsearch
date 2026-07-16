@@ -16,23 +16,29 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -50,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
@@ -57,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -90,10 +98,29 @@ public class NativeUsersStore {
 
     private final SecurityIndexManager securityIndex;
 
-    public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
+    /**
+     * Whether opt-in before/after ({@code security_config_change_diff}) auditing is enabled, via the dynamic
+     * {@link LoggingAuditTrail#EMIT_CONFIG_CHANGE_DIFF} setting. When {@code true}, {@link #putUserWithPreviousState} swaps its
+     * cheap last-write-wins upsert for a GET + compare-and-swap read-modify-write so it can capture a reliable before-image;
+     * otherwise the extra read + retry cost is not paid.
+     */
+    private volatile boolean emitConfigChangeDiff;
+
+    /**
+     * Backoff used to retry the compare-and-swap upsert when a concurrent writer causes a version conflict.
+     */
+    private static final BackoffPolicy CONFIG_CHANGE_DIFF_RETRY_BACKOFF = BackoffPolicy.exponentialBackoff(
+        TimeValue.timeValueMillis(10),
+        5
+    );
+
+    public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
+        this.emitConfigChangeDiff = LoggingAuditTrail.EMIT_CONFIG_CHANGE_DIFF.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(LoggingAuditTrail.EMIT_CONFIG_CHANGE_DIFF, emit -> this.emitConfigChangeDiff = emit);
     }
 
     /**
@@ -379,10 +406,26 @@ public class NativeUsersStore {
      * method will not modify the enabled value.
      */
     public void putUser(final PutUserRequest request, final ActionListener<Boolean> listener) {
+        putUserWithPreviousState(request, listener.map(PutUserResult::created));
+    }
+
+    /**
+     * Upsert a user, optionally capturing a reliable "before" image for before/after auditing. When before/after auditing is
+     * disabled ({@link #emitConfigChangeDiff} is {@code false}) this behaves exactly like the historical
+     * last-write-wins upsert ({@link #updateUserWithoutPassword} for a password-less update, {@link #indexUser} for a full
+     * index-with-password) and reports a {@code null} previous state. When it is {@code true} the write becomes a GET +
+     * compare-and-swap read-modify-write (see {@link #putUserCapturingPreviousState}), so the captured before-image provably
+     * corresponds to the state the successful write replaced. The captured before-image never includes the password hash.
+     */
+    public void putUserWithPreviousState(final PutUserRequest request, final ActionListener<PutUserResult> listener) {
+        if (emitConfigChangeDiff) {
+            putUserCapturingPreviousState(request, CONFIG_CHANGE_DIFF_RETRY_BACKOFF.iterator(), listener);
+            return;
+        }
         if (request.passwordHash() == null) {
-            updateUserWithoutPassword(request, listener);
+            updateUserWithoutPassword(request, listener.map(created -> new PutUserResult(created, null, false)));
         } else {
-            indexUser(request, listener);
+            indexUser(request, listener.map(created -> new PutUserResult(created, null, false)));
         }
     }
 
@@ -483,6 +526,160 @@ public class NativeUsersStore {
             );
         });
     }
+
+    /**
+     * One attempt of the GET + compare-and-swap upsert used to capture a reliable "before" image, re-invoked (with backoff) on
+     * version conflict. The current document is read first (yielding the authoritative before-image plus its
+     * {@code _seq_no}/{@code _primary_term}); the replacement is then written conditionally on that version, so a concurrent
+     * modification produces a {@link VersionConflictEngineException} that is retried rather than silently overwriting. Both
+     * put_user write paths are supported: a password-less request becomes a conditional partial update of an existing user (and
+     * fails with the same {@link ValidationException} as {@link #updateUserWithoutPassword} when the user is absent), while a
+     * request carrying a password becomes a conditional full index (create when the user did not previously exist). The captured
+     * before-image is a {@link User} without the password hash; only whether a password was previously set is retained.
+     */
+    private void putUserCapturingPreviousState(
+        final PutUserRequest request,
+        final Iterator<TimeValue> backoff,
+        final ActionListener<PutUserResult> listener
+    ) {
+        securityIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, request.username())).request(),
+                    ActionListener.<GetResponse>wrap(getResponse -> {
+                        final UserAndPassword previous = getResponse.isExists()
+                            ? transformUser(getResponse.getId(), getResponse.getSource())
+                            : null;
+                        final User previousUser = previous == null ? null : previous.user();
+                        final boolean previousHadPassword = previous != null
+                            && previous.passwordHash() != null
+                            && previous.passwordHash().length > 0;
+
+                        if (request.passwordHash() == null) {
+                            // password-less update: the user must already exist, mirroring updateUserWithoutPassword
+                            if (previous == null) {
+                                ValidationException validationException = new ValidationException();
+                                validationException.addValidationError(
+                                    "password must be specified unless you are updating an existing user"
+                                );
+                                listener.onFailure(validationException);
+                                return;
+                            }
+                            final UpdateRequest updateRequest = client.prepareUpdate(
+                                SECURITY_MAIN_ALIAS,
+                                getIdForUser(USER_DOC_TYPE, request.username())
+                            )
+                                .setDoc(
+                                    Requests.INDEX_CONTENT_TYPE,
+                                    Fields.USERNAME.getPreferredName(),
+                                    request.username(),
+                                    Fields.ROLES.getPreferredName(),
+                                    request.roles(),
+                                    Fields.FULL_NAME.getPreferredName(),
+                                    request.fullName(),
+                                    Fields.EMAIL.getPreferredName(),
+                                    request.email(),
+                                    Fields.METADATA.getPreferredName(),
+                                    request.metadata(),
+                                    Fields.ENABLED.getPreferredName(),
+                                    request.enabled(),
+                                    Fields.TYPE.getPreferredName(),
+                                    USER_DOC_TYPE
+                                )
+                                .setRefreshPolicy(request.getRefreshPolicy())
+                                .setIfSeqNo(getResponse.getSeqNo())
+                                .setIfPrimaryTerm(getResponse.getPrimaryTerm())
+                                .request();
+                            executeAsyncWithOrigin(
+                                client.threadPool().getThreadContext(),
+                                SECURITY_ORIGIN,
+                                updateRequest,
+                                ActionListener.<UpdateResponse>wrap(
+                                    updateResponse -> clearRealmCache(
+                                        request.username(),
+                                        listener,
+                                        new PutUserResult(false, previousUser, previousHadPassword)
+                                    ),
+                                    e -> retryCapturingPreviousStateOrFail(request, backoff, listener, e)
+                                ),
+                                client::update
+                            );
+                        } else {
+                            // full replace: create when the user did not previously exist, otherwise a conditional overwrite
+                            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
+                                .setId(getIdForUser(USER_DOC_TYPE, request.username()))
+                                .setSource(
+                                    Fields.USERNAME.getPreferredName(),
+                                    request.username(),
+                                    Fields.PASSWORD.getPreferredName(),
+                                    String.valueOf(request.passwordHash()),
+                                    Fields.ROLES.getPreferredName(),
+                                    request.roles(),
+                                    Fields.FULL_NAME.getPreferredName(),
+                                    request.fullName(),
+                                    Fields.EMAIL.getPreferredName(),
+                                    request.email(),
+                                    Fields.METADATA.getPreferredName(),
+                                    request.metadata(),
+                                    Fields.ENABLED.getPreferredName(),
+                                    request.enabled(),
+                                    Fields.TYPE.getPreferredName(),
+                                    USER_DOC_TYPE
+                                )
+                                .setRefreshPolicy(request.getRefreshPolicy())
+                                .request();
+                            if (previous == null) {
+                                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+                            } else {
+                                indexRequest.setIfSeqNo(getResponse.getSeqNo()).setIfPrimaryTerm(getResponse.getPrimaryTerm());
+                            }
+                            executeAsyncWithOrigin(
+                                client.threadPool().getThreadContext(),
+                                SECURITY_ORIGIN,
+                                indexRequest,
+                                ActionListener.<DocWriteResponse>wrap(indexResponse -> {
+                                    final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                    clearRealmCache(
+                                        request.username(),
+                                        listener,
+                                        new PutUserResult(created, previousUser, previousHadPassword)
+                                    );
+                                }, e -> retryCapturingPreviousStateOrFail(request, backoff, listener, e)),
+                                client::index
+                            );
+                        }
+                    }, listener::onFailure),
+                    client::get
+                )
+            );
+    }
+
+    private void retryCapturingPreviousStateOrFail(
+        final PutUserRequest request,
+        final Iterator<TimeValue> backoff,
+        final ActionListener<PutUserResult> listener,
+        final Exception e
+    ) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException && backoff.hasNext()) {
+            final TimeValue delay = backoff.next();
+            logger.debug("version conflict capturing before-image for user [{}]; retrying after [{}]", request.username(), delay);
+            client.threadPool()
+                .schedule(() -> putUserCapturingPreviousState(request, backoff, listener), delay, client.threadPool().generic());
+        } else {
+            logger.error(() -> "failed to put user [" + request.username() + "] with before-image capture", e);
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Result of a put_user upsert, carrying whether the user was created (vs updated) and, when before/after diff auditing is
+     * enabled, the reliable "before" image ({@code null} when the user did not previously exist or when diff capture is
+     * disabled) together with whether that previous user had a password set. It never carries a password hash.
+     */
+    public record PutUserResult(boolean created, @Nullable User previousUser, boolean previousHadPassword) {}
 
     /**
      * Asynchronous method that will update the enabled flag of a user. If the user is reserved and the document does not exist, a document

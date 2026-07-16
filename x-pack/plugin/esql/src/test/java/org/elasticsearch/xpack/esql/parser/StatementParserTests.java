@@ -3965,17 +3965,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testForkWithBareFillNull() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        // bare FILLNULL as the (non-first) branch's last token, directly adjacent to ')'
         assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL) | KEEP a"), instanceOf(Keep.class));
-        // FILLNULL as the only command in a branch, directly adjacent to ')'
         assertThat(query("FROM foo* | FORK (SORT a) (FILLNULL) | KEEP a"), instanceOf(Keep.class));
-        // FILLNULL with WITH / fields still works (was never affected since it is not adjacent to ')')
         assertThat(query("FROM foo* | FORK (WHERE a < 1 | FILLNULL WITH 0) (FILLNULL a) | KEEP a"), instanceOf(Keep.class));
     }
 
     public void testForkBareArgumentRequiringCommandBeforeRp() {
-        // each command needs an argument; the error must point at the standalone ')' (the keyword was
-        // recognized), not at a swallowed 'cmd)' token. The exact wording varies (mismatched/extraneous input).
         expectError("FROM foo* | FORK (MV_EXPAND) (WHERE true) | KEEP a", "input ')'");
         expectError("FROM foo* | FORK (LIMIT) (WHERE true) | KEEP a", "input ')'");
         expectError("FROM foo* | FORK (KEEP) (WHERE true) | KEEP a", "input ')'");

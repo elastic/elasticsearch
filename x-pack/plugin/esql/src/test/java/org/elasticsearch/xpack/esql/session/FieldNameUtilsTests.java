@@ -107,9 +107,6 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testFillNullExplicitFieldThenStats() {
         assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        // The target field is referenced only by FILLNULL; the trailing STATS narrows columns and forces
-        // explicit field collection. FILLNULL must report its (not-yet-materialized) target as a reference,
-        // otherwise field-caps never requests it and the source relation resolves to no fields.
         assertFieldNames("from employees | fillnull with 0 salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
     }
 

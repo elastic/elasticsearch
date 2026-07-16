@@ -784,15 +784,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM test | RENAME first_name AS fname | KEEP fname, does_not_exist"));
     }
 
-    /**
-     * Regression: all-fields FILLNULL must fill a column that {@code unmapped_fields="load"} injects only after the
-     * first ResolveRefs pass, so the alias list must be re-materialized to include it (previously it passed through unfilled).
-     */
     public void testAllFieldsFillNullFillsLoadInjectedUnmappedColumn() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-
-        // does_not_exist is unmapped in `test`; under load it surfaces as a KEYWORD column loaded from _source and is
-        // injected into the EsRelation below FILLNULL only after the all-fields aliases were first built.
         var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL | KEEP emp_no, does_not_exist"));
 
         Holder<FillNull> holder = new Holder<>();

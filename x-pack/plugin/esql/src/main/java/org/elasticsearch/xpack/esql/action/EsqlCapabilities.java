@@ -3393,7 +3393,7 @@ public class EsqlCapabilities {
         SPATIAL_BBOX_VALIDATION_FIX,
 
         /**
-         * Support for the FILLNULL command that replaces null values with defaults.
+         * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
          */
         FILLNULL(Build.current().isSnapshot()),
 

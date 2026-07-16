@@ -181,9 +181,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     }
 
     /**
-     * Builds the fill aliases against the resolved child output and returns a copy carrying them. Idempotent and
-     * incremental: for the all-fields form it may re-run (see {@link #expressionsResolved()}) to cover columns that
-     * {@code unmapped_fields="load"} injects later, keeping the aliases already built.
+     * Builds the fill aliases against the resolved child output and returns a copy carrying them.
      */
     public FillNull materialize(List<Attribute> childOutput, Configuration configuration) {
         List<Attribute> fieldsToFill = targetFields.isEmpty() ? childOutput : targetFields;
@@ -192,8 +190,6 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             fillNames.add(a.name());
         }
 
-        // Keep aliases already built (keyed by name) so re-materialization (all-fields + unmapped_fields="load")
-        // preserves their attribute ids; only newly appeared columns get a fresh alias.
         Map<String, Alias> existing;
         if (fields == null || fields.isEmpty()) {
             existing = Map.of();
@@ -208,8 +204,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         for (Attribute field : childOutput) {
             if (fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
-                // Reuse the existing alias (keeping its id) only while valid: resolved and same type. Compare via
-                // noText() because the Coalesce alias reports the column type normalized (a TEXT column -> KEYWORD).
+                // Reuse the existing alias (keeping its id) only while valid: resolved and same type
                 if (previous != null && previous.resolved() && previous.dataType() == field.dataType().noText()) {
                     built.add(previous);
                     continue;
@@ -311,7 +306,6 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     @Override
     public LogicalPlan surrogate() {
         if (fields == null || fields.isEmpty()) {
-            // Nothing to fill (no fillable columns, or fields not materialized): drop the command.
             return child();
         }
         Eval eval = new Eval(source(), child(), fields);
@@ -320,14 +314,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Nullable
     private Expression resolveDefaultValue(DataType type, @Nullable Configuration configuration) {
-        // NULL-typed columns (unmapped under "nullify", bare ROW nulls) cannot be promoted: every value is already
-        // null, so wrapping in Coalesce would be a no-op or change the type. Matches defaultForType(NULL).
         if (DataType.isNull(type)) {
             return null;
         }
         if (fillValue != null) {
-            // A null fill (FILLNULL WITH null, or a null-bound param) expands to Coalesce(col, null) - a no-op that
-            // needlessly turns the column into a reference attribute. Leave it untouched.
             if (fillValue instanceof Literal fillLiteral && fillLiteral.value() == null) {
                 return null;
             }
@@ -335,8 +325,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             if (fillType == type) {
                 return fillValue;
             }
-            // Type-compatible but different type (e.g. INTEGER fill into a LONG column): convert the literal once.
-            // noText() because Coalesce compares branch types normalized and string literals are KEYWORD.
+            // Type-compatible but different type (e.g. INTEGER fill into a LONG column): convert the literal once
             if (DataType.areCompatible(fillType, type) && fillValue instanceof Literal lit) {
                 DataType literalType = type.noText();
                 Object converted;

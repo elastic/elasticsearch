@@ -73,9 +73,7 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
     }
 
     /**
-     * Skips the calling test on release builds, where {@code FILLNULL} is unavailable. The grammar rule is gated by
-     * {@code DEV_FILLNULL} (tracked by {@link EsqlCapabilities.Cap#FILLNULL}), so {@code EsqlTestUtils.TEST_PARSER}
-     * can parse a {@code FILLNULL} query only in a snapshot build; otherwise the rewriter returns the query unmodified.
+     * Skips the calling test on release builds, where {@code FILLNULL} is unavailable.
      */
     private static void assumeFillNullSupported() {
         assumeTrue(
@@ -221,9 +219,7 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
     }
 
     /**
-     * An in-scope {@code FILLNULL} target is hoisted into a preceding {@code EVAL} and then leaves scope, mirroring
-     * {@code MV_EXPAND}: the target-field slot accepts only a bare attribute, so the field is rebound to keyword
-     * before the command rather than wrapped in place (which would be unparseable).
+     * An in-scope {@code FILLNULL} target is hoisted into a preceding {@code EVAL} and then leaves scope.
      */
     public void testFillNullTargetHoistedBeforeCommand() {
         assumeFillNullSupported();

@@ -269,12 +269,6 @@ setup:
 
 ---
 'fillnull on a union typed field cast to keyword is allowed':
-  # Regression for the surrogate's union-type handling: client_ip is union-typed (ip vs keyword) across the
-  # indices, but casting it with `::keyword` resolves the conflict before FILLNULL sees it. FILLNULL then
-  # rewrites the (now keyword) reference attribute. The fill aliases live in NodeInfo, so ResolveUnionTypes /
-  # UnionTypesCleanup rewrite the attributes inside the COALESCE consistently; previously this threw an
-  # "optimized incorrectly ... missing references" error because the aliases were cached outside the plan tree.
-  # event_id 4 has no client_ip, so after the cast it is null and is actually filled with "missing".
   - do:
       esql.query:
         body:

@@ -487,6 +487,7 @@ public class CountPushdownWiringTests extends ESTestCase {
             fragment,
             SearchStats.EMPTY,
             registry,
+            null,
             splits,
             null
         );

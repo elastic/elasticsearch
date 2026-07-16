@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -254,8 +257,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return filterExec;
         }
 
-        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(formatName, ctx);
+        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(externalExec, ctx);
         if (pushdownSupport == null) {
             return filterExec;
         }
@@ -342,13 +344,37 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     /**
-     * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
+     * Resolves filter pushdown support for an external source.
+     * <p>
+     * Resolution is by SOURCE TYPE. A connector source (e.g. {@code jdbc:postgresql}) is not registered in the
+     * {@link FormatReaderRegistry}; it lives in the {@code sourceFactories} map keyed by its compound scheme, so we
+     * look it up there first and consult {@link ExternalSourceFactory#filterPushdownSupport()}. A file-based source
+     * falls through to the {@link FormatReaderRegistry}, resolving the format by name exactly as before. Both maps are
+     * carried on {@link ExternalOptimizerContext}; a {@code null} context (or absent lookup) means "no pushdown".
      */
-    private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
-        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+    private static FilterPushdownSupport resolveFilterPushdownSupport(ExternalSourceExec externalExec, LocalPhysicalOptimizerContext ctx) {
+        ExternalOptimizerContext external = ctx.external();
+        if (external == null) {
+            return null;
+        }
+        // Connector sources: resolve by the (compound) sourceType against the connector factory map.
+        Map<String, ExternalSourceFactory> sourceFactories = external.sourceFactories();
+        String sourceType = externalExec.sourceType();
+        if (sourceFactories != null && sourceType != null) {
+            ExternalSourceFactory factory = sourceFactories.get(sourceType);
+            if (factory instanceof ConnectorFactory) {
+                FilterPushdownSupport support = factory.filterPushdownSupport();
+                if (support != null) {
+                    return support;
+                }
+            }
+        }
+        // File-based sources: resolve by format name through the FormatReaderRegistry (unchanged behavior).
+        FormatReaderRegistry formatReaderRegistry = external.formatReaderRegistry();
         if (formatReaderRegistry == null) {
             return null;
         }
+        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
         FormatReader formatReader = formatReaderRegistry.findByName(formatName);
         return formatReader != null ? formatReader.filterPushdownSupport() : null;
     }

@@ -62,6 +62,27 @@ public class JdbcRuntimeConfigTests extends ESTestCase {
         assertTrue(config.enabled());
     }
 
+    public void testPushdownEnabledDefaultsOn() {
+        // Pushdown defaults ON so the connector pushes WHERE clauses out of the box; the setting only exists to turn
+        // it OFF (the operational kill switch / parity-test lever).
+        assertTrue(new JdbcRuntimeConfig().pushdownEnabled());
+    }
+
+    public void testInitializeReadsPushdownEnabled() {
+        JdbcRuntimeConfig config = new JdbcRuntimeConfig();
+        config.initialize(Settings.builder().put(JdbcRuntimeConfig.PUSHDOWN_ENABLED.getKey(), false).build());
+        assertFalse("esql.jdbc.pushdown.enabled=false must seed the runtime config", config.pushdownEnabled());
+    }
+
+    public void testSetPushdownEnabledFlipsAtomically() {
+        JdbcRuntimeConfig config = new JdbcRuntimeConfig();
+        assertTrue(config.pushdownEnabled());
+        config.setPushdownEnabled(false);
+        assertFalse(config.pushdownEnabled());
+        config.setPushdownEnabled(true);
+        assertTrue(config.pushdownEnabled());
+    }
+
     public void testSetAllowedSubprotocolsPreservesLoopbackToggle() {
         JdbcRuntimeConfig config = new JdbcRuntimeConfig();
         config.initialize(Settings.builder().put(JdbcRuntimeConfig.ALLOW_LOOPBACK.getKey(), true).build());
@@ -86,8 +107,9 @@ public class JdbcRuntimeConfigTests extends ESTestCase {
 
     public void testSettingsListContainsAllOwnedSettings() {
         var settings = JdbcRuntimeConfig.settings();
-        assertEquals(9, settings.size());
+        assertEquals(10, settings.size());
         assertTrue(settings.contains(JdbcRuntimeConfig.ENABLED));
+        assertTrue(settings.contains(JdbcRuntimeConfig.PUSHDOWN_ENABLED));
         assertTrue(settings.contains(JdbcRuntimeConfig.ALLOWED_SUBPROTOCOLS));
         assertTrue(settings.contains(JdbcRuntimeConfig.ALLOW_LOOPBACK));
         assertTrue(settings.contains(JdbcRuntimeConfig.POOL_MAX_PER_URL));

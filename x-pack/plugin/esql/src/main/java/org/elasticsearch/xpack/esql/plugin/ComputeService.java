@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -251,6 +252,15 @@ public class ComputeService {
 
     FormatReaderRegistry formatReaderRegistry() {
         return formatReaderRegistry;
+    }
+
+    /**
+     * The connector factory map (keyed by compound scheme, e.g. {@code jdbc:postgresql}), threaded into
+     * {@code PlannerUtils.localPlan} so {@code PushFiltersToSource} can reach a connector's
+     * {@code filterPushdownSupport()}. Returns {@code null} when no operator factory registry is wired.
+     */
+    Map<String, ExternalSourceFactory> sourceFactories() {
+        return operatorFactoryRegistry == null ? null : operatorFactoryRegistry.sourceFactories();
     }
 
     PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
@@ -1323,6 +1333,7 @@ public class ComputeService {
                         plan,
                         SearchContextStats.from(localContexts),
                         formatReaderRegistry,
+                        sourceFactories(),
                         coordinatorExternalSplits,
                         planTimeProfile
                     );

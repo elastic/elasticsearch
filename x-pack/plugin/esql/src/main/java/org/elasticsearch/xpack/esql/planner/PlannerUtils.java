@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -300,6 +302,7 @@ public class PlannerUtils {
         PhysicalPlan plan,
         SearchStats searchStats,
         FormatReaderRegistry formatReaderRegistry,
+        Map<String, ExternalSourceFactory> sourceFactories,
         PlanTimeProfile planTimeProfile
     ) {
         return localPlan(
@@ -310,6 +313,7 @@ public class PlannerUtils {
             plan,
             searchStats,
             formatReaderRegistry,
+            sourceFactories,
             List.of(),
             planTimeProfile
         );
@@ -319,6 +323,11 @@ public class PlannerUtils {
      * Runs local logical/physical optimization with external splits injected before the physical optimizer.
      * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
      * {@code PushStatsToExternalSource} can see per-split statistics.
+     * <p>
+     * {@code sourceFactories} is the connector factory map (keyed by compound scheme, e.g. {@code jdbc:postgresql});
+     * it is threaded into {@link ExternalOptimizerContext} so {@code PushFiltersToSource} can reach a connector's
+     * {@link ExternalSourceFactory#filterPushdownSupport()} (connectors are not in the {@link FormatReaderRegistry}).
+     * May be {@code null} when no connectors are in scope.
      */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
@@ -328,6 +337,7 @@ public class PlannerUtils {
         PhysicalPlan plan,
         SearchStats searchStats,
         FormatReaderRegistry formatReaderRegistry,
+        Map<String, ExternalSourceFactory> sourceFactories,
         List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
@@ -339,7 +349,7 @@ public class PlannerUtils {
                 configuration,
                 foldCtx,
                 searchStats,
-                new ExternalOptimizerContext(formatReaderRegistry)
+                new ExternalOptimizerContext(formatReaderRegistry, sourceFactories)
             )
         );
 

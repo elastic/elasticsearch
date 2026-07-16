@@ -231,11 +231,12 @@ final class JdbcConnector implements Connector {
             throw new IllegalArgumentException("JDBC source requires WITH (table=\"<name>\")");
         }
         JdbcQueryBuilder builder = new JdbcQueryBuilder(dialect);
-        // Predicate pushdown is DEFERRED (see JdbcConnectorFactory#filterPushdownSupport): main's QueryRequest carries
-        // no pushed filter field and wiring one is a 5-surface core change out of scope here. Projection + LIMIT
-        // pushdown still flow through request.projectedColumns() / request.rowLimit(). Pass null so the builder emits
-        // a plain SELECT <projected> FROM <table> [LIMIT n]; the class is retained for the follow-up.
-        JdbcPushedQuery pushedQuery = null;
+        // Predicate pushdown: the optimizer's PushFiltersToSource mints a JdbcPushedQuery via
+        // JdbcFilterPushdownSupport and stashes it on ExternalSourceExec.pushedFilter(); LocalExecutionPlanner and
+        // OperatorFactoryRegistry thread it into QueryRequest.pushedFilter(). It is coordinator-only (never
+        // serialized) so we receive the rich JVM object directly. null means nothing was pushed -> plain
+        // SELECT <projected> FROM <table>; non-null renders SELECT ... WHERE <rendered> with params bound below.
+        JdbcPushedQuery pushedQuery = pushedQueryOf(request);
         JdbcQueryBuilder.BuiltScan built = builder.buildScan(
             request.projectedColumns(),
             catalog,
@@ -678,6 +679,24 @@ final class JdbcConnector implements Connector {
             // primary failure; downgrading this to debug avoids drowning logs with secondary noise.
             logger.debug("ignoring close failure", e);
         }
+    }
+
+    /**
+     * Extracts the connector's pushed filter from the {@link QueryRequest}. The slot is an opaque {@code Object}
+     * (core never interprets it); for this connector it is always a {@link JdbcPushedQuery} minted by
+     * {@link JdbcFilterPushdownSupport}, or {@code null} when nothing was pushed. Any other type would signal a
+     * wiring mismatch (a filter minted by a different connector routed here), so we fail loudly rather than silently
+     * dropping the pushdown and returning unfiltered rows.
+     */
+    private static JdbcPushedQuery pushedQueryOf(QueryRequest request) {
+        Object pushed = request.pushedFilter();
+        if (pushed == null) {
+            return null;
+        }
+        if (pushed instanceof JdbcPushedQuery jpq) {
+            return jpq;
+        }
+        throw new IllegalStateException("JDBC connector received a pushed filter of unexpected type [" + pushed.getClass().getName() + "]");
     }
 
     /**

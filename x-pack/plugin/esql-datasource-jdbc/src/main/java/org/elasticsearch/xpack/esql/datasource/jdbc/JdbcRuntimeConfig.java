@@ -24,11 +24,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Mutable runtime configuration for the JDBC datasource plugin, exposed via cluster settings.
+ * Runtime configuration for the JDBC datasource plugin, seeded from node settings.
  * <p>
- * Each {@link JdbcDataSourcePlugin} instance owns exactly one instance of this class and updates it as
- * cluster-settings updates arrive. The {@link JdbcConnectorFactory} reads {@link #enabled()} on every
- * {@code canHandle} call so the kill switch takes effect without bouncing the node.
+ * Each {@link JdbcDataSourcePlugin} instance owns exactly one instance of this class, seeded once from node
+ * {@link Settings} at node start via {@link #initialize}. The current {@code DataSourcePlugin} SPI has no dynamic
+ * cluster-settings delivery hook (the plugin's {@code getSettings()} is read once at registration and no
+ * {@code addSettingsUpdateConsumer} is wired), so none of these values propagate from a live
+ * {@code PUT _cluster/settings}: changing any of them requires a node restart (rolling restart across the cluster).
+ * The {@link JdbcConnectorFactory} reads {@link #enabled()} on every {@code canHandle} call and
+ * {@link #pushdownEnabled()} on every {@code filterPushdownSupport()} call, but because both are fixed at node start,
+ * flipping either kill switch takes effect only after a restart. The {@code set*} setters below exist for tests (and
+ * as a forward-looking seam should a dynamic-delivery hook be added later).
  * <p>
  * <b>Why a separate class.</b> The {@code DataSourcePlugin} SPI extension that {@code DataSourceModule} queries is a
  * distinct object from the {@link org.elasticsearch.plugins.Plugin}-managed instance, and the single-public-constructor
@@ -41,24 +47,47 @@ import java.util.concurrent.atomic.AtomicReference;
  * because someone configured it; refusing every query at startup would be surprising). SSRF defaults to the
  * {@link SsrfGuard#defaultGuard() default guard}: production subprotocol allowlist, loopback denied.
  * <p>
- * <b>Pool settings apply at pool creation.</b> The kill switch and SSRF settings take effect immediately (read on
- * every {@code canHandle}/borrow). The pool sizing/timeout knobs ({@code esql.jdbc.pool.*}: {@code max_per_url},
- * {@code connection_timeout_ms}, {@code idle_timeout_ms}, {@code max_lifetime_ms}, {@code keepalive_ms},
- * {@code validation_timeout_ms}) are instead read by {@link JdbcHikariPool} only when an endpoint's pool is CREATED;
- * a dynamic update to them applies on the next (re)creation of that endpoint's pool, not to live pools. The
- * setters below simply update the current value the next pool creation will read.
+ * <b>When each value is consulted.</b> The kill switches and SSRF guard are read on every {@code canHandle} /
+ * {@code filterPushdownSupport} / borrow, whereas the pool sizing/timeout knobs ({@code esql.jdbc.pool.*}:
+ * {@code max_per_url}, {@code connection_timeout_ms}, {@code idle_timeout_ms}, {@code max_lifetime_ms},
+ * {@code keepalive_ms}, {@code validation_timeout_ms}) are read by {@link JdbcHikariPool} only when an endpoint's
+ * pool is CREATED. Either way the underlying value is fixed at node start (no dynamic delivery hook, as above), so
+ * this read-timing distinction only matters for a future dynamic-settings hook; today every value is effectively
+ * constant for the node's lifetime.
  */
 public final class JdbcRuntimeConfig {
 
     /**
      * Master kill switch for the JDBC connector. When {@code false}, {@link JdbcConnectorFactory#canHandle(String)}
      * returns {@code false} for every URL, so the framework falls through and the query fails with the standard
-     * "no source for jdbc:..." error. Dynamic so on-call can flip it without a node restart.
+     * "no source for jdbc:..." error.
+     * <p>
+     * <b>Node-scoped, not dynamic.</b> The value is seeded once from node {@link Settings} at node start (see
+     * {@link #initialize}); the current {@code DataSourcePlugin} SPI has no dynamic cluster-settings delivery hook
+     * ({@code getSettings()} is read once at registration and no {@code addSettingsUpdateConsumer} is wired), so a
+     * live {@code PUT _cluster/settings} update would NOT propagate. Flipping this kill switch therefore requires a
+     * node restart (a rolling restart across the cluster). The {@link #setEnabled} setter exists only for tests.
      */
-    public static final Setting<Boolean> ENABLED = Setting.boolSetting(
-        "esql.jdbc.enabled",
+    public static final Setting<Boolean> ENABLED = Setting.boolSetting("esql.jdbc.enabled", true, Setting.Property.NodeScope);
+
+    /**
+     * Kill switch for JDBC <em>predicate (WHERE) pushdown</em>. When {@code false},
+     * {@link JdbcConnectorFactory#filterPushdownSupport()} returns {@code null}, so the optimizer's
+     * {@code PushFiltersToSource} finds no support for a JDBC source and leaves every filter in the engine-side
+     * {@code FilterExec} — the connector then emits an unfiltered {@code SELECT ... FROM <table>} and ES|QL applies
+     * the filter. Defaults {@code true} (pushdown on). Separate from {@link #ENABLED} (the whole-connector kill
+     * switch) so an operator can turn <em>only</em> pushdown off (e.g. to work around a vendor-specific translation
+     * problem) without disabling JDBC entirely. Also the lever the parity ITs use to compare pushdown on vs off.
+     * <p>
+     * <b>Node-scoped, not dynamic.</b> Like {@link #ENABLED}, the value is seeded once from node {@link Settings} at
+     * node start (see {@link #initialize}) and is NOT delivered dynamically — the {@code DataSourcePlugin} SPI has no
+     * cluster-settings update hook, so a live {@code PUT _cluster/settings} would not take effect. Turning pushdown on
+     * or off therefore requires a node restart (rolling restart). The parity ITs exploit exactly this: each suite
+     * pins the value via {@code nodeSettings} for its whole node. The {@link #setPushdownEnabled} setter is test-only.
+     */
+    public static final Setting<Boolean> PUSHDOWN_ENABLED = Setting.boolSetting(
+        "esql.jdbc.pushdown.enabled",
         true,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -176,6 +205,7 @@ public final class JdbcRuntimeConfig {
     private static final Logger logger = LogManager.getLogger(JdbcRuntimeConfig.class);
 
     private final AtomicBoolean enabled;
+    private final AtomicBoolean pushdownEnabled;
     private final AtomicReference<SsrfGuard> guard;
     private final AtomicInteger poolMaxPerUrl;
     private final AtomicLong poolConnectionTimeoutMs;
@@ -204,6 +234,7 @@ public final class JdbcRuntimeConfig {
 
     public JdbcRuntimeConfig() {
         this.enabled = new AtomicBoolean(true);
+        this.pushdownEnabled = new AtomicBoolean(true);
         this.guard = new AtomicReference<>(SsrfGuard.defaultGuard());
         this.poolMaxPerUrl = new AtomicInteger(POOL_MAX_PER_URL.getDefault(Settings.EMPTY));
         this.poolConnectionTimeoutMs = new AtomicLong(POOL_CONNECTION_TIMEOUT_MS.getDefault(Settings.EMPTY));
@@ -223,6 +254,7 @@ public final class JdbcRuntimeConfig {
             throw new IllegalArgumentException("nodeSettings must not be null");
         }
         this.enabled.set(ENABLED.get(nodeSettings));
+        this.pushdownEnabled.set(PUSHDOWN_ENABLED.get(nodeSettings));
         boolean allowLoopback = ALLOW_LOOPBACK.get(nodeSettings);
         List<String> subs = ALLOWED_SUBPROTOCOLS.get(nodeSettings);
         this.guard.set(buildGuard(subs, allowLoopback));
@@ -246,6 +278,14 @@ public final class JdbcRuntimeConfig {
     /** Returns the current kill-switch state. Reads are lock-free; cheap on the {@code canHandle} hot path. */
     public boolean enabled() {
         return enabled.get();
+    }
+
+    /**
+     * Returns whether WHERE pushdown is currently enabled. Read on every {@link JdbcConnectorFactory#filterPushdownSupport()}
+     * call (once per {@code EsRelation} rewrite at plan time), so it is a cheap lock-free read.
+     */
+    public boolean pushdownEnabled() {
+        return pushdownEnabled.get();
     }
 
     /** Returns the current SSRF guard. The reference is replaced atomically when either SSRF setting updates. */
@@ -301,10 +341,17 @@ public final class JdbcRuntimeConfig {
         return credentialEpoch.incrementAndGet();
     }
 
-    // -- Cluster-settings update consumers; one per setting to mirror the framework's per-setting subscription API.
+    // -- Value setters, one per setting. NOTE: these are NOT currently wired as cluster-settings update consumers
+    // (the DataSourcePlugin SPI has no addSettingsUpdateConsumer hook), so in production they are exercised only by
+    // the reload path where applicable; the kill-switch setters (setEnabled/setPushdownEnabled) are test-only today.
+    // They mirror the framework's per-setting subscription API so a future dynamic-delivery hook can subscribe them.
 
     public void setEnabled(boolean enabled) {
         this.enabled.set(enabled);
+    }
+
+    public void setPushdownEnabled(boolean pushdownEnabled) {
+        this.pushdownEnabled.set(pushdownEnabled);
     }
 
     public void setAllowedSubprotocols(List<String> subs) {
@@ -387,6 +434,7 @@ public final class JdbcRuntimeConfig {
     public static List<Setting<?>> settings() {
         return List.of(
             ENABLED,
+            PUSHDOWN_ENABLED,
             ALLOWED_SUBPROTOCOLS,
             ALLOW_LOOPBACK,
             POOL_MAX_PER_URL,

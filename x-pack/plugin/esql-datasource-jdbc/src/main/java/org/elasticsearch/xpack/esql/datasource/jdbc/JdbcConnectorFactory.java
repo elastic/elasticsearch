@@ -136,6 +136,14 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
     private final FilterPushdownSupport pushdownSupport;
     private final java.util.function.Supplier<SsrfGuard> ssrfGuardSupplier;
     private final java.util.function.BooleanSupplier enabledSupplier;
+    /**
+     * Read of the {@code esql.jdbc.pushdown.enabled} kill switch. Consulted on every {@link #filterPushdownSupport()}
+     * call so turning WHERE pushdown off returns {@code null} support -> the optimizer leaves filters in the engine,
+     * without disabling the connector. The setting is node-scoped and seeded once at node start (there is no
+     * dynamic-settings delivery hook on the SPI), so a flip requires a node restart; the per-call read simply keeps
+     * this factory decoupled from the config's storage. Defaults to always-on in the test-convenience constructors.
+     */
+    private final java.util.function.BooleanSupplier pushdownEnabledSupplier;
     private final JdbcHikariPool hikariPool;
     /**
      * Supplies the current credential epoch from the plugin's instance-owned {@link JdbcRuntimeConfig}. The
@@ -166,14 +174,28 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         java.util.function.BooleanSupplier enabledSupplier
     ) {
         // Convenience overload for unit tests: a self-owned pool over the given registry with default pool settings.
-        // The pool starts no threads until a connection is borrowed; a test that exercises execute() must close this
-        // factory (Closeable) to tear its pool down. Production wiring supplies the plugin-owned pool via the 5-arg
-        // constructor so pool lifecycle (close) is managed by JdbcDataSourcePlugin instead.
+        // Pushdown defaults to always-on; the overload below lets a kill-switch test flip it. The pool starts no
+        // threads until a connection is borrowed; a test that exercises execute() must close this factory (Closeable)
+        // to tear its pool down. Production wiring supplies the plugin-owned pool via the production constructor so
+        // pool lifecycle (close) is managed by JdbcDataSourcePlugin instead.
+        this(driverRegistry, dialectRegistry, ssrfGuardSupplier, enabledSupplier, () -> true);
+    }
+
+    JdbcConnectorFactory(
+        JdbcDriverRegistry driverRegistry,
+        DialectRegistry dialectRegistry,
+        java.util.function.Supplier<SsrfGuard> ssrfGuardSupplier,
+        java.util.function.BooleanSupplier enabledSupplier,
+        java.util.function.BooleanSupplier pushdownEnabledSupplier
+    ) {
+        // Test-convenience overload that also takes the pushdown kill-switch supplier, so a unit test can assert
+        // filterPushdownSupport() returns null when pushdown is disabled. Self-owned pool, as above.
         this(
             driverRegistry,
             dialectRegistry,
             ssrfGuardSupplier,
             enabledSupplier,
+            pushdownEnabledSupplier,
             new JdbcHikariPool(driverRegistry, new JdbcRuntimeConfig()),
             () -> 0L,
             true
@@ -185,10 +207,20 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         DialectRegistry dialectRegistry,
         java.util.function.Supplier<SsrfGuard> ssrfGuardSupplier,
         java.util.function.BooleanSupplier enabledSupplier,
+        java.util.function.BooleanSupplier pushdownEnabledSupplier,
         JdbcHikariPool hikariPool,
         java.util.function.LongSupplier credentialEpochSupplier
     ) {
-        this(driverRegistry, dialectRegistry, ssrfGuardSupplier, enabledSupplier, hikariPool, credentialEpochSupplier, false);
+        this(
+            driverRegistry,
+            dialectRegistry,
+            ssrfGuardSupplier,
+            enabledSupplier,
+            pushdownEnabledSupplier,
+            hikariPool,
+            credentialEpochSupplier,
+            false
+        );
     }
 
     private JdbcConnectorFactory(
@@ -196,6 +228,7 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         DialectRegistry dialectRegistry,
         java.util.function.Supplier<SsrfGuard> ssrfGuardSupplier,
         java.util.function.BooleanSupplier enabledSupplier,
+        java.util.function.BooleanSupplier pushdownEnabledSupplier,
         JdbcHikariPool hikariPool,
         java.util.function.LongSupplier credentialEpochSupplier,
         boolean ownsPool
@@ -212,6 +245,9 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         if (enabledSupplier == null) {
             throw new IllegalArgumentException("enabledSupplier must not be null");
         }
+        if (pushdownEnabledSupplier == null) {
+            throw new IllegalArgumentException("pushdownEnabledSupplier must not be null");
+        }
         if (hikariPool == null) {
             throw new IllegalArgumentException("hikariPool must not be null");
         }
@@ -222,6 +258,7 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         this.dialectRegistry = dialectRegistry;
         this.ssrfGuardSupplier = ssrfGuardSupplier;
         this.enabledSupplier = enabledSupplier;
+        this.pushdownEnabledSupplier = pushdownEnabledSupplier;
         this.hikariPool = hikariPool;
         this.credentialEpochSupplier = credentialEpochSupplier;
         this.ownsPool = ownsPool;
@@ -444,10 +481,16 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
 
     @Override
     public FilterPushdownSupport filterPushdownSupport() {
-        // Kept for the deferred predicate-pushdown follow-up. On current main the connector operator path
-        // (OperatorFactoryRegistry's ConnectorFactory branch + DataSourceModule.LazyConnectorFactory) does not
-        // consult this — predicate pushdown is unwired across 5 core surfaces and intentionally DEFERRED here.
-        // Projection + LIMIT pushdown flow through QueryRequest.projectedColumns / rowLimit and need no core change.
+        // Consulted by the optimizer's PushFiltersToSource (reached through DataSourceModule.LazyConnectorFactory,
+        // which delegates this call, and ExternalOptimizerContext's sourceFactories map). Returning null makes the
+        // optimizer leave every filter in the engine-side FilterExec, so the connector emits an unfiltered scan.
+        // The esql.jdbc.pushdown.enabled kill switch turns WHERE pushdown off by returning null here, independent of
+        // the whole-connector esql.jdbc.enabled switch. The supplier is read live per call, but the underlying
+        // esql.jdbc.pushdown.enabled setting is node-scoped and seeded once at node start (no dynamic-settings
+        // delivery hook on the DataSourcePlugin SPI), so flipping it requires a node restart (rolling restart).
+        if (pushdownEnabledSupplier.getAsBoolean() == false) {
+            return null;
+        }
         return pushdownSupport;
     }
 

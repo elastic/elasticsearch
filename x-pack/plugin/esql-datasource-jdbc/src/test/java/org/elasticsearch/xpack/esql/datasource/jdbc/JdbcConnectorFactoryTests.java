@@ -413,8 +413,8 @@ public class JdbcConnectorFactoryTests extends ESTestCase {
 
     public void testFilterPushdownSupportIsCachedAndNonNull() {
         // The optimizer can ask the factory many times per planning round; the support instance is stateless and
-        // should be cached to avoid pointless allocations. Predicate pushdown is DEFERRED (see
-        // JdbcConnectorFactory#filterPushdownSupport), but the support object is still built once and reused.
+        // should be cached to avoid pointless allocations. With pushdown enabled (the default) the same instance is
+        // returned across calls.
         var s1 = factory.filterPushdownSupport();
         var s2 = factory.filterPushdownSupport();
         assertNotNull(s1);
@@ -422,7 +422,35 @@ public class JdbcConnectorFactoryTests extends ESTestCase {
         assertThat(s1, instanceOf(JdbcFilterPushdownSupport.class));
     }
 
-    // -- observability: INFO logs at query start + completion (projection-only path; predicate pushdown deferred) --
+    public void testFilterPushdownSupportNullWhenPushdownDisabled() throws Exception {
+        // The esql.jdbc.pushdown.enabled kill switch turns WHERE pushdown off by making the factory report NO
+        // filter-pushdown support to the optimizer. With no support, PushFiltersToSource leaves every filter in the
+        // engine-side FilterExec and the connector emits an unfiltered scan. The supplier is read LIVE on every call,
+        // so a flip from off->on takes effect without rebuilding the factory.
+        java.util.concurrent.atomic.AtomicBoolean pushdownEnabled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        try (
+            JdbcConnectorFactory toggled = new JdbcConnectorFactory(
+                registry,
+                DialectRegistry.defaultRegistry(),
+                SsrfGuard::defaultGuard,
+                () -> true,
+                pushdownEnabled::get
+            )
+        ) {
+            assertNull("pushdown disabled must report no filter-pushdown support", toggled.filterPushdownSupport());
+            // Flip the live switch on: support is now offered (and, as above, cached across calls).
+            pushdownEnabled.set(true);
+            var support = toggled.filterPushdownSupport();
+            assertNotNull("pushdown enabled must report filter-pushdown support", support);
+            assertThat(support, instanceOf(JdbcFilterPushdownSupport.class));
+            // Flip it back off: the null verdict returns immediately (no stale cached non-null support).
+            pushdownEnabled.set(false);
+            assertNull("re-disabling pushdown must again report no support", toggled.filterPushdownSupport());
+        }
+    }
+
+    // -- observability: INFO logs at query start + completion. WHERE pushdown is wired/live, but these cases build a
+    // QueryRequest with no pushedFilter (unfiltered scan), so they assert the pushdown=[false] branch of the logs. --
 
     public void testQueryStartLogsAtInfo() throws Exception {
         try (Connection conn = DriverManager.getConnection(jdbcUrl); Statement stmt = conn.createStatement()) {

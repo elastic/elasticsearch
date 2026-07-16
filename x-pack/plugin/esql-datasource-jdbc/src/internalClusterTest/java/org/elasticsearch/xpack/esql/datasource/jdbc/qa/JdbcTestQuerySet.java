@@ -64,7 +64,16 @@ public final class JdbcTestQuerySet {
          * {@code VARCHAR}, {@code BIGINT} and {@code SERIAL}. Not portable SQL92, so only the Postgres suite enables
          * it; it surfaces the GenericDialect→PostgresDialect gaps the {@code pg_*} scenarios assert.
          */
-        PG_TYPES("pg_types", "/fixtures/pg_types.sql", false);
+        PG_TYPES("pg_types", "/fixtures/pg_types.sql", false),
+        /**
+         * {@code pushdown_parity} — an adversarial fixture (NULLs, empty string, duplicate rows, duplicate keys)
+         * used exclusively by the WHERE-pushdown parity ITs ({@code AbstractJdbcPushdownParityIT}). Its DDL is
+         * portable SQL92, but it is marked NON-portable so it stays OUT of the default {@link #portable() portable}
+         * set: the shared correctness matrix suites (H2/Postgres) neither load it nor run scenarios against it (it
+         * has none in {@link #scenarios()}), so they are unaffected. The parity ITs opt into it explicitly via
+         * {@code AbstractJdbcDatabaseIT#enabledFixtures()}.
+         */
+        PUSHDOWN_PARITY("pushdown_parity", "/fixtures/pushdown_parity.sql", false);
 
         private final String tableName;
         private final String resourcePath;

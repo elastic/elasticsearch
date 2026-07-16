@@ -23,10 +23,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -480,6 +482,28 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceOperatorFactoryProvider operatorFactory() {
             return resolveDelegate().operatorFactory();
+        }
+
+        /**
+         * Delegate filter pushdown support to the resolved connector factory. Without this override the lazy bridge
+         * would return the SPI default {@code null}, so the optimizer's {@code PushFiltersToSource} would never see
+         * a connector's real {@link FilterPushdownSupport} (e.g. the JDBC connector's) and would silently fall back
+         * to a full scan. Resolving the delegate is a cheap idempotent lookup (the factory is cached), so paying it
+         * here at plan time is negligible.
+         */
+        @Override
+        public FilterPushdownSupport filterPushdownSupport() {
+            return resolveDelegate().filterPushdownSupport();
+        }
+
+        /**
+         * Delegate split-provider selection to the resolved connector factory so a connector that declares a
+         * non-default {@link SplitProvider} is honored through the lazy bridge rather than defaulting to
+         * {@link SplitProvider#SINGLE}.
+         */
+        @Override
+        public SplitProvider splitProvider() {
+            return resolveDelegate().splitProvider();
         }
 
         private ConnectorFactory resolveDelegate() {

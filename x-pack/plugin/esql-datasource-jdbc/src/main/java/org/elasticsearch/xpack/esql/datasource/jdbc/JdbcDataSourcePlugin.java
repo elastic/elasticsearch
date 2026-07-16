@@ -184,6 +184,7 @@ public class JdbcDataSourcePlugin extends Plugin implements DataSourcePlugin, Re
                 DialectRegistry.defaultRegistry(),
                 runtimeConfig::guard,
                 runtimeConfig::enabled,
+                runtimeConfig::pushdownEnabled,
                 hikariPool(driverRegistry),
                 runtimeConfig::credentialEpoch
             )

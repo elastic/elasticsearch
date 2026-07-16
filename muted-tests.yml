@@ -622,9 +622,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/154037
-- class: org.elasticsearch.index.mapper.DocValuesParameterTests
-  method: testIndexSettingIgnoreDefaultsFieldToIgnore
-  issue: https://github.com/elastic/elasticsearch/issues/154054
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
   method: testPreFlushWaitsForOngoingFlushes
   issue: https://github.com/elastic/elasticsearch/issues/154061
@@ -658,3 +655,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
+- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
+  method: testGeoIpDatabaseConfigurations {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/154214
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/11_nodes/Test cat nodes output}
+  issue: https://github.com/elastic/elasticsearch/issues/154218

@@ -569,6 +569,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testOnFailureIgnoreParsedFromMapForm() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -583,6 +584,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * {@code ignore}.
      */
     public void testIndexSettingIgnoreDefaultsFieldToIgnore() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore")
@@ -613,6 +615,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * collapsing to the {@code true} boolean shorthand, and the value survives a serialize/re-parse round trip.
      */
     public void testOnFailureRoundTripsThroughToXContent() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -633,6 +636,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * being thrown out.
      */
     public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -666,6 +670,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * marked ignored, regardless of {@code on_failure}.
      */
     public void testOnFailureIgnoreDoesNotAffectSingleValuedDocuments() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -688,6 +693,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * multi-valued document is accepted normally and nothing is redirected, regardless of {@code on_failure}.
      */
     public void testOnFailureIgnoreIsNoOpWhenMultiValueIsAllowed() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -704,6 +710,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * just marked ignored.
      */
     public void testOnFailureIgnoreAcceptsMissingRequiredFieldInsteadOfThrowing() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -725,6 +732,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * {@code fail} aborts the document; the other, configured with {@code ignore}, is merely marked ignored.
      */
     public void testOnFailureMixedPerFieldOnlyFailsForFailField() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("ignored")
@@ -748,6 +756,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * redundant and must be pruned from the Lucene document, just like the other per-field synthetic-source-only sidecar fields.
      */
     public void testOnFailureIgnoreFailureColumnPrunedInColumnarStoredSource() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())

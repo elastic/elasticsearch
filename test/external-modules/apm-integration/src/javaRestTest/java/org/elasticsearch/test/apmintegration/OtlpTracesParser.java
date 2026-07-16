@@ -15,8 +15,6 @@ import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
 import io.opentelemetry.proto.trace.v1.Span;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -33,14 +31,12 @@ public final class OtlpTracesParser extends OtlpParser {
     private OtlpTracesParser() {}
 
     /**
-     * Parse an OTLP traces request into a list of received telemetry events.
+     * Parse an already-decoded OTLP traces request (gRPC path) into received telemetry events.
      *
-     * @param input OTLP protobuf ExportTraceServiceRequest stream
+     * @param request decoded OTLP ExportTraceServiceRequest
      * @return list of ReceivedTelemetry (one per span)
-     * @throws IOException if the stream is not valid OTLP protobuf
      */
-    public static List<ReceivedTelemetry> parse(InputStream input) throws IOException {
-        ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
+    public static List<ReceivedTelemetry> parse(ExportTraceServiceRequest request) {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
             // Resource attributes pass through unchanged: no "otel.attributes." prefix

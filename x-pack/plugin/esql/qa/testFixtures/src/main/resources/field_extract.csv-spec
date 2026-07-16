@@ -230,6 +230,27 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
 
+fieldExtractFromLookupJoinFlattenedField
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: join_lookup_v12
+
+FROM flattened_otel_logs
+| EVAL host_name = field_extract(resource.attributes, "host.name")
+| LOOKUP JOIN host_info_lookup ON host_name
+| EVAL team = field_extract(info, "team")
+| WHERE team IS NOT NULL
+| SORT @timestamp
+| LIMIT 3
+| KEEP @timestamp, host_name, team
+;
+
+@timestamp:date          | host_name:keyword                                | team:keyword
+2020-01-01T00:00:00.000Z | equal-host                                       | dev
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr                             | infra
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal | devops
+;
+
 // host.ip stores multiple values for this @timestamp. Both the block-loader pushdown and
 // the per-row parse path produce a real multi-value keyword block, so MV_COUNT reports the
 // number of values regardless of which path runs.
@@ -359,9 +380,6 @@ hn:keyword            | aid:keyword
 infra-filebeat-6vjxr  | c92cc400-fe39-4252-bc0f-4b024e742f25
 ;
 
-// A foldable but non-literal path expression (CONCAT of two literals) should
-// still go through the constant-evaluator path, validating the path once at
-// plan time rather than per row.
 computedConstantPath
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -374,6 +392,61 @@ FROM flattened_otel_logs
 
 hn:keyword
 infra-filebeat-6vjxr
+;
+
+dynamicPathViaCaseExpr
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp IN ("2020-01-01T00:02:48.461Z", "2020-01-01T11:38:54.751Z")
+| EVAL path = CASE(@timestamp == "2020-01-01T00:02:48.461Z", "agent.id", "host.name")
+| EVAL extracted = FIELD_EXTRACT(resource.attributes, path)
+| DROP path
+| KEEP @timestamp, extracted
+| SORT @timestamp
+;
+
+@timestamp:date          | extracted:keyword
+2020-01-01T00:02:48.461Z | c92cc400-fe39-4252-bc0f-4b024e742f25
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+;
+
+pathFromRowField
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_keyed
+| EVAL extracted = FIELD_EXTRACT(data, key)
+| KEEP id, extracted
+| SORT id
+;
+
+id:keyword | extracted:keyword
+a          | red
+b          | M
+c          | green
+d          | XL
+;
+
+pathFromLookupJoin
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: join_lookup_v12
+
+FROM flattened_keyed
+| LOOKUP JOIN path_lookup ON id
+| EVAL extracted = FIELD_EXTRACT(data, path)
+| DROP path
+| KEEP id, extracted
+| SORT id
+;
+
+id:keyword | extracted:keyword
+a          | red
+b          | M
+c          | green
+d          | XL
 ;
 
 // Path matching is case-sensitive: `Host.Name` does NOT match the flat key
@@ -506,6 +579,114 @@ c:long
 0
 ;
 
+
+// > on a literal flat key pushes to a single-sided RangeQuery against the keyed sub-field.
+// The keyed flattened mapper substitutes a key-prefix sentinel for the open upper bound on
+// the data node so the resulting Lucene range stays inside this key's slice of the term
+// namespace. Result correctness is what we assert here. The fact that the filter is
+// actually pushed (not just evaluated per row) is verified by the IT tests against the
+// Lucene profile.
+greaterThanPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") > "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+5
+;
+
+// Inclusive variant of the above.
+greaterThanOrEqualPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") >= "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+6
+;
+
+// < on a literal flat key pushes to a single-sided RangeQuery against the keyed sub-field.
+// The keyed flattened mapper substitutes a key-prefix sentinel for the open lower bound on
+// the data node.
+lessThanPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") < "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+5
+;
+
+// Inclusive variant of the above.
+lessThanOrEqualPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") <= "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+6
+;
+
+// Closed range (combined >= and <=, equivalent to BETWEEN) on a literal flat key pushes
+// to a RangeQuery against the keyed sub-field with both bounds set. The pre-pass in
+// PushFiltersToSource folds the two BCs into a single Range node so the eligibility check
+// matches the keyed-mapper's closed-range contract. The narrow window [f, h] catches
+// exactly the two filebeat-* hosts and excludes both the elasticsearch-* hosts (below f)
+// and the infra-* hosts (above h).
+betweenPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") >= "f" AND field_extract(resource.attributes, "host.name") <= "h"
+| KEEP @timestamp
+| SORT @timestamp
+;
+
+@timestamp:date
+2020-01-01T10:12:02.675Z
+2020-01-01T11:43:13.255Z
+;
+
+// Same single-sided range expressed via EVAL + WHERE on the EVAL'd column. The planner
+// cannot push the BC down through this shape (the WHERE's LHS is the EVAL'd
+// ReferenceAttribute rather than the original FieldExtract call), so this test covers the
+// per-row evaluator path for ranges and pins down the host.name -> @timestamp mapping the
+// other tests in this block rely on.
+rangeOverEvalExtract
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| WHERE hn > "filebeat-8pmfj"
+| KEEP @timestamp, hn
+| SORT @timestamp
+;
+
+@timestamp:date          | hn:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
 
 // INLINE STATS appends an aggregate over the extracted sub-field to every row.
 // The duplicated host (`infra-filebeat-6vjxr`, count 2) sorts first, the rest

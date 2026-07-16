@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 151687
+summary: Emit Painless array runtime-size allocation pre-checks
+type: enhancement

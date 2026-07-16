@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -51,6 +52,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -66,6 +69,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
@@ -90,6 +94,8 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final CloudCredentialManager credentialManager;
+    private final TransformCloudCredentialManager transformCloudCredentialManager;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
@@ -135,6 +141,8 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.credentialManager = transformExtension.getCloudCredentialManager();
+        this.transformCloudCredentialManager = transformServices.cloudCredentialManager();
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
@@ -147,6 +155,10 @@ class ClientTransformIndexer extends TransformIndexer {
         crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
         this.hasLinkedProjects = transformServices.hasLinkedProjects();
+    }
+
+    private Client wrappedClient() {
+        return credentialManager.wrapClient(client, context.getPersistedCloudCredential());
     }
 
     @Override
@@ -187,7 +199,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportBulkAction.TYPE,
             request,
             ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
@@ -270,7 +282,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             DeleteByQueryAction.INSTANCE,
             deleteByQueryRequest,
             responseListener
@@ -311,7 +323,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             request,
             responseListener
@@ -326,7 +338,7 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
         TransformIndex.createDestinationIndex(
-            client,
+            wrappedClient(),
             auditor,
             indexNameExpressionResolver,
             clusterService.state(),
@@ -455,9 +467,51 @@ class ClientTransformIndexer extends TransformIndexer {
         closePointInTime(super::afterFinishOrFailure);
     }
 
+    /**
+     * Invoked from {@link TransformIndexer#onStart} after a fresh {@link TransformConfig} has been
+     * loaded from the index. If the {@code credentialId} on the config has changed since the last
+     * checkpoint, fetch the new persisted credential from storage, swap it onto the context, and
+     * then revoke + delete the prior credential at UIAM. The previous checkpoint has already
+     * drained (we're past its {@code afterFinishOrFailure}), so no in-flight call still references
+     * the credential being revoked.
+     *
+     * <p>If anything in this chain fails, propagate the failure — {@code onStart} treats it as a
+     * checkpoint failure, which {@code TransformFailureHandler} will retry per the configured
+     * {@code num_failure_retries}.
+     */
+    @Override
+    protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
+        String priorId = priorConfig == null ? null : priorConfig.getCredentialId();
+        String newId = newConfig == null ? null : newConfig.getCredentialId();
+        if (Objects.equals(priorId, newId)) {
+            listener.onResponse(null);
+            return;
+        }
+
+        if (newId == null) {
+            // Config no longer carries a credentialId: drop the in-memory token and revoke + delete the prior.
+            PersistedCloudCredential displaced = context.replacePersistedCredential(null);
+            if (displaced != null) {
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
+            }
+            listener.onResponse(null);
+            return;
+        }
+
+        transformsConfigManager.getTransformCloudCredentialByTokenId(newId, false, listener.delegateFailureAndWrap((l, next) -> {
+            PersistedCloudCredential displaced = context.replacePersistedCredential(next);
+            if (displaced != null) {
+                // revokeCloseAndDelete revokes at UIAM, removes the storage doc, and closes the
+                // SecureString. Fire-and-forget: the new credential is already on the context.
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
+            }
+            l.onResponse(null);
+        }));
+    }
+
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        if (TransformMetadata.isUpgradeMode(clusterService.state())) {
+        if (TransformMetadata.isUpgradeMode(clusterService.state().metadata().getProject(context.projectId()))) {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }
@@ -532,7 +586,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportClosePointInTimeAction.TYPE,
             closePitRequest,
             ActionListener.runAfter(ActionListener.wrap(response -> {
@@ -577,7 +631,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
@@ -647,7 +701,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
@@ -673,7 +727,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
                         listener
@@ -692,7 +746,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
                         listener

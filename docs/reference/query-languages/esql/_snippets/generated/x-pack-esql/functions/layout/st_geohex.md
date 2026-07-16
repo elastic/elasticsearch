@@ -5,6 +5,10 @@ stack: preview 9.2.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/st_geohex.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/st_geohex.svg

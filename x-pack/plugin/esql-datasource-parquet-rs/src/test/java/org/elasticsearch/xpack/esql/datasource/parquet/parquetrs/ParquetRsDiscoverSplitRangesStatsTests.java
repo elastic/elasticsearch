@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Verifies split-range statistics from the native footer path include per-column keys used by
- * {@code PushAggregatesToExternalSource} for MIN/MAX (parity with Java {@code ParquetFormatReader}).
+ * {@code PushStatsToExternalSource} for MIN/MAX (parity with Java {@code ParquetFormatReader}).
  */
 public class ParquetRsDiscoverSplitRangesStatsTests extends ESTestCase {
 

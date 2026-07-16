@@ -17,6 +17,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Sort;
@@ -49,6 +51,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -85,6 +88,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -124,6 +128,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -138,6 +143,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -1256,10 +1262,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Blocks until the elected master applies a {@link ClusterState} matching {@code statePredicate}. Registers a temporary
+     * {@link ClusterStateListener} instead of busy-polling on the test thread.
+     * Prefer this over {@link ESTestCase#assertBusy(CheckedRunnable)} when the wait condition only inspects cluster state.
+     */
     public static void awaitClusterState(Predicate<ClusterState> statePredicate) {
         awaitClusterState(internalCluster().getMasterName(), statePredicate);
     }
 
+    /**
+     * Blocks until {@code viaNode} applies a {@link ClusterState} matching {@code statePredicate}.
+     * See {@link #awaitClusterState(Predicate)} for general usage.
+     */
     public static void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) {
         ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
@@ -1372,7 +1387,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
 
         // Some indices merge away the _id field
-        final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        final var pruneIdField = engineConfig.getIndexSettings().getMode().isTsdb();
         final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
 
         // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
@@ -1464,10 +1479,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(engineConfig.getMapperService(), nullValue());
         assertThat(indexMetadata.getState(), equalTo(IndexMetadata.State.CLOSE));
 
+        var newIndexMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.OPEN).build();
         return indicesService.withTempIndexService(
             // Create a temporary IndexService as if the shard was OPEN
-            IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.OPEN).build(),
+            newIndexMetadata,
             indexService -> {
+                // Need to update mapping here, otherwise MapperService#mapper is null here and it is as if there is no mapping.
+                indexService.mapperService().updateMapping(null, newIndexMetadata);
                 // Create a temporary read-only engine on top of the no-op engine to access documents
                 try (
                     var tempEngine = new ReadOnlyEngine(
@@ -2735,12 +2753,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
+                List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
                 if (enableConcurrentSearch) {
-                    List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
                     plugins.add(ConcurrentSearchTestPlugin.class);
-                    return plugins;
                 }
-                return ESIntegTestCase.this.nodePlugins();
+                return plugins;
             }
         };
     }
@@ -2822,7 +2839,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
+        if (randomizeColumnarIdMode()) {
+            mocks.add(RandomizeColumnarIdModePlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
+    }
+
+    protected boolean randomizeColumnarIdMode() {
+        return true;
     }
 
     public static final class TestSeedPlugin extends Plugin {
@@ -2855,6 +2879,92 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             });
         }
+    }
+
+    /**
+     * Randomly enables columanr id mode at index creation time.
+     * <p>
+     * Typically this type of randomization happens via random legacy index templates with internal integration tests.
+     * However for columnar id mode test coverage this doesn't work well:
+     * <ul>
+     *     <li>If composable index templates or data streams are used we would never test with randomized columanr id</li>
+     *     <li>Columnar id mode can't be enabled for tsdb tests, but when the randomized legacy template is created
+     *         we don't know whether it matches with tsdb indices. An index settings provider is the only place where
+     *         we see all settings (from create index request or template) prior to index creation.</li>
+     * </ul>
+     */
+    public static final class RandomizeColumnarIdModePlugin extends Plugin {
+
+        private static final Logger LOGGER = LogManager.getLogger(RandomizeColumnarIdModePlugin.class);
+
+        @Override
+        public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+            return List.of(
+                (
+                    indexName,
+                    dataStreamName,
+                    templateIndexMode,
+                    projectMetadata,
+                    resolvedAt,
+                    indexTemplateAndCreateRequestSettings,
+                    combinedTemplateMappings,
+                    indexVersion,
+                    additionalSettings) -> {
+                    if (IndexMode.isTsdb(templateIndexMode)) {
+                        // Don't randomly enable columnar id mode, if time series index mode has been enabled.
+                        // Enabling columnar id isn't possible because tsdb always uses synthetic id.
+                        return;
+                    }
+
+                    String indexModeStr = indexTemplateAndCreateRequestSettings.get("index.mode");
+                    if (indexModeStr != null) {
+                        // Don't randomly enable columnar id mode, if index mode has defined explicitly.
+                        return;
+                    }
+
+                    String seqNoIndexOptionsStr = indexTemplateAndCreateRequestSettings.get("index.seq_no.index_options");
+                    if ("POINTS_AND_DOC_VALUES".equals(seqNoIndexOptionsStr)) {
+                        // Don't randomly enable columnar id mode, if seqno isn't stored as doc values.
+                        return;
+                    }
+
+                    String columnarIdMode = indexTemplateAndCreateRequestSettings.get("index.mapping.use_columnar_id_mode_by_default");
+                    if (columnarIdMode != null) {
+                        // Don't randomly enable columnar id mode, columnar mode has been enabled.
+                        return;
+                    }
+
+                    if (randomBoolean()) {
+                        LOGGER.info("randomly setting [index.mapping.use_columnar_id_mode_by_default] to [true]");
+                        additionalSettings.put("index.mapping.use_columnar_id_mode_by_default", true);
+                    }
+                }
+            );
+        }
+
+    }
+
+    /**
+     * Assumes that index isn't using columnar id mode because of {@link RandomizeColumnarIdModePlugin}.
+     * This is a way for tests to deal with the fact that it can't handle columanar ids well.
+     */
+    public static void assumeNoColumnarId(String message, String... indexNames) {
+        var response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(ESTestCase.TEST_REQUEST_TIMEOUT).indices(indexNames))
+            .actionGet();
+        for (String indexName : indexNames) {
+            assumeTrue(message, response.getSetting(indexName, "index.mapping.use_columnar_id_mode_by_default") == null);
+        }
+    }
+
+    public static boolean indexColumnarIdMode(String indexName) {
+        var response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(ESTestCase.TEST_REQUEST_TIMEOUT).indices(indexName))
+            .actionGet();
+        String settingValue = response.getSetting(indexName, "index.mapping.use_columnar_id_mode_by_default");
+        return settingValue != null && Boolean.TRUE.equals(Booleans.parseBoolean(settingValue));
     }
 
     /**
@@ -2942,6 +3052,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static boolean runTestScopeLifecycle() {
         return INSTANCE == null;
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
     }
 
     @Before

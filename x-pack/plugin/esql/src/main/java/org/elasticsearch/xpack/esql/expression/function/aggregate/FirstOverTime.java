@@ -52,12 +52,15 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FirstOverTime.class)
         .ternary(FirstOverTime::new)
+        .capabilities("flattened")
         .name("first_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(FirstOverTime::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the first value of each time series in the specified time range.")
         .example("first_over_time(http_requests_total[1h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.FIRST_LAST_NOTE)
         .name("first_over_time");
 
     private final Expression timestamp;
@@ -65,7 +68,18 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "exponential_histogram", "tdigest", "date", "date_nanos", "ip", "keyword" },
+        returnType = {
+            "long",
+            "integer",
+            "double",
+            "exponential_histogram",
+            "tdigest",
+            "date",
+            "date_nanos",
+            "flattened",
+            "ip",
+            "keyword" },
+        briefSummary = "Calculates the earliest value of a field over a time window.",
         description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -87,6 +101,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
                 "tdigest",
                 "date",
                 "date_nanos",
+                "flattened",
                 "ip",
                 "keyword",
                 "text" },
@@ -153,6 +168,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
                 || dt == DataType.TDIGEST
                 || dt == DataType.DATETIME
                 || dt == DataType.DATE_NANOS
+                || dt == DataType.FLATTENED
                 || dt == DataType.IP
                 || dt == DataType.KEYWORD
                 || dt == DataType.TEXT,
@@ -176,7 +192,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
             case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
-            case KEYWORD, TEXT, IP -> new FirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case FLATTENED, KEYWORD, TEXT, IP -> new FirstBytesRefByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

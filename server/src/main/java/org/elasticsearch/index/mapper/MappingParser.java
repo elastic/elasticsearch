@@ -202,6 +202,11 @@ public final class MappingParser {
             checkNoRemainingFields(mappingSource, "Root mapping definition has unsupported parameters: ");
         }
 
-        return new MappingBuilder(rootObjectMapper, metadataBuilders, meta);
+        return new MappingBuilder(
+            rootObjectMapper,
+            metadataBuilders,
+            meta,
+            mappingParserContext.getIndexSettings().getMode().isStrictColumnar()
+        );
     }
 }

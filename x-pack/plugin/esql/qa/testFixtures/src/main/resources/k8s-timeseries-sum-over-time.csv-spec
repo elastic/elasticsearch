@@ -504,22 +504,22 @@ bytes:double | time_bucket:datetime
 22780.0      | 2024-05-10T00:20:00.000Z
 ;
 
-# Awaits fix: Index wildcard selector is not supported at this time.
-sum_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
+sum_over_time_aggregate_metric_double_implicit_casting_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
+required_capability: time_series_translation_in_analyzer
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum(sum_over_time(network.eth0.rx[10m])))
 | SORT bytes desc, step | LIMIT 10;
 
 bytes:double | step:datetime
-69195.0      | 2024-05-10T00:10:00.000Z
+72002.0      | 2024-05-10T00:20:00.000Z
 34512.0      | 2024-05-09T23:50:00.000Z
 27115.0      | 2024-05-09T23:30:00.000Z
-24000.0      | 2024-05-10T00:00:00.000Z
+24000.0      | 2024-05-10T00:10:00.000Z
 23469.0      | 2024-05-09T23:40:00.000Z
-22780.0      | 2024-05-10T00:20:00.000Z
+19973.0      | 2024-05-10T00:30:00.000Z
 ;
 
 sum_over_time_aggregate_metric_double_implicit_casting_grouping
@@ -540,26 +540,26 @@ bytes:double | pod:keyword | time_bucket:datetime
 8624.0       | one         | 2024-05-10T00:20:00.000Z
 ;
 
-# Awaits fix: Index wildcard selector is not supported at this time.
-sum_over_time_aggregate_metric_double_implicit_casting_grouping_promql-Ignore
+sum_over_time_aggregate_metric_double_implicit_casting_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
+required_capability: time_series_translation_in_analyzer
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum by (pod) (sum_over_time(network.eth0.rx[10m])))
 | SORT bytes desc, pod, step | LIMIT 10;
 
 bytes:double | step:datetime            | pod:keyword
-25245.0      | 2024-05-10T00:10:00.000Z | one
-22560.0      | 2024-05-10T00:10:00.000Z | three
-21390.0      | 2024-05-10T00:10:00.000Z | two
+25367.0      | 2024-05-10T00:20:00.000Z | three
+25245.0      | 2024-05-10T00:20:00.000Z | one
+21390.0      | 2024-05-10T00:20:00.000Z | two
 17692.0      | 2024-05-09T23:50:00.000Z | three
 16824.0      | 2024-05-09T23:30:00.000Z | one
 11652.0      | 2024-05-09T23:40:00.000Z | one
 11211.0      | 2024-05-09T23:50:00.000Z | two
 9618.0       | 2024-05-09T23:40:00.000Z | three
-8692.0       | 2024-05-10T00:00:00.000Z | one
-8624.0       | 2024-05-10T00:20:00.000Z | one
+8692.0       | 2024-05-10T00:10:00.000Z | one
+8624.0       | 2024-05-10T00:30:00.000Z | one
 ;
 
 sum_over_time_nested_expression

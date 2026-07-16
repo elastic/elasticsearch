@@ -282,8 +282,6 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
-        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
         new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
             .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),

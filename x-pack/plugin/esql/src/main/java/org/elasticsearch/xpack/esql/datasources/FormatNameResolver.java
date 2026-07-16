@@ -29,6 +29,11 @@ import java.util.Set;
  *       and an empty value mean "no override" and fall through to the extension)</li>
  *   <li>File extension extracted from the source path</li>
  * </ol>
+ * <p>
+ * An explicit {@code reader}/{@code format} override selects the format but does not opt the resource out
+ * of compression detection: {@link #resolveReader} still composes the named format with the resource's
+ * outer compression suffix (e.g. {@code format: csv} over {@code hits.csv.gz} still decompresses), routing
+ * through {@link FormatReaderRegistry#byNameForObject} rather than a bare name lookup.
  */
 public final class FormatNameResolver {
 
@@ -163,9 +168,12 @@ public final class FormatNameResolver {
     /**
      * Resolves the format reader using config and source path, looking up the result in the registry.
      * <p>
-     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and
-     * looked up by name. Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension}
-     * which handles compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
+     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and looked
+     * up by name through {@link FormatReaderRegistry#byNameForObject}, which composes the named format with
+     * {@code objectName}'s outer compression suffix (if any) exactly like the extension-based path — an
+     * explicit override selects the format but does not opt the resource out of compression detection.
+     * Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension} which handles
+     * compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
      */
     public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
         if (config != null) {
@@ -176,11 +184,11 @@ public final class FormatNameResolver {
                 if (formatName == null) {
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
-                return registry.byName(formatName);
+                return registry.byNameForObject(formatName, objectName);
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
-                return registry.byName(name);
+                return registry.byNameForObject(name, objectName);
             }
         }
         return registry.byExtension(objectName);

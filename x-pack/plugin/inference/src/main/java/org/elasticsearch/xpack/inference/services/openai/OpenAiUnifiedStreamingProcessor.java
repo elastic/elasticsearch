@@ -35,6 +35,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REAS
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_TOKENS_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.ensureNoTrailingContent;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
@@ -120,6 +121,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = ChatCompletionChunkParser.parse(jsonParser);
+            ensureNoTrailingContent(jsonParser);
 
             return Stream.of(chunk);
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -575,5 +576,24 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 assertNull(chunk.usage().completionTokenDetails());
             }
         }
+    }
+
+    public void testTrailingJsonThrowsException() {
+        var initialData = """
+            {
+                "id": "1",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }
+            """;
+        var trailingData = """
+            {
+                "trailing": "json"
+            }
+            """;
+        var data = initialData + trailingData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        expectThrows(XContentParseException.class, () -> OpenAiUnifiedStreamingProcessor.parse(parserConfig, data));
     }
 }

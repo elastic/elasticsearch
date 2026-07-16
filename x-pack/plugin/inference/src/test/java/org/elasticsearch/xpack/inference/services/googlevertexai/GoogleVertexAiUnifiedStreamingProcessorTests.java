@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -214,5 +215,25 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         } catch (IOException e) {
             fail("IOException during test: " + e.getMessage());
         }
+    }
+
+    public void testTrailingJsonThrowsException() {
+        var initialData = """
+            {
+                "candidates": [],
+                "usageMetadata": {},
+                "modelVersion": "m",
+                "responseId": "r"
+            }
+            """;
+        var trailingData = """
+            {
+                "trailing": "json"
+            }
+            """;
+        var data = initialData + trailingData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var processor = new GoogleVertexAiUnifiedStreamingProcessor(RuntimeException::new);
+        expectThrows(XContentParseException.class, () -> processor.parse(parserConfig, data));
     }
 }

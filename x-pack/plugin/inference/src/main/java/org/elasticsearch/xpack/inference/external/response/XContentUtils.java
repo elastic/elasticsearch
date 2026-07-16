@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.response;
 
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -123,6 +124,17 @@ public class XContentUtils {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
         return parser.floatValue();
+    }
+
+    /**
+     * Throws if the parser has any tokens remaining after the root object, i.e. the input contained
+     * more than one JSON document. Must be called with the parser positioned at the root object's
+     * END_OBJECT token.
+     */
+    public static void ensureNoTrailingContent(XContentParser parser) throws IOException {
+        if (parser.nextToken() != null) {
+            throw new XContentParseException(parser.getTokenLocation(), "Found trailing content after the JSON object");
+        }
     }
 
     private XContentUtils() {}

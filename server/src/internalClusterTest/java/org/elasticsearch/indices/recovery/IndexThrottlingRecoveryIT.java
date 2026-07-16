@@ -26,7 +26,8 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -44,8 +45,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 
 /// Integration tests for source-side (see [PeerRecoverySourceService]) and target-side recovery queues (see [ThrottlingRecoveryService])
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class IndexRecoveryQueuingIT extends AbstractIndexRecoveryIntegTestCase {
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

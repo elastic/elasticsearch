@@ -371,13 +371,13 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
                 );
                 throw e;
             } finally {
-                final long tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
                 gcpTestLogger.info(
-                    "mock GCS request end method=[{}] uri=[{}] contentRange=[{}] tookMs=[{}]",
+                    "mock GCS request end method=[{}] uri=[{}] contentRange=[{}] took=[{}]",
                     method,
                     uri,
                     contentRange,
-                    tookMs
+                    took
                 );
             }
         }

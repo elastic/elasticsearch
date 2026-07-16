@@ -15,6 +15,7 @@ import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.Locale;
 
 /**
  * Tests for {@link DefaultMethodHandleResolver}.
@@ -32,7 +33,9 @@ public class DefaultMethodHandleResolverTests extends TestCase {
      */
     public void testDefaultResolverBuildsWorkingMethodHandle() throws Throwable {
         Linker linker = Linker.nativeLinker();
-        String symName = System.getProperty("os.name", "").toLowerCase().startsWith("windows") ? "GetCurrentProcessId" : "getpid";
+        String symName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")
+            ? "GetCurrentProcessId"
+            : "getpid";
         var addr = linker.defaultLookup()
             .find(symName)
             .orElseThrow(() -> new AssertionError(symName + " not found in default linker lookup"));

@@ -1566,6 +1566,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
      */
     private static class ObservableSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
 
+        private final ThreadPool threadPool;
         private final CopyOnWriteArrayList<ActionListener<Void>> mergeWarmingCompleteListeners = new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<ActionListener<CompletedWarmingDetails>> warmingCompletedListeners =
             new CopyOnWriteArrayList<>();
@@ -1596,6 +1597,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             WarmingRatioProvider warmingRatioProvider
         ) {
             super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+            this.threadPool = threadPool;
         }
 
         void setAwaitWarmingForSearchRecovery(boolean await) {

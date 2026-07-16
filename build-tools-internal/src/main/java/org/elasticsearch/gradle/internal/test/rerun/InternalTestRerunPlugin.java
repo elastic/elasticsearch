@@ -70,7 +70,8 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
-        if (test.getPath().endsWith("remote-cluster") || test.getPath().endsWith("mixed-cluster")
+        if (test.getPath().endsWith("remote-cluster")
+            || test.getPath().endsWith("mixed-cluster")
             || test.getPath().contains("rolling-upgrade-multi-cluster")) {
             test.getLogger().lifecycle("Smart retry: running all tests for {} (multi-cluster task, never skipped)", test.getPath());
             return;

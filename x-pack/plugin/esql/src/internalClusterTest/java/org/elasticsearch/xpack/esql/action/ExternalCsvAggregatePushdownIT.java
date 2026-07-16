@@ -174,8 +174,9 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
         Path csv = createTempDir().resolve("conflict.csv");
         Files.writeString(csv, "9\n10\n", StandardCharsets.UTF_8);
         String uri = StoragePath.fileUri(csv);
-        String asInt = registerStrictDataset("conflict_int", uri, declaredColumn("v", "integer"), Map.of("header_row", false));
-        String asKeyword = registerStrictDataset("conflict_kw", uri, declaredColumn("v", "keyword"), Map.of("header_row", false));
+        // Headerless: the single declared column binds by name against the self-encoded col0, not by position.
+        String asInt = registerStrictDataset("conflict_int", uri, declaredColumn("v", "integer", "col0"), Map.of("header_row", false));
+        String asKeyword = registerStrictDataset("conflict_kw", uri, declaredColumn("v", "keyword", "col0"), Map.of("header_row", false));
 
         // A (integer): MIN = 9. Run twice so any per-column harvest is reconciled into the shared entry.
         for (int i = 0; i < 2; i++) {
@@ -311,8 +312,17 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     }
 
     private static LinkedHashMap<String, DatasetFieldMapping> declaredColumn(String name, String type) {
+        return declaredColumn(name, type, null);
+    }
+
+    /**
+     * A single declared column bound to an explicit physical {@code path}. A headerless file has no header names, so a
+     * declared column binds by name against the self-encoded {@code col<N>} of each field ({@code path: "col0"} for the
+     * first) — a bare name with no path is a declared column the file does not supply, which reads null.
+     */
+    private static LinkedHashMap<String, DatasetFieldMapping> declaredColumn(String name, String type, String path) {
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put(name, new DatasetFieldMapping(type, null));
+        properties.put(name, new DatasetFieldMapping(type, path));
         return properties;
     }
 

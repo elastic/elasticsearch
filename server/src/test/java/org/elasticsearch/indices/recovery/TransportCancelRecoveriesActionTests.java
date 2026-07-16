@@ -443,7 +443,11 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
                 )
             );
             final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-            final var request = new CancelRecoveriesAction.Request(0L, 0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
+            final var request = new CancelRecoveriesAction.Request(
+                0L,
+                0L,
+                List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
+            );
             action.execute(mock(Task.class), request, responseFuture);
             final var response = responseFuture.actionGet();
             assertTrue(response.cancelledInQueue().isEmpty());

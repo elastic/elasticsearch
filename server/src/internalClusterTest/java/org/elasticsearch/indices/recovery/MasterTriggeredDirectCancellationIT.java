@@ -156,7 +156,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             initialReplicaNode,
             clusterService().state(),
             List.of(expectedCancellation),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.allocationId(), expectedCancellation.shardId()))
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.shardId(), expectedCancellation.allocationId()))
         );
 
         // Switch the desired node to desiredReplicaNode
@@ -263,7 +263,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             initialPrimaryNode,
             clusterService().state(),
             List.of(expectedCancellation),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.allocationId(), expectedCancellation.shardId()))
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.shardId(), expectedCancellation.allocationId()))
         );
 
         updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", desiredPrimaryNode));
@@ -381,7 +381,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             new ShardRecoveryCancellation(startedShardId, startedAllocationId, true),
             new ShardRecoveryCancellation(queuedShardId, queuedAllocationId, true)
         );
-        final var expectedCancelledInQueue = Set.of(new CancelRecoveriesAction.CancelledInQueue(queuedAllocationId, queuedShardId));
+        final var expectedCancelledInQueue = Set.of(new CancelRecoveriesAction.CancelledInQueue(queuedShardId, queuedAllocationId));
         final var requestAndResponse = assertDirectCancellationExchange(
             initialReplicaNode,
             clusterService().state(),
@@ -468,13 +468,13 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             nodeA,
             clusterService().state(),
             List.of(expectedCancellationA),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(allocationIdA, shardIdA))
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(shardIdA, allocationIdA))
         );
         final var requestAndResponseB = assertDirectCancellationExchange(
             nodeB,
             clusterService().state(),
             List.of(expectedCancellationB),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(allocationIdB, shardIdB))
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(shardIdB, allocationIdB))
         );
 
         assertAcked(

@@ -330,7 +330,8 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            physicalOperationProviders.analysisRegistry(),
+            new Holder<>()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -780,6 +781,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
         // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
@@ -1314,12 +1316,15 @@ public class LocalExecutionPlanner {
 
         Expression queryExpr = highlight.query();
         if (queryExpr == null) {
-            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
-        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
+
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(queryExpr, fieldNames);
         HighlightConfig config = new HighlightConfig(
-            queryText,
+            translated.queryText(),
             options.preTag(),
             options.postTag(),
             options.encoder(),
@@ -1330,17 +1335,18 @@ public class LocalExecutionPlanner {
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             options.maxAnalyzedOffset()
-        );
+            // The query and MemoryIndex must use the same analyzer.
+        ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
 
+        Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
         // The generated attributes are appended in the same order as the ON fields,
         // so the operator's appended blocks line up with these layout channels.
-        Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
@@ -2267,7 +2273,8 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        Holder<TopNExec> lastVisitedTopN
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

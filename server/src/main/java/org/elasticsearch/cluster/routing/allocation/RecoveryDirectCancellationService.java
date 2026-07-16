@@ -79,6 +79,10 @@ public class RecoveryDirectCancellationService {
             );
     }
 
+    /// Asynchronously computes which initializing shards are no longer desired on their current nodes according to the given
+    /// [DesiredBalance], and sends batch cancellation requests to the affected data nodes. Queued recoveries are cancelled
+    /// immediately and reported back as shard failures. Started recoveries are flagged for cancellation and go through the
+    /// usual shardFailure notification to master path ([ShardStateAction]).
     public void computeAndSubmitCancellations(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
         final ClusterState clusterState = routingAllocation.getClusterState();
         executor.execute(new AbstractRunnable() {
@@ -114,6 +118,15 @@ public class RecoveryDirectCancellationService {
             );
             return;
         }
+        final TransportVersion clusterTransportVersion = clusterService.state().getMinTransportVersion();
+        if (clusterTransportVersion.supports(CancelRecoveriesAction.DIRECT_RECOVERY_CANCELLATION) == false) {
+            logger.debug(
+                "not every node in the cluster supports direct recovery cancellation yet, "
+                    + "would have sent direct recovery cancellations {}",
+                directCancellations
+            );
+            return;
+        }
         for (DirectCancellationsCandidates.Candidates nodeCandidates : directCancellations.candidates()) {
             sendDirectCancelRecoveriesRequest(
                 nodeCandidates.node(),
@@ -124,17 +137,7 @@ public class RecoveryDirectCancellationService {
 
     /// Sends a batch of direct recovery cancellations to a specific data node, lets the node decide
     /// whether to honor each cancellation and fails any shard the data node cancelled straight out of its queue.
-    public void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
-        final TransportVersion clusterTransportVersion = clusterService.state().getMinTransportVersion();
-        if (clusterTransportVersion.supports(CancelRecoveriesAction.DIRECT_RECOVERY_CANCELLATION) == false) {
-            logger.debug(
-                "not every node in the cluster supports direct recovery cancellation yet, "
-                    + "would have sent direct recovery cancellations {} to [{}]",
-                request.cancellations(),
-                node
-            );
-            return;
-        }
+    void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
         transportService.sendRequest(
             node,
             CancelRecoveriesAction.TYPE.name(),
@@ -156,7 +159,7 @@ public class RecoveryDirectCancellationService {
             final ShardId shardId = cancelled.shardId();
             final IndexMetadata indexMetadata = state.metadata().findIndex(shardId.getIndex()).orElse(null);
             if (indexMetadata == null) {
-                // index was concurrently deleted, nothing to fail? TODO: is this safe?
+                // index was concurrently deleted, nothing to fail
                 continue;
             }
 

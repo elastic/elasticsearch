@@ -395,7 +395,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
-        assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
         if (logger.isTraceEnabled()) {
             logger.trace("Reconciling desired balance: {}", desiredBalance);
         } else {

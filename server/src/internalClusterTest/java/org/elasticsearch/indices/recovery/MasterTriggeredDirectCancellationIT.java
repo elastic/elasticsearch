@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -151,52 +152,18 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             getInitializingAllocationId(indexName, 0, getNodeId(initialReplicaNode)),
             true
         );
-        final var state = clusterService().state();
-        final var requestReceived = new CountDownLatch(1);
-        final var responseReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(initialReplicaNode)
-            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
-                    assertExpectedRequest(cancelRequest, state, expectedCancellation);
-                    requestReceived.countDown();
-                    handler.messageReceived(request, new TransportChannel() {
-                        @Override
-                        public String getProfileName() {
-                            return channel.getProfileName();
-                        }
-
-                        @Override
-                        public void sendResponse(TransportResponse response) {
-                            assertTrue(response instanceof CancelRecoveriesAction.Response);
-                            assertExpectedResponse(
-                                (CancelRecoveriesAction.Response) response,
-                                Set.of(
-                                    new CancelRecoveriesAction.CancelledInQueue(
-                                        expectedCancellation.allocationId(),
-                                        expectedCancellation.shardId()
-                                    )
-                                )
-                            );
-                            responseReceived.countDown();
-                            channel.sendResponse(response);
-                        }
-
-                        @Override
-                        public void sendResponse(Exception exception) {
-                            channel.sendResponse(exception);
-                        }
-                    }, task);
-                    return;
-                }
-                handler.messageReceived(request, channel, task);
-            });
+        final var requestAndResponse = assertDirectCancellationExchange(
+            initialReplicaNode,
+            clusterService().state(),
+            List.of(expectedCancellation),
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.allocationId(), expectedCancellation.shardId()))
+        );
 
         // Switch the desired node to desiredReplicaNode
         updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", primaryNode + "," + desiredReplicaNode));
 
         awaitDesiredBalanceShardAssignment(indexName, 0, Set.of(getNodeId(primaryNode), getNodeId(desiredReplicaNode)));
-        safeAwait(requestReceived);
-        safeAwait(responseReceived);
+        safeAwait(requestAndResponse);
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         ensureGreen(indexName, blockingIndex);
@@ -243,44 +210,18 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         final var allocationId = getInitializingAllocationId(indexName, 0, getNodeId(initialReplicaNode));
         final var expectedCancellation = new ShardRecoveryCancellation(shardId, allocationId, true);
-        final var state = clusterService().state();
-        final var requestReceived = new CountDownLatch(1);
-        final var responseReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(initialReplicaNode)
-            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
-                    assertExpectedRequest(cancelRequest, state, expectedCancellation);
-                    requestReceived.countDown();
-                    handler.messageReceived(request, new TransportChannel() {
-                        @Override
-                        public String getProfileName() {
-                            return channel.getProfileName();
-                        }
-
-                        @Override
-                        public void sendResponse(TransportResponse response) {
-                            assertTrue(response instanceof CancelRecoveriesAction.Response);
-                            assertExpectedResponse((CancelRecoveriesAction.Response) response, Set.of());
-                            responseReceived.countDown();
-                            channel.sendResponse(response);
-                        }
-
-                        @Override
-                        public void sendResponse(Exception exception) {
-                            channel.sendResponse(exception);
-                        }
-                    }, task);
-                    return;
-                }
-                handler.messageReceived(request, channel, task);
-            });
+        final var requestAndResponse = assertDirectCancellationExchange(
+            initialReplicaNode,
+            clusterService().state(),
+            List.of(expectedCancellation),
+            Set.of()
+        );
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(internalCluster().getMasterName(), shardId);
 
         updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", primaryNode + "," + desiredReplicaNode));
 
         awaitDesiredBalanceShardAssignment(indexName, 0, Set.of(getNodeId(primaryNode), getNodeId(desiredReplicaNode)));
-        safeAwait(requestReceived);
-        safeAwait(responseReceived);
+        safeAwait(requestAndResponse);
 
         proceedWithRecovery.countDown();
         safeAwait(shardFailureReceived);
@@ -318,51 +259,17 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             getInitializingAllocationId(indexName, 0, getNodeId(initialPrimaryNode)),
             false
         );
-        final var state = clusterService().state();
-        final var requestReceived = new CountDownLatch(1);
-        final var responseReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(initialPrimaryNode)
-            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
-                    assertExpectedRequest(cancelRequest, state, expectedCancellation);
-                    requestReceived.countDown();
-                    handler.messageReceived(request, new TransportChannel() {
-                        @Override
-                        public String getProfileName() {
-                            return channel.getProfileName();
-                        }
-
-                        @Override
-                        public void sendResponse(TransportResponse response) {
-                            assertTrue(response instanceof CancelRecoveriesAction.Response);
-                            assertExpectedResponse(
-                                (CancelRecoveriesAction.Response) response,
-                                Set.of(
-                                    new CancelRecoveriesAction.CancelledInQueue(
-                                        expectedCancellation.allocationId(),
-                                        expectedCancellation.shardId()
-                                    )
-                                )
-                            );
-                            responseReceived.countDown();
-                            channel.sendResponse(response);
-                        }
-
-                        @Override
-                        public void sendResponse(Exception exception) {
-                            channel.sendResponse(exception);
-                        }
-                    }, task);
-                    return;
-                }
-                handler.messageReceived(request, channel, task);
-            });
+        final var requestAndResponse = assertDirectCancellationExchange(
+            initialPrimaryNode,
+            clusterService().state(),
+            List.of(expectedCancellation),
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.allocationId(), expectedCancellation.shardId()))
+        );
 
         updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", desiredPrimaryNode));
 
         awaitDesiredBalanceShardAssignment(indexName, 0, Set.of(getNodeId(desiredPrimaryNode)));
-        safeAwait(requestReceived);
-        safeAwait(responseReceived);
+        safeAwait(requestAndResponse);
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         ensureGreen(indexName, blockingIndex);
@@ -403,14 +310,199 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         final var allocationId = getInitializingAllocationId(indexName, 0, getNodeId(initialTargetNode));
         final var expectedCancellation = new ShardRecoveryCancellation(shardId, allocationId, true);
-        final var state = clusterService().state();
-        final var requestReceived = new CountDownLatch(1);
-        final var responseReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(initialTargetNode)
+        final var requestAndResponse = assertDirectCancellationExchange(
+            initialTargetNode,
+            clusterService().state(),
+            List.of(expectedCancellation),
+            Set.of()
+        );
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(sourceTransportService, shardId);
+
+        updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", sourceNode));
+
+        awaitDesiredBalanceShardAssignment(indexName, 0, Set.of(getNodeId(sourceNode)));
+        safeAwait(requestAndResponse);
+
+        proceedWithRelocation.countDown();
+        safeAwait(shardFailureReceived);
+        ensureGreen(indexName);
+
+        awaitDirectCancellationMetric(initialTargetNode, 1L);
+    }
+
+    public void testDesiredBalanceChangeCancelsBatchOfRecoveriesOnSameNode() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var initialReplicaNode = internalCluster().startDataOnlyNode();
+        final var desiredReplicaNode = internalCluster().startDataOnlyNode();
+        final var startedIndex = randomIndexName();
+        final var queuedIndex = randomIndexName();
+
+        createIndex(startedIndex, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+        for (int i = 0; i < 50; i++) {
+            indexDoc(startedIndex, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(startedIndex);
+        }
+        flush(startedIndex);
+
+        createIndex(queuedIndex, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+        ensureGreen(startedIndex, queuedIndex);
+
+        final var blockedRecovery = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
+        final var blockedOnce = new AtomicBoolean();
+        MockTransportService.getInstance(primaryNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK) && blockedOnce.compareAndSet(false, true)) {
+                blockedRecovery.countDown();
+                safeAwait(proceedWithRecovery);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(startedIndex, queuedIndex)
+                .setSettings(Settings.builder().put("index.routing.allocation.include._name", primaryNode + "," + initialReplicaNode))
+        );
+        waitNoPendingTasksOnAll();
+
+        // Takes the only recovery slot on initialReplicaNode
+        updateSettings(startedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        waitNoPendingTasksOnAll();
+        safeAwait(blockedRecovery);
+
+        updateSettings(queuedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        awaitRecoveryCountStats(Map.of(initialReplicaNode, stats -> stats.currentAsTarget() == 1 && stats.currentAsTargetQueued() == 1));
+        waitNoPendingTasksOnAll();
+
+        final var startedShardId = new ShardId(resolveIndex(startedIndex), 0);
+        final var startedAllocationId = getInitializingAllocationId(startedIndex, 0, getNodeId(initialReplicaNode));
+        final var queuedShardId = new ShardId(resolveIndex(queuedIndex), 0);
+        final var queuedAllocationId = getInitializingAllocationId(queuedIndex, 0, getNodeId(initialReplicaNode));
+
+        final var expectedCancellations = List.of(
+            new ShardRecoveryCancellation(startedShardId, startedAllocationId, true),
+            new ShardRecoveryCancellation(queuedShardId, queuedAllocationId, true)
+        );
+        final var expectedCancelledInQueue = Set.of(new CancelRecoveriesAction.CancelledInQueue(queuedAllocationId, queuedShardId));
+        final var requestAndResponse = assertDirectCancellationExchange(
+            initialReplicaNode,
+            clusterService().state(),
+            expectedCancellations,
+            expectedCancelledInQueue
+        );
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(internalCluster().getMasterName(), startedShardId);
+
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(startedIndex, queuedIndex)
+                .setSettings(Settings.builder().put("index.routing.allocation.include._name", primaryNode + "," + desiredReplicaNode))
+        );
+
+        safeAwait(requestAndResponse);
+        proceedWithRecovery.countDown();
+        safeAwait(shardFailureReceived);
+        ensureGreen(startedIndex, queuedIndex);
+
+        awaitReplicaReassigned(startedIndex, 0, getNodeId(desiredReplicaNode));
+        awaitReplicaReassigned(queuedIndex, 0, getNodeId(desiredReplicaNode));
+    }
+
+    public void testDesiredBalanceChangeCancelsRecoveriesOnDistinctNodes() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var nodeA = internalCluster().startDataOnlyNode();
+        final var nodeB = internalCluster().startDataOnlyNode();
+        final var desiredNode = internalCluster().startDataOnlyNode();
+        final var indexA = randomIndexName();
+        final var indexB = randomIndexName();
+        final var blockingIndexA = randomIndexName();
+        final var blockingIndexB = randomIndexName();
+
+        createIndex(indexA, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+        createIndex(indexB, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+        ensureGreen(indexA, indexB);
+
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
+
+        assertAcked(
+            prepareCreate(blockingIndexA).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", nodeA))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        assertAcked(
+            prepareCreate(blockingIndexB).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", nodeB))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        updateSettings(
+            indexA,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", primaryNode + "," + nodeA)
+        );
+        updateSettings(
+            indexB,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", primaryNode + "," + nodeB)
+        );
+        awaitRecoveryCountStats(
+            Map.of(
+                nodeA,
+                stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1,
+                nodeB,
+                stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1
+            )
+        );
+        waitNoPendingTasksOnAll();
+
+        final var shardIdA = new ShardId(resolveIndex(indexA), 0);
+        final var allocationIdA = getInitializingAllocationId(indexA, 0, getNodeId(nodeA));
+        final var shardIdB = new ShardId(resolveIndex(indexB), 0);
+        final var allocationIdB = getInitializingAllocationId(indexB, 0, getNodeId(nodeB));
+
+        final var expectedCancellationA = new ShardRecoveryCancellation(shardIdA, allocationIdA, true);
+        final var expectedCancellationB = new ShardRecoveryCancellation(shardIdB, allocationIdB, true);
+
+        final var requestAndResponseA = assertDirectCancellationExchange(
+            nodeA,
+            clusterService().state(),
+            List.of(expectedCancellationA),
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(allocationIdA, shardIdA))
+        );
+        final var requestAndResponseB = assertDirectCancellationExchange(
+            nodeB,
+            clusterService().state(),
+            List.of(expectedCancellationB),
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(allocationIdB, shardIdB))
+        );
+
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexA, indexB)
+                .setSettings(Settings.builder().put("index.routing.allocation.include._name", primaryNode + "," + desiredNode))
+        );
+
+        safeAwait(requestAndResponseA);
+        safeAwait(requestAndResponseB);
+
+        TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
+        ensureGreen(indexA, indexB, blockingIndexA, blockingIndexB);
+        awaitReplicaReassigned(indexA, 0, getNodeId(desiredNode));
+        awaitReplicaReassigned(indexB, 0, getNodeId(desiredNode));
+    }
+
+    private CountDownLatch assertDirectCancellationExchange(
+        String node,
+        ClusterState state,
+        List<ShardRecoveryCancellation> expectedCancellations,
+        Set<CancelRecoveriesAction.CancelledInQueue> expectedCancelledInQueue
+    ) {
+        final CountDownLatch requestAndResponse = new CountDownLatch(2);
+        MockTransportService.getInstance(node)
             .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
                 if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
-                    assertExpectedRequest(cancelRequest, state, expectedCancellation);
-                    requestReceived.countDown();
+                    assertExpectedRequest(cancelRequest, state, expectedCancellations);
+                    requestAndResponse.countDown();
                     handler.messageReceived(request, new TransportChannel() {
                         @Override
                         public String getProfileName() {
@@ -420,8 +512,8 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                         @Override
                         public void sendResponse(TransportResponse response) {
                             assertTrue(response instanceof CancelRecoveriesAction.Response);
-                            assertExpectedResponse((CancelRecoveriesAction.Response) response, Set.of());
-                            responseReceived.countDown();
+                            assertExpectedResponse((CancelRecoveriesAction.Response) response, expectedCancelledInQueue);
+                            requestAndResponse.countDown();
                             channel.sendResponse(response);
                         }
 
@@ -434,29 +526,21 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 }
                 handler.messageReceived(request, channel, task);
             });
-        final var shardFailureReceived = shardCancelledFailureReceivedLatch(sourceTransportService, shardId);
-
-        updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", sourceNode));
-
-        awaitDesiredBalanceShardAssignment(indexName, 0, Set.of(getNodeId(sourceNode)));
-        safeAwait(requestReceived);
-        safeAwait(responseReceived);
-
-        proceedWithRelocation.countDown();
-        safeAwait(shardFailureReceived);
-        ensureGreen(indexName);
-
-        awaitDirectCancellationMetric(initialTargetNode, 1L);
+        return requestAndResponse;
     }
 
     private void assertExpectedRequest(
         CancelRecoveriesAction.Request request,
         ClusterState state,
-        ShardRecoveryCancellation expectedCancellation
+        List<ShardRecoveryCancellation> expectedCancellations
     ) {
         assertThat(request.term(), greaterThanOrEqualTo(state.term()));
         assertThat(request.clusterStateVersion(), greaterThanOrEqualTo(state.version()));
-        assertThat(request.cancellations(), equalTo(List.of(expectedCancellation)));
+        assertThat(request.cancellations().size(), equalTo(expectedCancellations.size()));
+        assertThat(
+            request.cancellations(),
+            containsInAnyOrder(expectedCancellations.toArray(new ShardRecoveryCancellation[expectedCancellations.size()]))
+        );
     }
 
     private void assertExpectedResponse(

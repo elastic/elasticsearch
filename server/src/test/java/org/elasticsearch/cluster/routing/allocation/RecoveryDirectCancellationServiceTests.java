@@ -197,10 +197,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
     }
 
     public void testDirectCancellationCandidatesDoNotEscalateSoleSearchableCopy() {
-        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
-        final var searchOnlyAllocationId = AllocationId.newInitializing("search-only-replica");
+        final var searchOnlyAllocationId = AllocationId.newInitializing(randomIdentifier("search-only-replica-"));
 
         final var indexRoutingTable = RoutingTable.builder()
             .add(
@@ -234,6 +234,49 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertFalse(cancellation.cancelIfStarted());
     }
 
+    public void testDirectCancellationCandidatesEscalateSearchableCopyWhenAnotherStartedCopyExists() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+        final var initializingSearchOnlyAllocationId = AllocationId.newInitializing(randomIdentifier("initializing-search-only-"));
+
+        final var indexRoutingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+                    .addShard(
+                        TestShardRouting.shardRoutingBuilder(shardId, "node-2", false, STARTED)
+                            .withRole(ShardRouting.Role.SEARCH_ONLY)
+                            .build()
+                    )
+                    .addShard(
+                        TestShardRouting.shardRoutingBuilder(shardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                            .withAllocationId(initializingSearchOnlyAllocationId)
+                            .withRole(ShardRouting.Role.SEARCH_ONLY)
+                            .build()
+                    )
+            );
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(indexRoutingTable)
+            .build();
+
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
+        final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
+
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        final var candidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation).candidates();
+
+        assertThat(candidates, hasSize(1));
+        assertThat(candidates.getFirst().node(), equalTo(clusterState.nodes().get("node-1")));
+        assertThat(candidates.getFirst().cancellations(), hasSize(1));
+        final var cancellation = candidates.getFirst().cancellations().getFirst();
+        assertThat(cancellation.shardId(), equalTo(shardId));
+        assertThat(cancellation.allocationId(), equalTo(initializingSearchOnlyAllocationId.getId()));
+        assertTrue(cancellation.cancelIfStarted());
+    }
+
     public void testDisabledDirectCancellationsAreLoggedAndNotSent() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         final var index = indexMetadata.getIndex();
@@ -259,7 +302,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
         final var sendRequestCalled = new AtomicBoolean();
-        doAnswer(invocation -> {
+        doAnswer(ignored -> {
             sendRequestCalled.set(true);
             return null;
         }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());

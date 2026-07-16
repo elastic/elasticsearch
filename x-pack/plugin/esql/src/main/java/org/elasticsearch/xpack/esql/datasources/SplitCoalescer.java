@@ -142,11 +142,9 @@ public final class SplitCoalescer {
     /**
      * Re-bins the splits into exactly {@code targetGroups} groups when the size/count packing produced fewer,
      * so the number of schedulable units meets the read-parallelism floor. When sizes are known, splits at or
-     * above the size budget stay standalone and the rest are spread across the leftover groups by least-loaded
-     * assignment (largest first), which yields balanced groups without a straggler; the size budget is preserved
-     * because this path only runs when the small splits already fit in fewer than {@code targetGroups} budget-sized
-     * bins, so spreading them across strictly more groups keeps every group under the budget. When sizes are
-     * unknown, all splits are spread by leaf count.
+     * above the size budget stay standalone and the rest are spread across the leftover groups balanced by leaf
+     * count with the size budget as a cap, which shares the per-file open cost evenly without a straggler group.
+     * When sizes are unknown, all splits are spread by leaf count.
      */
     private static List<List<ExternalSplit>> floorGroups(
         List<ExternalSplit> splits,
@@ -169,22 +167,30 @@ public final class SplitCoalescer {
         }
 
         int smallGroups = targetGroups - groups.size();
-        groups.addAll(spreadLeastLoaded(small, smallGroups, allHaveSize));
+        groups.addAll(spreadLeastLoaded(small, smallGroups, allHaveSize, targetGroupSizeBytes));
         return groups;
     }
 
     /**
      * Distributes {@code leaves} across exactly {@code groupCount} groups. The largest leaves seed the groups
-     * one-per-group, then the rest are placed in the least-loaded group, where load is measured in
-     * bytes when {@code bySize} is true and in leaf count otherwise. Ties in load are broken toward the group
-     * holding fewer leaves, so leaves that all report the same (or zero) size still spread evenly rather than
-     * piling into the first group. Seeding the groups up front guarantees {@code groupCount} non-empty groups
-     * even when several leaves report a zero (or unknown) size.
+     * one-per-group, then each remaining leaf goes to the group holding the fewest leaves, so groups stay balanced
+     * by count and the per-file open cost (which dominates many-small-file scans) is spread evenly rather than
+     * concentrated in one group. Byte load only breaks ties between groups with an equal leaf count, and a group
+     * that has already reached {@code targetGroupSizeBytes} is skipped while any other group still has room, so a
+     * group is never grown past the size budget while a lighter group is available. Seeding the groups up front
+     * guarantees {@code groupCount} non-empty groups even when several leaves report a zero (or unknown) size.
+     * When {@code bySize} is false the leaves have no known size, so the budget and byte tie-break do not apply and
+     * leaves are spread purely by count.
      *
      * <p>Precondition: {@code 1 <= groupCount <= leaves.size()}. Violating this will throw
      * {@link IndexOutOfBoundsException} during the seed phase.
      */
-    private static List<List<ExternalSplit>> spreadLeastLoaded(List<ExternalSplit> leaves, int groupCount, boolean bySize) {
+    private static List<List<ExternalSplit>> spreadLeastLoaded(
+        List<ExternalSplit> leaves,
+        int groupCount,
+        boolean bySize,
+        long targetGroupSizeBytes
+    ) {
         List<ExternalSplit> sorted = new ArrayList<>(leaves);
         if (bySize) {
             sorted.sort(Comparator.comparingLong(ExternalSplit::estimatedSizeInBytes).reversed());
@@ -202,16 +208,45 @@ public final class SplitCoalescer {
 
         for (int i = groupCount; i < sorted.size(); i++) {
             ExternalSplit leaf = sorted.get(i);
-            int minIdx = 0;
+            int target = 0;
             for (int g = 1; g < groupCount; g++) {
-                if (loads[g] < loads[minIdx] || (loads[g] == loads[minIdx] && groups.get(g).size() < groups.get(minIdx).size())) {
-                    minIdx = g;
+                if (preferred(groups, loads, g, target, bySize, targetGroupSizeBytes)) {
+                    target = g;
                 }
             }
-            groups.get(minIdx).add(leaf);
-            loads[minIdx] += bySize ? leaf.estimatedSizeInBytes() : 1;
+            groups.get(target).add(leaf);
+            loads[target] += bySize ? leaf.estimatedSizeInBytes() : 1;
         }
         return groups;
+    }
+
+    /**
+     * Returns true when {@code candidate} is a better target for the next leaf than {@code current}. A group still
+     * under the size budget is preferred over one that has reached it, so no group grows past the budget while
+     * another has room; if every group is at the budget the tie-break below still places the leaf somewhere. Among
+     * groups on the same side of the budget the one holding fewer leaves wins (count balance), and byte load only
+     * separates groups with an equal leaf count. Byte load and the budget are ignored when {@code bySize} is false
+     * because unsized leaves carry no budget to respect.
+     */
+    private static boolean preferred(
+        List<List<ExternalSplit>> groups,
+        long[] loads,
+        int candidate,
+        int current,
+        boolean bySize,
+        long targetGroupSizeBytes
+    ) {
+        boolean candidateHasRoom = bySize == false || loads[candidate] < targetGroupSizeBytes;
+        boolean currentHasRoom = bySize == false || loads[current] < targetGroupSizeBytes;
+        if (candidateHasRoom != currentHasRoom) {
+            return candidateHasRoom;
+        }
+        int candidateCount = groups.get(candidate).size();
+        int currentCount = groups.get(current).size();
+        if (candidateCount != currentCount) {
+            return candidateCount < currentCount;
+        }
+        return bySize && loads[candidate] < loads[current];
     }
 
     private static List<ExternalSplit> buildResult(List<List<ExternalSplit>> bins) {

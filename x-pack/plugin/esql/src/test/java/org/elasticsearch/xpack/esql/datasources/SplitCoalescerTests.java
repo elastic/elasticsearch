@@ -263,6 +263,59 @@ public class SplitCoalescerTests extends ESTestCase {
         assertTrue("zero-sized files should be balanced within one leaf, got min=" + min + " max=" + max, max - min <= 1);
     }
 
+    public void testFloorBalancesFileCountAcrossMixedSizes() {
+        // A few larger files plus many tiny ones must not pile every tiny file into the single group seeded by a
+        // tiny file. Read parallelism over small files is bounded by per-file opens, so groups are balanced by leaf
+        // count, not by bytes: balancing by bytes alone would leave one group holding all 100 tiny files.
+        long target = 128 * 1024 * 1024;
+        int floor = 6;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            splits.add(makeFileSplit(i, 10 * 1024 * 1024)); // 10 MB
+        }
+        for (int i = 5; i < 105; i++) {
+            splits.add(makeFileSplit(i, 1024)); // 1 KB
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(105, countTotalLeaves(result));
+        int min = Integer.MAX_VALUE;
+        int max = 0;
+        for (ExternalSplit split : result) {
+            int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            min = Math.min(min, leaves);
+            max = Math.max(max, leaves);
+        }
+        assertTrue("groups must be balanced by leaf count, got min=" + min + " max=" + max, max - min <= 1);
+    }
+
+    public void testFloorStopsFillingGroupsAtSizeBudget() {
+        // A near-budget file seeds one group. Balancing purely by leaf count would keep steering tiny files onto
+        // that group whenever its count is the smallest, pushing it far past the budget. The fill must stop once a
+        // group reaches the budget and send the remaining files to groups that still have room.
+        long target = 100L * 1024 * 1024; // 100 MB
+        long tiny = 1024 * 1024;          // 1 MB
+        int floor = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, 95L * 1024 * 1024)); // 95 MB, just under budget
+        for (int i = 1; i <= 105; i++) {
+            splits.add(makeFileSplit(i, tiny));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(106, countTotalLeaves(result));
+        for (ExternalSplit split : result) {
+            assertTrue(
+                "no group may exceed the size budget by more than one file, got " + split.estimatedSizeInBytes(),
+                split.estimatedSizeInBytes() <= target + tiny
+            );
+        }
+    }
+
     public void testFloorOfOneMatchesDefaultGrouping() {
         int count = 100;
         List<ExternalSplit> splits = makeSplits(count, 10 * 1024 * 1024);

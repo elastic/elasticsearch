@@ -2,7 +2,6 @@
 
 ```{applies_to}
 stack: preview 9.2.0
-serverless: ga
 ```
 
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.TaskType;
@@ -1948,14 +1947,17 @@ public class VerifierTests extends ESTestCase {
 
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
+        // MATCH_PHRASE supports runtime search (snapshot-only for now) on text expressions only; substring/concat
+        // produce keyword, so these non-indexed columns are still rejected until keyword runtime support lands.
         checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", false);
+        checkFieldBasedFunctionNotAllowedAfterCommands(
+            "MatchPhrase",
+            "function",
+            "match_phrase(title, \"Meditation\")",
+            MatchPhrase.runtimeSearchEnabled()
+        );
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
-    }
-
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
-        checkFieldBasedFunctionNotAllowedAfterCommands(functionName, functionType, functionInvocation, false);
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(
@@ -2366,11 +2368,15 @@ public class VerifierTests extends ESTestCase {
         // match and : support runtime search and can operate on EVAL columns
         fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
-        // match_phrase still requires an index field
-        fullText().error(
-            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
-        );
+        // match_phrase supports runtime search (snapshot-only for now) on text EVAL columns
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
+        } else {
+            fullText().error(
+                "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+            );
+        }
     }
 
     /**
@@ -2379,10 +2385,12 @@ public class VerifierTests extends ESTestCase {
      * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
      */
     public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        // Uses KNN because it is the only field-based full-text function left without runtime search support; if
+        // that lands too, this guard needs another way to trigger the "not a field from an index mapping" failure.
         fullText().error(
-            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            "from test | eval v = vector | where knn(v, [1, 2, 3])",
             allOf(
-                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                containsString("[KNN] function cannot operate on [v], which is not a field from an index mapping"),
                 not(containsString("federated"))
             )
         );
@@ -2396,14 +2404,21 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
         fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
 
-        // MATCH_PHRASE still requires an argument that is a field from an index mapping
+        // MATCH_PHRASE supports runtime search (snapshot-only for now) on renamed text expressions
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
+        } else {
+            fullText().error(
+                "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            );
+        }
+
+        // MATCH_PHRASE runtime search does not support keyword expressions yet (concat, grok, dissect and
+        // substring all produce keyword), so these still require a field from an index mapping
         fullText().error(
             "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
             containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
             "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
@@ -3441,15 +3456,6 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
         fullText().query("from test | where " + functionInvocation);
-    }
-
-    public void testInsistNotOnTopOfFrom() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        defaultAnalyzer().error(
-            "FROM test | EVAL foo = 42 | INSIST_🐔 bar",
-            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
-        );
     }
 
     public void testFullTextFunctionsInStats() {

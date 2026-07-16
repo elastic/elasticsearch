@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -29,8 +30,10 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXConte
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Verifies that filtering a Hive-partitioned external dataset on a partition column reads only the matching partition
@@ -215,6 +218,49 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
 
     public void testParquetZeroMatchPrunesToNoFiles() throws Exception {
         assertPrune("pq_zero", "parquet", "WHERE year == 2099", 0, idsWhere((y, m, d) -> y == 2099));
+    }
+
+    /**
+     * Perf guard for elastic/elasticsearch#153873: a partition filter that prunes <em>every</em> file must make the
+     * read path scan nothing, not read the whole dataset only to drop every row in a downstream row filter. The
+     * {@code files_scanned == 0} the tests above assert does not prove this on its own — that counter reports
+     * <em>survivors</em>, so it was already {@code 0} before the fix while the scan operator still opened all
+     * {@link #TOTAL_FILES} files. This pins the real I/O the operator performed: no split total and no bytes read,
+     * asserted on both the {@code round_robin} and {@code coordinator_only} distribution strategies (a fully-pruned
+     * query short-circuits to coordinator-local under either, so the swap must reach both paths).
+     */
+    public void testZeroMatchPruneReadsNothing() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        for (String distribution : List.of("round_robin", "coordinator_only")) {
+            String dataset = registerTree("csv_prune_io_" + distribution, "csv");
+
+            QueryPragmas pragmas = new QueryPragmas(
+                Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), distribution).build()
+            );
+            var request = syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 1999 | KEEP id");
+            request.pragmas(pragmas);
+            request.acceptedPragmaRisks(true); // pragmas are rejected on non-snapshot builds without this
+            request.profile(true);
+
+            try (var response = run(request)) {
+                assertThat("[" + distribution + "] a zero-match partition filter must return no rows", getValuesList(response), empty());
+                assertThat(
+                    "[" + distribution + "] the pruned-away files must not be scanned",
+                    response.getExecutionInfo().queryProfile().filesScanned(),
+                    equalTo(0)
+                );
+                List<AsyncExternalSourceOperator.Status> statuses = externalScanStatuses(response);
+                assertThat(
+                    "[" + distribution + "] the scan operator must run so its zero-I/O can be asserted (not vacuously skipped)",
+                    statuses,
+                    not(empty())
+                );
+                for (AsyncExternalSourceOperator.Status status : statuses) {
+                    assertEquals("[" + distribution + "] exhaustively-pruned read must total no splits", 0, status.splitsTotal());
+                    assertEquals("[" + distribution + "] exhaustively-pruned read must read no bytes", 0L, status.bytesRead());
+                }
+            }
+        }
     }
 
     // -- NOT-EQUALS on a partition column: prunes the excluded folder, keeps the rest --

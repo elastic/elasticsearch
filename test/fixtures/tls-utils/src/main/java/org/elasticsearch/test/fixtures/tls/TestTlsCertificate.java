@@ -146,6 +146,15 @@ public record TestTlsCertificate(X509Certificate certificate, PrivateKey private
         }
     }
 
+    /** Returns the private key as an unencrypted PKCS#8 PEM stream. */
+    public InputStream getPemPrivateKeyStream() {
+        return new ByteArrayInputStream(
+            ("-----BEGIN PRIVATE KEY-----\n"
+                + Base64.getMimeEncoder(64, new byte[] { '\n' }).encodeToString(privateKey.getEncoded())
+                + "\n-----END PRIVATE KEY-----\n").getBytes(StandardCharsets.US_ASCII)
+        );
+    }
+
     private static GeneralNames dnsSubjectAlternativeNames(String[] dnsNames) {
         final GeneralName[] names = new GeneralName[dnsNames.length];
         for (int i = 0; i < dnsNames.length; i++) {

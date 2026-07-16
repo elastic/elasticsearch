@@ -127,6 +127,51 @@ no_mapping_sample_data  | Connected to 10.1.0.2!  | Connected to 10.1.0.2!
 no_mapping_sample_data  | Connected to 10.1.0.3!  | Connected to 10.1.0.3!
 ;
 
+typeConflictWithUnmappedToTextAndMatch
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL message_text = TO_TEXT(message)
+| WHERE message_text:"error connection"
+| KEEP _index, message, message_text
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword   | message_text:text
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+;
+
+typeConflictWithUnmappedKeywordAndMatch
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE message:"Connection error"
+| KEEP _index, message
+;
+ignoreOrder:true
+
+_index:keyword | message:keyword
+sample_data    | Connection error
+sample_data    | Connection error
+sample_data    | Connection error
+;
+
+
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -721,6 +766,31 @@ emp_no:integer | gender_text:text | _index:keyword
 10002          | F                | employees_no_gender
 10003          | M                | employees_gender_text
 10003          | M                | employees_no_gender
+;
+
+typeConflictPartiallyUnmappedTextFieldToTextAndMatch
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| WHERE gender_text:"f"
+| KEEP emp_no, gender_text, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | gender_text:text | _index:keyword
+10002          | F                | employees_gender_text
+10002          | F                | employees_no_gender
+10006          | F                | employees_gender_text
+10006          | F                | employees_no_gender
+10007          | F                | employees_gender_text
+10007          | F                | employees_no_gender
 ;
 
 // Verify that partially-mapped non-keyword fields (date, ip, long) are NOT loaded from _source when not mentioned

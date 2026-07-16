@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
@@ -92,7 +94,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testListingHitMiss() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of());
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
 
             FileList listing1 = service.getOrComputeListing(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -117,8 +119,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
 
-            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of("access_key", "userA"));
-            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of("access_key", "userB"));
+            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of("access_key", "userA"), "");
+            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of("access_key", "userB"), "");
             assertNotEquals(key1, key2);
 
             service.getOrComputeListing(key1, k -> {
@@ -137,8 +139,20 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
 
-            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of("endpoint", "us-east-1.amazonaws.com"));
-            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of("endpoint", "eu-west-1.amazonaws.com"));
+            ListingCacheKey key1 = ListingCacheKey.build(
+                "s3",
+                "bucket",
+                "/data/*.parquet",
+                Map.of("endpoint", "us-east-1.amazonaws.com"),
+                ""
+            );
+            ListingCacheKey key2 = ListingCacheKey.build(
+                "s3",
+                "bucket",
+                "/data/*.parquet",
+                Map.of("endpoint", "eu-west-1.amazonaws.com"),
+                ""
+            );
             assertNotEquals(key1, key2);
 
             service.getOrComputeListing(key1, k -> {
@@ -151,6 +165,98 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             });
             assertEquals(2, loaderCalls.get());
         }
+    }
+
+    public void testDifferentListingDiscriminatorSeparatesEntries() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            AtomicInteger loaderCalls = new AtomicInteger();
+
+            // Same scheme/bucket/glob/credentials — the only difference is the filter that narrowed each listing.
+            // Uses the real discriminator so a change to its encoding that broke isolation would fail here too.
+            String glob = "s3://bucket/data/year=*/*.parquet";
+            var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+                "year",
+                PartitionFilterHintExtractor.Operator.EQUALS,
+                List.of(2024)
+            );
+            ListingCacheKey filtered = ListingCacheKey.build(
+                "s3",
+                "bucket",
+                "/data/year=*/*.parquet",
+                Map.of(),
+                GlobExpander.listingCacheDiscriminator(glob, List.of(hint), true)
+            );
+            ListingCacheKey unfiltered = ListingCacheKey.build(
+                "s3",
+                "bucket",
+                "/data/year=*/*.parquet",
+                Map.of(),
+                GlobExpander.listingCacheDiscriminator(glob, null, true)
+            );
+            assertNotEquals(filtered, unfiltered);
+
+            service.getOrComputeListing(filtered, k -> {
+                loaderCalls.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeListing(unfiltered, k -> {
+                loaderCalls.incrementAndGet();
+                return testCompactFileList();
+            });
+            assertEquals("a differently-filtered listing must not be served from the unfiltered entry", 2, loaderCalls.get());
+        }
+    }
+
+    public void testSameListingDiscriminatorSharesEntry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            AtomicInteger loaderCalls = new AtomicInteger();
+
+            String discriminator = GlobExpander.listingCacheDiscriminator("s3://bucket/data/*.parquet", null, true);
+            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), discriminator);
+            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), discriminator);
+            assertEquals(key1, key2);
+
+            service.getOrComputeListing(key1, k -> {
+                loaderCalls.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeListing(key2, k -> {
+                loaderCalls.incrementAndGet();
+                return testCompactFileList();
+            });
+            assertEquals("identical discriminators share one entry", 1, loaderCalls.get());
+        }
+    }
+
+    /**
+     * A filter's {@code IN}-list is unbounded, and the cache weighs only the value, so the discriminator is hashed
+     * into the key rather than stored raw. The key stays fixed-width however large the filter is, while still
+     * separating two different large filters and sharing one entry for identical ones.
+     */
+    public void testLargeDiscriminatorIsHashedNotStoredRaw() throws Exception {
+        StringBuilder longIn = new StringBuilder("s3://bucket/data/year={");
+        for (int i = 0; i < 5000; i++) {
+            if (i > 0) {
+                longIn.append(',');
+            }
+            longIn.append(2000 + i);
+        }
+        String bigGlobA = longIn.append("}/*.parquet").toString();
+        String bigGlobB = bigGlobA.replace("year={2000", "year={1999");
+        assertThat("the discriminator string this test hashes is genuinely large", bigGlobA.length(), greaterThan(20000));
+
+        ListingCacheKey a1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), bigGlobA);
+        ListingCacheKey a2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), bigGlobA);
+        ListingCacheKey b = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), bigGlobB);
+
+        assertEquals("identical large discriminators hash equal", a1, a2);
+        assertNotEquals("different large discriminators do not collide", a1, b);
+
+        // Gate the hashing itself: the key must hold the SHA-256-truncated digest of the discriminator, not the
+        // raw string. Recompute the expected digest independently — this fails if build() ever stored the string.
+        long[] expected = ListingCacheKey.sha256Truncated(bigGlobA);
+        assertEquals("key stores the SHA-256 digest (high 64 bits)", expected[0], a1.listingDiscriminatorH1());
+        assertEquals("key stores the SHA-256 digest (low 64 bits)", expected[1], a1.listingDiscriminatorH2());
     }
 
     public void testDisabledBypassesCache() throws Exception {
@@ -176,7 +282,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             SchemaCacheKey sKey = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", Map.of());
             service.getOrComputeSchema(sKey, k -> testSchemaEntry());
 
-            ListingCacheKey lKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of());
+            ListingCacheKey lKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
             service.getOrComputeListing(lKey, k -> testCompactFileList());
 
             Map<String, Object> stats = service.usageStats();
@@ -394,7 +500,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testListingCacheStoresHiveFileList() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*" + "*/*.parquet", Map.of());
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*" + "*/*.parquet", Map.of(), "");
             FileList listing = service.getOrComputeListing(key, k -> testCompactHiveFileList());
             assertNotNull(listing.partitionMetadata());
             assertFalse(listing.partitionMetadata().isEmpty());

@@ -107,6 +107,14 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowsTemplates()
         .build();
 
+    public static final SystemIndexDescriptor CONTEXT_ENGINE_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".contextengine-*")
+        .setDescription("Context Engine system indices")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .setAllowsTemplates()
+        .build();
+
     public static final SystemIndexDescriptor APM_AGENT_CONFIG_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".apm-agent-configuration*")
         .setDescription("system index for APM agent configuration")
@@ -135,6 +143,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             KIBANA_INDEX_DESCRIPTOR,
             REPORTING_INDEX_DESCRIPTOR,
             ONECHAT_INDEX_DESCRIPTOR,
+            CONTEXT_ENGINE_INDEX_DESCRIPTOR,
             WORKFLOWS_INDEX_DESCRIPTOR,
             APM_AGENT_CONFIG_INDEX_DESCRIPTOR,
             APM_CUSTOM_LINK_INDEX_DESCRIPTOR

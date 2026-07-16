@@ -170,22 +170,12 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
-                if (state.get() == WatcherState.STARTED) {
+                if (state.get() == WatcherState.STARTED || state.get() == WatcherState.STARTING) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
                         clearAllocationIds(); // will cause reload again
                     });
                 } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
-                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
-                        clearAllocationIds();
-                        this.state.set(WatcherState.STOPPED);
-                    });
-                } else if (state.get() == WatcherState.STARTING) {
-                    // A routing change arrived while watcher is still starting up (reloadInner is in
-                    // flight). Re-invoke start() with the current cluster state so that
-                    // processedClusterStateVersion is bumped: the stale reloadInner will fail its
-                    // version guard and exit early, and a new one with the correct shard-allocation
-                    // partition (shardCount/idx for hostsWatch) will be submitted in its place.
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
                         clearAllocationIds();
                         this.state.set(WatcherState.STOPPED);

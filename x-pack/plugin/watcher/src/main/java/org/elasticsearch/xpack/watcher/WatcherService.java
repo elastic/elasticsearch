@@ -82,6 +82,8 @@ public class WatcherService implements WatcherEventConsumer {
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
     private final Map<String, Watch> pendingWatches = new HashMap<>();
+    // This should only ever get updated by the lifecycle thread
+    private boolean executeTriggeredPending = false;
 
     WatcherService(
         Settings settings,
@@ -260,6 +262,10 @@ public class WatcherService implements WatcherEventConsumer {
     private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
         assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
             : "reloadInner must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
+        // If loadTriggeredWatches is true, record that fact because we may not get to it before a new cluster state arrives
+        // don't overwrite it if it's already true
+        executeTriggeredPending = executeTriggeredPending || loadTriggeredWatches;
+
         // exit early if another thread has come in between
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug(
@@ -272,7 +278,7 @@ public class WatcherService implements WatcherEventConsumer {
 
         Collection<Watch> watches = loadWatches(state);
         Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
-        if (loadTriggeredWatches) {
+        if (executeTriggeredPending) {
             triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
         }
 
@@ -280,6 +286,8 @@ public class WatcherService implements WatcherEventConsumer {
         // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
         // execution service, so that we make sure that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
+            // If we got this far we'll execute the triggered watches, we don't need to do it again until the next start
+            executeTriggeredPending = false;
             executionService.unPause();
             triggerService.start(watches);
             addPendingWatches(state);

@@ -423,13 +423,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
                 // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
                 .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
-                // A DECLARED schema is a claim about the file, so its columns bind BY NAME against the file's own
-                // physical names — not by declaration position. Keyed on provenance, NOT on renames: a declaration
-                // whose order merely differs from the file (no `path` at all) must still bind by name, and — the
-                // reason this is the provenance bit and not renames — an INFERRED schema (dynamic) must NOT trigger
-                // reader-side binding: its positions already came from the file, the coordinator overlay applied any
-                // rename, and forcing the reader to re-bind would both change a dynamic read and, on a non-first
-                // split of a headered file, trip the file-start tripwire.
+                // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
+                // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
                 .withDeclaredPathBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 

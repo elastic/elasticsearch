@@ -1750,9 +1750,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // content and runs on EVERY split — macro-splits past the first stay correctly bound.
                 schemaFieldIndex = declaredPathFieldIndexes(readSchema, null, object);
             } else if (options.headerRow() && declaredPathBinding && context.firstSplit() == false) {
-                // Unreachable: a headered path-bound read needs the header line, so it must not be split past the
-                // first. The split gate (declaredNameBindingNeedsFileStart) enforces that upstream. Fail loudly
-                // rather than silently falling back to positional binding and reading the wrong columns.
+                // The split gate (declaredNameBindingNeedsFileStart) must keep a headered by-name read whole-file;
+                // if a non-first split reaches here the gate failed, so fail loudly rather than mis-bind positionally.
                 throw new IllegalStateException(
                     "headered path-bound read of ["
                         + object.path()

@@ -6415,23 +6415,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
     }
 
-    // --- declared `path` binding under a pinned (strict) schema: esql-planning#1307 ---
+    // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
 
     /**
-     * THE SPEC: `dynamic` is orthogonal to every other dimension — it controls only whether a schema is inferred.
-     * A declared `path` must therefore bind the same way whether or not inference ran.
-     * <p>
-     * Under `dynamic:true` the reader infers `col0..colN` and a declared `path: "col2"` binds to field 2. Under
-     * `dynamic:false` the declaration is pinned as the schema and the reader consumes it POSITIONALLY, so the
-     * physical name it was handed (`col2`) is never looked at and the field reads raw field 0 instead. Same mapping,
-     * same file, two answers.
-     * <p>
-     * This is esql-planning#1307 in miniature: `ts` declares `path: "col2"` (the timestamp) but sits FIRST in the
-     * declaration, so positional binding hands it `col0` — a WatchID — and the date parse blows up on it.
-     */
-    /**
-     * The headline invariant of #1307: a declaration that names every column of the file must read the same values
-     * whether or not the reader was told to bind by name. Strict is orthogonal to how `path` works.
+     * A declaration that names every column of the file must read the same values under declared and inferred binding:
+     * `ts` declares `path: "col2"` but sits first, so positional binding would hand it col0 (a WatchID) and the date
+     * parse would fail.
      */
     public void testDeclaredPathBindingAgreesWithPositionalWhenDeclarationIsInFileOrder() throws Exception {
         StorageObject object = createStorageObject("7,alpha\n8,beta\n");

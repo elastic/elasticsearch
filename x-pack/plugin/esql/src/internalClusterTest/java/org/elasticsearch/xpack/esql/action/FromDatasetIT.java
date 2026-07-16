@@ -352,11 +352,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDeclaredNamesAbsentFromHeaderReadNull() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
-        // The declaration names id/name — which the file does not have — with no `path`. A DECLARED schema binds by name
-        // (not by declaration position), so id/name are absent from the file. INCREMENT 2 surfaces that as a read-time
-        // throw; increment 3 converts it to null-fill + one per-dataset warning (an all-columns-absent declaration reads
-        // all null). To RENAME emp_no->id the supported mechanism is `path` — see testStrictDeclaredSchemaRenamesColumnsViaSource.
+        // A declared schema binds by name. The declaration names id/name, which the file (header emp_no,first_name)
+        // does not have and no `path` maps, so both read null with a warning. To rename emp_no->id the supported
+        // mechanism is `path` — see testStrictDeclaredSchemaRenamesColumnsViaSource.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
@@ -2151,10 +2149,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     public void testStrictCsvDeclaredColumnAbsentReadsNullPartialMatch() throws Exception {
-        // Strict (dynamic: false) binds text columns BY NAME against the file's header. emp_no/first_name are present
-        // and bind; the extra declared `department` is absent from the 2-column file. INCREMENT 2 surfaces the absent
-        // column as a read-time throw; increment 3 converts it to the partial-match case — emp_no/first_name read real
-        // data, `department` reads null with one per-dataset warning.
+        // A declared schema binds by name. emp_no/first_name are in the 2-column file and bind; the extra declared
+        // `department` is absent, so it reads null with one per-dataset warning while the other two read real data.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Map<String, DatasetFieldMapping> tooWide = new LinkedHashMap<>();
         tooWide.put("emp_no", new DatasetFieldMapping("integer", null));

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -397,7 +398,7 @@ public class EsqlBaseLexer extends LexerConfig {
   private boolean DEV_EXTERNAL_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return this.isExternalDataSourcesEnabled();
+      return EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled();
     }
     return true;
   }

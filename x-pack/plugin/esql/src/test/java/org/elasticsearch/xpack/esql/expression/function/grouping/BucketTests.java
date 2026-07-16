@@ -301,7 +301,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 DataType.DATETIME,
                 equalTo(Rounding.builder(TimeValue.timeValueMillis(expectedMillis)).build().prepareForUnknown().round(date))
             ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                .withExtra(Map.of("bucket", Map.of("interval", (long) expectedMillis, "unit", "millisecond")));
+                .withExtra(
+                    expectedDateMetadataForRange("2023-01-01T00:00:00.00Z", "2024-01-01T00:00:00.00Z", expectedMillis, "millisecond")
+                );
         }));
     }
 

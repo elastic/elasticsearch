@@ -313,8 +313,8 @@ public class ShardStateAction {
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final MasterServiceTaskQueue<ShardStartedTaskExecutor.Task> taskQueue;
 
-        ShardStartedTransportHandler(ClusterService clusterService, ShardStartedTaskExecutor ShardStartedTaskExecutor) {
-            taskQueue = clusterService.createTaskQueue("shard-started", Priority.URGENT, ShardStartedTaskExecutor);
+        ShardStartedTransportHandler(ClusterService clusterService, ShardStartedTaskExecutor taskExecutor) {
+            taskQueue = clusterService.createTaskQueue("shard-started", Priority.URGENT, taskExecutor);
         }
 
         @Override

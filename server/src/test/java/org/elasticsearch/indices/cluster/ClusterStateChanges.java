@@ -140,7 +140,7 @@ public class ClusterStateChanges {
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final FeatureService featureService;
-    private final ShardFailedTaskExecutor shardFailedClusterStateTaskExecutor;
+    private final ShardFailedTaskExecutor shardFailedTaskExecutor;
     private final ShardStartedTaskExecutor shardStartedTaskExecutor;
 
     // transport actions
@@ -171,7 +171,7 @@ public class ClusterStateChanges {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        shardFailedClusterStateTaskExecutor = new ShardFailedTaskExecutor(allocationService, null);
+        shardFailedTaskExecutor = new ShardFailedTaskExecutor(allocationService, null);
         shardStartedTaskExecutor = new ShardStartedTaskExecutor(clusterSettings, allocationService, null);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
@@ -477,7 +477,7 @@ public class ClusterStateChanges {
                 )
             )
             .toList();
-        return runTasks(shardFailedClusterStateTaskExecutor, clusterState, entries);
+        return runTasks(shardFailedTaskExecutor, clusterState, entries);
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {

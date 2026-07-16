@@ -44,7 +44,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class ShardStartedTaskExecutor implements ClusterStateTaskExecutor<ShardStartedTaskExecutor.Task> {
 
-    private static final Logger logger = LogManager.getLogger(ShardFailedTaskExecutor.class);
+    private static final Logger logger = LogManager.getLogger(ShardStartedTaskExecutor.class);
 
     // Deliberately not registered so it can only be set in tests/plugins.
     public static final Setting<Priority> SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY = Setting.enumSetting(
@@ -303,7 +303,7 @@ public class ShardStartedTaskExecutor implements ClusterStateTaskExecutor<ShardS
      * Task that runs on the master node. Handles responding to the request listener with the result of the update request.
      * Task is created when the master node receives a data node request to mark a shard as {@link ShardRoutingState#STARTED}.
      *
-     * @param entry Information about the newly sharted shard.
+     * @param entry Information about the newly started shard.
      * @param listener Channel listener with which to respond to the data node.
      */
     public record Task(StartedShardEntry entry, ActionListener<Void> listener) implements ClusterStateTaskListener {

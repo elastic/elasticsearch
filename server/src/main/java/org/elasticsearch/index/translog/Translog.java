@@ -1125,9 +1125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (result == 0) {
                 result = Long.compare(translogLocation, o.translogLocation);
             }
-            if (result == 0) {
-                result = Integer.compare(batchRowIndex, o.batchRowIndex);
-            }
+
             return result;
         }
     }

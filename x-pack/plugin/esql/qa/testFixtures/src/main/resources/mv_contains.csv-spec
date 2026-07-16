@@ -186,7 +186,7 @@ id: long
 
 withFloat
 required_capability: fn_mv_contains_v1
-required_capability: mv_contains_lucene_pushdown
+required_capability: fn_mv_contains_lucene_pushdown
 
 FROM all_types_mv
 | WHERE mv_contains(float, [3.3, 4.4])
@@ -217,7 +217,7 @@ id: long
 
 withHalfFloat
 required_capability: fn_mv_contains_v1
-required_capability: mv_contains_lucene_pushdown
+required_capability: fn_mv_contains_lucene_pushdown
 
 FROM all_types_mv
 | WHERE mv_contains(half_float, [3.3, 4.4])

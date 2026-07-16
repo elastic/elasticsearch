@@ -3279,11 +3279,6 @@ public class EsqlCapabilities {
         FIX_PROMQL_SCALAR_FLOAT_DIV,
 
         /**
-         * Lucene pushdown for MV_CONTAINS
-         */
-        MV_CONTAINS_LUCENE_PUSHDOWN,
-
-        /**
          * Fix for PromQL constant scalar expressions (e.g. {@code 3.14}, {@code pi()}) that were previously
          * evaluated through the full PromqlCommand pipeline and produced no results when the index was empty.
          * They are now folded at planning time and emitted as a {@code ROW} without touching the index.

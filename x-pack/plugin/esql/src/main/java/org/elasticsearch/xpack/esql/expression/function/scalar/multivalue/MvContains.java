@@ -80,7 +80,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvContains.class)
         .binary(MvContains::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "lucene_pushdown")
         .name("mv_contains");
 
     @FunctionInfo(

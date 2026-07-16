@@ -192,7 +192,7 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
         assertTrue(
             "Expected AbstractLib$Impl.class to be generated",
-            result.outputDir().resolve("test/AbstractLib$Impl.class").toFile().exists()
+            java.nio.file.Files.exists(result.outputDir().resolve("test/AbstractLib$Impl.class"))
         );
     }
 

@@ -52,6 +52,20 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final int WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION = 2;
 
+    private static final int CHANGE_HISTORY_MAPPINGS_VERSION = 3;
+
+    /** Data stream registered in {@link #changeHistorySystemDataStreamDescriptor()}. */
+    public static final String CHANGE_HISTORY_DATA_STREAM_NAME = ".kibana_change_history";
+
+    /** Composable index template resource for {@value #CHANGE_HISTORY_DATA_STREAM_NAME}. */
+    public static final String CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE = "kibana-change-history.json";
+
+    /** Substitution key for the template version in {@value #CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String CHANGE_HISTORY_VERSION_VARIABLE = "kibana.change.history.version";
+
+    /** Substitution key for managed index version in {@value #CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String CHANGE_HISTORY_MANAGED_INDEX_VERSION_VARIABLE = "kibana.change.history.managed.index.version";
+
     /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
     public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";
 
@@ -83,8 +97,20 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
      */
     public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN = ".workflows~(-events*|-execution-data-stream-logs*)";
 
+    /**
+     * Matches Kibana system <strong>indices</strong> under {@code .kibana_}, but not the
+     * {@linkplain SystemDataStreamDescriptor system data stream} {@value #CHANGE_HISTORY_DATA_STREAM_NAME} registered in
+     * {@link #getSystemDataStreamDescriptors()}.
+     * <p>
+     * A plain {@code .kibana_*} pattern is invalid here: it matches the change history data stream name, and
+     * {@link org.elasticsearch.indices.SystemIndices} forbids overlap between a {@link SystemIndexDescriptor} pattern and
+     * a {@link SystemDataStreamDescriptor} (see {@code checkForOverlappingPatterns}). Uses the same complement style as Fleet's
+     * {@code .fleet-actions~(-results*)}; see {@link SystemIndexDescriptor} for pattern syntax.
+     */
+    public static final String KIBANA_SYSTEM_INDEX_PATTERN = ".kibana_~(change_history*)";
+
     public static final SystemIndexDescriptor KIBANA_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".kibana_*")
+        .setIndexPattern(KIBANA_SYSTEM_INDEX_PATTERN)
         .setDescription("Kibana saved objects system index")
         .setAliasName(".kibana")
         .setType(Type.EXTERNAL_UNMANAGED)
@@ -152,7 +178,37 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-        return List.of(workflowsEventsSystemDataStreamDescriptor(), workflowsExecutionDataStreamLogsSystemDataStreamDescriptor());
+        return List.of(
+            workflowsEventsSystemDataStreamDescriptor(),
+            workflowsExecutionDataStreamLogsSystemDataStreamDescriptor(),
+            changeHistorySystemDataStreamDescriptor()
+        );
+    }
+
+    private static SystemDataStreamDescriptor changeHistorySystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
+                CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(
+                    CHANGE_HISTORY_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    CHANGE_HISTORY_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(CHANGE_HISTORY_MAPPINGS_VERSION)
+                )
+            );
+            return new SystemDataStreamDescriptor(
+                CHANGE_HISTORY_DATA_STREAM_NAME,
+                "Kibana saved objects change history",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_WORKFLOWS_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static SystemDataStreamDescriptor workflowsEventsSystemDataStreamDescriptor() {

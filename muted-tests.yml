@@ -280,9 +280,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
   issue: https://github.com/elastic/elasticsearch/issues/150295
-- class: org.elasticsearch.gradle.internal.transport.GenerateInitialTransportVersionFuncTest
-  method: cannot create upper bound file for patch
-  issue: https://github.com/elastic/elasticsearch/issues/150296
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/150297
@@ -739,3 +736,18 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/154062
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/154058
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateInManyThreads {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/154070
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateInManyThreads {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/154071
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateInManyThreads {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/154072
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateInManyThreads {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/154073

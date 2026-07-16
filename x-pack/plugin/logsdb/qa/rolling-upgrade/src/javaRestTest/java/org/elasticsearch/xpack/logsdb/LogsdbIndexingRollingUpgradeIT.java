@@ -25,6 +25,10 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
+    static {
+        enableColumnarIndexModeRandomization();
+    }
+
     static String BULK_ITEM_TEMPLATE =
         """
             {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
@@ -74,7 +78,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
             String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
             var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(columnarEnabled ? "logsdb_columnar" : "logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             // check prior to rollover
@@ -89,6 +93,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             bulkIndex(dataStreamName, 4, 1024, timeRef.get(), LogsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
+            // verify index mode stats are serializable across mixed-version nodes
+            assertOK(client().performRequest(new Request("GET", "/_xpack/usage")));
         });
         {
             var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");

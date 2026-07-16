@@ -75,6 +75,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
 
     @FunctionInfo(
         returnType = { "boolean" },
+        briefSummary = "Returns whether the first geometry is within the second geometry.",
         description = """
             Returns whether the first geometry is within the second geometry.
             This is the inverse of the <<esql-st_contains,ST_CONTAINS>> function.""",

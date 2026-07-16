@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -93,6 +93,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
 import static org.elasticsearch.index.SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
+import static org.elasticsearch.indices.recovery.RecoveryCancelledException.RECOVERY_CANCELLED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
 
@@ -1818,8 +1819,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersion.minimumCompatible()
         ),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(
-            ShardStateAction.NoLongerPrimaryShardException.class,
-            ShardStateAction.NoLongerPrimaryShardException::new,
+            NoLongerPrimaryShardException.class,
+            NoLongerPrimaryShardException::new,
             142,
             TransportVersion.minimumCompatible()
         ),
@@ -2103,6 +2104,24 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.SliceMissingException::new,
             194,
             SLICE_MISSING_EXCEPTION_VERSION
+        ),
+        REMOTE_DATASET_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException::new,
+            195,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
+        ),
+        REMOTE_RESOURCE_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException::new,
+            196,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
+        ),
+        RECOVERY_CANCELLED_EXCEPTION(
+            org.elasticsearch.indices.recovery.RecoveryCancelledException.class,
+            org.elasticsearch.indices.recovery.RecoveryCancelledException::new,
+            197,
+            RECOVERY_CANCELLED_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

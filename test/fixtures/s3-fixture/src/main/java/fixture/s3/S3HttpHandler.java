@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,10 +59,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -112,23 +111,9 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
-    /**
-     * Default {@code LastModified} for ListBucket {@code Contents} entries. Real S3 returns ISO-8601
-     * timestamps; clients such as the AWS SDK map missing elements to {@code null} last-modified.
-     * <p>
-     * The default deliberately uses a fixed, non-epoch timestamp so consumers that distinguish
-     * "unknown" (epoch / null) from "known" mtime see a real value here. Keep this stable across
-     * releases — fixture-based tests that assert the rendered XML rely on the literal string.
-     */
-    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "2024-01-01T00:00:00.000Z";
-
-    /**
-     * Default {@code Last-Modified} value (RFC 1123 / HTTP date) returned on HEAD responses.
-     * Consumers that read this header (e.g. plain HTTP clients) distinguish "unknown"
-     * (epoch / null) from "known" mtime, so the default is a fixed, non-epoch timestamp.
-     * Keep this in sync with {@link #DEFAULT_LIST_OBJECT_LAST_MODIFIED}.
-     */
-    public static final String DEFAULT_HEAD_OBJECT_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
+    /** ISO-8601 formatter with millisecond precision, always UTC — used for {@code <LastModified>} in list responses. */
+    private static final DateTimeFormatter ISO_MILLIS_UTC = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .withZone(ZoneOffset.UTC);
 
     public List<RequestEntry> requestLog() {
         return Collections.unmodifiableList(requestLog);
@@ -157,10 +142,11 @@ public class S3HttpHandler implements HttpHandler {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    // Last-Modified is read by HTTP clients (e.g. ES|QL HttpStorageProvider) for _file.modified.
-                    // Use a fixed, non-epoch RFC 1123 timestamp so consumers that distinguish "unknown"
-                    // (epoch / null) from "known" mtime see a real value.
-                    exchange.getResponseHeaders().add("Last-Modified", DEFAULT_HEAD_OBJECT_LAST_MODIFIED);
+                    exchange.getResponseHeaders()
+                        .add(
+                            "Last-Modified",
+                            DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC))
+                        );
                     if (!"STANDARD".equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                     }
@@ -390,7 +376,7 @@ public class S3HttpHandler implements HttpHandler {
                     }
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
-                    list.append("<LastModified>").append(DEFAULT_LIST_OBJECT_LAST_MODIFIED).append("</LastModified>");
+                    list.append("<LastModified>").append(ISO_MILLIS_UTC.format(blob.getValue().lastModified())).append("</LastModified>");
                     list.append("<Size>").append(blob.getValue().contents().length()).append("</Size>");
                     list.append("<StorageClass>").append(blob.getValue().storageClass()).append("</StorageClass>");
                     list.append("</Contents>");
@@ -434,10 +420,8 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
-                // Last-Modified is read by S3 SDK clients (e.g. ES|QL S3StorageProvider's range-GET
-                // metadata fetch) for _file.modified. Use a fixed, non-epoch RFC 1123 timestamp so
-                // consumers that distinguish "unknown" (epoch / null) from "known" mtime see a real value.
-                exchange.getResponseHeaders().add("Last-Modified", DEFAULT_HEAD_OBJECT_LAST_MODIFIED);
+                exchange.getResponseHeaders()
+                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC)));
                 if (!"STANDARD".equals(blobEntry.storageClass())) {
                     exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                 }
@@ -825,21 +809,6 @@ public class S3HttpHandler implements HttpHandler {
             // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
             // if it's a real SHA256 checksum then it must match the request's contents.
             assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
-        }
-    }
-
-    /**
-     * Assert that if the exchange is a {@code PutObject} or {@code UploadPart} request then {@code X-amz-content-sha256} header is present
-     * and either contains a full SHA256 hash or another value matching the provided {@link org.hamcrest.Matcher}.
-     */
-    public void assertContentSha256Header(HttpExchange exchange, org.hamcrest.Matcher<String> otherPermittedValues) {
-        final var request = parseRequest(exchange);
-        if ((request.isUploadPartRequest() || request.isPutObjectRequest())
-            && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER)).orElse(List.of()).isEmpty()) {
-            assertThat(
-                exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
-                anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), otherPermittedValues)
-            );
         }
     }
 

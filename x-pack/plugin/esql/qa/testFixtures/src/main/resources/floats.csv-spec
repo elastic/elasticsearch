@@ -66,7 +66,7 @@ emp_no:integer |hire_date:date          |hire_double:double
 10003          |1986-08-28T00:00:00.000Z|5.255712E11
 ;
 
-convertFromString#[skip:-8.13.99, reason:warning changed in 8.14]
+convertFromString
 // tag::to_double-str[]
 ROW str1 = "5.20128E11", str2 = "foo"
 | EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
@@ -590,28 +590,28 @@ emp_no:integer | salary_change:double    | d:double                             
 ;
 
 
-signumOfPositiveDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfPositiveDouble
 row d = to_double(100) | eval s = signum(d);
 
 d:double | s:double
 100      | 1.0
 ;
 
-signumOfNegativeDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfNegativeDouble
 row d = to_double(-100) | eval s = signum(d);
 
 d:double | s:double
 -100     | -1.0
 ;
 
-signumOfZeroDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfZeroDouble
 row d = to_double(0) | eval s = signum(d);
 
 d:double | s:double
 0        | 0.0
 ;
 
-signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalWhereAndStats
 
 from employees
 | where emp_no <= 10009
@@ -623,7 +623,7 @@ x:double
 0.14285714285714285
 ;
 
-signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalAndSort
 from employees
 | eval s = signum(mv_min(salary_change))
 | where signum(mv_max(salary_change)) >= 0

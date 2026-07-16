@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.stateless'
+apply plugin: 'elasticsearch.foreign-api'
 
 
 esplugin {
@@ -25,6 +26,7 @@ dependencies {
   compileOnly project(xpackModule('blob-cache'))
 
   testImplementation project(':test:framework')
+  testImplementation testArtifact(project(xpackModule('blob-cache')))
   testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
   testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
   testImplementation 'com.amazonaws:aws-java-sdk-s3:1.12.684'

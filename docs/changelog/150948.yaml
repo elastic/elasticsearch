@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 150948
+summary: Use `MetricsInfo` for Prometheus labels API
+type: enhancement

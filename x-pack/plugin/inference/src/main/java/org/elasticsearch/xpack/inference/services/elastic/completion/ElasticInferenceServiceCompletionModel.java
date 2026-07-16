@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
@@ -50,14 +50,21 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         Map<String, Object> serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
-        @Nullable EndpointMetadata endpointMetadata
+        @Nullable EndpointMetadata endpointMetadata,
+        TaskSettings taskSettings
     ) {
         this(
-            inferenceEntityId,
-            taskType,
-            ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
-            elasticInferenceServiceComponents,
-            endpointMetadata
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                ElasticInferenceService.NAME,
+                ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
+                taskSettings,
+                null,
+                endpointMetadata
+            ),
+            ModelSecrets.emptySecrets(),
+            elasticInferenceServiceComponents
         );
     }
 
@@ -73,17 +80,9 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         String inferenceEntityId,
         TaskType taskType,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
-    ) {
-        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, null);
-    }
-
-    public ElasticInferenceServiceCompletionModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        @Nullable EndpointMetadata endpointMetadata
+        @Nullable EndpointMetadata endpointMetadata,
+        TaskSettings taskSettings
     ) {
         this(
             new ModelConfigurations(
@@ -91,7 +90,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                EmptyTaskSettings.INSTANCE,
+                taskSettings,
                 null,
                 endpointMetadata
             ),

@@ -101,6 +101,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider
         ) {
+            super(null);
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
             this.sourceProvider = sourceProvider;

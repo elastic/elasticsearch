@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Test that you can actually cancel a reindex/update-by-query/delete-by-query request and all the plumbing works. Doesn't test all of the
- * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
+ * different cancellation places - that is the responsibility of AsyncBulkByPaginatedSearchActionTests which have more precise control to
  * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
 public class CancelTests extends ReindexTestCase {

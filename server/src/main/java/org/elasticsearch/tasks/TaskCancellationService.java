@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
@@ -431,7 +432,13 @@ public class TaskCancellationService {
             reason
         );
         final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
-        transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
+        // cancel_child is an internal action that can never be granted to a user, so it must run as the system user. We may still be
+        // in the caller's context lacking the originating-action transient that triggers that swap, so stash to a user-less context
+        // to let the security interceptor run it as the system user instead of denying it.
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
+        }
     }
 
 }

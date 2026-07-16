@@ -126,7 +126,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  compileOnly project(xpackModule('esql:arrow'))
 
   // Arrow C Data Interface for zero-copy FFI transfer from Rust
   implementation("org.apache.arrow:arrow-c-data:18.3.0") {

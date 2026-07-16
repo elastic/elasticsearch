@@ -90,7 +90,9 @@ POST _reindex
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` ID you can use to [manage](#monitor-reindex-tasks) the operation.
 
-For long-running reindexes, prefer asynchronous reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
+::::{note}
+For long-running reindexes, prefer asynchronous requests. Synchronous requests keep the client waiting on the node that received the request and with a long-running request this will likely encounter transport-level timeouts. While the reindex will continue (after client timeout) as a task that's managed within the cluster, the client will not receive expected feedback as to ongoing status of completion.
+::::
 
 ## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 
@@ -618,7 +620,7 @@ Setting `_version` to `null` or clearing it from the `ctx` map is like not sendi
 ## Reindex from remote [reindex-from-remote]
 ```{applies_to}
 stack: ga
-serverless: preview
+serverless: ga
 ```
 
 Reindex supports reindexing from a remote {{es}} cluster:
@@ -658,7 +660,7 @@ It is also possible (and encouraged) to authenticate with the remote cluster thr
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.3+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.3+", "serverless": "ga" }
 ```console
 POST _reindex
 {
@@ -731,7 +733,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects. {applies_to}`serverless: preview`
+* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects.
 
 ### Compatibility [reindex-remote-compatibility]
 

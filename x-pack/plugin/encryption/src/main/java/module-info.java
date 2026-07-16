@@ -12,6 +12,7 @@ module org.elasticsearch.encryption {
     requires org.elasticsearch.encryption.spi;
 
     requires org.apache.logging.log4j;
+    requires org.apache.lucene.core;
 
     exports org.elasticsearch.xpack.encryption;
 

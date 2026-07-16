@@ -24,11 +24,14 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -149,6 +152,18 @@ public class SystemIndices {
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
+
+    public static final String NUMBER_OF_REPLICAS_SETTING_NAME = "cluster.system_indices.number_of_replicas";
+    public static final Setting<Integer> NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
+        NUMBER_OF_REPLICAS_SETTING_NAME,
+        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final String AUTO_EXPAND_REPLICAS_SETTING_NAME = "cluster.system_indices.auto_expand_replicas";
+    public static final Setting<AutoExpandReplicas> AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SYSTEM_INDICES_SETTING;
 
     /**
      * The node's full list of system features is stored here. The map is keyed

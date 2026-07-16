@@ -169,6 +169,46 @@ EXPORT void vec_dotd1q1_bulk_sparse(
         ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
+EXPORT int64_t vec_dotd2q2(
+    const int8_t* a_ptr,
+    const int8_t* query_ptr,
+    const int32_t length
+) {
+    int64_t lower = dotd1qN_inner<2>(a_ptr, query_ptr, length/2);
+    int64_t upper = dotd1qN_inner<2>(a_ptr + length/2, query_ptr, length/2);
+    return lower + (upper << 1);
+}
+
+EXPORT void vec_dotd2q2_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q_inner_bulk<int8_t, sequential_mapper, dotd1qN_inner<2>>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dotd2q2_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q_inner_bulk<int8_t, offsets_mapper, dotd1qN_inner<2>>(a, query, length, pitch, offsets, count, results);
+}
+
+EXPORT void vec_dotd2q2_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q_inner_bulk<const int8_t*, sparse_mapper, dotd1qN_inner<2>>
+        ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
+}
+
 EXPORT int64_t vec_dotd2q4(
     const int8_t* a_ptr,
     const int8_t* query_ptr,
@@ -185,7 +225,7 @@ EXPORT void vec_dotd2q4_bulk(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, sequential_mapper, dotd1qN_inner<4>>(a, query, length, length, NULL, count, results);
+    dotd2q_inner_bulk<int8_t, sequential_mapper, dotd1qN_inner<4>>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd2q4_bulk_offsets(
@@ -196,7 +236,7 @@ EXPORT void vec_dotd2q4_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, offsets_mapper, dotd1qN_inner<4>>(a, query, length, pitch, offsets, count, results);
+    dotd2q_inner_bulk<int8_t, offsets_mapper, dotd1qN_inner<4>>(a, query, length, pitch, offsets, count, results);
 }
 
 EXPORT void vec_dotd2q4_bulk_sparse(
@@ -205,7 +245,7 @@ EXPORT void vec_dotd2q4_bulk_sparse(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<const int8_t*, sparse_mapper, dotd1qN_inner<4>>
+    dotd2q_inner_bulk<const int8_t*, sparse_mapper, dotd1qN_inner<4>>
         ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 

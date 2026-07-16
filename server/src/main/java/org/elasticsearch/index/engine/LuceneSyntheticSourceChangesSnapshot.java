@@ -11,6 +11,8 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.IntArrayList;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.FieldDoc;
@@ -20,10 +22,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -81,8 +85,10 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
     ) throws IOException {
         super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
-        assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mapperService.mappingLookup().isSourceSynthetic()
-            : "either an empty index or synthetic source must be enabled for proper functionality.";
+        assert engineSearcher.getDirectoryReader().maxDoc() == 0
+            || mapperService.mappingLookup().isSourceSynthetic()
+            || mapperService.mappingLookup().isSourceColumnarStored()
+            : "either an empty index or synthetic/columnar_stored source must be enabled for proper functionality.";
         // ensure we can buffer at least one document
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
@@ -192,6 +198,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         LeafStoredFieldLoader leafFieldLoader = null;
         SourceLoader.Leaf leafSourceLoader = null;
         SortedDocValues leafRoutingDocValues = null;
+        BinaryDocValues leafIdDocValues = null;
         for (int i = 0; i < documentRecords.size(); i++) {
             SearchRecord docRecord = documentRecords.get(i);
             if (docRecord.docID() >= docBase + maxDoc) {
@@ -230,6 +237,9 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 if (routingDocValues) {
                     leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
                 }
+                if (columnarId) {
+                    leafIdDocValues = DocValues.getBinary(leafReaderContext.reader(), IdFieldMapper.NAME);
+                }
                 setNextSyntheticFieldsReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;
@@ -239,6 +249,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 leafFieldLoader,
                 leafSourceLoader,
                 leafRoutingDocValues,
+                leafIdDocValues,
                 segmentDocID,
                 leafReaderContext
             );
@@ -251,16 +262,29 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         LeafStoredFieldLoader fieldLoader,
         SourceLoader.Leaf sourceLoader,
         SortedDocValues routingDocValues,
+        BinaryDocValues leafIdDocValues,
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
-        if (docRecord.isTombstone() && fieldLoader.id() == null) {
+        String id;
+        if (columnarId) {
+            assert fieldLoader.id() == null : "id shouldn't exist in stored fields if id mode is columnar";
+            if (leafIdDocValues.advanceExact(segmentDocID)) {
+                id = Uid.decodeId(leafIdDocValues.binaryValue());
+            } else {
+                id = null;
+            }
+        } else {
+            assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
+            id = fieldLoader.id();
+        }
+        if (docRecord.isTombstone() && id == null) {
             assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
             return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
         } else if (docRecord.isTombstone()) {
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
-            return new Translog.Delete(fieldLoader.id(), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
+            return new Translog.Delete(id, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
         } else {
             if (docRecord.hasRecoverySourceSize() == false) {
                 // TODO: Callers should ask for the range that source should be retained. Thus we should always
@@ -280,7 +304,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
             }
             return new Translog.Index(
-                fieldLoader.id(),
+                id,
                 docRecord.seqNo(),
                 docRecord.primaryTerm(),
                 docRecord.version(),

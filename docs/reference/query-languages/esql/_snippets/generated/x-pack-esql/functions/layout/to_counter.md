@@ -4,6 +4,10 @@
 stack: ga 9.5.0
 ```
 
+
+:::{include} ../briefSummary/to_counter.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/to_counter.svg

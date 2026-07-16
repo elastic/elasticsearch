@@ -113,12 +113,14 @@ public class LongRangeBlockTests extends ESTestCase {
         }
     }
 
-    public void testGetTotalValueCount() {
+    public void testValueCounts() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
-        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(3)) {
-            // Position 0: single value
+        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(5)) {
+            // Position 0: null
+            builder.appendNull();
+            // Position 1: single value
             builder.appendLongRange(10L, 20L);
-            // Position 1: two values
+            // Position 2: two values
             builder.from().beginPositionEntry();
             builder.from().appendLong(30L);
             builder.from().appendLong(50L);
@@ -127,12 +129,20 @@ public class LongRangeBlockTests extends ESTestCase {
             builder.to().appendLong(40L);
             builder.to().appendLong(60L);
             builder.to().endPositionEntry();
-            // Position 2: single value
+            // Position 3: null
+            builder.appendNull();
+            // Position 4: single value
             builder.appendLongRange(100L, 200L);
 
             try (LongRangeBlock block = builder.build()) {
-                // 1 + 2 + 1 = 4 total values, not 8 (which the bug would return by summing from+to counts)
+                assertThat(block.getValueCount(0), equalTo(0));
+                assertThat(block.getValueCount(1), equalTo(1));
+                assertThat(block.getValueCount(2), equalTo(2));
+                assertThat(block.getValueCount(3), equalTo(0));
+                assertThat(block.getValueCount(4), equalTo(1));
+                // 0 + 1 + 2 + 0 + 1 = 4 total range values, not 8 range endpoints.
                 assertThat(block.getTotalValueCount(), equalTo(4));
+                BasicBlockTests.assertValueCounts(block);
             }
         }
     }

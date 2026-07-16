@@ -158,6 +158,54 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(1, result.splits().size());
     }
 
+    /**
+     * The signal the coordinator relies on to swap in {@link FileList#EMPTY}: when a partition filter prunes every
+     * file of a resolved, non-empty fileList, {@link FileSplitProvider} emits zero splits, reports
+     * {@code filesScanned == 0}, and flags the result {@code exhaustivelyPruned} — because the files were removed by a
+     * row-count-preserving filter contradiction, so a full read would emit zero rows too.
+     */
+    public void testAllPartitionsPrunedYieldsNoSplitsAndExhaustivePrune() {
+        StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
+        StoragePath path2023 = StoragePath.of("s3://b/year=2023/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path2024, 100, Instant.EPOCH), new StorageEntry(path2023, 200, Instant.EPOCH)),
+            "s3://b/year=*/*.parquet"
+        );
+        PartitionMetadata partitions = new PartitionMetadata(
+            Map.of("year", DataType.INTEGER),
+            Map.of(path2024, Map.of("year", 2024), path2023, Map.of("year", 2023))
+        );
+        // No file carries year == 1999, so every partition is pruned.
+        Expression filter = new Equals(SRC, fieldAttr("year"), intLiteral(1999));
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryResult result = provider.discoverSplits(ctx);
+
+        assertTrue("a zero-match partition filter must prune every file", result.splits().isEmpty());
+        assertEquals("filesScanned reports survivors only, so it must be 0 when nothing survives", 0, result.filesScanned());
+        assertTrue("a filter-contradiction prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
+        assertTrue("the fileList itself is still resolved and non-empty", fileList.isResolved() && fileList.fileCount() > 0);
+    }
+
+    /**
+     * An unresolved or already-empty fileList yields zero splits, but that is NOT an exhaustive prune: there is
+     * nothing to read anyway (empty) or the listing happens at runtime (unresolved), so the coordinator must not
+     * treat it as "pruned to nothing" and swap in {@link FileList#EMPTY}.
+     */
+    public void testEmptyOrUnresolvedFileListIsNotExhaustivePrune() {
+        SplitDiscoveryContext empty = new SplitDiscoveryContext(null, FileList.EMPTY, Map.of(), PartitionMetadata.EMPTY, List.of());
+        assertFalse("an already-empty fileList is not an exhaustive prune", provider.discoverSplits(empty).exhaustivelyPruned());
+
+        SplitDiscoveryContext unresolved = new SplitDiscoveryContext(
+            null,
+            FileList.UNRESOLVED,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of()
+        );
+        assertFalse("an unresolved fileList is not an exhaustive prune", provider.discoverSplits(unresolved).exhaustivelyPruned());
+    }
+
     public void testFilesScannedZeroForEmptyOrUnresolved() {
         SplitDiscoveryContext empty = new SplitDiscoveryContext(null, FileList.EMPTY, Map.of(), PartitionMetadata.EMPTY, List.of());
         assertEquals(0, provider.discoverSplits(empty).filesScanned());

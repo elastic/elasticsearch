@@ -1597,6 +1597,8 @@ max:double | max2:double | cluster:keyword | pod:keyword | b:datetime
 firstAndLastWithNullSort
 required_capability: ts_command_v0
 required_capability: fix_agg_first_last_foldables_in_sort_field
+required_capability: fn_first_fix_unresolved_sort_in_ts_default_inner_agg
+required_capability: fn_last_fix_unresolved_sort_in_ts_default_inner_agg
 // WHERE narrows each pod group down to exactly one row, so first()/last()
 // are deterministic even with a null sort field (x == y for every row).
 TS k8s

@@ -283,7 +283,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             final int numPages = Math.toIntExact(Math.max(1, (initialCapacity + INTS_PER_PAGE - 1) / INTS_PER_PAGE));
             bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
             this.pages = new byte[numPages][];
-            this.caches = new Recycler.V[numPages];
+            this.caches = new Recycler.V<?>[numPages];
             boolean success = false;
             try {
                 if (initialCapacity < INTS_PER_PAGE) {
@@ -403,7 +403,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             int numPages = Math.toIntExact(Math.max(1, (initialCapacity + LONGS_PER_PAGE - 1) / LONGS_PER_PAGE));
             bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), true);
             this.pages = new byte[numPages][];
-            this.caches = new Recycler.V[numPages];
+            this.caches = new Recycler.V<?>[numPages];
             boolean success = false;
             try {
                 this.currentPage = grabNextPage();
@@ -491,11 +491,11 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             int numPages = Math.max(1, (int) ((initialSize + PAGE_SIZE - 1) >> PAGE_SHIFT));
             bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
             this.pages = new byte[numPages][];
-            this.caches = new Recycler.V[numPages];
+            this.caches = new Recycler.V<?>[numPages];
             boolean success = false;
             try {
                 if (initialSize < HALF_PAGE_SIZE) {
-                    final int bytesLength = Math.max(1, (int) initialSize);
+                    final int bytesLength = (int) initialSize;
                     bigArrays.adjustBreaker(bytesLength, false);
                     pages[0] = currentPage = new byte[bytesLength];
                     pageCount = 1;

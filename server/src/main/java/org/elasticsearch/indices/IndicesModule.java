@@ -74,6 +74,8 @@ import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.AbstractModule;
@@ -129,7 +131,8 @@ public class IndicesModule extends AbstractModule {
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardDocsCondition.NAME, MaxPrimaryShardDocsCondition::new),
-            new NamedWriteableRegistry.Entry(Condition.class, OptimalShardCountCondition.NAME, OptimalShardCountCondition::new)
+            new NamedWriteableRegistry.Entry(Condition.class, OptimalShardCountCondition.NAME, OptimalShardCountCondition::new),
+            new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new)
         );
     }
 

@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTest
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -856,11 +856,11 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             searchTaskQueue.runAllRunnableTasks();
 
             Engine.IndexCommitRef commit1 = searchEngine.acquireLastIndexCommit(false);
-            Map<String, BlobLocation> metadata = null;
+            Map<String, BlobFileRanges> metadata;
             try (DirectoryReader reader = DirectoryReader.open(commit1.getIndexCommit())) {
                 assertThat(reader.numDocs(), equalTo(numDocs));
                 SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
-                metadata = searchDirectory.getBlobLocationForFiles(commit1.getIndexCommit().getFileNames());
+                metadata = searchDirectory.getBlobFileRangesForFiles(commit1.getIndexCommit().getFileNames());
             }
             String segmentsFileName = commit1.getIndexCommit().getSegmentsFileName();
 
@@ -898,9 +898,11 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }; // no-op wrapper
 
             ActionListener<SearcherSupplier> listener = ActionListener.wrap(supplier -> {
-                try (Searcher searcher = supplier.acquireSearcher("test")) {
-                    assertEquals("my_wrapper", searcher.source());
-                    assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                try (supplier) {
+                    try (Searcher searcher = supplier.acquireSearcher("test")) {
+                        assertEquals("my_wrapper", searcher.source());
+                        assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                    }
                 }
             }, e -> { fail("listener should not have failed: " + e.getMessage()); });
 

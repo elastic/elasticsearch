@@ -13,10 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -62,7 +65,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
-    static EsField timeSeriesField() {
+    public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
     }
 
@@ -197,7 +200,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                 && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
-                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
                 } else {
                     out.writeBoolean(false);
                 }
@@ -320,6 +323,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
+    }
+
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
@@ -345,20 +352,28 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return field;
     }
 
+    /**
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
+     */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        switch (format) {
-            case FULL -> {
-                sb.append(qualifiedName()).append("{").append(label());
-                if (field.getNodeStringName().isEmpty() == false) {
-                    sb.append("(").append(field.getNodeStringName()).append(")");
-                }
-                if (synthetic()) {
-                    sb.append("$");
-                }
-                sb.append("}#").append(id());
-            }
-            case LIMITED -> super.nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
         }
+        sb.append(mapper.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
+    }
+
+    public boolean isPotentiallyUnmapped() {
+        return field() instanceof PotentiallyUnmappedKeywordEsField
+            || field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null;
     }
 }

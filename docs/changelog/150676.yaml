@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 150667
+pr: 150676
+summary: Fix `UnsupportedOperationException` for partially unmapped keyword fields
+  with multi-fields
+type: bug

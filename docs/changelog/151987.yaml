@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 151987
+summary: Track search phase request/result bytes at coordinator
+type: enhancement

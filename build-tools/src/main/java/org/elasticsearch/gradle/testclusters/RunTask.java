@@ -138,7 +138,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         option = "using-otel-sdk",
         description = "Use the OTel SDK for metrics export instead of the APM agent. "
             + "Can be combined with --with-apm-server (uses built-in mock server) or alone, manually "
-            + "setting telemetry.otel.metrics.endpoint."
+            + "setting telemetry.export.endpoint."
     )
     public void setUsingOtelSdk(Boolean usingOtelSdk) {
         this.usingOtelSdk = usingOtelSdk;
@@ -305,7 +305,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                     if (usingOtelSdk) {
-                        node.setting("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + mockServer.getPort() + "/v1/metrics");
+                        node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getPort());
                     } else {
                         node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                         node.setting("telemetry.agent.transaction_max_spans", "100");

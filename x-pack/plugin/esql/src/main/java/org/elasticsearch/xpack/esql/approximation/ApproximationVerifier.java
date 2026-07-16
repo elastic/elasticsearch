@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
-import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -82,8 +82,7 @@ import java.util.Set;
  *        (one {@code STATS} after the fork, none inside branches) or
  *        {@code FROM | STATS | FORK (...)} (exactly one {@code STATS} per branch)
  *   <li> the other processing commands are from the supported set
- *        ({@link ApproximationVerifier#SUPPORTED_COMMANDS}); this set contains almost all
- *        unary commands, and some non-unary ones; most notably not {@code FORK}.
+ *        ({@link ApproximationVerifier#SUPPORTED_COMMANDS})
  *   <li> the aggregate functions are from the supported set
  *        ({@link ApproximationVerifier#SUPPORTED_SINGLE_VALUED_AGGS} and
  *         {@link ApproximationVerifier#SUPPORTED_MULTIVALUED_AGGS})
@@ -94,7 +93,7 @@ public class ApproximationVerifier {
 
     public record QueryProperties(Boolean hasGrouping, Boolean preservesRows, List<QueryProperties> forkBranchProperties) {}
 
-    private static final TransportVersion TRANSPORT_VERSION_LOOKUP_JOIN = TransportVersion.fromName("esql_approximation_lookup_join");
+    private static final TransportVersion TV_LOOKUP_JOIN = TransportVersion.fromName("esql_approximation_lookup_join");
 
     /**
      * These processing commands are supported for query approximation.
@@ -106,41 +105,41 @@ public class ApproximationVerifier {
      * to make sure all commands are captured.
      */
     static final Map<Class<? extends LogicalPlan>, SupportedVersion> SUPPORTED_COMMANDS = Map.ofEntries(
-        new AbstractMap.SimpleImmutableEntry<>(Aggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(ChangePoint.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Completion.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Dissect.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Enrich.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(EsRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Eval.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Filter.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Fork.class, SupportedVersion.underConstruction(TransportVersion.zero())),
-        new AbstractMap.SimpleImmutableEntry<>(Grok.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(InlineJoin.class, SupportedVersion.underConstruction(TransportVersion.zero())),
-        new AbstractMap.SimpleImmutableEntry<>(Insist.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Join.class, SupportedVersion.underConstruction(TRANSPORT_VERSION_LOOKUP_JOIN)),
-        new AbstractMap.SimpleImmutableEntry<>(Limit.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(LimitBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(LocalRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(MMR.class, SupportedVersion.underConstruction(TransportVersion.zero())),
-        new AbstractMap.SimpleImmutableEntry<>(MvExpand.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(NamedSubquery.class, SupportedVersion.underConstruction(TransportVersion.zero())),
-        new AbstractMap.SimpleImmutableEntry<>(OrderBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Project.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(RegexExtract.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(RegisteredDomain.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Rerank.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Row.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(Sample.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(SampledAggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(StubRelation.class, SupportedVersion.underConstruction(TransportVersion.zero())),
-        new AbstractMap.SimpleImmutableEntry<>(Subquery.class, SupportedVersion.underConstruction(TransportVersion.zero())),
-        new AbstractMap.SimpleImmutableEntry<>(TopN.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(TopNBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
+        new SimpleImmutableEntry<>(Aggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(ChangePoint.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Completion.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Dissect.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Enrich.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(EsRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Eval.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Filter.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Fork.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Grok.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(InlineJoin.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(IpLocation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Join.class, SupportedVersion.supportedSince(TV_LOOKUP_JOIN, TV_LOOKUP_JOIN)),
+        new SimpleImmutableEntry<>(Limit.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(LimitBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(LocalRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(MMR.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(MvExpand.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(NamedSubquery.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(OrderBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Project.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(RegexExtract.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(RegisteredDomain.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Rerank.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Row.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Sample.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(SampledAggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(StubRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(Subquery.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(TopN.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(TopNBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
     );
 
     /**
@@ -177,7 +176,6 @@ public class ApproximationVerifier {
         Enrich.class,
         Eval.class,
         Grok.class,
-        Insist.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,

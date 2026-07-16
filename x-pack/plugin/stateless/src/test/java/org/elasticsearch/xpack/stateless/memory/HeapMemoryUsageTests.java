@@ -70,6 +70,7 @@ public class HeapMemoryUsageTests extends AbstractWireSerializingTestCase<HeapMe
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomAlphaOfLength(64)
             );
             shards.put(shardId, metrics);

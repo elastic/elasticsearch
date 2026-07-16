@@ -65,11 +65,17 @@ public @interface Param {
              * This <strong>must</strong> be an aggregation function.
              */
             AGGREGATION,
+            /**
+             * A constant value.
+             */
+            CONSTANT
         }
 
         ENTITY_TYPE entityType() default ENTITY_TYPE.NONE;
 
         Kind kind() default Kind.STANDARD;
+
+        String[] allowedValues() default {};
 
         Constraint[] constraints() default {};
 

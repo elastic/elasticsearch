@@ -14,6 +14,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -21,9 +24,12 @@ import java.lang.foreign.ValueLayout;
 
 public abstract sealed class Float32VectorScorerSupplier implements RandomVectorScorerSupplier {
 
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
+
     final int dims;
     final int vectorByteSize;
-    final int maxOrd;
     final IndexInput input;
     final FloatVectorValues values;
     final FixedSizeScratch firstScratch;
@@ -36,13 +42,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = dims * Float.BYTES;
-        this.maxOrd = values.size();
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
@@ -136,12 +141,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeDistanceToUnitInterval(Similarities.squareDistanceF32(a, b, dims));
+            return VectorUtil.normalizeDistanceToUnitInterval(DISTANCE_FUNCS.squareDistanceF32(a, b, dims));
         }
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, scores);
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
@@ -166,12 +171,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeToUnitInterval(Similarities.dotProductF32(a, b, dims));
+            return VectorUtil.normalizeToUnitInterval(DISTANCE_FUNCS.dotProductF32(a, b, dims));
         }
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductF32BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, scores);
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
@@ -196,12 +201,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductF32(a, b, dims));
+            return VectorUtil.scaleMaxInnerProductScore(DISTANCE_FUNCS.dotProductF32(a, b, dims));
         }
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductF32BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {

@@ -64,7 +64,10 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
 
         public final AtomicReference<CyclicBarrier> commitIndexWriterBarrierReference = new AtomicReference<>();
         public final AtomicReference<CyclicBarrier> indexBarrierReference = new AtomicReference<>();
-        public final AtomicReference<CyclicBarrier> afterFlushCompletedBarrierReference = new AtomicReference<>();
+        // Separate barriers by flush type to prevent scheduled refreshes (IS_FLUSH_BY_REFRESH=true) from
+        // accidentally consuming the barrier that is meant for the relocation pre-flush (IS_FLUSH_BY_REFRESH=false).
+        public final AtomicReference<CyclicBarrier> afterRealFlushCompletedBarrierReference = new AtomicReference<>();
+        public final AtomicReference<CyclicBarrier> afterRefreshFlushCompletedBarrierReference = new AtomicReference<>();
         public final AtomicReference<CountDownLatch> refreshCompletedLatchReference = new AtomicReference<>();
         public final AtomicInteger indexCounter = new AtomicInteger();
 
@@ -124,7 +127,9 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
                 @Override
                 protected void afterFlush(long generation) {
                     super.afterFlush(generation);
-                    final CyclicBarrier barrier = afterFlushCompletedBarrierReference.get();
+                    final CyclicBarrier barrier = isFlushByRefresh()
+                        ? afterRefreshFlushCompletedBarrierReference.get()
+                        : afterRealFlushCompletedBarrierReference.get();
                     if (barrier != null) {
                         safeAwait(barrier);
                         safeAwait(barrier);
@@ -277,7 +282,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure detailed shard relocation information"
     )
-    public void testWaitUntilShouldNotWaitForUpload() throws InterruptedException {
+    public void testWaitUntilShouldNotWaitForUpload() throws Exception {
         startMasterOnlyNode();
         final String indexNode = startIndexNode();
         startSearchNode();
@@ -287,11 +292,12 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         createIndex(
             indexName,
             indexSettings(1, 1).put(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), "1h")
-                // The test should pass with scheduled refresh disabled. Randomly enable it for closer resemblance to production
-                .put(
-                    IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-                    randomFrom(TimeValue.MINUS_ONE, IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL)
-                )
+                // Scheduled refresh must stay disabled: this test relies on the relocation's forceRefreshes() being the
+                // refresh that notifies the wait_until refresh listener and counts down afterRefreshLatch (via the overridden
+                // 1-arg refresh(String)). A periodic refresh goes through Engine.maybeRefresh() -> the 3-arg refresh(), which
+                // notifies/consumes the listener WITHOUT counting the latch; the relocation would then find no pending listener
+                // (refreshNeeded() == false), never force a refresh, and afterRefreshLatch would never reach zero.
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()
         );
         ensureGreen(indexName);
@@ -309,18 +315,31 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         final var indexingThread = new Thread(() -> bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.WAIT_UNTIL));
         indexingThread.start();
 
-        // 2. Start the relocation and block it right after the pre-flush. The pre-flush creates and uploads generation N
+        // Establish the happens-before the rest of the test relies on: wait until all docs have been written on the source
+        // primary (20 immediate + 20 immediate + 20 wait_until = 60). By then the wait_until bulk holds its operation permit
+        // and has registered (or is about to register) its refresh listener on the source, so the relocation's forceRefreshes()
+        // is guaranteed to observe a pending listener (refreshNeeded() == true) and fire the latch-counting refresh. Without
+        // this, under load the relocation could drain all permits before the bulk registers, the bulk would reroute to the new
+        // primary, and afterRefreshLatch would never count down.
+        assertBusy(() -> assertThat(testStateless.indexCounter.get(), equalTo(60)));
+
+        // 2. Start the relocation and block it right after the pre-flush. The pre-flush creates and uploads generation N.
+        // afterRealFlushCompletedBarrierReference is used so that only this real flush (IS_FLUSH_BY_REFRESH=false) can
+        // trip the barrier; concurrent scheduled refreshes (IS_FLUSH_BY_REFRESH=true) are routed to the other reference
+        // and cannot interfere.
         final var afterFlushCompletedBarrierForPreFlush = new CyclicBarrier(2);
-        testStateless.afterFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForPreFlush);
+        testStateless.afterRealFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForPreFlush);
         logger.info("--> Relocating index shard into [{}]", newIndexNode);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
         safeAwait(afterFlushCompletedBarrierForPreFlush);
 
         // 3. Issue an external refresh and block it at the end of the (converted) flush and before it notifies refresh listener.
-        // It creates generation N+1 which is not uploaded (since it's a refresh)
+        // It creates generation N+1 which is not uploaded (since it's a refresh).
+        // afterRefreshFlushCompletedBarrierReference is used so that only flush-by-refresh calls (IS_FLUSH_BY_REFRESH=true)
+        // can trip the barrier; the real pre-flush is already past and cannot interfere.
         logger.info("--> Starting external refresh to creates a new generation ");
         final var afterFlushCompletedBarrierForExternalRefresh = new CyclicBarrier(2);
-        testStateless.afterFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForExternalRefresh);
+        testStateless.afterRefreshFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForExternalRefresh);
         final ActionFuture<BroadcastResponse> refreshFuture = indicesAdmin().prepareRefresh(indexName).execute();
         safeAwait(afterFlushCompletedBarrierForExternalRefresh);
 
@@ -333,7 +352,8 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         logger.info("--> Resume relocation");
         final CountDownLatch afterRefreshLatch = new CountDownLatch(1);
         testStateless.refreshCompletedLatchReference.set(afterRefreshLatch);
-        testStateless.afterFlushCompletedBarrierReference.set(null);
+        testStateless.afterRealFlushCompletedBarrierReference.set(null);
+        testStateless.afterRefreshFlushCompletedBarrierReference.set(null);
         safeAwait(afterFlushCompletedBarrierForPreFlush); // resumes relocation
         safeAwait(afterRefreshLatch);
 

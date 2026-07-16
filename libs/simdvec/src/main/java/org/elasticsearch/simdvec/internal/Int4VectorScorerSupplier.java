@@ -9,10 +9,11 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;

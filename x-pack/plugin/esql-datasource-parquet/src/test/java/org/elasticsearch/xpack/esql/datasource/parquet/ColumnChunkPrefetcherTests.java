@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
@@ -14,7 +15,12 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -39,6 +45,16 @@ import static org.hamcrest.Matchers.notNullValue;
  * and async prefetch with failure handling.
  */
 public class ColumnChunkPrefetcherTests extends ESTestCase {
+
+    private BufferAllocator allocator;
+    private BlockFactory blockFactory;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        allocator = blockFactory.arrowAllocator();
+    }
 
     public void testComputeColumnChunkRangesAllColumns() {
         BlockMetaData block = createBlockWithColumns(
@@ -86,23 +102,24 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         StorageObject storage = createStorageObject(fileData);
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 50), new ColMeta("col_b", 200, 60));
 
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetch(
-            storage,
-            block,
-            null
-        );
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, allocator);
 
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = future.get();
-        assertThat(result.size(), greaterThanOrEqualTo(2));
+        ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
+        try {
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = prefetched.chunks();
+            assertThat(result.size(), greaterThanOrEqualTo(2));
 
-        ColumnChunkPrefetcher.PrefetchedChunk chunkA = result.get(100L);
-        assertThat(chunkA, notNullValue());
-        assertThat(chunkA.covers(100, 50), equalTo(true));
-        byte[] expected = new byte[50];
-        System.arraycopy(fileData, 100, expected, 0, 50);
-        byte[] actual = new byte[50];
-        chunkA.data().duplicate().get(actual);
-        assertArrayEquals(expected, actual);
+            ColumnChunkPrefetcher.PrefetchedChunk chunkA = result.get(100L);
+            assertThat(chunkA, notNullValue());
+            assertThat(chunkA.covers(100, 50), equalTo(true));
+            byte[] expected = new byte[50];
+            System.arraycopy(fileData, 100, expected, 0, 50);
+            byte[] actual = new byte[50];
+            chunkA.data().duplicate().get(actual);
+            assertArrayEquals(expected, actual);
+        } finally {
+            prefetched.release().close();
+        }
     }
 
     public void testPrefetchAsyncReturnsCorrectData() throws Exception {
@@ -114,14 +131,19 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         StorageObject storage = createStorageObject(fileData);
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_x", 50, 100));
 
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetchAsync(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
             storage,
             block,
-            null
+            null,
+            allocator
         );
 
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = future.get();
-        assertThat(result.isEmpty(), equalTo(false));
+        ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
+        try {
+            assertThat(prefetched.chunks().isEmpty(), equalTo(false));
+        } finally {
+            prefetched.release().close();
+        }
     }
 
     /**
@@ -151,14 +173,20 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 executor.execute(() -> {
                     int pos = (int) position;
                     int len = (int) Math.min(length, fileData.length - position);
                     byte[] copy = new byte[len];
                     System.arraycopy(fileData, pos, copy, 0, len);
                     // Intentionally heap-backed: ColumnChunkPrefetcher must promote this to direct.
-                    listener.onResponse(ByteBuffer.wrap(copy));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(copy), () -> {}));
                 });
             }
 
@@ -185,22 +213,28 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 50));
 
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetchAsync(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
             storage,
             block,
-            null
+            null,
+            allocator
         );
 
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = future.get();
-        ColumnChunkPrefetcher.PrefetchedChunk chunk = result.get(100L);
-        assertThat(chunk, notNullValue());
-        assertTrue("PrefetchedChunk must be direct after promotion", chunk.data().isDirect());
+        ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
+        try {
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = prefetched.chunks();
+            ColumnChunkPrefetcher.PrefetchedChunk chunk = result.get(100L);
+            assertThat(chunk, notNullValue());
+            assertTrue("PrefetchedChunk must be direct after promotion", chunk.data().isDirect());
 
-        byte[] expected = new byte[50];
-        System.arraycopy(fileData, 100, expected, 0, 50);
-        byte[] actual = new byte[50];
-        chunk.data().duplicate().get(actual);
-        assertArrayEquals(expected, actual);
+            byte[] expected = new byte[50];
+            System.arraycopy(fileData, 100, expected, 0, 50);
+            byte[] actual = new byte[50];
+            chunk.data().duplicate().get(actual);
+            assertArrayEquals(expected, actual);
+        } finally {
+            prefetched.release().close();
+        }
     }
 
     public void testPrefetchConcurrentReadCalls() throws Exception {
@@ -222,13 +256,19 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 int current = concurrentReads.incrementAndGet();
                 maxConcurrent.updateAndGet(m -> Math.max(m, current));
                 executor.execute(() -> {
                     try (InputStream stream = newStream(position, length)) {
                         byte[] bytes = stream.readAllBytes();
-                        listener.onResponse(ByteBuffer.wrap(bytes));
+                        listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {}));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     } finally {
@@ -260,14 +300,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         BlockMetaData block = createBlockWithColumns(new ColMeta("a", 100, 500), new ColMeta("b", 2000, 500), new ColMeta("c", 5000, 500));
 
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetch(
-            storage,
-            block,
-            null
-        );
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, allocator);
 
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = future.get();
-        assertThat(result.isEmpty(), equalTo(false));
+        ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
+        try {
+            assertThat(prefetched.chunks().isEmpty(), equalTo(false));
+        } finally {
+            prefetched.release().close();
+        }
     }
 
     public void testPrefetchFailureCompletesExceptionally() {
@@ -305,10 +345,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         BlockMetaData block = createBlockWithColumns(new ColMeta("col", 100, 500));
 
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetchAsync(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
             failingStorage,
             block,
-            null
+            null,
+            allocator
         );
 
         assertTrue(future.isCompletedExceptionally());
@@ -382,14 +423,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         BlockMetaData block = new BlockMetaData();
         block.setRowCount(0);
 
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetch(
-            storage,
-            block,
-            null
-        );
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, allocator);
 
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = future.get();
-        assertThat(result.isEmpty(), equalTo(true));
+        ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
+        try {
+            assertThat(prefetched.chunks().isEmpty(), equalTo(true));
+        } finally {
+            prefetched.release().close();
+        }
     }
 
     // --- helpers ---

@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 151080
+summary: "Painless: `script_aware` wrappers for stream terminal ops"
+type: enhancement

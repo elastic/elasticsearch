@@ -41,14 +41,13 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
-            || params.syntheticSource();
+            || params.syntheticSource()
+            || params.isColumnarStored();
         if (hasDocValues && useDocValues) {
-            var resultList = ((List<String>) value).stream()
-                .map(v -> convert(v, nullValue))
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .toList();
+            // Columnar index modes preserve arrival order via offsets; other modes return sorted, deduplicated doc values.
+            boolean preserveOrder = params.indexMode().isColumnar();
+            var stream = ((List<String>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull);
+            var resultList = preserveOrder ? stream.toList() : stream.distinct().sorted().toList();
             return maybeFoldList(resultList);
         }
 

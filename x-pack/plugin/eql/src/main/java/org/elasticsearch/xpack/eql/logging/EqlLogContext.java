@@ -84,7 +84,7 @@ public class EqlLogContext extends QueryLoggerContext {
         ResolvedIndexExpressions resolved = request.getResolvedIndexExpressions();
         Stream<String> indices = resolved != null ? resolved.getRemoteIndicesList().stream() : Arrays.stream(request.indices());
         return indices.filter(RemoteClusterAware::isRemoteIndexName)
-            .map(i -> RemoteClusterAware.splitIndexName(i)[0])
+            .map(i -> RemoteClusterAware.splitIndexName(i).clusterAlias())
             .collect(Collectors.toSet());
     }
 }

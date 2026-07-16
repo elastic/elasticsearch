@@ -2706,10 +2706,13 @@ public class ExternalSourceResolver {
      * (e.g. a timestamp column declared {@code ip}) would surface as an internal block type mismatch deep in the
      * engine or as silent nulls; reject it here, at resolution, with an actionable message instead.
      * <p>
-     * The same walk polices a declared date {@code format}: on a file-typed format it only ever takes effect as the
-     * string&rarr;date parse pattern, so a format on a column whose physical type is not a string could never apply
-     * and is rejected rather than silently ignored. (On text formats the format is always honored — the parse IS the
-     * coercion — so text never reaches this check.)
+     * The same walk polices a declared date {@code format}: on a file-typed format it takes effect either as the
+     * string&rarr;date parse pattern or as the epoch unit / parse dialect of a numeric column ({@code epoch_second} on
+     * an {@code int64} column, {@code yyyyMMdd} on a numeric token). A format is rejected where it could never apply: a
+     * boolean/ip physical is already refused by the preceding type check (it cannot coerce to a date at all), and an
+     * already-temporal physical (an annotated timestamp declared with a format) — which passes the type check as an
+     * identity coercion — is caught here. (On text formats the format is always honored — the parse IS the coercion —
+     * so text never reaches this check.)
      * <p>
      * {@code parquet-rs} (in {@link #FILE_TYPED_FORMATS} but not {@link #COERCING_FILE_TYPED_FORMATS}) keeps the
      * strict equality check: its Arrow conversion layer has no coercion hook yet.
@@ -2746,7 +2749,7 @@ public class ExternalSourceResolver {
                         + " declare the file's type and cast in the query if needed"
                 );
             }
-            if (e.getValue().format() != null && isStringType(inferredType) == false) {
+            if (e.getValue().format() != null && isStringType(inferredType) == false && isNumericType(inferredType) == false) {
                 throw new IllegalArgumentException(
                     "[format] on column ["
                         + e.getKey()
@@ -2754,7 +2757,8 @@ public class ExternalSourceResolver {
                         + sourceType
                         + "] datasets when the file's column type is ["
                         + inferredType.typeName().toLowerCase(Locale.ROOT)
-                        + "]; a format only applies when parsing a string column into a date"
+                        + "]; a format applies when parsing a string column into a date,"
+                        + " or as the epoch unit / parse dialect of a numeric column"
                 );
             }
         }
@@ -2762,6 +2766,16 @@ public class ExternalSourceResolver {
 
     private static boolean isStringType(DataType type) {
         return type == DataType.KEYWORD || type == DataType.TEXT;
+    }
+
+    /**
+     * Whether a declared date {@code format} can apply to this physical type as the epoch unit / parse dialect of a
+     * numeric column ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}). Excludes temporals
+     * ({@code datetime}/{@code date_nanos}): an annotated timestamp is already an instant, so a format on it could never
+     * apply and stays rejected.
+     */
+    private static boolean isNumericType(DataType type) {
+        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;
     }
 
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(

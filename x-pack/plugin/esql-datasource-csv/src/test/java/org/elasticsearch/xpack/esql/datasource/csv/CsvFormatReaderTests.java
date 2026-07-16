@@ -96,6 +96,29 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A negative epoch in a bare-numeric {@code date_nanos} cell is not a representable instant (date_nanos has no
+     * pre-1970), and the parquet path rejects it per cell. CSV must too, not silently emit a negative nanos long.
+     */
+    public void testCsvBareNumericDateNanosRejectsNegative() throws Exception {
+        StorageObject object = createStorageObject("-1\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "error_mode", "null_field")
+        );
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue("a negative epoch must null, never surface as a negative date_nanos", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean
@@ -8190,6 +8213,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             DataType.BOOLEAN,
             "true",
             DataType.DATETIME,
+            "2020-01-01T00:00:00.000Z",
+            DataType.DATE_NANOS,
             "2020-01-01T00:00:00.000Z",
             DataType.UNSIGNED_LONG,
             "18446744073709551615",

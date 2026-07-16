@@ -10,7 +10,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -34,7 +33,6 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart1
@@ -46,7 +44,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -72,7 +69,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -98,7 +94,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -124,7 +119,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -150,7 +144,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -176,7 +169,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -208,7 +200,6 @@ steps:
           preemptible: true
           spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
           diskType: hyperdisk-balanced
-          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -245,7 +236,6 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
-          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
         env:
           ES_VERSION: "{{matrix.ES_VERSION}}"
@@ -257,7 +247,6 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - wait
   - trigger: elasticsearch-dra-workflow

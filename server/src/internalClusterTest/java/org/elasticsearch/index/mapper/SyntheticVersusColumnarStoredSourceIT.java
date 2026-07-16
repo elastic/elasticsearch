@@ -218,8 +218,10 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * handler) and into {@code _ignored_source} (the FALLBACK pre-capture), creating double storage on disk.
      *
      * <p>In synthetic-source reconstruction the FALLBACK path takes priority: the field's synthetic-source loader is not
-     * instantiated, so only {@code _ignored_source} is read — the {@code ._on_failure} copy is silently skipped.  Both
-     * original values ("HELLO" and "WORLD") live in {@code _ignored_source} and must appear in the reconstructed source.
+     * instantiated, so only {@code _ignored_source} is read — the {@code ._on_failure} copy is silently skipped.  "HELLO"
+     * is pre-captured in {@code _ignored_source} (FALLBACK); "WORLD" is stored in both {@code ._on_failure} (cardinality
+     * violation) and {@code _ignored_source} (FALLBACK pre-capture), but only the {@code _ignored_source} copy is used
+     * during reconstruction.  Both originals must appear in the reconstructed source.
      * {@code columnar_stored} reads the whole-document blob written before column pruning, which also contains both originals.
      * Verifying cross-mode equality confirms that the FALLBACK loader is correctly selected and that no value is lost or
      * double-emitted.

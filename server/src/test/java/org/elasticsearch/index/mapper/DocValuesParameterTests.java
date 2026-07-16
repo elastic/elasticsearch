@@ -676,6 +676,11 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
     }
 
+    /**
+     * <p>NOTE: the test uses {@code keyword} as a representative field type. The storage-routing logic under test lives in
+     * {@link FieldMapper#parse} and {@code DocumentParserContext.enforceSingleValue}, not in {@link KeywordFieldMapper}. Any other
+     * {@code FieldMapper} subclass would exercise the same code path.
+     */
     public void testOnFailureIgnoreViolatedValueStoredOnlyInFailureColumn() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
@@ -691,15 +696,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
 
-        // the violated value ("b") is in the failure column
-        List<IndexableField> failureColumn = doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX);
-        assertThat(failureColumn.isEmpty(), equalTo(false));
-
-        assertThat(
-            "_ignored_source must be empty: columnar mode disables generic ignored-source capture entirely",
-            doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty(),
-            equalTo(true)
-        );
+        // "a" is indexed normally (doc values); "b" is redirected to ._on_failure — nowhere else
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
         assertThat(
             "field must be marked ignored",
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
@@ -721,21 +719,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             )
         ).documentMapper();
 
-        // "HELLO" is the valid value (normalised to "hello" in doc values); "WORLD" violates multi_value=false
+        // "HELLO" is the valid value (normalised to "hello" in doc values); "WORLD" violates multi_value=false.
+        // In columnar non-synthetic mode the whole-document blob handles source reconstruction, so FALLBACK
+        // pre-capture to _ignored_source is skipped. "WORLD" lands exclusively in ._on_failure.
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "HELLO", "WORLD")));
 
-        assertThat(
-            "_ignored_source must be empty even for FALLBACK fields: columnar mode disables generic ignored-source capture",
-            doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty(),
-            equalTo(true)
-        );
-
-        // the violated value ("WORLD") lands exclusively in ._on_failure
-        assertThat(
-            "violated value must be in failure column",
-            doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(),
-            equalTo(false)
-        );
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
         assertThat(
             "field must be marked ignored",
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
@@ -758,20 +747,9 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
 
-        // "a" is indexed normally into the main field; "b" is the violated duplicate.
-        assertThat("first value must be in main field", doc.rootDoc().getFields("field"), hasSize(1));
-        assertThat(
-            "violated value must be in failure column",
-            doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(),
-            equalTo(false)
-        );
-        // _ignored_source must have no per-field pre-capture entry: the duplicate is already in ._on_failure and must not
-        // also be stored here (the only _ignored_source content allowed is the whole-document blob in columnar_stored mode).
-        assertThat(
-            "violated value must not be double-stored in _ignored_source",
-            doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty(),
-            equalTo(true)
-        );
+        // "a" is indexed normally (doc values in the main field); "b" is the violated duplicate and must land
+        // exclusively in ._on_failure — not also in _ignored_source or the main field.
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
         assertThat(
             "field must be marked ignored",
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),

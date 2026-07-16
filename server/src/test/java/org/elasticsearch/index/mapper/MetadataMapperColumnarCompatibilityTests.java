@@ -10,108 +10,47 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
 
 /**
- * Compatibility test for the basic metadata mappers that have a columnar implementation on the
- * {@code columnar_mappers} branch.
+ * Columnar ↔ x-content compatibility tests for the metadata mappers implemented on the
+ * {@code columnar_mappers} branch. See {@link AbstractColumnarMapperCompatibilityTestCase} for
+ * the test harness and the rationale for synthetic source + recovery-disabled as the base settings.
  *
- * <p>Each scenario is run through both the columnar batch-mapping path
- * ({@link MetadataFieldMapper#preColumnarParse}/{@link MetadataFieldMapper#postColumnarParse}
- * + {@link org.elasticsearch.sourcebatch.MappedColumns#rowCursor()}) and the conventional
- * x-content parse path ({@link DocumentMapper#parse}), and the resulting per-document
- * {@link org.apache.lucene.index.IndexableField} sets are compared for equality.
- *
- * <h2>Index settings rationale</h2>
- * <ul>
- *   <li><strong>Synthetic source</strong> ({@code index.mapping.source.mode=synthetic}): with
- *       regular stored source, {@link SourceFieldMapper} would add a {@code _source} stored field
- *       on the x-content path but not on the columnar path (where it is unsupported). Synthetic
- *       source avoids this divergence.</li>
- *   <li><strong>Recovery source disabled</strong>
- *       ({@code indices.recovery.recovery_source.enabled=false}): with recovery source enabled
- *       (but not synthetic), the x-content path stores a {@code _recovery_source} field while
- *       {@link SourceFieldMapper#supportsColumnarParse} returns {@code false}, again producing
- *       a mismatch. Disabling recovery source makes both paths agree that no recovery source
- *       data is needed.</li>
- * </ul>
- * Together these settings ensure {@link SourceFieldMapper#supportsColumnarParse} is {@code true}
- * and both paths perform the same (no-op) work for {@code _source}.
- *
- * <h2>Routing variants</h2>
- * Two {@code _routing} mapping configurations are tested:
- * <ul>
- *   <li><strong>{@code doc_values=true}</strong> ({@link #testRoutingDocValues}): routing values
- *       land in sorted doc values on both paths; no {@code _field_names} entry is involved, so the
- *       paths produce identical fields.</li>
- *   <li><strong>{@code doc_values=false}</strong> ({@link #testRoutingWithoutDocValues}): both paths
- *       write a {@code StringField}, but when a routing value is present the x-content path also
- *       calls {@code context.addToFieldNames("_routing")} adding a {@code _field_names} entry.
- *       The columnar path cannot yet do so (no columnar {@code _field_names} plumbing). This test is
- *       therefore annotated {@code @AwaitsFix} until that gap is resolved
- *       (see the TODO in {@link RoutingFieldMapper#preColumnarParse(BatchMappingContext)}).</li>
- * </ul>
- *
- * <h2>Covered metadata mappers</h2>
- * <ul>
- *   <li>{@link ProvidedIdFieldMapper} — {@code _id}</li>
- *   <li>{@link VersionFieldMapper} — {@code _version}</li>
- *   <li>{@link SeqNoFieldMapper} — {@code _seq_no} and {@code _primary_term}</li>
- *   <li>{@link RoutingFieldMapper} — {@code _routing} (when a routing value is provided)</li>
- * </ul>
- * Other metadata mappers ({@link FieldNamesFieldMapper}, {@link DocCountFieldMapper},
- * {@link IgnoredFieldMapper}, {@link IgnoredSourceFieldMapper}, {@link IndexFieldMapper},
- * {@link IndexModeFieldMapper}, {@link NestedPathFieldMapper}) either produce no fields for
- * the empty-source documents used here, or are fully no-ops on both paths.
- *
- * @see AbstractColumnarMapperCompatibilityTestCase
+ * <p>Coverage: {@link ProvidedIdFieldMapper} ({@code mode=document}/{@code columnar}),
+ * {@link SourceFieldMapper} (no-op and synthetic-recovery branches),
+ * {@link VersionFieldMapper}, {@link SeqNoFieldMapper} ({@code POINTS_AND_DOC_VALUES},
+ * {@code DOC_VALUES_ONLY}, {@code disable_sequence_numbers}),
+ * and {@link RoutingFieldMapper} ({@code doc_values=true}; {@code doc_values=false} is
+ * {@code @AwaitsFix} pending columnar {@code _field_names} support).
  */
 public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
-    /**
-     * Index settings shared by all tests: synthetic source (no stored {@code _source}) and
-     * recovery source disabled (prevents {@code _recovery_source} divergence).
-     */
-    private static Settings syntheticSourceSettings() {
+    /** Base settings builder: synthetic source + recovery source disabled (see class Javadoc). */
+    private static Settings.Builder syntheticSourceSettingsBuilder() {
         return Settings.builder()
             // Synthetic source: no stored _source; SourceFieldMapper produces nothing on either path.
             .put("index.mapping.source.mode", "synthetic")
             // Disable recovery source: prevents _recovery_source fields on the x-content path that
             // the columnar path cannot yet produce (SourceFieldMapper.supportsColumnarParse would be false).
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
     }
 
-    /**
-     * Exercises _routing with {@code doc_values=true}: routing values land in sorted doc values
-     * ({@code SortedDocValuesField.indexedField}) on both paths. No {@code _field_names} entry is
-     * involved, so the two paths produce identical fields. This test covers:
-     * <ul>
-     *   <li>no-routing doc — exercises {@code _id}, {@code _version}, {@code _seq_no},
-     *       {@code _primary_term}.</li>
-     *   <li>with-routing doc — additionally exercises {@code _routing} (doc-values variant).</li>
-     *   <li>mixed-routing batch — verifies {@link org.elasticsearch.sourcebatch.MappedColumns.RowCursor}
-     *       position alignment across docs with distinct engine values.</li>
-     * </ul>
-     */
+    private static Settings syntheticSourceSettings() {
+        return syntheticSourceSettingsBuilder().build();
+    }
+
+    /** {@code _routing doc_values=true}: routing lands in sorted doc values; no {@code _field_names} divergence. */
     public void testRoutingDocValues() throws IOException {
         assertColumnarMatchesXContent(
-            // Configure _routing with doc_values=true so routing values land in sorted doc values
-            // (no _field_names entry) rather than stored fields, ensuring parity with the columnar path.
             topMapping(b -> b.startObject(RoutingFieldMapper.NAME).field("doc_values", true).endObject()),
             syntheticSourceSettings(),
-            // Exercises _id, _version, _seq_no, _primary_term.
             scenario("no routing - single doc", 1L, doc("doc1", 100L, "{}")),
-
-            // Exercises _routing (doc_values=true) in addition to the base fields.
             scenario("with routing - single doc", 1L, doc("doc2", "my-route", 200L, "{}")),
-
-            // Exercises RowCursor position alignment across docs and per-doc engine values.
-            // Doc 0: no routing (routing column is SPARSE — null entry for doc 0).
-            // Doc 1: routing present.
-            // Doc 2: routing present, distinct version.
+            // Mixed batch: doc 0 has no routing (SPARSE column null entry), docs 1-2 have routing.
             scenario(
                 "mixed routing batch",
                 2L,
@@ -123,22 +62,90 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
     }
 
     /**
-     * Exercises _routing with {@code doc_values=false}: both paths write a {@code StringField}, but
-     * when a routing value is set the x-content path also calls {@code context.addToFieldNames("_routing")}
-     * adding a {@code _field_names} entry. The columnar path cannot yet do so; there is no columnar
-     * {@code _field_names} plumbing (see the TODO in {@link RoutingFieldMapper#preColumnarParse}).
-     * This test is expected to fail on the missing {@code _field_names} StringField until that gap
-     * is closed in a follow-up PR.
+     * {@code _routing doc_values=false}: x-content adds a {@code _field_names/_routing} entry that
+     * the columnar path cannot yet produce. {@code @AwaitsFix} until columnar {@code _field_names}
+     * support is added (see TODO in {@link RoutingFieldMapper#preColumnarParse}).
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/TODO")
     public void testRoutingWithoutDocValues() throws IOException {
         assertColumnarMatchesXContent(
-            // _routing with doc_values=false: stored StringField on both paths, but x-content also
-            // adds a _field_names entry when a routing value is present (columnar path cannot yet).
             topMapping(b -> b.startObject(RoutingFieldMapper.NAME).field("doc_values", false).endObject()),
             syntheticSourceSettings(),
-            // With a routing value: x-content adds _field_names/_routing, columnar does not.
             scenario("with routing - doc_values=false", 1L, doc("doc1", "my-route", 100L, "{}"))
+        );
+    }
+
+    /**
+     * Synthetic recovery ({@code index.recovery.use_synthetic_source=true}): both paths write
+     * {@code _recovery_source_size} as a {@code NumericDocValuesField}. Recovery source is
+     * deliberately enabled here (unlike other tests) to exercise this branch of
+     * {@link SourceFieldMapper#preColumnarParse}.
+     */
+    public void testSourceSyntheticRecovery() throws IOException {
+        final Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+            .build();
+        assertColumnarMatchesXContent(
+            topMapping(b -> {}),
+            settings,
+            scenario("empty source - single doc", 1L, doc("doc1", 100L, "{}")),
+            // TODO: use realistic non-empty source once a user data mapper supports the columnar
+            // path — empty source avoids content fields that only x-content produces today.
+            scenario("empty source batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"), doc("batch-3", 103L, "{}"))
+        );
+    }
+
+    /** {@code _id mode=document}: stored {@code StringField} on both paths. */
+    public void testIdDocumentMode() throws IOException {
+        assertColumnarMatchesXContent(
+            topMapping(b -> b.startObject(IdFieldMapper.NAME).field("mode", "document").endObject()),
+            syntheticSourceSettings(),
+            scenario("document mode - single doc", 1L, doc("doc1", 100L, "{}")),
+            scenario("document mode - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"), doc("batch-3", 103L, "{}"))
+        );
+    }
+
+    /** {@code _id mode=columnar}: {@code ColumnarIdField.TYPE} (BINARY doc values + indexed, not stored) on both paths. */
+    public void testIdColumnarMode() throws IOException {
+        assertColumnarMatchesXContent(
+            topMapping(b -> b.startObject(IdFieldMapper.NAME).field("mode", "columnar").endObject()),
+            syntheticSourceSettings(),
+            scenario("columnar id - single doc", 1L, doc("doc1", 100L, "{}")),
+            scenario("columnar id - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
+        );
+    }
+
+    /** {@code _seq_no index_options=DOC_VALUES_ONLY}: DV-only field on both paths (no BKD point). */
+    public void testSeqNoDocValuesOnly() throws IOException {
+        final Settings settings = syntheticSourceSettingsBuilder().put(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+            SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY
+        ).build();
+        assertColumnarMatchesXContent(
+            topMapping(b -> {}),
+            settings,
+            scenario("doc_values_only - single doc", 1L, doc("doc1", 100L, "{}")),
+            scenario("doc_values_only - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
+        );
+    }
+
+    /**
+     * {@code disable_sequence_numbers=true}: exercises the {@code sequenceNumbersDisabled()} branch
+     * in {@link SeqNoFieldMapper#postColumnarParse}. Produced fields are identical to
+     * {@code DOC_VALUES_ONLY}; the code path differs.
+     */
+    public void testSeqNoDisabled() throws IOException {
+        // disable_sequence_numbers requires DOC_VALUES_ONLY; set both explicitly for clarity.
+        final Settings settings = syntheticSourceSettingsBuilder().put(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+            SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY
+        ).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
+        assertColumnarMatchesXContent(
+            topMapping(b -> {}),
+            settings,
+            scenario("seq_no_disabled - single doc", 1L, doc("doc1", 100L, "{}")),
+            scenario("seq_no_disabled - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
         );
     }
 }

@@ -339,7 +339,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     @Override
     public void postColumnarParse(BatchMappingContext context) throws IOException {
         super.postColumnarParse(context);
-        // TODO: Need to implement the id propogation to non-root documents when we support nested fields.
+        // TODO: Need to implement the id propagation to non-root documents when we support nested fields.
     }
 
     @Override

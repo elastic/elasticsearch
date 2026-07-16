@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -27,6 +34,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -35,8 +45,11 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
-        ServiceSettings,
-        ElasticInferenceServiceRateLimitServiceSettings {
+        ServiceSettings {
+
+    // Default rate limits for ELSER endpoints hosted on EIS are in the eis-gateway repo under config/default.yaml
+    // 6k requests per minute
+    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(6_000);
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
@@ -44,37 +57,78 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         "inference_api_disable_eis_rate_limiting"
     );
 
-    public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
+    public static <B extends Builder<? extends ElasticInferenceServiceSparseEmbeddingsServiceSettings>> void declareCommonFields(
+        AbstractObjectParser<B, ConfigurationParseContext> parser
+    ){
+
+        parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
+        parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        parser.declareObject(
+            Builder::setRateLimitSettings,
+            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
+            // invoked with null.
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME)
+        );
+        parser.declareInt(Builder::setMaxBatchSize, new ParseField(MAX_BATCH_SIZE));
+    }
+
+    /**
+     * Creates an {@link ElasticInferenceServiceSparseEmbeddingsServiceSettings} from a map of settings using the given parser.
+     *
+     * @param map     the map to parse
+     * @param context the context in which the parsing is done
+     * @param parser  the parser to use for parsing the settings
+     * @return the created {@link ElasticInferenceServiceSparseEmbeddingsServiceSettings}
+     */
+    public static <T extends ElasticInferenceServiceSparseEmbeddingsServiceSettings> T fromMap(
         Map<String, Object> map,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
     ) {
-        ValidationException validationException = new ValidationException();
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
+    }
+
+
+
+    /**
+     * Registers the common Elastic Inference Sparse Embeddings fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
+     * immutable fields (such as {@code model_id}, {@code max_batch_size} and {@code max_input_tokens}) are intentionally not
+     * declared so that a strict update parser rejects attempts to change them.
+     */
+    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+        StatefulValue.declareNullable(
+            parser,
+            (update, value) -> update.rateLimitSettings = value,
+            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME),
+            ObjectParser.ValueType.OBJECT_OR_NULL
         );
-        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(map, validationException);
+    }
 
-        RateLimitSettings.rejectRateLimitFieldForRequestContext(
-            map,
-            ModelConfigurations.SERVICE_SETTINGS,
-            ElasticInferenceService.NAME,
-            TaskType.SPARSE_EMBEDDING,
-            context,
-            validationException
-        );
+    /**
+     * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
+     * calling {@link #mergedRateLimitSettings(ElasticInferenceServiceSparseEmbeddingsServiceSettings)} to resolve the shared fields.
+     */
+    public static class CommonUpdate {
 
-        validationException.throwIfValidationErrorsExist();
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
+        /**
+         * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
+         * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
+         */
+        protected RateLimitSettings mergedRateLimitSettings(ElasticInferenceServiceSparseEmbeddingsServiceSettings existing) {
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
+        }
     }
 
     private final String modelId;
-
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
     private final Integer maxBatchSize;
@@ -121,7 +175,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         return maxBatchSize;
     }
 
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }
@@ -184,25 +237,28 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         return Objects.hash(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
     }
 
-    private Builder createBuilderWithCopy() {
-        return new Builder(modelId).maxInputTokens(maxInputTokens).maxBatchSize(maxBatchSize);
-    }
 
-    @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
-    }
-
-    private static class Builder {
-        private final String modelId;
+    private abstract static class Builder<T extends ElasticInferenceServiceSparseEmbeddingsServiceSettings> {
+        private String modelId;
         private Integer maxInputTokens;
         private Integer maxBatchSize;
+        protected RateLimitSettings rateLimitSettings;
+
+        public void setModelId(String modelId){
+            this.modelId = modelId;
+        }
+
+        public void setMaxBatchSize(Integer maxBatchSize) {
+            this.maxBatchSize = maxBatchSize;
+        }
+
+        public void setMaxInputTokens(Integer maxInputTokens) {
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         Builder(String modelId) {
             this.modelId = Objects.requireNonNull(modelId);
@@ -218,8 +274,13 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             return this;
         }
 
-        ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
-            return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
+        protected abstract T build(String modelId, Integer maxInputTokens, Integer maxBatchSize, RateLimitSettings rateLimitSettings);
+
+        public final T build() {
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            validatePositiveInteger(maxBatchSize, MAX_BATCH_SIZE);
+            return build(modelId, maxInputTokens, maxBatchSize, rateLimitSettings);
         }
     }
 }

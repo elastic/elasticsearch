@@ -62,11 +62,6 @@ public record MethodModel(
     String packedElementSimpleName
 ) {
 
-    /** Name of the static {@code MethodHandle} field generated for this method in the {@code $Impl} class. */
-    public String methodHandleFieldName() {
-        return methodName + "$mh";
-    }
-
     /**
      * Builds a {@code MethodModel} from a method on a {@code @LibrarySpecification} interface.
      * Emits {@link Kind#ERROR} diagnostics for any validation failure and returns null.

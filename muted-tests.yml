@@ -514,9 +514,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.packaging.test.PackageUpgradeTests
-  method: test12SetupBwcVersion
-  issue: https://github.com/elastic/elasticsearch/issues/152819
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
   method: test {csv-spec:unmapped-load.loadMultiIndexPartialMultiFieldInSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/153176
@@ -541,9 +538,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
-- class: org.elasticsearch.packaging.test.PackageUpgradeTests
-  method: test21CheckUpgradedVersion
-  issue: https://github.com/elastic/elasticsearch/issues/153329
 - class: org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroidTests
   method: testReduceRandom
   issue: https://github.com/elastic/elasticsearch/issues/153353

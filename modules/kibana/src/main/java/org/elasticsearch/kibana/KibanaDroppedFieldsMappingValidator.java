@@ -78,7 +78,7 @@ public class KibanaDroppedFieldsMappingValidator implements RequestValidators.Re
      * tree (including multi-fields under {@code fields}). This deliberately avoids building mapper objects: for
      * tombstone matching only the declared names are needed, not the resulting Lucene shapes.
      */
-    private static Set<String> leafFieldPaths(String mappingSource) {
+    static Set<String> leafFieldPaths(String mappingSource) {
         Set<String> paths = new HashSet<>();
         if (mappingSource == null) {
             return paths;

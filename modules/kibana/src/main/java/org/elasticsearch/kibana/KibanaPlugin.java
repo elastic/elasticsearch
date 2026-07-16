@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -45,10 +46,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin, ActionPlugin {
+
+    private final AtomicReference<KibanaAutoPutMappingFilter> autoPutMappingFilter = new AtomicReference<>();
 
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
 
@@ -153,6 +157,17 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin, ActionPlu
     @Override
     public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
         return List.of(new KibanaDroppedFieldsMappingValidator());
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        autoPutMappingFilter.set(new KibanaAutoPutMappingFilter(services.clusterService()));
+        return List.of();
+    }
+
+    @Override
+    public Collection<MappedActionFilter> getMappedActionFilters() {
+        return List.of(autoPutMappingFilter.get());
     }
 
     @Override

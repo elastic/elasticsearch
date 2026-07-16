@@ -2616,12 +2616,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (seg == null) {
             return ParallelDispatchMode.NOT_PARALLELIZABLE;
         }
+        // A header-bound declaration must resolve column names against the header at byte 0 (the coordinators give only
+        // chunk 0 the file's leading bytes — firstSplit(chunk.index == 0)), so it must read the WHOLE file from the
+        // leader — never a mid-file range with no header. It must NOT go NOT_PARALLELIZABLE: that mode's synchronous
+        // whole-file fallback wraps no StatsCapturingIterator, so it strips the cold read's row-count/stripe harvest and
+        // breaks the warm COUNT(*)/MIN/MAX serve. Both whole-file streaming paths below read leader-anchored AND capture
+        // stats, so a declared header read warms exactly like an inferred one. Compression is resolved first so a
+        // gz/… declaration stays on the compressed path (decoding correctly) rather than the uncompressed one.
+        boolean needsFileStart = reader.declaredNameBindingNeedsFileStart();
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
-            if (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec) {
+            // A splittable/indexed codec could range-split into headerless chunks; a header-bound declaration forces the
+            // stream-only (whole-file, leader-anchored) compressed path instead. A non-splittable codec is stream-only anyway.
+            if (needsFileStart == false && (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec)) {
                 return ParallelDispatchMode.SPLITTABLE_OR_INDEXED_COMPRESSED;
             }
             return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
+        }
+        if (needsFileStart) {
+            return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL;
         }
         RecordSplitter splitter = seg.recordSplitter();
         // A null splitter (only reachable from mocks) keeps the strided default.
@@ -2689,7 +2702,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // coordinator below eagerly allocates parallelism-many segment-sized (1 MiB) buffers per file
                 // up front; that is necessary for a sequential-only stream but wastes memory on a seekable
                 // file, and at high parallelism and concurrency it exhausts the heap.
-                if (splitter != null && splitter.supportsProvenProbing()) {
+                // A header-bound declaration must resolve names against the header at byte 0, so it can never take
+                // the proven-probing macro-split path (a non-leader range has no header). Force it onto the streaming
+                // whole-file path below, which reads leader-anchored in a single pass and still captures stats.
+                if (splitter != null && splitter.supportsProvenProbing() && reader.declaredNameBindingNeedsFileStart() == false) {
                     return ParallelParsingCoordinator.parallelRead(
                         seg,
                         obj,

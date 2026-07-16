@@ -27,3 +27,14 @@ steps:
               - checkPart4
               - checkPart5
               - checkPart6
+  # Fails on ESQL golden test version labels that fell below the compatibility floor, so the
+  # cleanup gets auto-filed instead of accumulating. See x-pack/plugin/esql/src/test/java/org/
+  # elasticsearch/xpack/esql/optimizer/GoldenTestsReadme.MD, "Label lifecycle".
+  - label: esql-golden-tests-gc-sweep
+    command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:test --tests "*GoldenTests" -Dtests.golden.gc.strict=true
+    timeout_in_minutes: 120
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      diskSizeGb: 350
+      machineType: custom-32-98304

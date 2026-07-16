@@ -2056,7 +2056,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return new Index(
                     indexOp.uid(),
                     indexOp.seqNo(),
-                    primaryTerm(),
+                    primaryTerm,
                     indexOp.version(),
                     source,
                     indexOp.routing(),

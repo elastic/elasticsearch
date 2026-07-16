@@ -99,7 +99,7 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
      * override this to also roll back that auxiliary storage to the point recorded by
      * {@link #beginPositionEntry()}.
      */
-    public void cancelPositionEntry() {
+    public AbstractBlockBuilder cancelPositionEntry() {
         assert positionEntryIsOpen : "cancelPositionEntry called without a matching beginPositionEntry";
         valueCount = firstValueIndexes[positionCount];
         positionEntryIsOpen = false;
@@ -108,6 +108,7 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         if (valueCount == 0) {
             hasNonNullValue = false;
         }
+        return this;
     }
 
     protected final boolean isDense() {

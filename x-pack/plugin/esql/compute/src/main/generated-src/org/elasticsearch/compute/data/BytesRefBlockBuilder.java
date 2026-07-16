@@ -95,9 +95,10 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
-    public void cancelPositionEntry() {
+    public BytesRefBlockBuilder cancelPositionEntry() {
         values.truncateTo(firstValueIndexes[positionCount]);
         super.cancelPositionEntry();
+        return this;
     }
 
     @Override

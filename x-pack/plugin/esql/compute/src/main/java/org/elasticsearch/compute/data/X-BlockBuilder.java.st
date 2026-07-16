@@ -124,9 +124,10 @@ $if(BytesRef)$
     }
 
     @Override
-    public void cancelPositionEntry() {
+    public $Type$BlockBuilder cancelPositionEntry() {
         values.truncateTo(firstValueIndexes[positionCount]);
         super.cancelPositionEntry();
+        return this;
     }
 $endif$
 

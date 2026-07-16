@@ -87,12 +87,12 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
         final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
 
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }

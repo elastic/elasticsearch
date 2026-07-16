@@ -1009,6 +1009,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         @Override
         public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimate>> listener) {
+            final long totalHeapUsageBytes = randomNonNegativeLong();
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()
@@ -1018,7 +1019,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .collect(
                         Collectors.toUnmodifiableMap(
                             DiscoveryNode::getId,
-                            node -> new NodeHeapEstimate(randomNonNegativeLong(), randomNonNegativeLong())
+                            node -> new NodeHeapEstimate(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes))
                         )
                     )
             );

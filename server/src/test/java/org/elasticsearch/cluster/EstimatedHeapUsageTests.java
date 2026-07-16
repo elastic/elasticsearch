@@ -22,7 +22,7 @@ public class EstimatedHeapUsageTests extends ESTestCase {
         final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
             randomUUID(),
             totalBytes,
-            new NodeHeapEstimate(estimatedUsageBytes, randomNonNegativeLong())
+            new NodeHeapEstimate(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
         );
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
@@ -36,7 +36,7 @@ public class EstimatedHeapUsageTests extends ESTestCase {
         final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
             randomUUID(),
             totalBytes,
-            new NodeHeapEstimate(estimatedUsageBytes, randomNonNegativeLong())
+            new NodeHeapEstimate(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
         );
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));

@@ -78,20 +78,20 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
     }
 
     public void testCacheUsageFieldsAreTransportVersionGated() throws Exception {
-        final var shardCacheCommitments = Map.of(randomShardId(), new BoostedAndUnboostedCacheCommitments(10L, 20L));
+        final var shardCacheRequirements = Map.of(randomShardId(), new BoostedAndUnboostedCacheRequirements(10L, 20L));
         final var nodeCacheSizeAndCommitments = Map.of(randomIdentifier(), new NodeCacheSizeAndCommitments(100L, 10L, 30L));
         final var clusterInfo = ClusterInfo.builder()
-            .shardCacheCommitments(shardCacheCommitments)
+            .shardCacheRequirements(shardCacheRequirements)
             .nodeCacheSizeAndCommitments(nodeCacheSizeAndCommitments)
             .build();
 
         final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
-        assertThat(currentVersionCopy.getShardCacheCommitments(), equalTo(shardCacheCommitments));
+        assertThat(currentVersionCopy.getShardCacheRequirements(), equalTo(shardCacheRequirements));
         assertThat(currentVersionCopy.getNodeCacheSizeAndCommitments(), equalTo(nodeCacheSizeAndCommitments));
 
         final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_METADATA_IN_CLUSTER_INFO);
         final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
-        assertThat(preCacheUsageCopy.getShardCacheCommitments(), equalTo(Map.of()));
+        assertThat(preCacheUsageCopy.getShardCacheRequirements(), equalTo(Map.of()));
         assertThat(preCacheUsageCopy.getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
     }
 
@@ -130,7 +130,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomMaxHeapSizes(),
             randomNodeIdsWriteLoadHotspottingSet(),
             randomNodeCacheSizeAndCommitmentsMap(),
-            randomShardCacheCommitments()
+            randomShardCacheRequirements()
         );
     }
 
@@ -138,21 +138,21 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         int numEntries = randomIntBetween(0, 128);
         Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            nodeCacheSizeAndCommitments.put(randomAlphaOfLength(32), NodeCacheSizeAndCommitmentsTests.randomNodeCacheSizeAndCommitments());
+            nodeCacheSizeAndCommitments.put(randomIdentifier(), NodeCacheSizeAndCommitmentsTests.randomNodeCacheSizeAndCommitments());
         }
         return nodeCacheSizeAndCommitments;
     }
 
-    private static Map<ShardId, BoostedAndUnboostedCacheCommitments> randomShardCacheCommitments() {
+    private static Map<ShardId, BoostedAndUnboostedCacheRequirements> randomShardCacheRequirements() {
         int numEntries = randomIntBetween(0, 128);
-        Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments = new HashMap<>(numEntries);
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            shardCacheCommitments.put(
+            shardCacheRequirements.put(
                 randomShardId(),
-                new BoostedAndUnboostedCacheCommitments(randomNonNegativeLong(), randomNonNegativeLong())
+                new BoostedAndUnboostedCacheRequirements(randomNonNegativeLong(), randomNonNegativeLong())
             );
         }
-        return shardCacheCommitments;
+        return shardCacheRequirements;
     }
 
     private static Map<ShardId, Double> randomShardWriteLoad() {

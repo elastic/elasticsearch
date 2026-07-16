@@ -221,7 +221,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, Long> estimatedHeapUsagePerNode;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
-        private volatile Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments = Map.of();
+        private volatile Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
         private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
@@ -309,14 +309,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
-                            shardCacheCommitments = cacheSizesAndCommitmentStats.shardCacheCommitments();
+                            shardCacheRequirements = cacheSizesAndCommitmentStats.shardCacheRequirements();
                             nodeCacheSizeAndCommitments = cacheSizesAndCommitmentStats.nodeCacheSizeAndCommitments();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn("failed to fetch cache sizes and commitment stats", e);
-                            shardCacheCommitments = Map.of();
+                            shardCacheRequirements = Map.of();
                             nodeCacheSizeAndCommitments = Map.of();
                         }
                     }, fetchRefs.acquire())
@@ -550,7 +550,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 maxHeapPerNode,
                 nodeIdsWriteLoadHotspotting,
                 nodeCacheSizeAndCommitments,
-                shardCacheCommitments
+                shardCacheRequirements
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

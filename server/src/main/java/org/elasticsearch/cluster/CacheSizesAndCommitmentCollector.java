@@ -12,7 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.ActionListener;
 
 /**
- * Collects node cache commitments, node cache size and individual shard cache size commitments {@link ClusterInfo}.
+ * Collects node cache commitments, node cache size and individual shard cache requirements for {@link ClusterInfo}.
  */
 public interface CacheSizesAndCommitmentCollector {
 
@@ -22,7 +22,7 @@ public interface CacheSizesAndCommitmentCollector {
     CacheSizesAndCommitmentCollector EMPTY = (clusterState, listener) -> listener.onResponse(CacheSizesAndCommitmentStats.EMPTY);
 
     /**
-     * Collects the shard cache size commitments, node cache commitment stats and node cache sizes.
+     * Collects the shard cache requirements, node cache commitment stats and node cache sizes.
      *
      * @param clusterState The cluster state snapshot for this collection.
      * @param listener The listener which will receive the results.

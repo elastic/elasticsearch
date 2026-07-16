@@ -25,7 +25,7 @@ public class CacheSizesAndCommitmentCollectorTests extends ESTestCase {
             cacheSizesAndCommitmentStatsFuture
         );
         final CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats = safeGet(cacheSizesAndCommitmentStatsFuture);
-        assertThat(cacheSizesAndCommitmentStats.shardCacheCommitments(), equalTo(Map.of()));
+        assertThat(cacheSizesAndCommitmentStats.shardCacheRequirements(), equalTo(Map.of()));
         assertThat(cacheSizesAndCommitmentStats.nodeCacheSizeAndCommitments(), equalTo(Map.of()));
     }
 }

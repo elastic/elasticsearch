@@ -14,17 +14,17 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Map;
 
 /**
- * Node cache size and commitment stats, and individual shard cache size commitments
+ * Node cache size and commitment stats, and individual shard cache requirements.
  */
 public record CacheSizesAndCommitmentStats(
-    Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments,
+    Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
     Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments
 ) {
 
     public static final CacheSizesAndCommitmentStats EMPTY = new CacheSizesAndCommitmentStats(Map.of(), Map.of());
 
     public CacheSizesAndCommitmentStats {
-        shardCacheCommitments = Map.copyOf(shardCacheCommitments);
+        shardCacheRequirements = Map.copyOf(shardCacheRequirements);
         nodeCacheSizeAndCommitments = Map.copyOf(nodeCacheSizeAndCommitments);
     }
 }

@@ -48,16 +48,16 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
 
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings)) {
-            final Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments = Map.of(
+            final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of(
                 new ShardId("index", "uuid", 0),
-                new BoostedAndUnboostedCacheCommitments(10L, 20L)
+                new BoostedAndUnboostedCacheRequirements(10L, 20L)
             );
             final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of(
                 "node-id",
                 new NodeCacheSizeAndCommitments(100L, 10L, 30L)
             );
             final CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats = new CacheSizesAndCommitmentStats(
-                shardCacheCommitments,
+                shardCacheRequirements,
                 nodeCacheSizeAndCommitments
             );
             final AtomicBoolean failCacheSizesAndCommitmentStats = new AtomicBoolean();
@@ -82,18 +82,19 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 cacheSizesAndCommitmentCollector,
                 NodeUsageStatsForThreadPoolsCollector.EMPTY
             );
+            // AsyncRefresh asserts that each refresh notifies at least one registered cluster info listener.
             clusterInfoService.addListener(ignored -> {});
 
             ClusterInfo clusterInfo = refresh(clusterInfoService);
             verify(cacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
-            assertThat(clusterInfo.getShardCacheCommitments(), equalTo(shardCacheCommitments));
+            assertThat(clusterInfo.getShardCacheRequirements(), equalTo(shardCacheRequirements));
             assertThat(clusterInfo.getNodeCacheSizeAndCommitments(), equalTo(nodeCacheSizeAndCommitments));
 
             Mockito.clearInvocations(cacheSizesAndCommitmentCollector);
             failCacheSizesAndCommitmentStats.set(true);
             clusterInfo = refresh(clusterInfoService);
             verify(cacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
-            assertThat(clusterInfo.getShardCacheCommitments(), equalTo(Map.of()));
+            assertThat(clusterInfo.getShardCacheRequirements(), equalTo(Map.of()));
             assertThat(clusterInfo.getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
         }
     }

@@ -98,16 +98,16 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
-        final Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments = Map.of(
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of(
             new ShardId("index", "uuid", 0),
-            new BoostedAndUnboostedCacheCommitments(10L, 20L)
+            new BoostedAndUnboostedCacheRequirements(10L, 20L)
         );
         final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of(
             discoveryNode.getId(),
             new NodeCacheSizeAndCommitments(100L, 10L, 30L)
         );
         final CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats = new CacheSizesAndCommitmentStats(
-            shardCacheCommitments,
+            shardCacheRequirements,
             nodeCacheSizeAndCommitments
         );
         final CacheSizesAndCommitmentCollector mockCacheSizesAndCommitmentCollector = mock(CacheSizesAndCommitmentCollector.class);
@@ -186,7 +186,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(mockCacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
-            assertThat(clusterInfoService.getClusterInfo().getShardCacheCommitments(), equalTo(shardCacheCommitments));
+            assertThat(clusterInfoService.getClusterInfo().getShardCacheRequirements(), equalTo(shardCacheRequirements));
             assertThat(clusterInfoService.getClusterInfo().getNodeCacheSizeAndCommitments(), equalTo(nodeCacheSizeAndCommitments));
         }
 

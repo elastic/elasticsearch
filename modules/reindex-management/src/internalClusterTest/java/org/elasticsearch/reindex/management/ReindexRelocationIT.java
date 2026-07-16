@@ -935,21 +935,35 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             request.addParameter("wait_for_completion", "false");
             request.addParameter("slices", Integer.toString(1));
             request.addParameter("requests_per_second", Integer.toString(requestsPerSecond));
-            request.setJsonEntity(Strings.format("""
-                {
-                  "source": {
-                    "remote": {
-                      "host": "http://%s:%d"
-                    },
-                    "index": "%s",
-                    "size": %d
-                  },
-                  "dest": {
-                    "index": "%s"
-                  }
-                }
-                """, InetAddresses.toUriString(remoteAddress.getAddress()), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
-
+            final String credentials = randomBoolean() ? """
+                ,
+                      "username": "elastic",
+                      "password": "password"\
+                """ : "";
+            request.setJsonEntity(
+                Strings.format(
+                    """
+                        {
+                          "source": {
+                            "remote": {
+                              "host": "http://%s:%d"%s
+                            },
+                            "index": "%s",
+                            "size": %d
+                          },
+                          "dest": {
+                            "index": "%s"
+                          }
+                        }
+                        """,
+                    InetAddresses.toUriString(remoteAddress.getAddress()),
+                    remoteAddress.getPort(),
+                    credentials,
+                    SOURCE_INDEX,
+                    bulkSize,
+                    DEST_INDEX
+                )
+            );
             final Response response = restClient.performRequest(request);
             final String task = (String) ESRestTestCase.entityAsMap(response).get("task");
             assertNotNull("reindex did not return a task id", task);

@@ -49,6 +49,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -187,21 +188,25 @@ public class Reindexer {
     }
 
     public void execute(
-        BulkByPaginatedSearchTask task,
-        ReindexRequest request,
-        Client bulkClient,
-        ActionListener<BulkByPaginatedSearchResponse> listener
+        final BulkByPaginatedSearchTask task,
+        final ReindexRequest request,
+        final Client bulkClient,
+        final ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
+        final var closeRemoteInfoListener = ActionListener.runAfter(
+            listener,
+            () -> IOUtils.closeWhileHandlingException(request.getRemoteInfo()) // null-safe
+        );
         final ResumeInfo resumeInfo = request.getResumeInfo().orElse(null);
         if (resumeInfo != null && resumeInfo.sourceTaskResult() != null) {
             // source task result should be present for top-level tasks only (e.g. leader or non-sliced worker)
             storeRelocationSourceTaskResult(
                 task,
                 resumeInfo,
-                ActionListener.wrap(v -> doExecute(task, request, bulkClient, listener), listener::onFailure)
+                ActionListener.wrap(v -> doExecute(task, request, bulkClient, closeRemoteInfoListener), closeRemoteInfoListener::onFailure)
             );
         } else {
-            doExecute(task, request, bulkClient, listener);
+            doExecute(task, request, bulkClient, closeRemoteInfoListener);
         }
     }
 

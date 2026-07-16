@@ -211,7 +211,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         ) {
             if (windowSize < footerTailBytes) {
                 throw new IllegalArgumentException(
-                    "windowSize (" + windowSize + ") must be >= footerTailBytes (" + footerTailBytes + "); "
+                    "windowSize ("
+                        + windowSize
+                        + ") must be >= footerTailBytes ("
+                        + footerTailBytes
+                        + "); "
                         + "tail extension computes fetchStart = length - min(footerTailBytes, windowSize), "
                         + "which exceeds pos when windowSize < footerTailBytes, leaving pos outside the window"
                 );

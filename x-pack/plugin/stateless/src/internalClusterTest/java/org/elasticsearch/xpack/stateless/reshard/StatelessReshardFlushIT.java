@@ -119,7 +119,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         assertTrue(flushFailed.get());
     }
 
-    public void testPreFlushWaitsForOngoingFlushes() throws Exception {
+    public void testPreFlushWaitsForOngoingFlushes() {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
         ensureStableCluster(2);

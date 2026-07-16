@@ -3319,10 +3319,9 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes
-         * generated columns named {@code <prefix><field>} ({@code highlight_} by default). Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V3(Build.current().isSnapshot()),
+        HIGHLIGHT_V4(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

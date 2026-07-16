@@ -44,7 +44,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
 
-    private static final String KIBANA_WORKFLOWS_ORIGIN = "kibana";
+    private static final String KIBANA_ORIGIN = "kibana";
 
     private static final String KIBANA_WORKFLOWS_VERSION_VARIABLE = "kibana.workflows.version";
 
@@ -203,7 +203,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 KIBANA_PRODUCT_ORIGIN,
-                KIBANA_WORKFLOWS_ORIGIN,
+                KIBANA_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {
@@ -229,7 +229,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 KIBANA_PRODUCT_ORIGIN,
-                KIBANA_WORKFLOWS_ORIGIN,
+                KIBANA_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {
@@ -255,7 +255,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 KIBANA_PRODUCT_ORIGIN,
-                KIBANA_WORKFLOWS_ORIGIN,
+                KIBANA_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {

@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -156,10 +160,14 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         );
         ensureStableCluster(3);
 
-        // Create indices: state/results on state-and-results, config on config
+        // Create indices: state/results on state-and-results, config on config.
+        // Explicit shard/replica settings override the randomized index template so that
+        // AllocateEmptyPrimaryAllocationCommand can reference shard 0 deterministically.
         indicesAdmin().prepareCreate(".ml-anomalies-shared-000001")
             .setSettings(
                 Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
                     .put("index.routing.allocation.exclude.ml-indices", "config,ml-only")
                     .build()
@@ -168,6 +176,8 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         indicesAdmin().prepareCreate(".ml-state")
             .setSettings(
                 Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
                     .put("index.routing.allocation.exclude.ml-indices", "config,ml-only")
                     .build()
@@ -176,6 +186,8 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         indicesAdmin().prepareCreate(".ml-config")
             .setSettings(
                 Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.exclude.ml-indices", "state-and-results")
                     .put("index.routing.allocation.include.ml-indices", "config")
                     .build()
@@ -208,23 +220,55 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         internalCluster().stopNode(jobNode);
         ensureStableCluster(1, configNode);
 
-        // Config node's open attempts fail (state indices red). Allow allocation to config so shards relocate.
+        // Config node's open attempts fail (state indices red). Fix allocation filters and force-allocate
+        // the lost primaries on configNode. Two corrections are needed:
+        // 1. Clear the exclude filter (still blocked configNode) alongside updating include.
+        // 2. Allocate empty primaries because stateNode's shard data is permanently gone.
         indicesAdmin().prepareUpdateSettings(".ml-state", ".ml-anomalies-shared-000001")
-            .setSettings(Settings.builder().put("index.routing.allocation.include.ml-indices", "state-and-results,config").build())
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.include.ml-indices", "state-and-results,config")
+                    .putNull("index.routing.allocation.exclude.ml-indices")
+                    .build()
+            )
             .get();
 
-        // Wait for shards to allocate on the config node so GetJobsStats (used by awaitJobOpenedAndAssigned) can search the indices.
-        // Use a longer timeout than default ensureYellow (30s); on CI shard relocation after 2 node stops can take longer.
-        ensureGreen(TimeValue.timeValueMinutes(2), ".ml-state", ".ml-anomalies-shared-000001");
+        // Force-allocate empty primaries on configNode for all indices that had their primary on
+        // stateNode (which is now stopped). This includes the explicitly created .ml-state and
+        // .ml-anomalies-shared-000001, plus any auto-created system indices (e.g. .ml-state-000001,
+        // .ml-notifications-000002) whose primaries were also on stateNode.
+        allocateAllUnassignedPrimaries(configNode);
 
-        awaitJobOpenedAndAssigned(jobId, null);
+        ensureGreen(TimeValue.timeValueMinutes(2));
 
-        GetJobsStatsAction.Response stats = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
-            .actionGet();
-        assertThat(stats.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
+        // Use a longer timeout than the default awaitJobOpenedAndAssigned (10s) because
+        // the retry mechanism needs time to detect the recovered shards and reopen the job.
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
+                .actionGet();
+            GetJobsStatsAction.Response.JobStats jobStats = statsResponse.getResponse().results().get(0);
+            assertThat(jobStats.getState(), equalTo(JobState.OPENED));
+        }, 2, TimeUnit.MINUTES);
 
         ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         resetRequest.persistentSettings(Settings.builder().putNull(MachineLearning.JOB_OPEN_RETRY_TIMEOUT.getKey()).build());
         client().admin().cluster().updateSettings(resetRequest).actionGet();
+    }
+
+    /**
+     * Finds all unassigned primary shards in the cluster and force-allocates them as empty primaries
+     * on the given node. ML auto-creates several system indices (.ml-state-000001, .ml-notifications-000002,
+     * etc.) whose primaries may land on any data node; after that node is stopped, all of these need recovery.
+     */
+    private void allocateAllUnassignedPrimaries(String targetNode) {
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        List<AllocateEmptyPrimaryAllocationCommand> commands = state.getRoutingTable()
+            .allShards()
+            .filter(shard -> shard.primary() && shard.unassigned())
+            .map(shard -> new AllocateEmptyPrimaryAllocationCommand(shard.getIndexName(), shard.id(), targetNode, true))
+            .toList();
+        if (commands.isEmpty() == false) {
+            ClusterRerouteUtils.reroute(client(), commands.toArray(new AllocateEmptyPrimaryAllocationCommand[0]));
+        }
     }
 }

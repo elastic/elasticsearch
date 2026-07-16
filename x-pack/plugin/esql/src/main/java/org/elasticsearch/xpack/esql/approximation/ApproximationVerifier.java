@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -117,7 +116,6 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(Fork.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Grok.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(InlineJoin.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new SimpleImmutableEntry<>(Insist.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(IpLocation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Join.class, SupportedVersion.supportedSince(TV_LOOKUP_JOIN, TV_LOOKUP_JOIN)),
         new SimpleImmutableEntry<>(Limit.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
@@ -178,7 +176,6 @@ public class ApproximationVerifier {
         Enrich.class,
         Eval.class,
         Grok.class,
-        Insist.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,

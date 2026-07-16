@@ -94,21 +94,21 @@ public class CancelRecoveriesAction {
     }
 
     /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.
-    public record CancelledInQueue(String allocationId, ShardId shardId) implements Writeable {
+    public record CancelledInQueue(ShardId shardId, String allocationId) implements Writeable {
 
         public CancelledInQueue(StreamInput in) throws IOException {
-            this(in.readString(), new ShardId(in));
+            this(new ShardId(in), in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(allocationId);
             shardId.writeTo(out);
+            out.writeString(allocationId);
         }
     }
 
-    /// Response containing the recoveries that were found in the throttling queue and cancelled. The master can use
-    /// this information to immediately update cluster state without waiting for a separate
+    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled.
+    /// The master can use this information to immediately update cluster state without waiting for a separate
     /// `ShardStateAction.shardFailed` notification from the data node.
     public static class Response extends ActionResponse {
         private final Set<CancelledInQueue> cancelledInQueue;

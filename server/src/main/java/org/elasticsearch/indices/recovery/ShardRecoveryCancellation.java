@@ -16,7 +16,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/// Details of a single shard recovery to be cancelled.
+/// Details of a single shard recovery to be cancelled on a data node.
 public record ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted) implements Writeable {
 
     public ShardRecoveryCancellation(StreamInput in) throws IOException {

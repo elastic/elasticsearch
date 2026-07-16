@@ -700,27 +700,6 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Builds an ordered predicate over a {@code DATE} (day-granularity, INT32) column, correcting for a
-     * {@code millis} literal that falls strictly inside a day rather than on its boundary. A decoded
-     * value is always {@code days * MILLIS_PER_DAY} (midnight), so naively pushing
-     * {@code floorDiv(millis, MILLIS_PER_DAY)} under the original op would mis-prune: {@code LT} must
-     * push {@code LTE} instead (the floor day still starts before a mid-day literal), and {@code NOT_EQ}
-     * must decline (no day value can equal a mid-day instant, so the true predicate matches every row).
-     */
-    private static FilterPredicate buildDatePredicate(String columnName, long millis, PredicateOp op) {
-        int floorDays = (int) Math.floorDiv(millis, MILLIS_PER_DAY);
-        if (millis % MILLIS_PER_DAY != 0) {
-            if (op == PredicateOp.NOT_EQ) {
-                return null;
-            }
-            if (op == PredicateOp.LT) {
-                return orderedPredicate(FilterApi.intColumn(columnName), floorDays, PredicateOp.LTE);
-            }
-        }
-        return orderedPredicate(FilterApi.intColumn(columnName), floorDays, op);
-    }
-
-    /**
      * Converts ESQL epoch millis to the physical unit used in the Parquet file.
      * Uses {@link Math#multiplyExact} to detect overflow — timestamps beyond ~year 2262
      * would overflow when scaled to nanos.
@@ -730,14 +709,11 @@ final class ParquetPushedExpressions {
             return switch (ts.getUnit()) {
                 case MILLIS -> millis;
                 case MICROS -> Math.multiplyExact(millis, 1000L);
-                case NANOS -> Math.multiplyExact(millis, NANOS_PER_MILLI);
+                case NANOS -> Math.multiplyExact(millis, ParquetColumnDecoding.NANOS_PER_MILLI);
             };
         }
         return millis;
     }
-
-    /** Nanoseconds per Parquet {@code TIMESTAMP(MILLIS)} unit — the MILLIS analog of {@link ParquetColumnDecoding#NANOS_PER_MICRO}. */
-    static final long NANOS_PER_MILLI = 1_000_000L;
 
     /**
      * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. A

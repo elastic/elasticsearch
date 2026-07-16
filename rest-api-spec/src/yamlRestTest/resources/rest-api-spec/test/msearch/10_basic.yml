@@ -74,6 +74,7 @@ setup:
         allow_no_indices: false
         expand_wildcards: open
         include_named_queries_score: false
+        allow_partial_search_results: false
         index: index_*
         body:
           - index: index_*

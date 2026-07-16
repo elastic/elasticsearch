@@ -83,6 +83,8 @@ public class InitialNodeSecurityAutoConfiguration {
         );
 
         final ConsoleLoader.Console console = getConsole();
+        // TEMPORARY DIAGNOSTIC for https://github.com/elastic/elasticsearch/issues/132878 — remove before merge.
+        LOGGER.warn("ES_CONSOLE_DIAG console={} detection=[{}]", console, System.getProperty("es.diag.console"));
         if (console == null) {
             LOGGER.info(
                 "Auto-configuration will not generate a password for the elastic built-in superuser, as we cannot "

@@ -40,6 +40,17 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
 
     // package-private for tests
     static @Nullable ConsoleLoader.Console newConsole(AnsiPrintStream out) {
+        // TEMPORARY DIAGNOSTIC for https://github.com/elastic/elasticsearch/issues/132878 — remove before merge.
+        // Console detection runs in bootstrap phase 1, before logging is configured, so we stash the deciding
+        // values in a system property and log them later (from the started node) where they reach elasticsearch.log.
+        try {
+            final String diag = out == null
+                ? "type=null width=null"
+                : ("type=" + out.getType() + " width=" + out.getTerminalWidth());
+            System.setProperty("es.diag.console", diag + " ansiEnabled=" + Ansi.isEnabled());
+        } catch (Throwable t) {
+            System.setProperty("es.diag.console", "diagnostic failed: " + t);
+        }
         if (isValidConsole(out)) {
             // virtual terminal does support ANSI escape sequences, but the JVM must toggle a mode
             // option on the console using the Kernel32 API, which JANSI knows to do, but ES currently lacks

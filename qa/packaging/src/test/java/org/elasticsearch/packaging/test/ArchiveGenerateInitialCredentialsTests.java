@@ -88,9 +88,11 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         Shell.Result result = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of(), OUTPUT_MATCH, false)
         );
-        assertThat(parseElasticPassword(result.stdout()), notNullValue());
-        assertThat(parseKibanaToken(result.stdout()), notNullValue());
-        assertThat(parseFingerprint(result.stdout()), notNullValue());
+        // TEMPORARY DIAGNOSTIC for https://github.com/elastic/elasticsearch/issues/132878 — remove before merge.
+        final String captured = diagnostics(result);
+        assertThat(captured, parseElasticPassword(result.stdout()), notNullValue());
+        assertThat(captured, parseKibanaToken(result.stdout()), notNullValue());
+        assertThat(captured, parseFingerprint(result.stdout()), notNullValue());
         String response = makeRequestAsElastic("https://localhost:9200", parseElasticPassword(result.stdout()));
         assertThat(response, containsString("You Know, for Search"));
         stopElasticsearch();
@@ -101,9 +103,24 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        assertThat(parseElasticPassword(result.stdout()), nullValue());
-        assertThat(parseKibanaToken(result.stdout()), nullValue());
-        assertThat(parseFingerprint(result.stdout()), nullValue());
+        // TEMPORARY DIAGNOSTIC for https://github.com/elastic/elasticsearch/issues/132878 — remove before merge.
+        final String captured = diagnostics(result);
+        assertThat(captured, parseElasticPassword(result.stdout()), nullValue());
+        assertThat(captured, parseKibanaToken(result.stdout()), nullValue());
+        assertThat(captured, parseFingerprint(result.stdout()), nullValue());
+    }
+
+    // TEMPORARY DIAGNOSTIC for https://github.com/elastic/elasticsearch/issues/132878 — remove before merge.
+    // The console-detection diagnostic (ES_CONSOLE_DIAG) is logged to elasticsearch.log from the started node.
+    private String diagnostics(Shell.Result result) {
+        String log = "";
+        try {
+            log = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
+        } catch (Exception e) {
+            log = "failed to read elasticsearch.log: " + e;
+        }
+        return "captured startup stdout:\n" + result.stdout() + "\n--- stderr ---\n" + result.stderr() + "\n--- elasticsearch.log ---\n"
+            + log;
     }
 
     private String parseElasticPassword(String output) {

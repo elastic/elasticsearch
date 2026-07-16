@@ -28,8 +28,8 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.search.IntBitmapIndexBKDQuery;
-import org.elasticsearch.index.search.IntBitmapIndexTermsQuery;
+import org.elasticsearch.index.query.bitmapterms.IntBitmapIndexBKDQuery;
+import org.elasticsearch.index.query.bitmapterms.IntBitmapIndexTermsQuery;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -54,11 +54,11 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Compares two ways of matching an integer {@code terms} query as the size of the value list
- * grows: the current default (BKD points, {@link IntPoint#newSetQuery}) against the
- * {@code index_terms}-mapped path (a sortable-bytes term in the terms dictionary, matched with
- * {@link TermInSetQuery}) that {@code NumberFieldMapper} uses when {@code index_terms} is enabled
- * on an {@code integer} field.
+ * Compares four ways of matching an integer set query as the size of the value list grows:
+ * BKD points ({@link IntPoint#newSetQuery}), the {@code index_terms}-mapped path
+ * ({@link TermInSetQuery} over sortable-bytes terms), and two bitmap variants
+ * ({@link IntBitmapIndexBKDQuery} and {@link IntBitmapIndexTermsQuery}) that accept a
+ * pre-serialized {@link RoaringBitmap} instead of an explicit value list.
  * <p>
  * The field/query construction mirrors {@code NumberFieldMapper}'s private {@code IndexTermsIntegerField},
  * {@code encodeIndexTerm}, and {@code INDEX_TERMS_FIELD_TYPE} (points path) / the {@code indexTerms}
@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit;
  * {@code buildQuery} isolates the cost of turning {@code nTerms} values into a {@link Query} (sorting,
  * dedup, packing); {@code search} isolates the cost of matching a pre-built query against the index.
  * Both matter: a large raw values list pays the construction cost on every request, while match cost
- * is what governs how the two approaches scale as {@code nTerms} grows towards and past the default
+ * is what governs how the approaches scale as {@code nTerms} grows towards and past the default
  * {@code index.max_terms_count} (65536) — a limit this benchmark deliberately ignores since it lives
  * in {@code TermsQueryBuilder}, above the Lucene query layer exercised here.
  */

@@ -32,11 +32,6 @@ base {
   archivesName = 'esql-datasource-iceberg'
 }
 
-// RoaringBitmap is provided by the server lib; exclude from all iceberg/parquet transitive deps
-configurations.all {
-  exclude group: 'org.roaringbitmap', module: 'RoaringBitmap'
-}
-
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
@@ -62,8 +57,6 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
     // aircompressor provided by esql-datasource-compression-libs parent plugin
     exclude group: 'io.airlift', module: 'aircompressor'
-    // Exclude RoaringBitmap to avoid jar hell - server already provides RoaringBitmap 1.6.15
-    exclude group: 'org.roaringbitmap', module: 'RoaringBitmap'
   }
   implementation("org.apache.iceberg:iceberg-aws:${versions.iceberg}") {
     // Exclude AWS SDK bundle - we'll declare individual modules explicitly

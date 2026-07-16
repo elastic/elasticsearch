@@ -65,8 +65,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocV
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.IntBitmapIndexBKDQuery;
-import org.elasticsearch.index.search.IntBitmapIndexTermsQuery;
 import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -88,7 +86,6 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -2426,22 +2423,19 @@ public class NumberFieldMapper extends FieldMapper {
             }
         }
 
-        /**
-         * Builds a query that matches documents whose integer field value is contained in the
-         * given bitmap. Only supported for {@link NumberType#INTEGER} fields with {@code index: true}.
-         * The bitmap must contain only non-negative values; the caller is responsible for this.
-         */
-        public Query bitmapQuery(RoaringBitmap bitmap, SearchExecutionContext context) {
-            if (type != NumberType.INTEGER) {
-                throw new IllegalArgumentException("[bitmap] format is only supported for [integer] field type, not [" + type.name + "]");
-            }
-            if (indexType.hasPoints() == false && indexType.hasTerms() == false) {
-                throw new IllegalArgumentException("[bitmap] format requires [index] to be enabled on field [" + name() + "]");
-            }
-            if (indexType.hasTerms()) {
-                return new IntBitmapIndexTermsQuery(name(), bitmap);
-            }
-            return new IntBitmapIndexBKDQuery(name(), bitmap);
+        /** Returns the numeric type of this field. */
+        public NumberType numberType() {
+            return type;
+        }
+
+        /** Returns {@code true} if this field is indexed with BKD points. */
+        public boolean isIndexedWithPoints() {
+            return indexType.hasPoints();
+        }
+
+        /** Returns {@code true} if this field uses an inverted index for terms ({@code index_terms: true}). */
+        public boolean isIndexedWithTerms() {
+            return indexType.hasTerms();
         }
 
         /**

@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.search.IntBitmapIndexBKDQuery;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,14 +34,10 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -357,51 +352,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testBitmapFormatOnNonIntegerField() throws IOException {
-        TermsQueryBuilder query = (TermsQueryBuilder) parseQuery("""
-            {"terms": {"mapped_string_2": "OjAAAAEAAAAAAAAAEAAAAAoA", "format": "bitmap"}}
-            """);
-        SearchExecutionContext context = createSearchExecutionContext();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
-        assertThat(e.getMessage(), containsString("[bitmap] format is only supported for [integer] field type"));
-    }
-
-    public void testBitmapFormatNegativeValues() throws IOException {
-        // Build a bitmap containing Integer.MIN_VALUE (= 2^31, negative in signed int).
-        // bitmap.last() returns Integer.MIN_VALUE < 0, triggering the non-negative check.
-        RoaringBitmap bitmap = new RoaringBitmap();
-        bitmap.add(Integer.MIN_VALUE);
-        ByteBuffer buf = ByteBuffer.allocate(bitmap.serializedSizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
-        bitmap.serialize(buf);
-        String base64 = Base64.getEncoder().encodeToString(buf.array());
-
-        TermsQueryBuilder query = (TermsQueryBuilder) parseQuery(
-            "{\"terms\": {\"mapped_int\": \"" + base64 + "\", \"format\": \"bitmap\"}}"
-        );
-        SearchExecutionContext context = createSearchExecutionContext();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
-        assertThat(e.getMessage(), containsString("non-negative values"));
-    }
-
-    public void testBitmapFormatOnIntegerField() throws IOException {
-        // Bitmap {1, 3, 5}: base64 of a RoaringBitmap containing those values
-        TermsQueryBuilder query = (TermsQueryBuilder) parseQuery("""
-            {"terms": {"mapped_int": "OjAAAAEAAAAAAAIAEAAAAAEAAwAFAA==", "format": "bitmap"}}
-            """);
-        SearchExecutionContext context = createSearchExecutionContext();
-        Query luceneQuery = query.toQuery(context);
-        assertThat(luceneQuery, instanceOf(IntBitmapIndexBKDQuery.class));
-    }
-
-    public void testBitmapFormatInvalidBase64() throws IOException {
-        TermsQueryBuilder query = (TermsQueryBuilder) parseQuery("""
-            {"terms": {"mapped_int": "!!!not-base64!!!", "format": "bitmap"}}
-            """);
-        SearchExecutionContext context = createSearchExecutionContext();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
-        assertThat(e.getMessage(), containsString("[bitmap] format expects a base64-encoded RoaringBitmap value"));
     }
 
     @Override

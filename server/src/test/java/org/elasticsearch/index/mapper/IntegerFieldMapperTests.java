@@ -23,11 +23,9 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -274,25 +272,6 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
                     matchingDocIds(searcher, ft3.rangeQuery(lower, upper, includeLower, includeUpper, context))
                 );
 
-                // bitmap query — only non-negative values are supported
-                int[] nonNegValues = Arrays.stream(values).filter(v -> v >= 0).toArray();
-                int numBitmapValues = randomIntBetween(1, 15);
-                RoaringBitmap bitmap = new RoaringBitmap();
-                List<Object> bitmapTermsList = new ArrayList<>();
-                for (int t = 0; t < numBitmapValues; t++) {
-                    int v = nonNegValues.length > 0 && randomBoolean()
-                        ? nonNegValues[randomIntBetween(0, nonNegValues.length - 1)]
-                        : randomIntBetween(0, Integer.MAX_VALUE);
-                    bitmap.add(v);
-                    bitmapTermsList.add(v);
-                }
-                Set<Integer> expectedBitmapDocs = matchingDocIds(searcher, ft1.termsQuery(bitmapTermsList, context));
-                assertEquals("bitmap BKD query " + bitmap, expectedBitmapDocs, matchingDocIds(searcher, ft1.bitmapQuery(bitmap, context)));
-                assertEquals(
-                    "bitmap index_terms query " + bitmap,
-                    expectedBitmapDocs,
-                    matchingDocIds(searcher, ft2.bitmapQuery(bitmap, context))
-                );
             }
         });
     }

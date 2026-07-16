@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.TaskType;
@@ -3460,8 +3459,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullIncompatibleType() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "FROM test | FILLNULL WITH 0 first_name",
             containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]")
@@ -3469,10 +3467,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullIncompatibleTypeReportedPerField() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // Mixed: emp_no (integer) is compatible with the integer fill, first_name (keyword) and gender (keyword)
-        // are not. The verifier must report each incompatible field separately.
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "FROM test | FILLNULL WITH 0 emp_no, first_name, gender",
             allOf(
@@ -3483,11 +3478,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullTargetedOutOfRangeValueRejected() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // emp_no is INTEGER and the LONG fill value is type-compatible, but its value overflows the
-        // INTEGER range. An explicitly targeted field must report a clear error instead of being
-        // silently skipped (all-fields mode skips such columns on purpose).
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "FROM test | FILLNULL WITH 9999999999999 emp_no",
             containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
@@ -3495,11 +3486,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullTargetedMultiFieldValueFitsOneNotAnotherRejected() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // With an explicit field list the fill value is validated per field: 9999999999999 fits the LONG column
-        // avg_worked_seconds but overflows the INTEGER emp_no, so only the non-fitting field is reported and the
-        // query is rejected rather than partially filled.
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "FROM test | FILLNULL WITH 9999999999999 avg_worked_seconds, emp_no",
             containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
@@ -3507,35 +3494,23 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullAllFieldsModeSkipsIncompatibleSilently() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // All-fields mode (no explicit targets) silently skips columns whose type is incompatible
-        // with the fill value, so this query must analyze cleanly. We assert success by parsing
-        // and analyzing the query through the standard analyzer.
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("FROM test | FILLNULL WITH 0");
     }
 
     public void testFillNullAllFieldsModeSkipsOutOfRangeValueSilently() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // All-fields mode: the LONG fill value is type-compatible with the INTEGER columns (emp_no, salary, ...)
-        // but its value overflows the INTEGER range. Such columns must be silently skipped at plan time rather
-        // than failing the query with an "out of [integer] range" conversion error.
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("FROM test | FILLNULL WITH 9999999999999");
     }
 
     public void testFillNullDuplicateField() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
 
         defaultAnalyzer().error("FROM test | FILLNULL emp_no, emp_no", containsString("[FILLNULL] duplicate field [emp_no]"));
     }
 
     public void testFillNullDuplicateFieldReportedPerField() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // Each distinct field that is repeated must be flagged independently.
-        // Failures are deduplicated per attribute node (so listing the same field three times only
-        // produces one report), but two different repeated fields must still surface two reports.
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "FROM test | FILLNULL emp_no, salary, emp_no, salary",
             allOf(containsString("[FILLNULL] duplicate field [emp_no]"), containsString("[FILLNULL] duplicate field [salary]"))
@@ -3543,40 +3518,37 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullOnNullTypedColumnPassesVerification() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // A NULL-typed column accepts a KEYWORD fill via the NULL escape clause in areCompatible, so the verifier
-        // passes; the surrogate separately skips NULL columns (see fillNullOnNullTypedColumnIsSkipped csv-spec).
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL WITH \"x\" a");
     }
 
     public void testFillNullWithStringImplicitlyCastToDatePasses() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL WITH \"2025-04-11T00:00:00.000Z\" d");
     }
 
     public void testFillNullWithStringImplicitlyCastToIpPasses() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL WITH \"1.2.3.4\" a");
     }
 
     public void testFillNullWithStringImplicitlyCastToVersionPasses() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("ROW a = null | EVAL a = a::version | FILLNULL WITH \"1.2.3\" a");
     }
 
     public void testFillNullWithStringImplicitlyCastToBooleanPasses() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("ROW a = null | EVAL a = a::boolean | FILLNULL WITH \"true\" a");
     }
 
     public void testFillNullWithStringImplicitlyCastToDateNanosPasses() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("ROW d = null | EVAL d = d::date_nanos | FILLNULL WITH \"2025-04-11T00:00:00.000Z\" d");
     }
 
     public void testFillNullWithUnparsableStringIpRejected() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "ROW a = null | EVAL a = a::ip | FILLNULL WITH \"not-an-ip\" a",
             containsString("[FILLNULL] fill value [not-an-ip] does not fit field [a] of type [ip]")
@@ -3584,7 +3556,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullWithUnparsableStringDateRejected() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "ROW d = null | EVAL d = d::datetime | FILLNULL WITH \"not-a-date\" d",
             containsString("[FILLNULL] fill value [not-a-date] does not fit field [d] of type [datetime]")
@@ -3592,22 +3564,17 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFillNullWithStringIntoNonCastableTypeRejected() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
             "ROW i = 1 | FILLNULL WITH \"x\" i",
             containsString("[FILLNULL] fill value type [keyword] is incompatible with field [i] type [integer]")
         );
     }
 
-    public void testFillNullThenFullTextOnFilledFieldRejected() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        // A filled field becomes a Coalesce reference attribute, not an index field, so full-text functions on it
-        // must be rejected - exactly as for EVAL col = COALESCE(...) | WHERE MATCH(col, ...).
-        fullText().error(
-            "from test | FILLNULL WITH \"\" title | where match(title, \"data\")",
-            containsString("[MATCH] function cannot operate on [title], which is not a field from an index mapping")
-        );
+    public void testFillNullThenFullTextOnFilledFieldIsRuntimeSearch() throws Exception {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | FILLNULL WITH \"\" title | where match(title, \"data\")");
+        fullText().query("from test | FILLNULL WITH \"\" title | where title : \"data\"");
     }
 
     public void testFullTextFunctionsInStats() {

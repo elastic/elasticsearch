@@ -3680,7 +3680,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullAllFields() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -3689,7 +3689,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithValue() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull WITH 0");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -3700,7 +3700,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullNamedFields() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull a, b");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -3711,7 +3711,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithValueAndFields() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull WITH \"N/A\" status, category");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -3725,7 +3725,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithNullValue() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull WITH null a");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -3738,7 +3738,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithDecimalValue() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull WITH 1.5 a");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -3751,7 +3751,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithBooleanValue() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         for (boolean expected : new boolean[] { true, false }) {
             LogicalPlan plan = processingCommand("fillnull WITH " + expected + " a");
             assertEquals(FillNull.class, plan.getClass());
@@ -3766,7 +3766,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithPositionalParameter() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = query("row a = 1 | fillnull WITH ? a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
@@ -3777,7 +3777,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithNamedParameter() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = query("row a = 1 | fillnull WITH ?fill a", new QueryParams(List.of(paramAsConstant("fill", 42))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
@@ -3788,7 +3788,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullNotInReleaseBuild() {
-        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
     }
 
@@ -3964,7 +3964,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testForkWithBareFillNull() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         // bare FILLNULL as the (non-first) branch's last token, directly adjacent to ')'
         assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL) | KEEP a"), instanceOf(Keep.class));
         // FILLNULL as the only command in a branch, directly adjacent to ')'

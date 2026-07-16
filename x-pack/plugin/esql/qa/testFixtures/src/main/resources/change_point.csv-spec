@@ -35,7 +35,6 @@ count:long | @timestamp:datetime      | type:keyword | pvalue:double
 
 detect spike (long; default output columns)
 required_capability: change_point
-zero_threshold: 1e-90
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -72,7 +71,6 @@ FROM k8s
 
 detect step change (long; default timestamp)
 required_capability: change_point
-zero_threshold: 1e-19
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -109,7 +107,6 @@ FROM k8s
 
 detect dip (double)
 required_capability: change_point
-zero_threshold: 1e-4
 
 FROM employees
   | STATS salary=AVG(salary) BY height
@@ -327,11 +324,11 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 
 
 where after change point
-required_capability: change_point_multiple_events
+required_capability: change_point
 
 FROM employees
   | KEEP emp_no, salary
-  | EVAL salary = CASE(emp_no==10022, 120000, salary)
+  | EVAL salary = CASE(emp_no==10022, 100000, salary)
   | EVAL salary = CASE(emp_no==10033, 1000000, salary)
   | CHANGE_POINT salary ON emp_no AS type, pvalue
   | WHERE emp_no < 10025
@@ -359,7 +356,7 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 10019          | 73717          | null         | null
 10020          | 40031          | null         | null
 10021          | 60408          | null         | null
-10022          | 120000         | spike        | 0..1E-6
+10022          | 100000         | null         | null
 10023          | 47896          | null         | null
 10024          | 64675          | null         | null
 ;
@@ -367,7 +364,6 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 
 where with shadowing
 required_capability: change_point
-zero_threshold: 1e-6
 
 FROM employees
   | KEEP emp_no, salary
@@ -438,7 +434,6 @@ count:long | @timestamp:datetime      | type:keyword | pvalue:double
 
 sort after change point
 required_capability: change_point
-zero_threshold: 1e-19
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -476,7 +471,6 @@ FROM k8s
 
 reuse input column names
 required_capability: change_point
-zero_threshold: 1e-90
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -513,7 +507,6 @@ null               | null
 
 reuse value column name twice
 required_capability: change_point
-zero_threshold: 1e-90
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -549,8 +542,7 @@ FROM k8s
 
 
 same key and value column
-required_capability: change_point_multiple_events
-zero_threshold: 1e-9
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
@@ -571,8 +563,8 @@ count:long | type:keyword | pvalue:double
 8          | null         | null
 8          | null         | null
 8          | null         | null
-8          | null         | null
-9          | trend_change | 0..1E-4
+8          | trend_change | 0..1E-10
+9          | null         | null
 9          | null         | null
 9          | null         | null
 10         | null         | null
@@ -586,8 +578,7 @@ count:long | type:keyword | pvalue:double
 
 
 all four columns the same
-required_capability: change_point_multiple_events
-zero_threshold: 1e-9
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
@@ -608,8 +599,8 @@ null
 null
 null
 null
+0..1E-10
 null
-0..1E-4
 null
 null
 null
@@ -624,7 +615,6 @@ null
 
 rename columns
 required_capability: change_point
-zero_threshold: 1e-90
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -663,7 +653,6 @@ time:datetime            | cnt:long | kind:keyword | significance:double
 
 null keys
 required_capability: change_point
-zero_threshold: 1e-19
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -702,7 +691,6 @@ null                     | 12         | null         | null
 
 null values
 required_capability: change_point
-zero_threshold: 1e-19
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -743,7 +731,6 @@ warning:Line 5:3: java.lang.IllegalArgumentException: values contain nulls; skip
 
 multivalued
 required_capability: change_point
-zero_threshold: 1e-6
 
 FROM employees
   | STATS salary=MV_SORT(VALUES(salary)) BY height
@@ -816,7 +803,6 @@ height:double | salary:integer                      | type:keyword | pvalue:doub
 
 multivalued with MV_AVG
 required_capability: change_point
-zero_threshold: 1e-6
 
 FROM employees
   | STATS salary=MV_SORT(VALUES(salary)) BY height
@@ -886,7 +872,6 @@ height:double | salary:double      | type:keyword | pvalue:double
 
 too much data (change point inside limit)
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key1=["A","B","C","D","E","F","G","H","I","J","K","L","M"],
     key2=["0","1","2","3","4","5","6","7","8","9"],
@@ -957,8 +942,7 @@ count:LONG
 
 
 detect trend_change (using row)
-required_capability: change_point_multiple_events
-zero_threshold: 1e-90
+required_capability: change_point
 
 ROW time = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
   | MV_EXPAND time
@@ -981,8 +965,8 @@ time:integer | val:integer | type:keyword | pvalue:double
 12           | 3           | null         | null
 13           | 2           | null         | null
 14           | 1           | null         | null
-15           | 0           | null         | null
-16           | 1           | trend_change | 0..1E-10
+15           | 0           | trend_change | 0..1E-110
+16           | 1           | null         | null
 17           | 2           | null         | null
 18           | 3           | null         | null
 19           | 4           | null         | null
@@ -1163,7 +1147,6 @@ emp_no:integer | @timestamp:null | foo:null | type:keyword | pvalue:double
 
 row with integer key and value
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
   | MV_EXPAND key
@@ -1179,7 +1162,6 @@ key:integer | value:integer | type:keyword | pvalue:double
 
 row with long key and value
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
   | MV_EXPAND key
@@ -1195,7 +1177,6 @@ key:long | value:long | type:keyword | pvalue:double
 
 row with double key and value
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
   | MV_EXPAND key
@@ -1211,7 +1192,6 @@ key:double | value:double | type:keyword | pvalue:double
 
 row with string key
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=["23","17","02","06","01","21","12","15","19","07","11","05","24","04","10","14","13","22","09","18","20","08","25","16","03"]
   | MV_EXPAND key
@@ -1227,7 +1207,6 @@ key:string | value:integer | type:keyword | pvalue:double
 
 row with datetime key
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
   | MV_EXPAND key
@@ -1243,7 +1222,6 @@ key:datetime             | value:integer | type:keyword | pvalue:double
 
 row with ip key
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
   | MV_EXPAND key
@@ -1259,7 +1237,6 @@ key:ip      | value:integer | type:keyword | pvalue:double
 
 row with version key
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
   | MV_EXPAND key
@@ -1275,7 +1252,6 @@ key:version | value:integer | type:keyword | pvalue:double
 
 row with boolean key
 required_capability: change_point
-zero_threshold: 1e-6
 
 ROW key=[1,0,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,0,1,0,0,0,1]
   | MV_EXPAND key
@@ -1314,7 +1290,6 @@ true        | 1             | null         | null
 
 example for docs
 required_capability: change_point
-zero_threshold: 1e-6
 
 // tag::changePointForDocs[]
 ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
@@ -1334,7 +1309,6 @@ key:integer | value:integer | type:keyword | pvalue:double
 
 detect changes by group not nulled
 required_capability: change_point_by
-zero_threshold: 1e-6
 
 ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], g=[0,1]
 | MV_EXPAND k
@@ -1401,7 +1375,6 @@ b           | 25        | 0             | null         | null
 
 detect step change by group
 required_capability: change_point_by
-zero_threshold: 1e-6
 
 // tag::changePointForDocsByGroup[]
 ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], location=[12,13,14]

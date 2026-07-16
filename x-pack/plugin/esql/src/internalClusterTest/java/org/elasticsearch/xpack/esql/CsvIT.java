@@ -403,7 +403,6 @@ public class CsvIT extends ESTestCase {
                 testCase.ignoreOrder,
                 false,
                 false,
-                testCase.zeroThreshold,
                 logResults() ? logger : null
             );
             var warnings = listener.warnings.stream()

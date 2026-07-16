@@ -31,7 +31,6 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new IgnoreOrder(ctx));
         ctx.addOptionParser(new DocumentsFound(ctx));
         ctx.addOptionParser(new SkipFlattenedRewrite(ctx));
-        ctx.addOptionParser(new ZeroThreshold(ctx));
         return ctx;
     }
 
@@ -59,7 +58,6 @@ public final class CsvSpecReader {
         String requestTimeRangeGte;
         String requestTimeRangeLte;
         String skipFlattenedRewrite;
-        Double zeroThreshold;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -96,7 +94,6 @@ public final class CsvSpecReader {
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
-                testCase.zeroThreshold = zeroThreshold;
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
                 missingCapabilitiesLocalCluster.clear();
@@ -106,7 +103,6 @@ public final class CsvSpecReader {
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
                 skipFlattenedRewrite = null;
-                zeroThreshold = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -465,54 +461,6 @@ public final class CsvSpecReader {
         }
     }
 
-    /**
-     * Tests with this treat {@code double}s <strong>close</strong> to {@code 0.0} as equal to {@code 0.0}.
-     * Use this when you have numbers that are, statistically speaking, "basically 0". The {@code <double>}
-     * in {@code zero_threshold: <double>} sets how close to {@code 0.0} you have to be to count.
-     * <p>
-     *     Our multi-node tests always use a fairly tight relative delta for {@code double}s. The
-     *     numbers must match to 7 significant digits. But {@code 0.0} is small. For numbers close
-     *     to {@code 0.0}, seven significant digits is way too tight. Especially when you add the
-     *     doubles in non-deterministic order.
-     * </p>
-     * <p>
-     *     Specifically, {@code CHANGE_POINT} calculates probabilities that are frequently close
-     *     enough to {@code 0.0}, but double addition artifacts can make them vary between
-     *     {@code 9.7E-24} and {@code 4.8E-21} and {@code 6.8E-159}. They are
-     *     <strong>absolutely</strong> pretty much 0. But relatively, they are orders of magnitude
-     *     apart.
-     * </p>
-     * <p>
-     *     When present, both the expected and actual {@code DOUBLE} values are clamped to {@code 0.0}
-     *     before comparison whenever their absolute value is below the declared threshold, so e.g.
-     *     {@code 9.678892E-24} and {@code 4.762904E-21} both become {@code 0.0} and compare equal. A
-     *     moderate p-value (e.g. {@code 0.0019710754505321004}, not near the noise floor) is unaffected
-     *     and continues to be compared with full/rounded precision. The directive is opt-in and per-test:
-     *     absent (the default), comparison behavior is completely unchanged.
-     * </p>
-     */
-    record ZeroThreshold(ParserContext state) implements SpecReader.Parser {
-        @Override
-        public Object parse(String line) {
-            String lower = line.toLowerCase(Locale.ROOT);
-            if (lower.startsWith("zero_threshold:")) {
-                String value = line.substring("zero_threshold:".length()).trim();
-                double threshold;
-                try {
-                    threshold = Double.parseDouble(value);
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Invalid value for zero_threshold: [" + line + "]", e);
-                }
-                if (Double.isFinite(threshold) == false || threshold <= 0) {
-                    throw new IllegalArgumentException("Invalid value for zero_threshold: [" + line + "], it must be positive and finite");
-                }
-                state.zeroThreshold = threshold;
-                return Boolean.TRUE;
-            }
-            return null;
-        }
-    }
-
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
@@ -565,13 +513,6 @@ public final class CsvSpecReader {
          * driver ignores this field.
          */
         public String skipFlattenedRewrite;
-        /**
-         * When set from a {@code zero_threshold:} preamble line, {@code DOUBLE} values (both expected
-         * and actual) whose absolute value is below this threshold are clamped to {@code 0.0} before
-         * comparison. {@code null} when the test has no such directive, in which case comparison
-         * behavior is unchanged. See {@link ZeroThreshold} for the full rationale.
-         */
-        public Double zeroThreshold;
 
         /**
          * Pragmas that must be sent.

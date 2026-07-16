@@ -150,46 +150,4 @@ public class CsvSpecReaderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("a name and a quoted resource are required"));
     }
-
-    public void testZeroThresholdParsed() {
-        CsvTestCase testCase = parse("zero_threshold: 1e-19");
-        assertThat(testCase.zeroThreshold, equalTo(1e-19));
-    }
-
-    public void testZeroThresholdAbsentByDefault() {
-        CsvTestCase testCase = parse();
-        assertThat(testCase.zeroThreshold, nullValue());
-    }
-
-    public void testZeroThresholdNonNumericRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> CsvSpecReader.specParser().parse("zero_threshold: not-a-number")
-        );
-        assertThat(e.getMessage(), containsString("Invalid value for zero_threshold"));
-    }
-
-    public void testZeroThresholdNegativeRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> CsvSpecReader.specParser().parse("zero_threshold: -1e-19")
-        );
-        assertThat(e.getMessage(), containsString("must be positive and finite"));
-    }
-
-    public void testZeroThresholdZeroRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> CsvSpecReader.specParser().parse("zero_threshold: 0")
-        );
-        assertThat(e.getMessage(), containsString("must be positive and finite"));
-    }
-
-    public void testZeroThresholdInfiniteRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> CsvSpecReader.specParser().parse("zero_threshold: Infinity")
-        );
-        assertThat(e.getMessage(), containsString("must be positive and finite"));
-    }
 }

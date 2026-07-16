@@ -420,11 +420,7 @@ public record LibraryModel(
                 // A field with this name exists but is not adjacent: ordering would break the layout
                 messager.printMessage(
                     Kind.ERROR,
-                    "getter and setter for '"
-                        + rawField.name()
-                        + "' on '"
-                        + typeSimpleName
-                        + "' must be declared adjacent",
+                    "getter and setter for '" + rawField.name() + "' on '" + typeSimpleName + "' must be declared adjacent",
                     typeElement
                 );
                 fieldError = true;
@@ -474,11 +470,7 @@ public record LibraryModel(
         if (existing.getClass() != incoming.getClass()) {
             messager.printMessage(
                 Kind.ERROR,
-                "Field '"
-                    + incoming.name()
-                    + "' on '"
-                    + structName
-                    + "' has adjacent methods with different annotation types",
+                "Field '" + incoming.name() + "' on '" + structName + "' has adjacent methods with different annotation types",
                 typeElement
             );
             return null;
@@ -487,11 +479,7 @@ public record LibraryModel(
             case ScalarFieldModel e -> {
                 ScalarFieldModel i = (ScalarFieldModel) incoming;
                 if (e.hasSetter() && i.hasSetter()) {
-                    messager.printMessage(
-                        Kind.ERROR,
-                        "Duplicate setter for field '" + e.name() + "' on '" + structName + "'",
-                        typeElement
-                    );
+                    messager.printMessage(Kind.ERROR, "Duplicate setter for field '" + e.name() + "' on '" + structName + "'", typeElement);
                     yield null;
                 }
                 if (e.type() != i.type()) {
@@ -590,19 +578,10 @@ public record LibraryModel(
                     );
                     yield null;
                 }
-                yield new InlineStringFieldModel(
-                    e.name(),
-                    e.length(),
-                    e.hasGetter() || i.hasGetter(),
-                    e.hasSetter() || i.hasSetter()
-                );
+                yield new InlineStringFieldModel(e.name(), e.length(), e.hasGetter() || i.hasGetter(), e.hasSetter() || i.hasSetter());
             }
             default -> {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "Duplicate field name '" + existing.name() + "' on '" + structName + "'",
-                    typeElement
-                );
+                messager.printMessage(Kind.ERROR, "Duplicate field name '" + existing.name() + "' on '" + structName + "'", typeElement);
                 yield null;
             }
         };
@@ -628,9 +607,9 @@ public record LibraryModel(
         AnnotationMirror inlineStringMirror = ModelUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.InlineStringField");
 
         // Enforce single annotation
-        int annotationCount = (arrayFieldMirror != null ? 1 : 0)
-            + (inlineArrayMirror != null ? 1 : 0)
-            + (inlineStringMirror != null ? 1 : 0);
+        int annotationCount = (arrayFieldMirror != null ? 1 : 0) + (inlineArrayMirror != null ? 1 : 0) + (inlineStringMirror != null
+            ? 1
+            : 0);
         if (annotationCount > 1) {
             messager.printMessage(
                 Kind.ERROR,
@@ -765,11 +744,7 @@ public record LibraryModel(
         if (length == null || length <= 0) {
             messager.printMessage(
                 Kind.ERROR,
-                "@InlineArrayField on '"
-                    + methodName
-                    + "' in '"
-                    + enclosingStructSimpleName
-                    + "' requires a positive length",
+                "@InlineArrayField on '" + methodName + "' in '" + enclosingStructSimpleName + "' requires a positive length",
                 method,
                 inlineArrayMirror
             );
@@ -795,8 +770,11 @@ public record LibraryModel(
                 return null;
             }
             NativeType valueType = ModelUtil.classifyType(method.getParameters().get(1).asType());
-            if (valueType == null || valueType == NativeType.VOID || valueType == NativeType.STRING
-                || valueType == NativeType.ADDRESSABLE || valueType == NativeType.ADDRESS) {
+            if (valueType == null
+                || valueType == NativeType.VOID
+                || valueType == NativeType.STRING
+                || valueType == NativeType.ADDRESSABLE
+                || valueType == NativeType.ADDRESS) {
                 messager.printMessage(
                     Kind.ERROR,
                     "@InlineArrayField setter '"
@@ -826,8 +804,11 @@ public record LibraryModel(
                 return null;
             }
             NativeType elementType = ModelUtil.classifyType(returnMirror);
-            if (elementType == null || elementType == NativeType.VOID || elementType == NativeType.STRING
-                || elementType == NativeType.ADDRESSABLE || elementType == NativeType.ADDRESS) {
+            if (elementType == null
+                || elementType == NativeType.VOID
+                || elementType == NativeType.STRING
+                || elementType == NativeType.ADDRESSABLE
+                || elementType == NativeType.ADDRESS) {
                 messager.printMessage(
                     Kind.ERROR,
                     "@InlineArrayField getter '"
@@ -862,11 +843,7 @@ public record LibraryModel(
         if (length == null || length <= 0) {
             messager.printMessage(
                 Kind.ERROR,
-                "@InlineStringField on '"
-                    + methodName
-                    + "' in '"
-                    + enclosingStructSimpleName
-                    + "' requires a positive length",
+                "@InlineStringField on '" + methodName + "' in '" + enclosingStructSimpleName + "' requires a positive length",
                 method,
                 inlineStringMirror
             );
@@ -882,11 +859,7 @@ public record LibraryModel(
             if (paramCount != 1) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@InlineStringField setter '"
-                        + methodName
-                        + "' in '"
-                        + enclosingStructSimpleName
-                        + "' must have exactly one parameter",
+                    "@InlineStringField setter '" + methodName + "' in '" + enclosingStructSimpleName + "' must have exactly one parameter",
                     method
                 );
                 return null;
@@ -927,11 +900,7 @@ public record LibraryModel(
             if (paramCount != 0) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@InlineStringField getter '"
-                        + methodName
-                        + "' in '"
-                        + enclosingStructSimpleName
-                        + "' must take no parameters",
+                    "@InlineStringField getter '" + methodName + "' in '" + enclosingStructSimpleName + "' must take no parameters",
                     method
                 );
                 return null;

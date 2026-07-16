@@ -53,10 +53,10 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleS
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.fieldSize;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.LayoutField;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.computeLayout;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.emitStructLayoutArray;
+import static org.elasticsearch.foreign.processor.StructLayoutUtil.fieldSize;
 
 /**
  * Generates the {@code $Impl} class for a {@code @StructSpecification} interface. The class
@@ -362,11 +362,7 @@ final class StructImplWriter {
             code.i2l();
             int valueSlot = 2;
             emitLoadParam(code, field.elementType(), valueSlot);
-            code.invokevirtual(
-                CD_VarHandle,
-                "set",
-                MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), elemDesc)
-            );
+            code.invokevirtual(CD_VarHandle, "set", MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), elemDesc));
             code.return_();
         });
     }
@@ -384,7 +380,11 @@ final class StructImplWriter {
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             code.loadConstant(offset);
-            code.invokestatic(CD_MemorySegmentAdapter, "getString", MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J")));
+            code.invokestatic(
+                CD_MemorySegmentAdapter,
+                "getString",
+                MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
+            );
             code.areturn();
         });
     }

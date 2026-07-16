@@ -21,7 +21,6 @@ import java.util.List;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_PaddingLayout;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_SequenceLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceLayout;

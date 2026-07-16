@@ -60,6 +60,9 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     @Before
     public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        // Every test here reads through the same in-memory path with different content, so the JVM-wide
+        // footer/tail caches must be reset between tests to avoid one test's bytes being served to another.
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
     public void testFormatUuidValidBytes() {

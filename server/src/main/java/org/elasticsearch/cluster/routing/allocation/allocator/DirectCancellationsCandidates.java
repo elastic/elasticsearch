@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
 
 import java.util.List;
 

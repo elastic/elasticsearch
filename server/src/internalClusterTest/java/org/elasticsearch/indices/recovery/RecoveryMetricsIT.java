@@ -13,8 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.CancelRecoveriesAction;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;

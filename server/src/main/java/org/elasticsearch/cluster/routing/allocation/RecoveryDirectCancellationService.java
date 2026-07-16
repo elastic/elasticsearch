@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -33,7 +32,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
+import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;

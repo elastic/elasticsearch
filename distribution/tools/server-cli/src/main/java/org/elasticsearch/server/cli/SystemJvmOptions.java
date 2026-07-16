@@ -133,7 +133,9 @@ final class SystemJvmOptions {
     private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
         var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            enableNativeAccessOptions.add(
+                "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core"
+            );
             if (useEntitlements) {
                 enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
                 if (Runtime.version().feature() >= 24) {

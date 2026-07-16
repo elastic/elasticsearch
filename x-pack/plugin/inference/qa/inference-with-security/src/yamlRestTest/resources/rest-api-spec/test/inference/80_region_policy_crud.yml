@@ -1,0 +1,113 @@
+setup:
+  - requires:
+      test_runner_features: headers
+
+---
+teardown:
+  - do:
+      catch: missing
+      inference.delete_region_policy: {}
+
+---
+"Put region policy requires manage_inference privilege":
+  # monitor_inference_user has only monitor_inference privilege, not manage_inference
+  - do:
+      headers:
+        Authorization: "Basic bW9uaXRvcl9pbmZlcmVuY2VfdXNlcjptb25pdG9yX2luZmVyZW5jZV9wYXNzd29yZA=="
+      catch: forbidden
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  # admin user (inference_user has manage_inference) can PUT
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - match: { region_policy.allowed_geos.0: us }
+  - is_true: created_at
+  - match: { created_by: inference_user }
+  - is_false: updated_at
+  - is_false: updated_by
+
+---
+"Get region policy allowed with monitor_inference privilege":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: aws
+                region: us-east-1
+
+  # monitor_inference_user can GET (cluster:monitor/xpack/inference/region_policy/get)
+  - do:
+      headers:
+        Authorization: "Basic bW9uaXRvcl9pbmZlcmVuY2VfdXNlcjptb25pdG9yX2luZmVyZW5jZV9wYXNzd29yZA=="
+      inference.get_region_policy: {}
+
+  - match: { region_policy.allowed_regions.0.csp: aws }
+  - match: { region_policy.allowed_regions.0.region: us-east-1 }
+  - is_true: created_at
+  - match: { created_by: inference_user }
+  - is_false: updated_at
+  - is_false: updated_by
+
+---
+"Put region policy records updated_by on replace":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - match: { created_by: inference_user }
+  - is_false: updated_by
+
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - eu
+
+  - match: { created_by: inference_user }
+  - match: { updated_by: inference_user }
+  - is_true: updated_at
+
+  - do:
+      inference.delete_region_policy: {}
+
+---
+"Delete region policy requires manage_inference privilege":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - eu
+
+  - match: { region_policy.allowed_geos.0: eu }
+  - is_true: created_at
+  - match: { created_by: inference_user }
+  - is_false: updated_at
+  - is_false: updated_by
+
+  # monitor_inference_user cannot DELETE
+  - do:
+      headers:
+        Authorization: "Basic bW9uaXRvcl9pbmZlcmVuY2VfdXNlcjptb25pdG9yX2luZmVyZW5jZV9wYXNzd29yZA=="
+      catch: forbidden
+      inference.delete_region_policy: {}
+
+  # admin user can DELETE
+  - do:
+      inference.delete_region_policy: {}
+
+  - match: { acknowledged: true }

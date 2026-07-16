@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
@@ -67,6 +66,7 @@ public class PerFieldFormatSupplier {
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
         includeMetaField.add(SeqNoFieldMapper.NAME);
         includeMetaField.add(IgnoredSourceFieldMapper.NAME);
+        includeMetaField.add(IdFieldMapper.NAME);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
@@ -87,6 +87,7 @@ public class PerFieldFormatSupplier {
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
 
+    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
@@ -193,7 +194,7 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode() == IndexMode.TIME_SERIES
+            return indexSettings.getMode().isTsdb()
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {

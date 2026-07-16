@@ -9,12 +9,15 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,12 +28,50 @@ import java.util.Set;
 
 /**
  * A collection of {@link ResolvedIndexExpression}.
+ *
+ * @param authorizationFailureTemplate not null iff any entry in {@code expressions} has a resolution result of
+ *                                     {@link LocalIndexResolutionResult#CONCRETE_RESOURCE_UNAUTHORIZED}.
+ *                                     When resolving cross-project index expressions, if an index expression is unauthorized, the context
+ *                                     required for an appropriate error message, such as the local role and granting privileges, are only
+ *                                     available on the fulfilling cluster. The fulfilling cluster returns the template as the querying
+ *                                     cluster may need this for error handling.
  */
-public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) implements Writeable {
+public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions, @Nullable String authorizationFailureTemplate)
+    implements
+        Writeable {
+
     public static final TransportVersion RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName("resolved_index_expressions");
+    public static final TransportVersion RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE = TransportVersion.fromName(
+        "resolved_index_expressions_auth_template"
+    );
 
     public ResolvedIndexExpressions(StreamInput in) throws IOException {
-        this(in.readCollectionAsImmutableList(ResolvedIndexExpression::new));
+        this(in.readCollectionAsImmutableList(ResolvedIndexExpression::new), in);
+    }
+
+    private ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions, StreamInput in) throws IOException {
+        this(
+            expressions,
+            in.getTransportVersion().supports(RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE)
+                ? in.readOptionalString()
+                : extractErrorTemplateFromLegacyExceptions(expressions)
+        );
+    }
+
+    private static @Nullable String extractErrorTemplateFromLegacyExceptions(List<ResolvedIndexExpression> expressions) {
+        String template = null;
+        for (var expression : expressions) {
+            var local = expression.localExpressions();
+            if (local.localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
+                && local.legacyException() != null) {
+                if (template == null) {
+                    template = local.legacyException().getMessage();
+                } else {
+                    assert Objects.equals(template, local.legacyException().getMessage());
+                }
+            }
+        }
+        return template;
     }
 
     public List<String> getLocalIndicesList() {
@@ -55,7 +96,22 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(expressions);
+        if (out.getTransportVersion().supports(RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE)) {
+            out.writeCollection(expressions);
+            out.writeOptionalString(authorizationFailureTemplate);
+        } else {
+            var ex = authorizationFailureTemplate != null
+                ? new ElasticsearchSecurityException(authorizationFailureTemplate, RestStatus.FORBIDDEN)
+                : null;
+            out.writeCollection(expressions, (o, expression) -> {
+                if (expression.localExpressions()
+                    .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED) {
+                    expression.writeToLegacy(o, ex);
+                } else {
+                    expression.writeToLegacy(o, null);
+                }
+            });
+        }
     }
 
     public static final class Builder {
@@ -78,7 +134,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             Objects.requireNonNull(resolutionResult);
             Objects.requireNonNull(remoteExpressions);
             expressions.add(
-                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), remoteExpressions)
+                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult), remoteExpressions)
             );
         }
 
@@ -92,7 +148,16 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             for (int i = 0; i < expressions.size(); i++) {
                 ResolvedIndexExpression current = expressions.get(i);
                 if (current.localExpressions() != LocalExpressions.NONE) {
-                    expressions.set(i, new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
+                    expressions.set(
+                        i,
+                        new ResolvedIndexExpression(
+                            current.original(),
+                            current.remoteExpressions().isEmpty()
+                                ? new LocalExpressions(Set.of(), LocalIndexResolutionResult.SUCCESS)
+                                : LocalExpressions.NONE,
+                            current.remoteExpressions()
+                        )
+                    );
                 }
             }
         }
@@ -137,7 +202,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
 
         public ResolvedIndexExpressions build() {
             // TODO make all sets on `expressions` immutable
-            return new ResolvedIndexExpressions(expressions);
+            return new ResolvedIndexExpressions(expressions, (String) null);
         }
     }
 }

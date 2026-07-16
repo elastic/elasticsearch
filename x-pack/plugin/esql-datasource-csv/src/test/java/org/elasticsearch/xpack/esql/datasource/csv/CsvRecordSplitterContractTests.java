@@ -79,11 +79,37 @@ public class CsvRecordSplitterContractTests extends ESTestCase {
     }
 
     private static Case[] cases(int maxRecordBytes) {
-        return new Case[] { quotedFieldsOnly(maxRecordBytes), bracketMvc(maxRecordBytes) };
+        return new Case[] { quotedFieldsOnly(maxRecordBytes), bracketMvc(maxRecordBytes), newlineNoQuote(maxRecordBytes) };
+    }
+
+    private static Case newlineNoQuote(int maxRecordBytes) {
+        // The no-quote modes' splitter honors the same boundary contract as its quote-aware siblings.
+        return new Case("newline-no-quote", () -> new NewlineRecordSplitter(maxRecordBytes));
     }
 
     private static Case quotedFieldsOnly(int maxRecordBytes) {
-        return new Case("quoted-fields-only", () -> new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes));
+        // Quoting on, escaping off, no bracket MVC: the plain quote-aware path. TSV is now a plain (no
+        // quote, no escape) preset, so it would exercise the strided newline scan instead - not this path.
+        return new Case("quoted-fields-only", () -> new CsvRecordSplitter(quotedNoEscape(), maxRecordBytes));
+    }
+
+    private static CsvFormatOptions quotedNoEscape() {
+        return new CsvFormatOptions(
+            ',',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
+            true,
+            false,
+            false
+        );
     }
 
     private static Case bracketMvc(int maxRecordBytes) {

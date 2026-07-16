@@ -45,6 +45,7 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         .unaryValueTransformation(ToRadians::new)
         .description("Converts input values from degrees to radians for all elements in the input vector.")
         .example("rad(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("rad");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
@@ -101,6 +102,12 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
     @Override
     public DataType dataType() {
         return DOUBLE;
+    }
+
+    @Override
+    public boolean isNoop() {
+        // Computes even when the input is already double, so it's never a no-op.
+        return false;
     }
 
     @ConvertEvaluator

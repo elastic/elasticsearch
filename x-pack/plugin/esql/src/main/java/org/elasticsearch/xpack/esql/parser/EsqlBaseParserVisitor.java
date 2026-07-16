@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -503,17 +504,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
@@ -532,6 +539,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#ipLocationCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree

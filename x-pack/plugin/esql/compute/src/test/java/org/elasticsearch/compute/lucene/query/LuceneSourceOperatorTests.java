@@ -255,7 +255,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             maxPageSize,
             limit,
             scoring,
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
     }
 
@@ -462,7 +463,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
                 scoring,
-                () -> 0L
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             DriverContext ctx = driverContext();
             LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);

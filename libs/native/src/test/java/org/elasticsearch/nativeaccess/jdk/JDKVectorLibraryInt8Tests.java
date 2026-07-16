@@ -258,25 +258,6 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
-    public void testByteBulk8() {
-        assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Heap segments required", supportsHeapSegments());
-        final int dims = size;
-        var values = new byte[8][];
-        var segments = new MemorySegment[8];
-        for (int i = 0; i < 8; i++) {
-            values[i] = randomByteArrayOfLength(dims);
-            segments[i] = MemorySegment.ofArray(values[i]);
-        }
-        int queryOrd = randomInt(7);
-        float[] expectedScores = new float[8];
-        ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
-
-        float[] bulkScores = new float[8];
-        similarityBulk8(segments, MemorySegment.ofArray(values[queryOrd]), dims, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
-    }
-
     // Verifies that individual offset values are bounds-checked against the data segment.
     public void testBulkOffsetsOutOfRange() {
         assumeTrue(notSupportedMsg(), supported());
@@ -373,23 +354,18 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
     }
 
     float similarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT8,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case COSINE -> getVectorDistance().cosineI8(a, b, length);
+            case DOT_PRODUCT -> getVectorDistance().dotProductI8(a, b, length);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI8(a, b, length);
+        };
     }
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case COSINE -> getVectorDistance().cosineI8Bulk(a, b, dims, count, result);
+            case DOT_PRODUCT -> getVectorDistance().dotProductI8Bulk(a, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI8Bulk(a, b, dims, count, result);
         }
     }
 
@@ -402,35 +378,19 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT8,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case COSINE -> getVectorDistance().cosineI8BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case DOT_PRODUCT -> getVectorDistance().dotProductI8BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI8BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
         }
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT8,
-                VectorSimilarityFunctions.Operation.BULK_SPARSE
-            ).invokeExact(addresses, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case COSINE -> getVectorDistance().cosineI8BulkSparse(addresses, b, dims, count, result);
+            case DOT_PRODUCT -> getVectorDistance().dotProductI8BulkSparse(addresses, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI8BulkSparse(addresses, b, dims, count, result);
         }
     }
 
-    void similarityBulk8(MemorySegment[] as, MemorySegment query, int dims, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK8)
-                .invokeExact(as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7], query, dims, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
 }

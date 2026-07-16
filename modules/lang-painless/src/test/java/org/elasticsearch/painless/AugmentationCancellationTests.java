@@ -608,6 +608,62 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertTrue("each() poll should fire", callCount.get() >= 1);
     }
 
+    /** Runs {@code body} with a non-throwing check installed (forcing the polling branch) and returns its value. */
+    private Object execWithCheckInstalled(String body, Map<String, Object> params) {
+        return execSourceWithCheckInstalled("state['r'] = " + body + ";", params);
+    }
+
+    /** Source-level variant of {@link #execWithCheckInstalled} for scripts that declare a function (e.g. method refs). */
+    private Object execSourceWithCheckInstalled(String source, Map<String, Object> params) {
+        Map<String, Object> state = new HashMap<>();
+        ScriptedMetricAggContexts.InitScript script = compileInit(source, params, state);
+        script._setCancellationCheck(() -> {});
+        script.execute();
+        return state.get("r");
+    }
+
+    private void assertIndexOfParity(String haystack, String needle) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        Object actual = execWithCheckInstalled("((String)params['h']).indexOf((String)params['n'])", params);
+        assertEquals(haystack.indexOf(needle), ((Number) actual).intValue());
+    }
+
+    private void assertIndexOfParity(String haystack, String needle, int fromIndex) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        params.put("f", fromIndex);
+        Object actual = execWithCheckInstalled("((String)params['h']).indexOf((String)params['n'], (int)params['f'])", params);
+        assertEquals(haystack.indexOf(needle, fromIndex), ((Number) actual).intValue());
+    }
+
+    private void assertLastIndexOfParity(String haystack, String needle) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        Object actual = execWithCheckInstalled("((String)params['h']).lastIndexOf((String)params['n'])", params);
+        assertEquals(haystack.lastIndexOf(needle), ((Number) actual).intValue());
+    }
+
+    private void assertLastIndexOfParity(String haystack, String needle, int fromIndex) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        params.put("f", fromIndex);
+        Object actual = execWithCheckInstalled("((String)params['h']).lastIndexOf((String)params['n'], (int)params['f'])", params);
+        assertEquals(haystack.lastIndexOf(needle, fromIndex), ((Number) actual).intValue());
+    }
+
+    private void assertContainsParity(String haystack, String needle) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        Object actual = execWithCheckInstalled("((String)params['h']).contains((String)params['n'])", params);
+        assertEquals(haystack.contains(needle), actual);
+    }
+
     /** A statically-typed {@code each} called inside a user function (an instance method) polls. */
     public void testStaticEachInsideUserFunctionFiresCancelRunnable() {
         assertFires(compileFillThen("void helper(List m) { m.each(q -> q.toString()); }", "helper(big);"), "cancelled-static-userfn");
@@ -672,9 +728,14 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertFires(compileFillThen("", "big.sum(x -> 1.0d);"), "cancelled-sum-fn");
     }
 
+    /** {@code count(Predicate)} scans the whole iterable counting matches and must poll. */
+    public void testCountAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.count(x -> true);"), "cancelled-count");
+    }
+
     /**
      * Each new Iterable script-aware augmentation must take the no-poll fast path when the script has
-     * no cancellation check installed.  Exercises all six new methods in one script execution.
+     * no cancellation check installed.  Exercises all seven new methods in one script execution.
      */
     public void testIterableAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -684,7 +745,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.eachWithIndex((x, i) -> x.toString()); "
                 + "big.findResults(x -> x.toString()); "
                 + "big.groupBy(x -> x % 3); "
-                + "big.sum(x -> 1.0d);"
+                + "big.sum(x -> 1.0d); "
+                + "big.count(x -> true);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
@@ -880,10 +942,59 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
     }
 
+    /** {@code PrimitiveIterator.OfInt.forEachRemaining} visits every element and must poll. */
+    public void testIntPrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-int-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code PrimitiveIterator.OfLong.forEachRemaining} visits every element and must poll. */
+    public void testLongPrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToLong(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-long-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code PrimitiveIterator.OfDouble.forEachRemaining} visits every element and must poll. */
+    public void testDoublePrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-double-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfInt.forEachRemaining} visits every element and must poll. */
+    public void testIntSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-int-spliterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfLong.forEachRemaining} visits every element and must poll. */
+    public void testLongSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToLong(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-long-spliterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfDouble.forEachRemaining} visits every element and must poll. */
+    public void testDoubleSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-double-spliterator-foreachremaining"
+        );
+    }
+
     /**
      * Each new native-wrapper script-aware augmentation must take the no-poll fast path when the
-     * script has no cancellation check installed.  Exercises all seven native wrappers (Iterable,
-     * Collection, Iterator, List, Map x2, Spliterator) in one script execution.
+     * script has no cancellation check installed.  Exercises all native wrappers (Iterable,
+     * Collection, Iterator, List, Map x2, Spliterator, and the six primitive iterator/spliterator
+     * variants) in one script execution.
      */
     public void testNativeWrapperAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -894,7 +1005,13 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.replaceAll(x -> x); "
                 + "Map m = newMap(); m.forEach((k, v) -> v.toString()); "
                 + "Map m2 = newMap(); m2.replaceAll((k, v) -> v); "
-                + "big.spliterator().forEachRemaining(x -> x.toString());"
+                + "big.spliterator().forEachRemaining(x -> x.toString()); "
+                + "big.stream().mapToInt(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToLong(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToDouble(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToInt(x -> x).spliterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToLong(x -> x).spliterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToDouble(x -> x).spliterator().forEachRemaining(x -> x);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
@@ -948,6 +1065,19 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             compileFillThen("", "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b));"),
             "cancelled-stream-collect"
         );
+    }
+
+    /** {@code Stream.collect(Collector)} drives the whole stream through the collector's accumulator and must poll. */
+    public void testStreamCollectCollectorAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().collect(Collectors.toList());"), "cancelled-stream-collect-collector");
+    }
+
+    /**
+     * {@code Stream.collect(Collector)} with a finishing collector ({@code counting()} is not
+     * {@code IDENTITY_FINISH}) still polls — the rebuilt collector applies the original finisher.
+     */
+    public void testStreamCollectFinishingCollectorAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().collect(Collectors.counting());"), "cancelled-stream-collect-counting");
     }
 
     // --- IntStream terminal-op script-aware augmentations: per-method fires tests ---
@@ -1111,6 +1241,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.stream().reduce(0, (a, b) -> a); "
                 + "big.stream().reduce(0, (a, b) -> a, (a, b) -> a); "
                 + "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b)); "
+                + "big.stream().collect(Collectors.toList()); "
+                + "big.stream().collect(Collectors.counting()); "
                 + "big.stream().mapToInt(x -> x).forEach(x -> x); "
                 + "big.stream().mapToInt(x -> x).allMatch(x -> true); "
                 + "big.stream().mapToInt(x -> x).reduce((a, b) -> a); "
@@ -1127,5 +1259,289 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
+    }
+
+    // --- String search augmentations: indexOf / lastIndexOf / contains ---
+
+    /**
+     * {@code String.indexOf} with a never-matching needle must scan every candidate position; the augmentation polls between
+     * positions so the cancel runnable fires from the scan itself rather than from any script-body back-edge.
+     */
+    public void testIndexOfAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.indexOf('Z');", params, new HashMap<>());
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-indexof");
+        });
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-indexof", ex.getCause().getMessage());
+        assertTrue("indexOf scan should fire the cancel runnable", callCount.get() >= 1);
+    }
+
+    /** Same as the no-arg case but starting from a non-zero index — the augmentation must still poll. */
+    public void testIndexOfWithFromIndexAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.indexOf('Z', 0);", params, new HashMap<>());
+        assertFires(script, "cancelled-indexof-fromindex");
+    }
+
+    /** {@code String.lastIndexOf} with a never-matching needle scans backwards through every candidate position and must poll. */
+    public void testLastIndexOfAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.lastIndexOf('Z');", params, new HashMap<>());
+        assertFires(script, "cancelled-lastindexof");
+    }
+
+    /** Same as the no-arg case but starting from a non-default index. */
+    public void testLastIndexOfWithFromIndexAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; s.lastIndexOf('Z', 1499);",
+            params,
+            new HashMap<>()
+        );
+        assertFires(script, "cancelled-lastindexof-fromindex");
+    }
+
+    /** {@code String.contains} delegates to indexOf and inherits its polling. */
+    public void testContainsAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.contains('Z');", params, new HashMap<>());
+        assertFires(script, "cancelled-contains");
+    }
+
+    /** Each new String search augmentation must take the no-poll fast path when no cancellation check is installed. */
+    public void testStringSearchAugmentationsNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; "
+                + "s.indexOf('Z'); "
+                + "s.indexOf('Z', 0); "
+                + "s.lastIndexOf('Z'); "
+                + "s.lastIndexOf('Z', 1499); "
+                + "s.contains('Z');",
+            params,
+            new HashMap<>()
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
+
+    /**
+     * The polling scan (taken with a check installed) must return exactly what the JDK returns across the edge cases
+     * that diverge most easily: empty needle, negative/out-of-bounds {@code fromIndex}, no match, and surrogate pairs.
+     * {@code charAt} matching is code-unit based like {@link String#indexOf}, so a surrogate pair matches only when both
+     * halves line up.
+     */
+    public void testStringSearchAugmentationsMatchJdkWithCheckInstalled() {
+        String emoji = "a😀b😀c"; // "a😀b😀c" — two surrogate pairs
+        String e = "😀";                    // "😀"
+
+        // indexOf(String)
+        assertIndexOfParity(emoji, e);
+        assertIndexOfParity("abcabc", "bc");
+        assertIndexOfParity("abc", "x");
+        assertIndexOfParity("abc", "");
+
+        // indexOf(String, int)
+        assertIndexOfParity(emoji, e, 2);
+        assertIndexOfParity("abcabc", "bc", -5);  // negative fromIndex clamps to 0
+        assertIndexOfParity("abc", "", 1);
+        assertIndexOfParity("abc", "", 100);      // empty needle, fromIndex past the end
+        assertIndexOfParity("abc", "a", 100);     // non-empty needle, fromIndex past the end
+        assertIndexOfParity("ab", "abcd");        // needle longer than haystack -> -1
+        assertIndexOfParity("", "a");             // empty haystack -> -1
+
+        // lastIndexOf(String)
+        assertLastIndexOfParity(emoji, e);
+        assertLastIndexOfParity("abcabc", "bc");
+        assertLastIndexOfParity("ab", "abcd");    // needle longer than haystack -> -1
+
+        // lastIndexOf(String, int)
+        assertLastIndexOfParity(emoji, e, 3);
+        assertLastIndexOfParity("abc", "a", -1);  // negative fromIndex -> -1
+        assertLastIndexOfParity("abc", "", -1);   // empty needle + negative fromIndex -> -1
+        assertLastIndexOfParity("abc", "", -5);   // empty needle + negative fromIndex -> -1
+        assertLastIndexOfParity("abc", "", 1);    // empty needle + in-bounds fromIndex
+        assertLastIndexOfParity("abc", "", 100);  // empty needle + fromIndex past the end
+
+        // contains(CharSequence)
+        assertContainsParity(emoji, e);
+        assertContainsParity("abc", "x");
+        assertContainsParity("ab", "abcd");       // needle longer than haystack -> false
+    }
+
+    /** A StringBuilder arg (CharSequence, not String) exercises the {@code search.toString()} conversion in the scan. */
+    public void testContainsNonStringCharSequenceMatchesJdkWithCheckInstalled() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", "abcabc");
+        assertEquals("abcabc".contains("bc"), execWithCheckInstalled("((String)params['h']).contains(new StringBuilder('bc'))", params));
+        assertEquals("abcabc".contains("xy"), execWithCheckInstalled("((String)params['h']).contains(new StringBuilder('xy'))", params));
+    }
+
+    /** indexOf on a {@code def} receiver takes the runtime dispatch path; the script slot must still be threaded so it polls. */
+    public void testIndexOfDefReceiverFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("def s = params['big']; s.indexOf('Z');", params, new HashMap<>());
+        assertFires(script, "cancelled-indexof-def");
+    }
+
+    /** Parity on the {@code def} runtime path, guarding the script-slot swap that adapts the handle for a def call site. */
+    public void testStringSearchDefReceiverMatchesJdkWithCheckInstalled() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", "abcabc");
+        params.put("n", "bc");
+        assertEquals("abcabc".indexOf("bc"), ((Number) execWithCheckInstalled("params['h'].indexOf(params['n'])", params)).intValue());
+        assertEquals(
+            "abcabc".lastIndexOf("bc"),
+            ((Number) execWithCheckInstalled("params['h'].lastIndexOf(params['n'])", params)).intValue()
+        );
+        assertEquals("abcabc".contains("bc"), execWithCheckInstalled("params['h'].contains(params['n'])", params));
+    }
+
+    /** The {@code def} string-search dispatch must also take the no-poll fast path when no cancellation check is installed. */
+    public void testStringSearchDefReceiverNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(50));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "def s = params['big']; s.indexOf('Z'); s.indexOf('Z', 0); s.lastIndexOf('Z'); s.lastIndexOf('Z', 49); s.contains('Z');",
+            params,
+            new HashMap<>()
+        );
+        // No runnable set — fast paths must not throw.
+        script.execute();
+    }
+
+    // --- CharSequence regex augmentations: regex limit factor (Fix A) + per-match polling (Fix B) ---
+
+    /**
+     * Fix A: replaceAll with a regex that exhibits catastrophic backtracking on a moderate-sized input must hit the regex
+     * char-read limit factor and throw a CircuitBreakingException instead of running unbounded.  Closes a preexisting
+     * protection gap where the JDK Matcher was constructed on the raw receiver.
+     */
+    public void testReplaceAllRegexLimitFactorTripsCircuitBreaker() {
+        Map<String, Object> params = new HashMap<>();
+        // Classic catastrophic-backtracking input: "aaaa...X" against /(a+)+b/.
+        params.put("input", "a".repeat(40) + "X");
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "params['input'].replaceAll(/(a+)+b/, m -> 'replaced');",
+            params,
+            new HashMap<>()
+        );
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertThat(ex.getCause().getMessage(), containsString("Regular expression considered too many characters"));
+    }
+
+    /** Same protection on replaceFirst. */
+    public void testReplaceFirstRegexLimitFactorTripsCircuitBreaker() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "a".repeat(40) + "X");
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "params['input'].replaceFirst(/(a+)+b/, m -> 'replaced');",
+            params,
+            new HashMap<>()
+        );
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertThat(ex.getCause().getMessage(), containsString("Regular expression considered too many characters"));
+    }
+
+    /**
+     * Fix B: replaceAll with a regex that matches many times runs the wrapped consumer per match; the per-match cancellation
+     * poll inside the augmentation fires the runnable so a long match-and-replace sweep honours the search timeout.
+     */
+    public void testReplaceAllRegexFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "a".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("params['input'].replaceAll(/a/, m -> 'b');", params, new HashMap<>());
+        assertFires(script, "cancelled-replaceall-regex");
+    }
+
+    /** Fast path for the regex replace augmentations: no runnable installed → must not throw. */
+    public void testReplaceAllRegexAndReplaceFirstNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "abc def abc");
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['input']; s.replaceAll(/abc/, m -> 'X'); s.replaceFirst(/abc/, m -> 'X');",
+            params,
+            new HashMap<>()
+        );
+        script.execute();  // must not throw
+    }
+
+    /** replaceAll's polling branch is a separate loop from the fast path; pin that its output (with groups) matches. */
+    public void testReplaceAllWithCheckInstalledMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "the quick brown fox");
+        Object out = execWithCheckInstalled(
+            "((String)params['input']).replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))",
+            params
+        );
+        assertEquals("thE qUIck brOwn fOx", out);
+    }
+
+    /**
+     * A capturing lambda on a {@code def} receiver stresses argument positioning: the captured value must land in the
+     * user-args region after the synthesised script and limit-factor slots.
+     */
+    public void testReplaceAllDefReceiverCapturingLambdaMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "a1a2a3");
+        params.put("prefix", "X");
+        Object out = execSourceWithCheckInstalled(
+            "String prefix = params['prefix']; state['r'] = params['input'].replaceAll(/a/, m -> prefix + m.group());",
+            params
+        );
+        assertEquals("Xa1Xa2Xa3", out);
+    }
+
+    /** A method reference on a {@code def} receiver exercises the method-ref arity math with the script/inject offsets. */
+    public void testReplaceAllDefReceiverMethodRefMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "the quick brown fox");
+        Object out = execSourceWithCheckInstalled(
+            "String up(Matcher m) { return m.group().toUpperCase(Locale.ROOT); } "
+                + "state['r'] = params['input'].replaceAll(/[aeiou]/, this::up);",
+            params
+        );
+        assertEquals("thE qUIck brOwn fOx", out);
+    }
+
+    /**
+     * The polling branch rebuilds the collector, so pin that its output matches the JDK across an
+     * {@code IDENTITY_FINISH} collector ({@code toList}), a finishing collector ({@code counting}), and a
+     * finishing collector with a non-trivial finisher ({@code joining}).  Receiver is a statically typed
+     * {@code Stream}, so this exercises the static augmentation dispatch path.
+     */
+    public void testStreamCollectCollectorWithCheckInstalledMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("items", List.of("a", "b", "c"));
+        assertEquals(
+            List.of("a", "b", "c"),
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.toList());", params)
+        );
+        assertEquals(
+            3L,
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.counting());", params)
+        );
+        assertEquals(
+            "a,b,c",
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.joining(','));", params)
+        );
+    }
+
+    /** A {@code def}-typed stream receiver dispatches the collector wrapper through {@code Def.lookupMethod}; pin its output. */
+    public void testStreamCollectCollectorDefReceiverMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("items", List.of("a", "b", "c"));
+        assertEquals(List.of("a", "b", "c"), execWithCheckInstalled("params['items'].stream().collect(Collectors.toList())", params));
     }
 }

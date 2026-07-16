@@ -44,6 +44,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -74,16 +76,14 @@ public class ReplicationOperationTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testReplication() throws Exception {

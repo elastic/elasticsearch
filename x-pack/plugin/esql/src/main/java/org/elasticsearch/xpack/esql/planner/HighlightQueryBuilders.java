@@ -101,10 +101,10 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code onFields}, and translates to
-     * a valid Lucene query.
+     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code onFields}, and translates
+     * with the analyzer that execution will use.
      */
-    public static void verify(Expression queryExpr, List<String> onFields) {
+    public static void verify(Expression queryExpr, List<String> onFields, @Nullable Analyzer analyzer) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.
         if (literal == null) {
@@ -112,7 +112,7 @@ public final class HighlightQueryBuilders {
         }
         try {
             // Translate now to report invalid options and syntax before planning.
-            buildLuceneQuery(queryExpr, onFields);
+            translate(queryExpr, onFields, analyzer);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException(
                 "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: " + e.getMessage(),
@@ -192,26 +192,11 @@ public final class HighlightQueryBuilders {
         return context.toQuery(builder).query();
     }
 
-    /** Builds and discards a Lucene query so {@link #verify} can report invalid syntax or options. */
-    private static void buildLuceneQuery(Expression queryExpr, List<String> onFields) {
-        toLuceneQuery(toQueryBuilder(queryExpr, onFields), RuntimeSearchExecutionContext.create(onFields));
-    }
-
     /**
-     * Builds the runtime query after the plan has been deserialized. The returned analyzer comes from the same context
-     * as the query and must also be used to populate the operator's MemoryIndex.
+     * Builds the runtime query with the analyzer used to index each row's text. A {@code null} override selects the
+     * standard analyzer.
      */
-    public static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames) {
-        return translate(queryExpr, fieldNames, null);
-    }
-
-    /**
-     * Builds the runtime query using {@code analyzerOverride} for both query-parsing and row-text re-analysis.
-     * When {@code analyzerOverride} is {@code null}, the standard analyzer is used.
-     * The returned analyzer comes from the same context as the query and must also be used to populate the operator's
-     * MemoryIndex.
-     */
-    public static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, @Nullable Analyzer analyzerOverride) {
+    private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, @Nullable Analyzer analyzerOverride) {
         String literal = queryTextIfLiteral(queryExpr);
         String queryText = literal != null ? literal : queryExpr.sourceText();
         NamedAnalyzer namedAnalyzer = analyzerOverride == null ? Lucene.STANDARD_ANALYZER
@@ -223,8 +208,8 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Builds the runtime query, resolving {@code analyzerName} against {@code analysisRegistry} to override both
-     * query-parsing and row-text re-analysis. When {@code analyzerName} is {@code null}, the standard analyzer is used.
+     * Resolves {@code analyzerName} from {@code analysisRegistry}, then builds the runtime query. A {@code null} name
+     * selects the standard analyzer.
      */
     public static TranslatedQuery translate(
         Expression queryExpr,
@@ -236,7 +221,7 @@ public final class HighlightQueryBuilders {
     }
 
     /** Resolves the analyzer override, or returns {@code null} when none was provided. */
-    private static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
         if (analyzerName == null) {
             return null;
         }

@@ -38,8 +38,8 @@ import java.util.Objects;
  * @param locale             locale used by the break iterator (the {@code boundary_scanner_locale} option).
  * @param orderByScore       when {@code true} fragments are returned by descending score instead of document order
  *                           (the {@code order=score} option).
- * @param analyzerName       optional {@code analyzer} override from WITH; {@code null} means use the default analyzer.
- *                           Kept for plan descriptions.
+ * @param analyzerName       {@code analyzer} override from WITH, also shown in plan descriptions; {@code null} selects
+ *                           the default analyzer.
  * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the default index setting" in the
  *                           current coordinator-side operator.
  * @param analyzer           analyzer used to build the per-row memory index and configure the unified highlighter.

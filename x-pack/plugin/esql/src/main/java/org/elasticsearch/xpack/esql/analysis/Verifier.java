@@ -306,7 +306,6 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        // Pass the registry to plan nodes that resolve named analyzers.
                         va.postAnalysisVerification(analysisRegistry, failures);
                     }
                 });

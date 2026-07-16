@@ -1623,7 +1623,7 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# English stemming lets "ring" match "Rings".
+# The english analyzer stems "Rings" to "ring".
 highlightAnalyzerEnglishStemsMatch
 required_capability: highlight_v5
 
@@ -1637,7 +1637,7 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# Without stemming, "ring" does not match "Rings".
+# The standard analyzer does not stem "Rings".
 highlightAnalyzerDefaultMissesStem
 required_capability: highlight_v5
 
@@ -1651,7 +1651,7 @@ null
 ;
 
 
-# Whitespace tokenization leaves "fox-like" whole, so "fox" does not match it.
+# The whitespace analyzer keeps "fox-like" as one token.
 highlightAnalyzerWhitespaceKeepsPunctuation
 required_capability: highlight_v5
 
@@ -1665,7 +1665,7 @@ null
 ;
 
 
-# Simple tokenization splits "FOX-123" and ignores case.
+# The simple analyzer splits "FOX-123" and lowercases its tokens.
 highlightAnalyzerSimpleSplitsPunctuation
 required_capability: highlight_v5
 
@@ -1679,7 +1679,7 @@ A <em>FOX</em>-123 escaped
 ;
 
 
-# Stop words such as "the" are ignored, so only "ring" is highlighted.
+# The stop analyzer removes "the" from the query.
 highlightAnalyzerRemovesStopWords
 required_capability: highlight_v5
 
@@ -1693,7 +1693,7 @@ The <em>ring</em> is here
 ;
 
 
-# Keyword analysis treats "New York City" as one token, and an exact query highlights all of it.
+# The keyword analyzer emits the full value as one token.
 highlightAnalyzerKeywordExactMatch
 required_capability: highlight_v5
 
@@ -1707,7 +1707,7 @@ highlight_location:keyword
 ;
 
 
-# Because keyword analysis keeps the value whole, "York" does not match on its own.
+# A partial query does not match a keyword token.
 highlightAnalyzerKeywordPartialMiss
 required_capability: highlight_v5
 

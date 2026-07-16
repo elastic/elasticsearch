@@ -4655,23 +4655,17 @@ public class VerifierTests extends ESTestCase {
         fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
         fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
         fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
-        // A registered named analyzer resolves successfully.
         defaultAnalyzer().query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
     }
 
     public void testHighlightAnalyzerOption() {
         assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        // An unknown analyzer is rejected at analysis time.
-        defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
-            containsString("Invalid value [not_a_real_analyzer] for option [analyzer] in HIGHLIGHT, expected a registered analyzer")
-        );
-        // Syntax errors are still reported when the analyzer resolves.
+        assertInvalidHighlightOption("analyzer", "not_a_real_analyzer");
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
             containsString("Invalid query [fox AND] in HIGHLIGHT:")
         );
-        // When the analyzer is unknown, report only that failure without adding a second error for the query.
+        // Do not report a query error when its analyzer is unknown.
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             allOf(
@@ -4683,7 +4677,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testHighlightRejectsInvalidQueries() {
         assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        // ON fields must be text or keyword.
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"x\" ON salary",
             containsString("HIGHLIGHT ON field [salary] must be [text] or [keyword], found [integer]")
@@ -4700,7 +4693,6 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT \"x\" ON emp_no WITH { \"number_of_fragments\": 2 }",
             containsString("HIGHLIGHT ON field [emp_no] must be [text] or [keyword], found [integer]")
         );
-        // Query translation failures are surfaced during analysis.
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name",
             containsString("Invalid query [fox AND] in HIGHLIGHT: Failed to parse query [fox AND]")
@@ -4714,7 +4706,6 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
         );
-        // The HIGHLIGHT query can only reference fields listed in the ON clause.
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
@@ -4729,7 +4720,6 @@ public class VerifierTests extends ESTestCase {
         );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
-        // Fields dropped by an upstream STATS can no longer be resolved by HIGHLIGHT.
         fullText().error(
             "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",
             containsString("Unknown column [title]")

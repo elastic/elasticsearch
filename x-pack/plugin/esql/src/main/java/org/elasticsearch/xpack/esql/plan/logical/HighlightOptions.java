@@ -173,8 +173,8 @@ public record HighlightOptions(
         return requireString(name, folded);
     }
 
-    /** Reads the {@code analyzer} name. The analyzer itself is resolved later. */
-    private static String analyzerName(String name, Expression value, FoldContext foldContext) {
+    /** Reads the {@code analyzer} name without resolving it. */
+    static String analyzerName(String name, Expression value, FoldContext foldContext) {
         if (value == null) {
             return null;
         }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +16,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -246,58 +246,42 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
     }
 
-    /** Validates the analyzer name (if any) then checks the query structure. */
+    /** Checks the analyzer name before validating the query. */
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-        boolean analyzerOk = resolveVerificationAnalyzer(analysisRegistry, failures);
-        if (analyzerOk) {
-            verifyQuery(failures);
-        }
+        resolveAnalyzerAndVerifyQuery(analysisRegistry, failures);
     }
 
-    /**
-     * Validates the analyzer override name against the registry.
-     * Returns {@code true} when the analyzer is valid (or no override was specified), {@code false} when the name is unknown.
-     * Adds a failure to {@code failures} when the name is unknown.
-     */
-    private boolean resolveVerificationAnalyzer(AnalysisRegistry analysisRegistry, Failures failures) {
+    private void resolveAnalyzerAndVerifyQuery(AnalysisRegistry analysisRegistry, Failures failures) {
         Expression value = options == null ? null : foldableOption(ANALYZER);
-        if (value == null) {
-            return true;
-        }
-        Object folded = value.fold(FoldContext.small());
-        // verifyValue already reports non-string values.
-        if (folded instanceof BytesRef == false && folded instanceof String == false) {
-            return true;
-        }
-        // Some test contexts do not provide a registry, so resolution has to wait until execution.
-        if (analysisRegistry == null) {
-            return true;
-        }
-        String name = BytesRefs.toString(folded);
+        Analyzer analyzer = null;
         try {
-            Analyzer analyzer = analysisRegistry.getAnalyzer(name);
-            if (analyzer == null) {
-                failures.add(fail(this, "Invalid value [{}] for option [analyzer] in HIGHLIGHT, expected a registered analyzer", name));
-                return false;
+            if (value != null) {
+                String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+                // Tests may omit the registry. In that case, execution resolves the analyzer.
+                if (analysisRegistry != null) {
+                    analyzer = HighlightQueryBuilders.resolveAnalyzer(name, analysisRegistry);
+                }
             }
-            return true;
-        } catch (IOException e) {
-            failures.add(
-                fail(this, "Invalid value for option [analyzer] in HIGHLIGHT: failed to load analyzer [{}]: {}", name, e.getMessage())
-            );
-            return false;
+        } catch (InvalidArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        } catch (IllegalArgumentException e) {
+            // Type errors have already been reported by verifyValue.
+            verifyQuery(null, failures);
+            return;
         }
+        verifyQuery(analyzer, failures);
     }
 
-    private void verifyQuery(Failures failures) {
+    private void verifyQuery(Analyzer analyzer, Failures failures) {
         if (query == null || query.resolved() == false) {
             return;
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            HighlightQueryBuilders.verify(query, fieldNames);
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer);
         } catch (IllegalArgumentException e) {
             failures.add(fail(this, "{}", e.getMessage()));
         }

@@ -152,7 +152,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
-        // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
@@ -167,6 +167,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
         // need to refine the MATCH function generation
         "query value .* does not match the type .* of non-index-mapped field",
+        "Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -192,7 +193,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
 
         // https://github.com/elastic/elasticsearch/issues/154068
-        "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*"
+        "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*",
+
+        // https://github.com/elastic/elasticsearch/pull/153514
+        "can't lookup values from DateRangeBlock",
+
+        // https://github.com/elastic/elasticsearch/issues/154079
+        "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
+
+        // https://github.com/elastic/elasticsearch/issues/154080
+        "unexpected data type \\[NULL\\]"
     );
 
     /**

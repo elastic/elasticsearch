@@ -1,7 +1,0 @@
-area: Search
-issues:
- - 146420
-pr: 146431
-summary: Fix pooled `SearchHits` leak in `MergeResult#writeTo` on transport version
-  mismatch
-type: bug

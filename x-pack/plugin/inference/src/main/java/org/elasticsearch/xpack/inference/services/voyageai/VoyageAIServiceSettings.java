@@ -42,7 +42,7 @@ public abstract class VoyageAIServiceSettings extends FilteredXContentObject imp
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
-        return RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, VoyageAIService.NAME, context);
+        return RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
     }
 
     private final String modelId;

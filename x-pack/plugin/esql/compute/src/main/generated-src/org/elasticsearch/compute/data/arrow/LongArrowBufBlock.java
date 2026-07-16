@@ -43,8 +43,46 @@ public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, L
         super(arrowVector, blockFactory);
     }
 
-    public static LongArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+    public static LongBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        LongBlock constant = tryConstant(arrowVector, blockFactory);
+        if (constant != null) {
+            return constant;
+        }
         return new LongArrowBufBlock(arrowVector, blockFactory);
+    }
+
+    /**
+     * Returns a constant block when the vector is fully present and all values are identical,
+     * a constant-null block when all values are null, or {@code null} when the caller should
+     * fall through to the zero-copy {@link LongArrowBufBlock} path. Multi-valued (List)
+     * inputs return {@code null}; their constant detection would require comparing whole
+     * sequences and is not worth the added complexity.
+     */
+    private static LongBlock tryConstant(ValueVector arrowVector, BlockFactory blockFactory) {
+        if (arrowVector instanceof org.apache.arrow.vector.complex.ListVector) {
+            return null;
+        }
+        // Validate the per-element byte stride before reading the buffer; the constructor
+        // does the same check on the fall-through path, so failing fast here keeps both
+        // paths' error semantics identical.
+        ArrowUtils.checkItemSize((org.apache.arrow.vector.FixedWidthVector) arrowVector, Long.BYTES);
+        int rowCount = arrowVector.getValueCount();
+        if (rowCount == 0) {
+            return null;
+        }
+        if (arrowVector.getNullCount() == rowCount) {
+            return (LongBlock) blockFactory.newConstantNullBlock(rowCount);
+        }
+        if (arrowVector.getNullCount() != 0) {
+            return null;
+        }
+        ArrowBuf valueBuffer = arrowVector.getDataBuffer();
+        if (ArrowBufConstantDetection.isUniform(valueBuffer, rowCount, Long.BYTES) == false) {
+            return null;
+        }
+        int valueIndex = 0;
+        long value = valueBuffer.getLong((long) valueIndex * Long.BYTES);
+        return blockFactory.newConstantLongBlockWith(value, rowCount);
     }
 
     @Override

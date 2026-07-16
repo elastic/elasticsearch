@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -82,13 +84,18 @@ public class RestCountAction extends BaseRestHandler {
                 searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
             }
         });
-        countRequest.routing(request.param("routing"));
+        applyRoutingOrSliceForCountRequest(request, countRequest);
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {
             searchSourceBuilder.minScore(minScore);
         }
 
         countRequest.preference(request.param("preference"));
+
+        String sStats = request.param("stats");
+        if (sStats != null) {
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
+        }
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
         searchSourceBuilder.terminateAfter(terminateAfter);
@@ -114,6 +121,18 @@ public class RestCountAction extends BaseRestHandler {
                 return new RestResponse(response.status(), builder);
             }
         });
+    }
+
+    /**
+     * Applies {@code routing} / {@code _slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
+     * package private for testing
+     */
+    static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        searchRequest.routing(parsedRouting.routing());
+        searchRequest.searchSlice(
+            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+        );
     }
 
 }

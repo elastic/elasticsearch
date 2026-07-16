@@ -91,6 +91,20 @@ public class OrcFilterPushdownSupportTests extends ESTestCase {
         assertFalse(result.hasPushedFilter());
     }
 
+    public void testVirtualColumnNotPushable() {
+        // Virtual columns (engine-synthesized _file.* / VirtualAttribute) are not stored as ORC
+        // columns; predicate pushdown must reject them so the engine evaluates the filter after
+        // VirtualColumnIterator injects the constant per-file blocks.
+        org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute virtual =
+            new org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute(SOURCE, "_file.size", DataType.LONG);
+        Expression filter = new Equals(SOURCE, virtual, new Literal(SOURCE, 100L, DataType.LONG));
+
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+        assertFalse(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
     // --- Helpers ---
 
     private static FieldAttribute field(String name, DataType dataType) {

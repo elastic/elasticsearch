@@ -69,9 +69,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
     ) {
         service.infer(
             model,
-            request.getQuery(),
-            request.getReturnDocuments(),
-            request.getTopN(),
             request.getInput(),
             request.isStreaming(),
             request.getTaskSettings(),

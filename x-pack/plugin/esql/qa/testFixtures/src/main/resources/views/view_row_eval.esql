@@ -1,0 +1,2 @@
+ROW multiplier = 3
+| EVAL triple = multiplier * 3

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148256
+summary: Prune non-top-N groups during aggregation
+type: enhancement

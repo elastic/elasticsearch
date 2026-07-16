@@ -337,8 +337,7 @@ public class LeaderChecker {
                         leaderCheckTimeout,
                         transportService.getThreadPool(),
                         TransportResponseHandler.TRANSPORT_WORKER,
-                        responseHandler,
-                        () -> {/* not cancellable */}
+                        responseHandler
                     ),
                     ignored -> ActionResponse.Empty.INSTANCE,
                     TransportResponseHandler.TRANSPORT_WORKER

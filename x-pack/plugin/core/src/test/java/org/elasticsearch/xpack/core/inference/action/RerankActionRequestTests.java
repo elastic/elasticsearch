@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringTests;
@@ -33,6 +32,7 @@ import static org.elasticsearch.xpack.core.inference.action.RerankAction.Request
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCase<RerankAction.Request> {
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
@@ -76,11 +76,8 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
             var expectedRequest = new RerankAction.Request(
                 inferenceId,
                 new RerankRequest(
-                    List.of(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, firstInputText),
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, secondInputText)
-                    ),
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, queryText),
+                    List.of(InferenceString.ofText(firstInputText), InferenceString.ofText(secondInputText)),
+                    InferenceString.ofText(queryText),
                     topN,
                     returnDocuments,
                     Map.of("field", "value")
@@ -143,6 +140,39 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         );
     }
 
+    public void testValidate_WithImageInputsAndQuery_ReturnsNoValidationException() {
+        var imageInputs = randomList(1, 5, () -> InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE)));
+        var imageQuery = InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE));
+        var request = new RerankAction.Request(
+            randomAlphanumericOfLength(8),
+            new RerankRequest(imageInputs, imageQuery, null, null, Map.of()),
+            new InferenceContext(randomAlphaOfLength(10)),
+            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+        );
+
+        assertThat(request.validate(), is(nullValue()));
+    }
+
+    public void testValidate_WithMixedTextAndImageInputs_ReturnsNoValidationException() {
+        var request = new RerankAction.Request(
+            randomAlphanumericOfLength(8),
+            new RerankRequest(
+                List.of(
+                    InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)),
+                    InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE))
+                ),
+                randomInferenceString(),
+                null,
+                null,
+                Map.of()
+            ),
+            new InferenceContext(randomAlphaOfLength(10)),
+            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+        );
+
+        assertThat(request.validate(), is(nullValue()));
+    }
+
     public void testValidate_WithNullQuery_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
@@ -159,7 +189,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     public void testValidate_WithEmptyQuery_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), new InferenceString(DataType.TEXT, ""), null, null, Map.of()),
+            new RerankRequest(List.of(randomInferenceString()), InferenceString.ofText(""), null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -171,10 +201,10 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
 
     public void testValidate_WithUnsupportedQueryDataType_ReturnsValidationException() {
         var unsupportedDataTypes = EnumSet.complementOf(SUPPORTED_RERANK_DATA_TYPES);
-        var inputWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
+        var queryWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), inputWithUnsupportedType, null, null, Map.of()),
+            new RerankRequest(List.of(randomInferenceString()), queryWithUnsupportedType, null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -183,7 +213,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         assertThat(validationException.validationErrors(), hasSize(1));
         assertThat(
             validationException.validationErrors().getFirst(),
-            is(Strings.format("Field [query] contains unsupported [type] value %s", inputWithUnsupportedType.dataType()))
+            is(Strings.format("Field [query] contains unsupported [type] value %s", queryWithUnsupportedType.dataType()))
         );
     }
 
@@ -258,8 +288,8 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
 
     private static RerankRequest randomRerankRequest() {
         return new RerankRequest(
-            List.of(new InferenceString(DataType.TEXT, randomAlphanumericOfLength(8))),
-            new InferenceString(DataType.TEXT, randomAlphanumericOfLength(8)),
+            List.of(InferenceString.ofText(randomAlphanumericOfLength(8))),
+            InferenceString.ofText(randomAlphanumericOfLength(8)),
             randomInt(),
             randomBoolean(),
             Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))

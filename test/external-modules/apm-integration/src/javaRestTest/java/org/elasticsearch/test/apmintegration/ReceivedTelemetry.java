@@ -25,7 +25,9 @@ public sealed interface ReceivedTelemetry {
     /**
      * A set of metrics from a single instrumentation scope (e.g. "elasticsearch").
      */
-    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples) implements ReceivedTelemetry {
+    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples, long collectionTime)
+        implements
+            ReceivedTelemetry {
         public ReceivedMetricSet {
             requireNonNull(instrumentationScopeName);
             requireNonNull(samples);
@@ -96,6 +98,28 @@ public sealed interface ReceivedTelemetry {
         public HistogramSample {
             requireNonNull(counts);
             counts.forEach(Objects::requireNonNull);
+        }
+    }
+
+    /**
+     * A single OTLP log record, as emitted by the OTel SDK audit-log export path.
+     * {@code attributes} is a flat map of OTLP log record attributes; the keys currently include
+     * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
+     * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
+     * rename.
+     */
+    record ReceivedLog(
+        long timeUnixNano,
+        int severityNumber,
+        String severityText,
+        String body,
+        Map<String, Object> attributes,
+        Optional<String> traceId
+    ) implements ReceivedTelemetry {
+        public ReceivedLog {
+            requireNonNull(attributes);
+            attributes = Map.copyOf(attributes);
+            requireNonNull(traceId);
         }
     }
 }

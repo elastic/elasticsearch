@@ -10,7 +10,11 @@ applies_to:
 # Knn query [query-dsl-knn-query]
 
 
-Finds the *k* nearest vectors to a query vector, as measured by a similarity metric. *knn* query finds nearest vectors through approximate search on indexed dense_vectors. The preferred way to do approximate kNN search is through the [top level knn section](docs-content://solutions/search/vector/knn.md) of a search request. *knn* query is reserved for expert cases, where there is a need to combine this query with other queries, or perform a kNN search against a [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) field.
+Finds the *k* nearest vectors to a query vector, as measured by a similarity metric. *knn* query finds nearest vectors through approximate search on indexed `dense_vector`s or [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields which use `dense_vector` under the hood. For `dense_vector` fields, you can also use the [top level knn section](docs-content://solutions/search/vector/knn.md) of a search request.
+
+::::{note}
+The top-level `knn` option does not support `semantic_text` fields. To run a kNN search on a `semantic_text` field, use the `knn` query described on this page. You can also query `semantic_text` fields using a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md), which is the simplest approach.
+::::
 
 ## Example request [knn-query-ex-request]
 
@@ -349,6 +353,10 @@ word and have "paragraph.language" set to "EN":
 Note that nested `knn` only supports `score_mode=max`.
 
 ## Knn query on a semantic_text field [knn-query-with-semantic-text]
+
+::::{note}
+The top-level `knn` search option does not support `semantic_text` fields. Use the `knn` query shown below to run a kNN search on a `semantic_text` field which uses `dense_vector` under the hood. For simpler use cases, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md) directly on the `semantic_text` field.
+::::
 
 Elasticsearch supports knn queries over a [
 `semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md).

@@ -40,8 +40,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private BytesReference source;
-    private XContentType xContentType;
+    private final SourceToParse.Source source;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -77,7 +76,7 @@ public class ParsedDocument {
      */
     // used by tests
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
-        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, false, id, null /* ignored */);
     }
 
     /**
@@ -90,6 +89,7 @@ public class ParsedDocument {
         SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
         boolean useDocValuesSkipper,
         boolean useSyntheticId,
+        boolean useColumnarId,
         String id,
         BytesRef uid
     ) {
@@ -122,6 +122,8 @@ public class ParsedDocument {
             );
             document.add(field);
 
+        } else if (useColumnarId) {
+            document.add(ProvidedIdFieldMapper.columnarIdField(id));
         } else {
             // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
             document.add(IdFieldMapper.standardIdField(id));
@@ -145,8 +147,7 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
-        BytesReference source,
-        XContentType xContentType,
+        SourceToParse.Source source,
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
@@ -157,8 +158,30 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-        this.xContentType = xContentType;
         this.normalizedSize = normalizedSize;
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        CompressedXContent dynamicMappingsUpdate,
+        long normalizedSize
+    ) {
+        this(
+            version,
+            seqID,
+            id,
+            routing,
+            documents,
+            SourceToParse.Source.fromBytes(source, xContentType),
+            dynamicMappingsUpdate,
+            normalizedSize
+        );
     }
 
     public String id() {
@@ -189,17 +212,12 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public BytesReference source() {
+    public SourceToParse.Source source() {
         return this.source;
     }
 
     public XContentType getXContentType() {
-        return this.xContentType;
-    }
-
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+        return this.source.xContentType();
     }
 
     /**

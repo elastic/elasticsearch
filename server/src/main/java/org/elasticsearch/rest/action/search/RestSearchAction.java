@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -143,7 +145,15 @@ public class RestSearchAction extends BaseRestHandler {
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             var params = serializationParams(searchRequest, channel.request());
-            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel, params));
+            cancelClient.execute(
+                TransportSearchAction.TYPE,
+                searchRequest,
+                RestActions.wrapWithSearchMetricsHeader(
+                    client.threadPool().getThreadContext(),
+                    SearchResponse::getDirectoryMetrics,
+                    new RestRefCountedChunkedToXContentListener<>(channel, params)
+                )
+            );
         };
     }
 
@@ -263,7 +273,11 @@ public class RestSearchAction extends BaseRestHandler {
         if (scroll != null) {
             searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
-        searchRequest.routing(request.param("routing"));
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        searchRequest.routing(parsedRouting.routing());
+        searchRequest.searchSlice(
+            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+        );
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
         if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {

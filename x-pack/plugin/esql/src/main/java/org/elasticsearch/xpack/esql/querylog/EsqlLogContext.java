@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -76,6 +78,31 @@ public class EsqlLogContext extends QueryLoggerContext {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 
+    /**
+     * Returns the response-root rollup counters for the slow-log walk, or {@link Optional#empty()}
+     * when no response is available (failure paths). These values mirror what appears under
+     * {@code profile.*} when {@code profile=true}, but are surfaced unconditionally so the slow log
+     * carries the same per-query cost signal regardless of whether the caller asked for a profile.
+     */
+    Optional<RollupCounters> getRollupCounters() {
+        if (response == null) {
+            return Optional.empty();
+        }
+        return Optional.of(
+            new RollupCounters(
+                response.documentsFound(),
+                response.valuesLoaded(),
+                response.rowsEmitted(),
+                response.bytesRead(),
+                response.readNanos(),
+                response.cpuNanos()
+            )
+        );
+    }
+
+    /** Snapshot of the query-level rollup counters surfaced into the slow log. */
+    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+
     @Override
     public String[] getIndices() {
         if (response == null) {
@@ -108,5 +135,22 @@ public class EsqlLogContext extends QueryLoggerContext {
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
+    }
+
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
+    }
+
+    public Map<String, String> namedParams() {
+        var params = request.params().namedParams();
+        if (params.isEmpty()) {
+            return Map.of();
+        }
+        return params.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue().value())));
+    }
+
+    public List<String> params() {
+        return request.params().params().stream().map(p -> String.valueOf(p.value())).collect(Collectors.toList());
     }
 }

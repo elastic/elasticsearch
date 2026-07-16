@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 148340
+summary: Enable multiple items per content object for Elastic service
+type: enhancement

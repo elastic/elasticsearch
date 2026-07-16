@@ -101,6 +101,23 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         );
         assertThat(invalidSliceBody, containsString("invalid [_slice] value"));
 
+        Request routingProvided = new Request("POST", "/slice-update-it/_update/1");
+        routingProvided.addParameter("routing", "s1");
+        routingProvided.setJsonEntity("""
+            {
+              "doc": {
+                "field": "updated"
+              }
+            }""");
+        ResponseException routingProvidedException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(routingProvided)
+        );
+        String routingProvidedBody = Streams.copyToString(
+            new InputStreamReader(routingProvidedException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(routingProvidedBody, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+
         Request validSlice = new Request("POST", "/slice-update-it/_update/1");
         validSlice.addParameter("_slice", "s1");
         validSlice.setJsonEntity("""

@@ -161,6 +161,50 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals("Map is unchanged", Map.of(requestingClass.getModule(), expectedEntitlements), policyManager.moduleEntitlementsMap);
     }
 
+    /**
+     * Full registration→lookup chain: the policy map must be keyed by the same descriptor name
+     * {@code ScopeResolver} resolves to, otherwise {@code getEntitlements} returns the empty set.
+     */
+    public void testGetEntitlementsForPluginWithDirectoryNameDifferentFromDescriptorName() {
+        String descriptorName = "myPlugin";
+        var pluginPolicy = new Policy(
+            descriptorName,
+            List.of(new Scope(PolicyManager.ALL_UNNAMED, List.of(new OutboundNetworkEntitlement())))
+        );
+
+        var correctlyKeyed = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(descriptorName, pluginPolicy),
+            c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
+            name -> Collections.emptyList(),
+            TEST_PATH_LOOKUP
+        );
+        var entitlements = correctlyKeyed.getEntitlements(getClass());
+        assertThat(
+            "policy keyed by descriptor name must produce the granted entitlement at runtime lookup",
+            entitlements.hasEntitlement(OutboundNetworkEntitlement.class),
+            is(true)
+        );
+
+        // Inverse: with the map mis-keyed by directory name, ScopeResolver's descriptor-name lookup misses.
+        var directoryName = "my-plugin";
+        var misKeyed = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(directoryName, pluginPolicy),
+            c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
+            name -> Collections.emptyList(),
+            TEST_PATH_LOOKUP
+        );
+        var misKeyedEntitlements = misKeyed.getEntitlements(getClass());
+        assertThat(
+            "policy keyed by anything other than descriptor name causes the runtime lookup to miss",
+            misKeyedEntitlements.hasEntitlement(OutboundNetworkEntitlement.class),
+            is(false)
+        );
+    }
+
     public void testAgentsEntitlements() throws IOException, ClassNotFoundException {
         Path home = createTempDir();
         Path unnamedJar = createMockPluginJarForUnnamedModule(home);

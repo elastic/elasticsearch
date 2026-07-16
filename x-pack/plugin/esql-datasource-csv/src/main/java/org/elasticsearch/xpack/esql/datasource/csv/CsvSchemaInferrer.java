@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -58,11 +61,15 @@ public class CsvSchemaInferrer {
     /**
      * Infers schema from column names and sample data rows.
      *
-     * @param columnNames header names (plain, without type annotations)
-     * @param sampleRows  sample data rows; each row is a string array of cell values
+     * @param columnNames       header names (plain, without type annotations)
+     * @param sampleRows        sample data rows; each row is a string array of cell values
+     * @param datetimeFormatter the file-level {@code datetime_format} parser, or null for ISO-8601. A column is
+     *                          inferred {@code DATETIME} only when this parser accepts its values, so inference sees
+     *                          the same dialect the reader will later parse with. Numeric candidates are tried first
+     *                          (see {@link #TYPE_CANDIDATES}), so an all-digit column stays numeric regardless.
      * @return list of attributes with inferred types
      */
-    static List<Attribute> inferSchema(String[] columnNames, List<String[]> sampleRows) {
+    static List<Attribute> inferSchema(String[] columnNames, List<String[]> sampleRows, @Nullable DateFormatter datetimeFormatter) {
         int numCols = columnNames.length;
         int[] candidateIdx = new int[numCols];
         // Whether the column's current candidate type was confirmed by at least one matching value
@@ -83,7 +90,7 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 seenValue[col] = true;
-                candidateIdx[col] = narrowCandidate(candidateIdx[col], typeConfirmed[col], value);
+                candidateIdx[col] = narrowCandidate(candidateIdx[col], typeConfirmed[col], value, datetimeFormatter);
                 typeConfirmed[col] = true;
             }
         }
@@ -92,7 +99,7 @@ public class CsvSchemaInferrer {
         for (int col = 0; col < numCols; col++) {
             String name = columnNames[col].trim();
             DataType type = seenValue[col] ? TYPE_CANDIDATES[candidateIdx[col]] : DataType.KEYWORD;
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
         return attributes;
     }
@@ -104,9 +111,9 @@ public class CsvSchemaInferrer {
      * "42" is most likely a string column, not numeric).
      * For unconfirmed columns or numeric types, narrow one step at a time.
      */
-    private static int narrowCandidate(int currentIdx, boolean confirmed, String value) {
+    private static int narrowCandidate(int currentIdx, boolean confirmed, String value, @Nullable DateFormatter datetimeFormatter) {
         while (currentIdx < TYPE_CANDIDATES.length - 1) {
-            if (canParse(TYPE_CANDIDATES[currentIdx], value)) {
+            if (canParse(TYPE_CANDIDATES[currentIdx], value, datetimeFormatter)) {
                 return currentIdx;
             }
             DataType current = TYPE_CANDIDATES[currentIdx];
@@ -118,13 +125,13 @@ public class CsvSchemaInferrer {
         return currentIdx;
     }
 
-    private static boolean canParse(DataType type, String value) {
+    private static boolean canParse(DataType type, String value, @Nullable DateFormatter datetimeFormatter) {
         return switch (type) {
             case BOOLEAN -> Booleans.isBoolean(value.toLowerCase(Locale.ROOT));
             case INTEGER -> canParseInt(value);
             case LONG -> canParseLong(value);
             case DOUBLE -> canParseDouble(value);
-            case DATETIME -> canParseDatetime(value);
+            case DATETIME -> canParseDatetime(value, datetimeFormatter);
             default -> true;
         };
     }
@@ -156,7 +163,10 @@ public class CsvSchemaInferrer {
         }
     }
 
-    private static boolean canParseDatetime(String value) {
+    private static boolean canParseDatetime(String value, @Nullable DateFormatter datetimeFormatter) {
+        if (datetimeFormatter != null) {
+            return datetimeFormatter.tryParse(value) != null;
+        }
         try {
             DateUtils.asDateTime(value);
             return true;

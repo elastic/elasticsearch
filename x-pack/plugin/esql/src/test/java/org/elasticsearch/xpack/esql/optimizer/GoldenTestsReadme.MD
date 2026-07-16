@@ -75,6 +75,12 @@ You can use this in combination with `-Dtests.method` to overwrite specific test
 This can also be used in combination with `git diff` to inspect the differences if you prefer that
 method to comparing `.actual` and `.expected` files.
 
+## How do I run **all** the golden tests?
+```sh
+./gradlew :x-pack:plugin:esql:test --tests "*GoldenTests"
+```
+Note that the `GoldenTests` suffix is enforced via a gradle precommit check.
+
 ## Drawbacks of golden tests
 
 Golden tests are by their very nature much noisier than regular tests:

@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public abstract class CompoundOutputEvalExecSerializationTests extends AbstractPhysicalPlanSerializationTests<CompoundOutputEvalExec> {
 
@@ -21,7 +22,7 @@ public abstract class CompoundOutputEvalExecSerializationTests extends AbstractP
     protected CompoundOutputEvalExec createTestInstance() {
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
-        Expression input = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression input = createFieldAttribute(0, false);
 
         int fieldCount = randomIntBetween(1, 5);
         List<String> outputFieldNames = randomList(fieldCount, fieldCount, () -> randomAlphaOfLengthBetween(1, 10));
@@ -42,7 +43,7 @@ public abstract class CompoundOutputEvalExecSerializationTests extends AbstractP
                 child = randomValueOtherThan(child, () -> randomChild(0));
                 break;
             case 1:
-                input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(0, false));
+                input = randomValueOtherThan(input, () -> createFieldAttribute(0, false));
                 break;
             case 2:
                 final int nameSize = outputFieldNames.size();

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 148660
+summary: Explicitly reject multiple grouped inputs for chunked inference
+type: bug

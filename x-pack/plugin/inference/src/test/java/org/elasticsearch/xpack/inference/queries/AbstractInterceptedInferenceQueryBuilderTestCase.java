@@ -24,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -214,6 +215,10 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             case TEXT_EMBEDDING:
                 inferenceId = DENSE_INFERENCE_ID;
                 serviceSettings = DENSE_INFERENCE_ID_SETTINGS;
+                break;
+            case EMBEDDING:
+                inferenceId = EMBEDDING_INFERENCE_ID;
+                serviceSettings = EMBEDDING_INFERENCE_ID_SETTINGS;
                 break;
             default:
                 throw new AssertionError("Unsupported task type");
@@ -741,7 +746,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool)));
+        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of())));
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {

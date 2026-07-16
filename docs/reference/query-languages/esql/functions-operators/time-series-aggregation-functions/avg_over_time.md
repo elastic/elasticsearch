@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `AVG_OVER_TIME` function [esql-avg_over_time]
 
-:::{include} ../../_snippets/functions/layout/avg_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/avg_over_time.md
 :::

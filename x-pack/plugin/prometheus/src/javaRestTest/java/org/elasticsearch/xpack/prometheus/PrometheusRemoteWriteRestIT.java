@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
 
@@ -37,6 +38,28 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         sendEmptyBodyAndAssertSuccess("/_prometheus/api/v1/write");
         sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/api/v1/write");
         sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/production/api/v1/write");
+    }
+
+    public void testRemoteWriteEndpointWithAuditRequestBodyLogging() throws Exception {
+        enableAuditRequestBodyLogging();
+        sendAndAssertSuccess(simpleWriteRequest("audit_logged_metric"));
+    }
+
+    public void testRemoteWriteEndpointWithAuditRequestBodyLoggingRejectsOversizedSnappyBody() throws Exception {
+        enableAuditRequestBodyLogging();
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        // Snappy preamble declaring Integer.MAX_VALUE bytes, exceeding the configured request limit.
+        request.setEntity(
+            new ByteArrayEntity(
+                new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x07 },
+                ContentType.create("application/x-protobuf")
+            )
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(413));
     }
 
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
@@ -178,17 +201,93 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(source.evaluate("data_stream.namespace"), equalTo("production"));
     }
 
-    public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/metrics/my-app/api/v1/write");
-        assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
+    public void testRemoteWriteSanitizesInvalidCustomDatasetInPath() throws Exception {
+        String metricName = "invalid_dataset_metric";
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/my-app/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-my_app.prometheus-default", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("my_app.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
     }
 
-    public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(
-            simpleWriteRequest("invalid_namespace_metric"),
-            "/_prometheus/metrics/myapp/foo:bar/api/v1/write"
-        );
-        assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
+    public void testRemoteWriteSanitizesInvalidCustomNamespaceInPath() throws Exception {
+        String metricName = "invalid_namespace_metric";
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/foo:bar/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-foo_bar", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("myapp.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("foo_bar"));
+    }
+
+    public void testRemoteWriteLabelRoutingOverridesPathDatasetAndNamespace() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "label_route_metric";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(
+                    metricName,
+                    Map.of("data_stream_dataset", "fromlabels", "data_stream_namespace", "labelns", "job", "prometheus"),
+                    sample(1.0, timestamp)
+                )
+            )
+            .build();
+
+        // Path would target myapp/production; labels must win
+        sendAndAssertSuccess(writeRequest, "/_prometheus/metrics/myapp/production/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-fromlabels.prometheus-labelns", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("fromlabels.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("labelns"));
+        assertThat(source.evaluate("labels.job"), equalTo("prometheus"));
+    }
+
+    public void testRemoteWriteLabelRoutingPartialOverrideUsesPathForUnsetFields() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "partial_label_route_metric";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(metricName, Map.of("data_stream_namespace", "only_ns_from_label", "job", "j"), sample(1.0, timestamp))
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest, "/_prometheus/metrics/pathdataset/default/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-pathdataset.prometheus-only_ns_from_label", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("pathdataset.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("only_ns_from_label"));
+    }
+
+    public void testRemoteWriteSanitizesInvalidDatasetInLabel() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "bad_label_dataset";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("data_stream_dataset", "bad:dataset", "job", "x"), sample(1.0, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("metrics-bad_dataset.prometheus-default", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("bad_dataset.prometheus"));
+        assertThat(source.evaluate("labels.job"), equalTo("x"));
+    }
+
+    public void testRemoteWriteRoutingLabelsNotDuplicatedInLabelsObject() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "no_dup_routing_labels";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(
+                    metricName,
+                    Map.of("data_stream_dataset", "nodup", "data_stream_namespace", "ns", "job", "x"),
+                    sample(1.0, timestamp)
+                )
+            )
+            .build();
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("metrics-nodup.prometheus-ns", metricName);
+        assertThat(source.evaluate("labels.data_stream_dataset"), nullValue());
+        assertThat(source.evaluate("labels.data_stream_namespace"), nullValue());
     }
 
     // --- helpers ---
@@ -206,6 +305,19 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
             builder.addSamples(s);
         }
         return builder.build();
+    }
+
+    private void enableAuditRequestBodyLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "xpack.security.audit.enabled": true,
+                "xpack.security.audit.logfile.events.emit_request_body": true
+              }
+            }
+            """);
+        client().performRequest(request);
     }
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest) throws IOException {

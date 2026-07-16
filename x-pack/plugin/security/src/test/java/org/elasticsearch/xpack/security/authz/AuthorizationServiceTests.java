@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -50,6 +49,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.MappingUpdatePerformer;
+import org.elasticsearch.action.bulk.SimulateBulkAction;
+import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -101,6 +102,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -148,6 +150,7 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
@@ -296,10 +299,16 @@ public class AuthorizationServiceTests extends ESTestCase {
         fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
-        final Settings settings = Settings.builder().put("cluster.remote.other_cluster.seeds", "localhost:9999").build();
+        final Settings settings = Settings.builder()
+            .put("cluster.remote.other_cluster.seeds", "localhost:9999")
+            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
+            .build();
         final ClusterSettings clusterSettings = new ClusterSettings(
             settings,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, LoadAuthorizedIndicesTimeChecker.Factory.getSettings())
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Sets.union(LoadAuthorizedIndicesTimeChecker.Factory.getSettings(), Set.of(XPackSettings.AUDIT_ENABLED))
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         mockEmptyMetadata();
@@ -307,7 +316,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        auditTrailService = new AuditTrailService(auditTrail, licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
         threadPool = mock(ThreadPool.class);
@@ -1286,6 +1295,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
             verify(rolesStore).getRoles(Mockito.same(authentication), any());
             IndicesAccessControl iac = INDICES_PERMISSIONS_VALUE.get(threadContext);
+            // CPS is disabled in the default test setup, so no post-routing target projects should be recorded.
+            assertThat(searchRequest.getResolvedTargetProjects(), nullValue());
             // Successful search action authorization should set a parent authorization header.
             assertThat(securityContext.getParentAuthorization().action(), equalTo(TransportSearchAction.TYPE.name()));
             // Within the action handler, execute a child action (the query phase of search)
@@ -1375,6 +1386,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             verify(rolesStore).getRoles(Mockito.same(authentication), any());
             assertThat(securityContext.getParentAuthorization(), nullValue());
             assertThat(threadContext.getTransient(randomTransientHeader), sameInstance(randomTransientHeaderValue));
+            // Post-routing target projects must be recorded on the request. With NOOP routing, the
+            // recorded value equals the IAM-authorized projects.
+            final TargetProjects recorded = resolveIndexRequest.getResolvedTargetProjects();
+            assertThat(recorded, notNullValue());
+            assertThat(recorded.originProject(), sameInstance(originProject));
+            assertThat(recorded.linkedProjects(), equalTo(List.of(linkedProject)));
         });
         verify(auditTrail).accessGranted(
             eq(requestId),
@@ -1384,6 +1401,78 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testProjectRoutingIsAppliedAndRecordedOnRequestDuringAuthorization() {
+        final ProjectRoutingInfo originProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(6, 10));
+        final ProjectRoutingInfo linkedProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(1, 5));
+        final TargetProjects authorizedProjects = new TargetProjects(originProject, List.of(linkedProject));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onResponse(authorizedProjects);
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+        final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
+
+        // Routing resolver that drops linked projects, retaining only the origin. Used to verify that
+        // AuthorizationService applies routing once and records the post-routing value on the request.
+        final TargetProjects postRoutingProjects = new TargetProjects(originProject, List.of());
+        final ProjectRoutingResolver originOnlyRoutingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects targetProjects) {
+                assertThat(targetProjects, sameInstance(authorizedProjects));
+                return postRoutingProjects;
+            }
+        };
+
+        authorizationService = new AuthorizationService(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(settings),
+            null,
+            Collections.emptySet(),
+            new XPackLicenseState(() -> 0),
+            indexNameExpressionResolver,
+            operatorPrivilegesService,
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
+            projectResolver,
+            authorizedProjectsResolver,
+            crossProjectModeDecider,
+            originOnlyRoutingResolver
+        );
+
+        RoleDescriptor role = new RoleDescriptor(
+            "resolve_index",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("test_resolve_index_user", role.getName()));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) }
+        );
+        authorize(authentication, ResolveIndexAction.NAME, resolveIndexRequest, true, () -> {
+            // The post-routing TargetProjects (origin only) must be observable on the request, not the
+            // pre-routing IAM-authorized value.
+            assertThat(resolveIndexRequest.getResolvedTargetProjects(), sameInstance(postRoutingProjects));
+        });
     }
 
     public void testResolveIndexActionWithProjectAuthorizationFailure() {
@@ -1773,6 +1862,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final BulkShardRequest request = new BulkShardRequest(
             new ShardId(index, randomAlphaOfLength(24), 1),
+            SplitShardCountSummary.IRRELEVANT,
             WriteRequest.RefreshPolicy.NONE,
             new BulkItemRequest[] {
                 new BulkItemRequest(
@@ -2950,7 +3040,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("bad-role", badRole);
 
         final ShardId shardId = new ShardId("some-concrete-shard-index-name", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
 
         mockEmptyMetadata();
         final Authentication authentication;
@@ -3076,7 +3171,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("index-role", indexRole);
 
         final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
 
         mockEmptyMetadata();
         final Authentication authentication;
@@ -3177,7 +3277,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(5, new DeleteRequest("alias-2", "a2a")),
             new BulkItemRequest(6, new IndexRequest("alias-2").id("a2b")) };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         RoleDescriptor role = new RoleDescriptor(
@@ -3266,7 +3371,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(4, new DeleteRequest("<datemath-{now/d{YYYY.MM}}>", "dm2")), // resolves to same as above
         };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         final RoleDescriptor role = new RoleDescriptor(
@@ -3318,13 +3428,47 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(request.items()[3].getPrimaryResponse().isFailed(), is(true));
     }
 
+    public void testSimulateBulkActionAuthorizesAllIncludedIndices() {
+        var bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
+        bulkRequest.add(new IndexRequest("allowed-index"));
+        bulkRequest.add(new IndexRequest("unauthorised-index"));
+
+        var authentication = createAuthentication(new User("user", "my-role"));
+        var role = new RoleDescriptor(
+            "my-role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("allowed-index").privileges("index").build() },
+            null
+        );
+        roleMap.put("my-role", role);
+        var requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        mockEmptyMetadata();
+
+        var ex = expectThrows(ElasticsearchSecurityException.class, () -> authorize(authentication, SimulateBulkAction.NAME, bulkRequest));
+        assertThat(ex.getMessage(), equalTo("""
+            action [indices:data/write/simulate/bulk] is unauthorized for user [user] with effective roles [my-role] \
+            on indices [unauthorised-index], this action is granted by the index privileges [create_doc,create,index,write,all]"""));
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(SimulateBulkAction.NAME),
+            eq(bulkRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+    }
+
     private BulkShardRequest createBulkShardRequest(String indexName, BiFunction<String, String, DocWriteRequest<?>> req) {
         final BulkItemRequest[] items = { new BulkItemRequest(1, req.apply(indexName, "id")) };
-        return new BulkShardRequest(new ShardId(indexName, UUID.randomUUID().toString(), 1), WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        return new BulkShardRequest(
+            new ShardId(indexName, UUID.randomUUID().toString(), 1),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        return switch (randomIntBetween(0, 7)) {
+        return switch (randomIntBetween(0, 8)) {
             case 0 -> Tuple.tuple(TransportMultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
@@ -3333,6 +3477,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 5 -> Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
             case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
             case 7 -> Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
+            case 8 -> Tuple.tuple("indices:data/write/reindex/resume", new MockCompositeIndicesRequest());
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -3945,7 +4090,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
         assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
-            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
+            request.getResolvedIndexExpressions().authorizationFailureTemplate(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
                     + " with effective roles [partial-access-role] on indices [-*], "
@@ -4032,20 +4177,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
-            Set.of()
-        );
-    }
-
-    private static ResolvedIndexExpression resolvedIndexExpression(
-        String original,
-        Set<String> localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
-        ElasticsearchException exception
-    ) {
-        return new ResolvedIndexExpression(
-            original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, exception),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             Set.of()
         );
     }

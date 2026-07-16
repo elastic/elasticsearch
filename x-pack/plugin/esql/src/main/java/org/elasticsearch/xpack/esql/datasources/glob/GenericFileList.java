@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,29 +26,26 @@ final class GenericFileList implements FileList {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
-    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo;
+    @Nullable
+    private final FileSetFingerprint fileSetFingerprint;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
-        this(files, originalPattern, null, null);
+        this(files, originalPattern, null);
     }
 
     GenericFileList(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
-        this(files, originalPattern, partitionMetadata, null);
-    }
-
-    GenericFileList(
-        List<StorageEntry> files,
-        String originalPattern,
-        @Nullable PartitionMetadata partitionMetadata,
-        @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo
-    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
         this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
-        this.fileSchemaInfo = fileSchemaInfo;
+        // The fingerprint only ever keys a dataset aggregate, which requires a multi-file listing
+        // (see ExternalSourceResolver#datasetAggregateKey — fileCount >= 2). Skip the Murmur3 fold for
+        // single-file listings so the common single-file resolve does not pay for machinery it cannot use.
+        // Computed eagerly (once per listing build) rather than lazily: consumers need it O(1) at resolve
+        // time, and construction is the one place the entry walk is already paid.
+        this.fileSetFingerprint = files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
     }
 
     List<StorageEntry> files() {
@@ -65,20 +61,6 @@ final class GenericFileList implements FileList {
     @Nullable
     public PartitionMetadata partitionMetadata() {
         return partitionMetadata;
-    }
-
-    @Override
-    @Nullable
-    public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
-        return fileSchemaInfo;
-    }
-
-    /**
-     * Returns a new GenericFileList with per-file schema info attached.
-     * Used by schema reconciliation to pass column mappings from planning to split discovery.
-     */
-    GenericFileList withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        return new GenericFileList(files, originalPattern, partitionMetadata, schemaInfo);
     }
 
     int size() {
@@ -109,6 +91,12 @@ final class GenericFileList implements FileList {
     public long estimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
         return 64 + files.size() * 700L;
+    }
+
+    @Override
+    @Nullable
+    public FileSetFingerprint fileSetFingerprint() {
+        return fileSetFingerprint;
     }
 
     @Override

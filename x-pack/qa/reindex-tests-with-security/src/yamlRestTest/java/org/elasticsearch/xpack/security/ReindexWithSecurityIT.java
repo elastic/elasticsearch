@@ -70,10 +70,10 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             .user("powerful_user", "x-pack-test-password", "superuser", false)
             .user("minimal_user", "x-pack-test-password", "minimal", false)
             .user("minimal_with_task_user", "x-pack-test-password", "minimal_with_task", false)
-            .user("minimal_with_reindex_get_user", "x-pack-test-password", "minimal_with_reindex_get", false)
-            .user("minimal_with_reindex_list_user", "x-pack-test-password", "minimal_with_reindex_list", false)
-            .user("minimal_with_reindex_rethrottle_user", "x-pack-test-password", "minimal_with_reindex_rethrottle", false)
-            .user("minimal_with_reindex_cancel_user", "x-pack-test-password", "minimal_with_reindex_cancel", false)
+            .user("reindex_get_only_user", "x-pack-test-password", "reindex_get_only", false)
+            .user("reindex_list_only_user", "x-pack-test-password", "reindex_list_only", false)
+            .user("reindex_rethrottle_only_user", "x-pack-test-password", "reindex_rethrottle_only", false)
+            .user("reindex_cancel_only_user", "x-pack-test-password", "reindex_cancel_only", false)
             .user("readonly_user", "x-pack-test-password", "readonly", false)
             .user("dest_only_user", "x-pack-test-password", "dest_only", false)
             .user("can_not_see_hidden_docs_user", "x-pack-test-password", "can_not_see_hidden_docs", false)
@@ -108,7 +108,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * All tests run as a an administrative user but use <code>es-security-runas-user</code> to become a less privileged user.
+     * All tests run as an administrative user.
      */
     @Override
     protected Settings restClientSettings() {

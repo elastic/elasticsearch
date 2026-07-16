@@ -144,7 +144,7 @@ public class SparseFileTracker {
      * Called before reading a range from the file to ensure that this range is present. Returns a {@link Gaps} for the caller to claim
      * and fill, unless there are no gaps at call time in which case the optional is empty. The range from the file is defined by
      * {@code range} but the listener is executed as soon as a (potentially smaller) sub range {@code subRange} becomes available.
-     * Notice that the gaps returned may extend beyond the `range` and then the caller is still responsible for filling them.
+     * All gaps returned are strictly within {@code range}.
      *
      * @param range    A ByteRange that contains the (inclusive) start and (exclusive) end of the desired range
      * @param subRange A ByteRange that contains the (inclusive) start and (exclusive) end of the listener's range
@@ -176,7 +176,9 @@ public class SparseFileTracker {
             );
         }
 
-        if (subRange.end() <= complete) {
+        if (subRange.isEmpty() || subRange.end() <= complete) {
+            // Short-circuit without fetching more data when subRange is empty or the data is already available
+            // regardless of whether range could be asking for more.
             listener.onResponse(null);
             return Optional.empty();
         }
@@ -184,13 +186,14 @@ public class SparseFileTracker {
     }
 
     private Optional<Gaps> doWaitForRange(ByteRange range, ByteRange subRange, ActionListener<Void> listener) {
+        assert range.isEmpty() == false : "should have short-circuited for empty range";
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
 
         final List<Range> pendingRanges = new ArrayList<>();
         final Range targetRange = new Range(range);
         boolean hasGaps;
         synchronized (ranges) {
-            hasGaps = determineStartingRange(range, pendingRanges, targetRange);
+            hasGaps = determineStartingRangeAndSplit(range, pendingRanges, targetRange);
 
             while (targetRange.start < range.end()) {
                 assert 0 <= targetRange.start : targetRange;
@@ -212,9 +215,18 @@ public class SparseFileTracker {
 
                     if (targetRange.start == firstExistingRange.start) {
                         if (firstExistingRange.isPending()) {
-                            pendingRanges.add(firstExistingRange);
-                            if (firstExistingRange.claimed == false) {
+                            if (firstExistingRange.claimed == false && firstExistingRange.end > range.end()) {
+                                // Split at range.end() so the gap we return ends within range
+                                final Range[] parts = splitRange(firstExistingRange, range.end());
+                                // parts[0] = [firstExistingRange.start, range.end()) — within range
+                                // parts[1] = [range.end(), firstExistingRange.end) — outside range, not added
+                                pendingRanges.add(parts[0]);
                                 hasGaps = true;
+                            } else {
+                                pendingRanges.add(firstExistingRange);
+                                if (firstExistingRange.claimed == false) {
+                                    hasGaps = true;
+                                }
                             }
                         }
                         targetRange.start = Math.min(range.end(), firstExistingRange.end);
@@ -258,23 +270,90 @@ public class SparseFileTracker {
      * @param range the range that is to be filled, where we want to find the first existing range for.
      * @param pendingRanges the pendingRanges to add a range that overlaps into the range we want to fill.
      * @param targetRange the targetRange to populate the start value of.
-     * @return whether a gap still need to be claimed.
      */
-    private boolean determineStartingRange(ByteRange range, List<Range> pendingRanges, Range targetRange) {
+    private void determineStartingRange(ByteRange range, List<Range> pendingRanges, Range targetRange) {
         assert invariant();
         final Range lastEarlierRange = ranges.lower(targetRange);
         if (lastEarlierRange != null) {
             if (range.start() < lastEarlierRange.end) {
-                boolean unclaimed = false;
                 if (lastEarlierRange.isPending()) {
                     pendingRanges.add(lastEarlierRange);
-                    unclaimed = lastEarlierRange.claimed == false;
                 }
                 targetRange.start = Math.min(range.end(), lastEarlierRange.end);
-                return unclaimed;
+            }
+        }
+    }
+
+    /**
+     * Populate `pendingRanges` with a prior range overlapping into `range` (if pending), update targetRange.start to allow
+     * searching for further ranges. Return whether an unclaimed range was added to pendingRanges, i.e., a gap still needs
+     * an owner. Split unclaimed ranges if necessary to ensure that gaps returned from waitForRange do not go outside the
+     * original range.
+     * @param range the range that is to be filled, where we want to find the first existing range for.
+     * @param pendingRanges the pendingRanges to add a range that overlaps into the range we want to fill.
+     * @param targetRange the targetRange to populate the start value of.
+     * @return whether a gap still need to be claimed.
+     */
+    private boolean determineStartingRangeAndSplit(ByteRange range, List<Range> pendingRanges, Range targetRange) {
+        assert invariant();
+        final Range lastEarlierRange = ranges.lower(targetRange);
+        if (lastEarlierRange != null) {
+            if (range.start() < lastEarlierRange.end) {
+                boolean claimed = true;
+                if (lastEarlierRange.isPending()) {
+                    if (lastEarlierRange.claimed == false) {
+                        // Split at range.start() so the gap we return starts within range
+                        final Range[] partsAtStart = splitRange(lastEarlierRange, range.start());
+                        // partsAtStart[0] = [lastEarlierRange.start, range.start()) — outside range, not added
+                        // partsAtStart[1] = [range.start(), lastEarlierRange.end) — within range at start
+                        Range innerRange = partsAtStart[1];
+                        if (innerRange.end > range.end()) {
+                            // Also split at range.end() so the gap does not extend beyond range
+                            final Range[] partsAtEnd = splitRange(innerRange, range.end());
+                            innerRange = partsAtEnd[0]; // [range.start(), range.end())
+                            // partsAtEnd[1] = [range.end(), lastEarlierRange.end) — outside range, not added
+                        }
+                        pendingRanges.add(innerRange);
+                        claimed = false;
+                    } else {
+                        pendingRanges.add(lastEarlierRange);
+                    }
+                }
+                targetRange.start = Math.min(range.end(), lastEarlierRange.end);
+                return !claimed;
             }
         }
         return false;
+    }
+
+    /**
+     * Splits an unclaimed pending range at {@code splitPoint} into two new pending ranges, both added to
+     * {@link #ranges}. The original range is removed. Wiring is handled by
+     * {@link ProgressListenableActionFuture#split}: the original completion listener is preserved and driven
+     * to completion by the two new sub-range futures.
+     *
+     * @param existing   the unclaimed pending range to split; must satisfy {@code existing.start < splitPoint < existing.end}
+     * @param splitPoint the exclusive end of the lower range / inclusive start of the upper range
+     * @return {@code {lowerRange, upperRange}} — both already inserted into {@link #ranges}
+     */
+    private Range[] splitRange(final Range existing, final long splitPoint) {
+        assert Thread.holdsLock(ranges);
+        assert existing.isPending() && existing.completionListener != null; // please IDE NPE detection below
+        assert existing.claimed == false;
+        assert existing.start < splitPoint : existing.start + " >= " + splitPoint;
+        assert splitPoint < existing.end : splitPoint + " >= " + existing.end;
+
+        boolean removed = ranges.remove(existing);
+        assert removed;
+
+        final ProgressListenableActionFuture[] parts = existing.completionListener.split(splitPoint);
+        final Range rangeA = new Range(existing.start, splitPoint, parts[0]);
+        final Range rangeB = new Range(splitPoint, existing.end, parts[1]);
+        ranges.add(rangeA);
+        ranges.add(rangeB);
+
+        assert invariant();
+        return new Range[] { rangeA, rangeB };
     }
 
     private LongConsumer progressConsumer(long rangeStart) {
@@ -537,8 +616,12 @@ public class SparseFileTracker {
     }
 
     private void updateCompletePointer(long value) {
+        // Use MAX rather than asserting monotonicity: when a split catch-up fires onProgressAtLeast with
+        // upper.progress, adjacent range merging in onGapSuccess may have already advanced complete further.
         synchronized (ranges) {
-            updateCompletePointerHoldingLock(value);
+            if (value > complete) {
+                complete = value;
+            }
         }
     }
 
@@ -589,6 +672,8 @@ public class SparseFileTracker {
 
             lengthOfRanges += range.end - range.start;
             previousRange = range;
+
+            assert range.isPending() || range.claimed;
         }
 
         // sum of ranges lengths never exceed maximum length
@@ -720,6 +805,7 @@ public class SparseFileTracker {
             this.start = start;
             this.end = end;
             this.completionListener = completionListener;
+            this.claimed = completionListener == null;
         }
 
         boolean isPending() {

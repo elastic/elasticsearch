@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 147823
-summary: "Fix: correctly serialise sparse field pruning options in mixed cluster scenarios"
-type: bug

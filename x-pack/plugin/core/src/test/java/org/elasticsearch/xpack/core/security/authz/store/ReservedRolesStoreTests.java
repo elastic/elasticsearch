@@ -79,6 +79,8 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -621,6 +623,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".apm-agent-configuration",
             ".apm-custom-link",
             ".apm-source-map",
+            ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_INDEXES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_ALIASES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -639,6 +642,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Alerting V2 views prefix: Kibana system user has create_view only
         Arrays.asList(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS).forEach(index -> {
@@ -1228,6 +1233,80 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
+        // Significant events: kibana_system manages index plumbing and document access.
+        Arrays.asList(".significant_events-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+
+            // Plumbing: auto-configuration, index creation, rollover, mappings (manual + auto), settings,
+            // and data stream lifecycle PUT.
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher("indices:admin/data_stream/lifecycle/put").test(indexAbstraction),
+                is(true)
+            );
+
+            // Metadata reads come from the global view_index_metadata + monitor grant on "*".
+            assertViewIndexMetadata(kibanaRole, index);
+
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
+
+            // No destructive index lifecycle management.
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+        });
+
+        // Context Engine's SML storage: a regular (non-system) index that Kibana
+        // creates and manages itself, including its alias.
+        Arrays.asList(".ai-index-idx-sml-data", ".ai-index-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+            .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Agent Builder OTLP telemetry (traces + logs from span events)
+        Arrays.asList(
+            "traces-agent_builder.otel-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-agent_builder.otel-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            // Read access granted by broader patterns (logs-*, traces-*, traces-*.otel-*, logs-*.*)
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(true));
+            // Write access (auto_configure + create_doc) from agent builder otel privileges
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
         });
 
         // Data telemetry reads mappings, metadata and stats of indices
@@ -1992,6 +2071,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
+        Arrays.asList(".entities.v2.metadata.security_" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertViewIndexMetadata(kibanaRole, indexName);
+        });
+
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
@@ -2036,12 +2125,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-axonius.alert_and_incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.alert_finding-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.compute-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.exposure-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.gateway-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.identity-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.network-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.storage-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
@@ -3868,7 +3958,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             RESTRICTED_INDICES,
             List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "read", Set.of(allowedApplicationActionPattern), Map.of()))
         );
-        // No cluster privileges
+        // Only monitor_inference cluster privilege
         assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(TransportClusterStatsAction.TYPE.name(), request, authentication), is(false));
@@ -3882,6 +3972,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetInferenceModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutInferenceModelAction.NAME, request, authentication), is(false));
         // Check index privileges
         assertOnlyReadAllowed(role, "observability-annotations");
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
@@ -3910,11 +4002,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.watchlists." + randomIntBetween(0, 5));
 
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
+
+        assertOnlyReadAllowed(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+        assertViewIndexMetadata(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
@@ -3949,7 +4049,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "all", Set.of(allowedApplicationActionPattern), Map.of()))
         );
 
-        // No cluster privileges
+        // Only monitor_inference cluster privilege
         assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(TransportClusterStatsAction.TYPE.name(), request, authentication), is(false));
@@ -3963,6 +4063,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetInferenceModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutInferenceModelAction.NAME, request, authentication), is(false));
 
         // Check index privileges
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
@@ -3984,7 +4086,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.watchlists." + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
@@ -3999,6 +4106,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
         assertReadWriteAndManage(role, ".slo-observability." + randomIntBetween(0, 5));
+
+        assertViewIndexMetadata(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

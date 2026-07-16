@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 
@@ -49,7 +51,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformsStats(), is(empty()));
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testGetTransform() {
@@ -57,7 +59,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         GetTransformAction.Response response = client().execute(GetTransformAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformConfigurations(), is(empty()));
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testPreviewTransform() {
@@ -78,7 +80,14 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
         assertThat(response.isAcknowledged(), is(true));
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        var clusterState = getInstanceFromNode(ClusterService.class).state();
+        assertThat(
+            "deferred-validation put should create the transform internal index",
+            clusterState.metadata().getProject().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME),
+            is(true)
+        );
+
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
 
         deleteTransform(transformId);
     }
@@ -121,7 +130,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         );
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
 
         deleteTransform(transformId);
     }
@@ -133,7 +142,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
             PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
-            assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+            assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
         }
 
         TransformConfigUpdate update = new TransformConfigUpdate(

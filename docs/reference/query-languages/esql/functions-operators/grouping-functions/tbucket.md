@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TBUCKET` function [esql-tbucket]
 
-:::{include} ../../_snippets/functions/layout/tbucket.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/tbucket.md
 :::

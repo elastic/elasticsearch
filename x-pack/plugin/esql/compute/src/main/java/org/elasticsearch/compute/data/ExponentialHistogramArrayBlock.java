@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
@@ -33,8 +34,9 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     //
     // for (int position = 0; position < block.getPositionCount(); position++) {
     // ...int valueCount = block.getValueCount(position);
-    // ...for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    // ......ExponentialHistogram histo = block.getExponentialHistogram(valueIndex, scratch);
+    // ...int firstValueIndex = block.getFirstValueIndex(position);
+    // ...for (int i = 0; i < valueCount; i++) {
+    // ......ExponentialHistogram histo = block.getExponentialHistogram(firstValueIndex + i, scratch);
     // ...}
     // }
     //
@@ -43,9 +45,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     // we enforce that the sub-blocks have at most one value per position (i.e., no multi-values).
     // Based on this, we can define the valueIndex for ExponentialHistogramArrayBlock to correspond to positions in the sub-blocks.
     // So basically the sub-blocks are the "flattened" components of the histograms.
-    // If we later add multi-value support to ExponentialHistogramArrayBlock,
-    // we can't use the multi-value support of the sub-blocks to implement that.
-    // Instead, we need to maintain a firstValueIndex array ourselves in ExponentialHistogramArrayBlock.
+    // Multi-value support is implemented via a firstValueIndexes array that maps positions to ranges of sub-block positions.
 
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
@@ -61,13 +61,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     private final BytesRefBlock encodedHistograms;
 
     ExponentialHistogramArrayBlock(
+        BytesRefBlock encodedHistograms,
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
         DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
-        BytesRefBlock encodedHistograms
+        int positionCount,
+        @Nullable int[] firstValueIndexes
     ) {
+        super(positionCount, firstValueIndexes);
         this.minima = minima;
         this.maxima = maxima;
         this.sums = sums;
@@ -77,50 +80,65 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
         assert assertInvariants();
     }
 
-    private boolean assertInvariants() {
+    @Override
+    protected boolean assertInvariants() {
+        super.assertInvariants();
+        int expectedSubBlockPositions = subBlockPositionCount();
         for (Block b : getSubBlocks()) {
             assert b.isReleased() == false;
             assert b.doesHaveMultivaluedFields() == false
                 : "ExponentialHistogramArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
-            assert b.getPositionCount() == getPositionCount()
+            assert b.getPositionCount() == expectedSubBlockPositions
                 : "ExponentialHistogramArrayBlock sub-blocks must have the same position count but ["
                     + b
                     + "] has "
                     + b.getPositionCount()
                     + " instead of "
-                    + getPositionCount();
-            for (int i = 0; i < b.getPositionCount(); i++) {
-                if (isNull(i)) {
-                    assert b.isNull(i)
-                        : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
-                } else {
-                    if (b == sums || b == minima || b == maxima) {
-                        // sums / minima / maxima should be null exactly when value count is 0 or the histogram is null
-                        assert b.isNull(i) == (valueCounts.getDouble(valueCounts.getFirstValueIndex(i)) == 0)
-                            : "ExponentialHistogramArrayBlock sums/minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
-                    } else {
-                        assert b.isNull(i) == false
-                            : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
-                    }
+                    + expectedSubBlockPositions;
+        }
+        for (int subPos = 0; subPos < expectedSubBlockPositions; subPos++) {
+            if (encodedHistograms.isNull(subPos)) {
+                for (Block b : getSubBlocks()) {
+                    assert b.isNull(subPos)
+                        : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + subPos + ", but was not";
+                }
+            } else {
+                double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(subPos));
+                for (Block b : List.of(sums, minima, maxima)) {
+                    // sums / minima / maxima should be null exactly when value count is 0 or the histogram is null
+                    assert b.isNull(subPos) == (valueCount == 0)
+                        : "ExponentialHistogramArrayBlock sums/minima/maxima sub-block [" + b + "] has wrong nullity at position " + subPos;
+                }
+                for (Block b : List.of(valueCounts, zeroThresholds, encodedHistograms)) {
+                    assert b.isNull(subPos) == false
+                        : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + subPos + ", but was not";
                 }
             }
         }
         return true;
     }
 
+    @Override
     protected List<Block> getSubBlocks() {
-        return List.of(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+        // encodedHistograms must be first as it's used for null detection (see AbstractDelegatingCompoundBlock)
+        return List.of(encodedHistograms, minima, maxima, sums, valueCounts, zeroThresholds);
     }
 
     @Override
-    protected ExponentialHistogramArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
+    protected ExponentialHistogramArrayBlock buildFromSubBlocks(
+        List<Block> subBlocks,
+        int newPositionCount,
+        @Nullable int[] newFirstValueIndexes
+    ) {
         return new ExponentialHistogramArrayBlock(
-            (DoubleBlock) subBlocks.get(0),
+            (BytesRefBlock) subBlocks.get(0),
             (DoubleBlock) subBlocks.get(1),
             (DoubleBlock) subBlocks.get(2),
             (DoubleBlock) subBlocks.get(3),
             (DoubleBlock) subBlocks.get(4),
-            (BytesRefBlock) subBlocks.get(5)
+            (DoubleBlock) subBlocks.get(5),
+            newPositionCount,
+            newFirstValueIndexes
         );
     }
 
@@ -142,7 +160,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
             throw new RuntimeException("Failed to encode histogram", e);
         }
         double sum;
-        if (histogram.valueCount() == 0) {
+        if (histogram.isEmpty()) {
             assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
             sum = Double.NaN; // we store null/NaN for empty histograms to ensure avg is null/0.0 instead of 0.0/0.0
         } else {
@@ -183,7 +201,8 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
 
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
-        assert isNull(valueIndex) == false : "tried to get histogram at null position " + valueIndex;
+        assert encodedHistograms.isNull(valueIndex) == false : "tried to get histogram at null sub-block position " + valueIndex;
+        // valueIndex directly corresponds to a position in the sub-blocks
         BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
         double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(valueIndex));
@@ -229,7 +248,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
             zeroThresholdBlock = blockFactory.newConstantDoubleBlockWith(data.zeroThreshold, positionCount);
             encodedHistogramBlock = blockFactory.newConstantBytesRefBlockWith(data.encodedHistogram, positionCount);
             success = true;
-            return new ExponentialHistogramArrayBlock(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
+            return new ExponentialHistogramArrayBlock(
+                encodedHistogramBlock,
+                minBlock,
+                maxBlock,
+                sumBlock,
+                countBlock,
+                zeroThresholdBlock,
+                encodedHistogramBlock.getPositionCount(),
+                null
+            );
         } finally {
             if (success == false) {
                 Releasables.close(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
@@ -239,23 +267,23 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
 
     @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
-        // as soon as we support multi-values, we need to implement this differently,
-        // as the sub-blocks will be flattened and the position count won't match anymore
-        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
-        assert doesHaveMultivaluedFields() == false;
-        DoubleBlock result = switch (component) {
+        if (mayHaveMultivaluedFields()) {
+            throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
+        }
+        DoubleBlock subBlock = switch (component) {
             case MIN -> minima;
             case MAX -> maxima;
             case SUM -> sums;
             case COUNT -> valueCounts;
         };
-        result.incRef();
-        return result;
+        subBlock.incRef();
+        return subBlock;
     }
 
     @Override
     public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
-        // not that this value count is different from getValueCount(position)!
+        // valueIndex corresponds directly to a sub-block position
+        // note that this value count is different from getValueCount(position)!
         // this value count represents the number of individual samples the histogram was computed for
         double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(valueIndex));
         out.appendDouble(valueCount);
@@ -282,48 +310,8 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     }
 
     @Override
-    public int getFirstValueIndex(int position) {
-        return position;
-    }
-
-    @Override
-    public int getTotalValueCount() {
-        return encodedHistograms.getTotalValueCount();
-    }
-
-    @Override
-    public int getValueCount(int position) {
-        return isNull(position) ? 0 : 1;
-    }
-
-    @Override
     public ElementType elementType() {
         return ElementType.EXPONENTIAL_HISTOGRAM;
-    }
-
-    @Override
-    public boolean isNull(int position) {
-        return encodedHistograms.isNull(position);
-    }
-
-    @Override
-    public boolean mayHaveNulls() {
-        return encodedHistograms.mayHaveNulls();
-    }
-
-    @Override
-    public boolean areAllValuesNull() {
-        return encodedHistograms.areAllValuesNull();
-    }
-
-    @Override
-    public boolean mayHaveMultivaluedFields() {
-        return false;
-    }
-
-    @Override
-    public boolean doesHaveMultivaluedFields() {
-        return false;
     }
 
     @Override
@@ -332,19 +320,21 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     }
 
     @Override
-    public MvOrdering mvOrdering() {
-        return MvOrdering.UNORDERED;
-    }
-
-    @Override
     public Block expand() {
-        // we don't support multivalues so expanding is a no-op
-        this.incRef();
+        if (mayHaveMultivaluedFields()) {
+            throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
+        }
+        incRef();
         return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(MULTIVALUE_SUPPORT)) {
+            writeMultiValueMetadata(out);
+        } else if (doesHaveMultivaluedFields()) {
+            throw new IllegalStateException("Cannot serialize multi-valued exponential histogram block on old transport version");
+        }
         Block.writeTypedBlock(minima, out);
         Block.writeTypedBlock(maxima, out);
         Block.writeTypedBlock(sums, out);
@@ -353,7 +343,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
         Block.writeTypedBlock(encodedHistograms, out);
     }
 
-    public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput in) throws IOException {
+    public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput input) throws IOException {
+        if (input.getTransportVersion().supports(MULTIVALUE_SUPPORT)) {
+            return AbstractDelegatingCompoundBlock.readFrom(input, ExponentialHistogramArrayBlock::readSubBlocksFrom);
+        } else {
+            return readSubBlocksFrom(input, -1, null);
+        }
+    }
+
+    private static ExponentialHistogramArrayBlock readSubBlocksFrom(BlockStreamInput in, int positionCount, int[] firstValueIndexes)
+        throws IOException {
         DoubleBlock minima = null;
         DoubleBlock maxima = null;
         DoubleBlock sums = null;
@@ -370,15 +369,28 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
             zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
             encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
             success = true;
+            return new ExponentialHistogramArrayBlock(
+                encodedHistograms,
+                minima,
+                maxima,
+                sums,
+                valueCounts,
+                zeroThresholds,
+                firstValueIndexes == null ? encodedHistograms.getPositionCount() : positionCount,
+                firstValueIndexes
+            );
         } finally {
             if (success == false) {
                 Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
             }
         }
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
     }
 
-    void copyInto(
+    /**
+     * Copy sub-block positions from beginInclusive to endExclusive into the provided builders.
+     * Note: beginInclusive and endExclusive refer to sub-block positions, not this block's positions.
+     */
+    void copySubBlockPositionsInto(
         DoubleBlock.Builder minimaBuilder,
         DoubleBlock.Builder maximaBuilder,
         DoubleBlock.Builder sumsBuilder,
@@ -405,7 +417,8 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     }
 
     boolean equalsAfterTypeCheck(ExponentialHistogramArrayBlock that) {
-        return minima.equals(that.minima)
+        return layoutEquals(that)
+            && minima.equals(that.minima)
             && maxima.equals(that.maxima)
             && sums.equals(that.sums)
             && valueCounts.equals(that.valueCounts)

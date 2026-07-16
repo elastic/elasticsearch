@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -109,6 +110,33 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         );
     }
 
+    // Called by Lucene's compound file reader to open sub-files within a .cfs blob.
+    @Override
+    public IndexInput slice(String sliceDescription, long offset, long length, IOContext sliceContext) {
+        BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
+        var arraySlice = trySliceBuffer(sliceDescription, offset, length);
+        if (arraySlice != null) {
+            return arraySlice;
+        }
+        return doSlice(sliceDescription, offset, length, sliceContext);
+    }
+
+    IndexInput doSlice(String sliceDescription, long offset, long length, IOContext sliceContext) {
+        // Passes the sub-file's absolute offset and length so that CacheFileReader can
+        // compute which cache regions are exclusively this sub-file's data (safe for
+        // MADV_RANDOM) versus boundary regions shared with adjacent sub-files (MADV_NORMAL).
+        long subFileOffset = this.offset + offset;
+        return new BlobCacheIndexInput(
+            "(" + sliceDescription + ") " + super.toString(),
+            sliceContext,
+            cacheFileReader.copyWithContext(sliceContext, subFileOffset, length),
+            null,
+            length,
+            subFileOffset,
+            sliceDescription
+        );
+    }
+
     @Override
     public IndexInput clone() {
         var bufferClone = tryCloneBuffer();
@@ -142,12 +170,12 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
-    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-        return cacheFileReader.withByteBufferSlice(this.offset + offset, Math.toIntExact(length), action);
+    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+        return cacheFileReader.withMemorySegmentSlice(this.offset + offset, Math.toIntExact(length), action);
     }
 
     @Override
-    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
         throws IOException {
         if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
             return false;
@@ -159,7 +187,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFileReader.withByteBufferSlices(adjusted, length, count, action);
+        return cacheFileReader.withMemorySegmentSlices(adjusted, length, count, action);
     }
 
     @Override

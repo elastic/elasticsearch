@@ -11,12 +11,15 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -66,6 +69,32 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
             );
             default -> throw new AssertionError("cannot reach");
         };
+    }
+
+    public void testParseFromRestRequestMatchesFromXContent() throws IOException {
+        boolean excludeVectors = randomBoolean();
+
+        // REST URL param path
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
+            Map.of("_source_exclude_vectors", String.valueOf(excludeVectors))
+        ).build();
+        FetchSourceContext fromRest = FetchSourceContext.parseFromRestRequest(request);
+
+        // XContent body path
+        FetchSourceContext fromXContent;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.field("exclude_vectors", excludeVectors);
+            builder.endObject();
+
+            XContentParser parser = createParser(builder);
+            fromXContent = FetchSourceContext.fromXContent(parser);
+        }
+
+        assertNotNull(fromRest);
+        assertEquals("REST and XContent paths must agree for exclude_vectors=" + excludeVectors, fromXContent, fromRest);
+        assertEquals(excludeVectors, fromRest.excludeInferenceFields());
+        assertEquals(excludeVectors, fromXContent.excludeInferenceFields());
     }
 
     public void testFromXContentException() throws IOException {

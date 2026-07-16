@@ -1,0 +1,7 @@
+@timestamp:date,host:keyword,metadata:json
+2024-01-01T00:00:00Z,host-a,{"env":"prod"}
+2024-01-02T00:00:00Z,host-a,{"env":"prod"}
+2024-01-03T00:00:00Z,host-a,{"env":"dev"}
+2024-01-01T00:00:00Z,host-b,{"env":"alpha"}
+2024-01-02T00:00:00Z,host-b,{"env":"beta"}
+2024-01-03T00:00:00Z,host-b,{"env":"gamma"}

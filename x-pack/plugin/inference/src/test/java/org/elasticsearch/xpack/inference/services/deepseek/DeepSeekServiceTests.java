@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.inference.services.deepseek;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -31,21 +30,15 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URI;
@@ -62,7 +55,6 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -77,23 +69,6 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     private static final String DEEPSEEK_SERVICE_NAME = "deepseek";
     private static final String API_KEY_VALUE = "api_key";
     private static final String MODEL_ID_VALUE = "some-cool-model";
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
 
     public void testParseRequestConfig() throws IOException, URISyntaxException {
         parseRequestConfig(format("""
@@ -104,7 +79,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
                 "url": "%s"
               }
             }
-            """, webServer.getUri(null).toString()), assertNoFailureListener(model -> {
+            """, getUrl(webServer)), assertNoFailureListener(model -> {
             if (model instanceof DeepSeekChatCompletionModel deepSeekModel) {
                 assertThat(deepSeekModel.apiKey().get().getChars(), equalTo("12345".toCharArray()));
                 assertThat(deepSeekModel.model(), equalTo(MODEL_ID_VALUE));
@@ -243,8 +218,8 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             "object": "chat.completion", "system_fingerprint": "fp_1234"}"""));
         try (var service = createService()) {
             var model = createModel(service, TaskType.COMPLETION);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var result = listener.actionGet(TIMEOUT);
             assertThat(result, isA(ChatCompletionResults.class));
             var completionResults = (ChatCompletionResults) result;
@@ -266,8 +241,8 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             """));
         try (var service = createService()) {
             var model = createModel(service, TaskType.COMPLETION);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream().hasNoErrors().hasEvent("""
                 {"completion":[{"delta":"hello, world"}]}""");
         }
@@ -299,7 +274,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     private void testStreamError(String expectedResponse) throws Exception {
         try (var service = createService()) {
             var model = createModel(service, TaskType.CHAT_COMPLETION);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
@@ -362,8 +337,8 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
 
     public void testChunkedInferFails() throws IOException {
         try (var service = createService()) {
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(mock(), null, List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
+            service.chunkedInfer(mock(), List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
         }
@@ -371,8 +346,8 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
 
     public void testChunkedInferFails_noInputs() throws IOException {
         try (var service = createService()) {
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(mock(), null, List.of(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
+            service.chunkedInfer(mock(), List.of(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
         }
@@ -428,7 +403,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     private InferenceEventsAssertion doUnifiedCompletionInfer() throws Exception {
         try (var service = createService()) {
             var model = createModel(service, TaskType.CHAT_COMPLETION);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),

@@ -1,0 +1,6 @@
+pr: 145146
+summary: Reindex parse exception has document index and ID
+area: Reindex
+type: enhancement
+issues:
+ - 48432

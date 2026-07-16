@@ -86,7 +86,7 @@ public class ExponentialHistogramPercentileRanksAggregatorTests extends Exponent
 
     public void testRandomHistograms() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 100));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), percentileRanks -> {
             assertThat(AggregationInspectionHelper.hasValue(percentileRanks), equalTo(anyNonEmpty));
@@ -104,7 +104,7 @@ public class ExponentialHistogramPercentileRanksAggregatorTests extends Exponent
             .map(Map.Entry::getKey)
             .toList();
 
-        boolean anyMatchingNonEmpty = filteredHistograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyMatchingNonEmpty = filteredHistograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         testCase(
             new TermQuery(new Term("match", "yes")),
@@ -125,7 +125,7 @@ public class ExponentialHistogramPercentileRanksAggregatorTests extends Exponent
 
     public void testCustomValues() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(10, 50));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         double[] customValues = new double[] { 0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0 };
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), percentileRanks -> {
@@ -162,7 +162,7 @@ public class ExponentialHistogramPercentileRanksAggregatorTests extends Exponent
         for (int i = 0; i <= 100; i++) {
 
             double value = 0;
-            if (reference.valueCount() > 0) {
+            if (reference.isEmpty() == false) {
                 value = ExponentialHistogramQuantile.getQuantile(reference, i / 100.0);
             }
 

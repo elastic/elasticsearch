@@ -214,6 +214,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {}
 
+    /**
+     * Whether to rebuild the {@link ServiceHolder} instances before every test method. Defaults to
+     * {@code false}, meaning the holders are built once per class and shared across all test methods
+     * (faster). Override to return {@code true} for tests that require fresh, isolated services per
+     * test method — at the cost of rebuilding on every test.
+     */
+    protected boolean rebuildServiceHolderForEachTest() {
+        return false;
+    }
+
     @BeforeClass
     public static void beforeClass() {
         nodeSettings = Settings.builder()
@@ -310,10 +320,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
         serviceHolder.clientInvocationHandler.delegate = null;
         serviceHolderWithNoType.clientInvocationHandler.delegate = null;
         testThreadPool.shutdown();
+        if (rebuildServiceHolderForEachTest()) {
+            IOUtils.close(serviceHolder, serviceHolderWithNoType);
+            serviceHolder = null;
+            serviceHolderWithNoType = null;
+        }
     }
 
     /**
@@ -474,15 +489,21 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * Asserts that building the supplied query trips the circuit breaker with a "Data too large" message.
      */
     protected static void assertCircuitBreakerTripsOnQueryConstruction(String breakerLimit, Supplier<QueryBuilder> querySupplier) {
-        SearchExecutionContext context = new SearchExecutionContext(
-            createSearchExecutionContext(),
-            createCircuitBreakerService(breakerLimit)
-        );
+        CircuitBreaker breaker = createCircuitBreakerService(breakerLimit);
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
 
         try {
             QueryBuilder query = querySupplier.get();
+            long beforeUsed = breaker.getUsed();
+            long beforeContextTally = context.getQueryConstructionMemoryUsed();
             CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
             assertThat(exception.getMessage(), containsString("Data too large"));
+            assertEquals("breaker must not retain bytes after a mid-walk query-construction trip", beforeUsed, breaker.getUsed());
+            assertEquals(
+                "query-construction tally must not retain bytes after a mid-walk trip",
+                beforeContextTally,
+                context.getQueryConstructionMemoryUsed()
+            );
         } finally {
             context.releaseQueryConstructionMemory();
         }
@@ -596,7 +617,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                idxSettings.getMode().idFieldMapperWithoutFieldData(),
+                () -> false,
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP,

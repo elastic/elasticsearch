@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_CONCAT` function [esql-mv_concat]
 
-:::{include} ../../_snippets/functions/layout/mv_concat.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_concat.md
 :::

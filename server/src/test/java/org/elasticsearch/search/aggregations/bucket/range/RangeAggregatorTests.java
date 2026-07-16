@@ -312,6 +312,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     false,
                     null,
                     null,
+                    false,
+                    false,
                     false
                 )
             )
@@ -693,6 +695,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             false,
             null,
             null,
+            false,
+            false,
             false
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");

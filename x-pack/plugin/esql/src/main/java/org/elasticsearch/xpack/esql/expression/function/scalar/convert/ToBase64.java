@@ -43,6 +43,7 @@ public class ToBase64 extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Encodes a string to a base64 string.",
         description = "Encode a string to a base64 string.",
         examples = @Example(file = "string", tag = "to_base64")
     )

@@ -55,20 +55,31 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
 
     /**
-     * Span attribute keys every exporter implementation must produce on the
-     * {@code GET /_nodes/stats} root span. Cross-path contract — the upcoming OTel SDK
-     * exporter must satisfy each entry. Anything else (e.g. APM-agent-specific HTTP
-     * headers, intake-protocol metadata) is permitted by being absent from this set.
+     * Per-test timeout (in seconds) used when waiting for telemetry to arrive. Defaults to
+     * {@link AbstractTelemetryIT#TELEMETRY_TIMEOUT}. Subclasses on an export path with a real
+     * programmatic flush may override to use a shorter value.
      */
-    static final Set<String> REQUIRED_NODE_STATS_SPAN_KEYS = Set.of(
-        "otel.attributes.es.cluster.name",
-        "otel.attributes.es.node.name",
-        "otel.attributes.http.flavour",
-        "otel.attributes.http.method",
-        "otel.attributes.http.status_code",
-        "otel.attributes.http.url",
-        "otel.span_kind"
-    );
+    protected int telemetryTimeout() {
+        return TELEMETRY_TIMEOUT;
+    }
+
+    /**
+     * Span attribute keys this exporter implementation must produce on the
+     * {@code GET /_nodes/stats} root span. Subclasses may override to extend or replace the set.
+     * Anything else (e.g. APM-agent-specific HTTP headers, intake-protocol metadata) is permitted
+     * by being absent from this set.
+     */
+    protected Set<String> requiredNodeStatsSpanKeys() {
+        return Set.of(
+            "otel.attributes.es.cluster.name",
+            "otel.attributes.es.node.name",
+            "otel.attributes.http.flavour",
+            "otel.attributes.http.method",
+            "otel.attributes.http.status_code",
+            "otel.attributes.http.url",
+            "otel.span_kind"
+        );
+    }
 
     /** Span attribute keys that must never appear on any exporter path. */
     static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
@@ -138,7 +149,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
 
         assertTrue(
             "GET /_nodes/stats span with traceId " + traceIdValue + " should be received within timeout",
-            finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+            finished.await(telemetryTimeout(), TimeUnit.SECONDS)
         );
         ReceivedTelemetry.ReceivedSpan rootSpan = rootSpanRef.get();
         assertTrue("Root span should carry a parent span ID propagated from the traceparent header", rootSpan.parentSpanId().isPresent());
@@ -160,7 +171,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
      *   <li><b>Value assertions</b> (below) cover the small set of keys where the value — not just
      *       the key's presence — is semantically load-bearing (HTTP method, status code, URL,
      *       span kind).</li>
-     *   <li><b>Key-set assertion</b> against {@link #REQUIRED_NODE_STATS_SPAN_KEYS} and
+     *   <li><b>Key-set assertion</b> against {@link #requiredNodeStatsSpanKeys()} and
      *       {@link #FORBIDDEN_SPAN_KEYS}. This is the transparency contract every exporter path
      *       must satisfy: every required key present, no forbidden key present.</li>
      * </ol>
@@ -187,7 +198,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         assertThat("ES cluster name", attrs.get("otel.attributes.es.cluster.name").toString(), not(emptyOrNullString()));
 
         // Cross-path key-set contract.
-        assertContainsAll("nodes_stats span attributes", REQUIRED_NODE_STATS_SPAN_KEYS, attrs.keySet());
+        assertContainsAll("nodes_stats span attributes", requiredNodeStatsSpanKeys(), attrs.keySet());
         assertContainsNone("nodes_stats span attributes", FORBIDDEN_SPAN_KEYS, attrs.keySet());
     }
 
@@ -252,7 +263,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue("Root span should be received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Root span should be received within timeout", rootSpanReceived.await(telemetryTimeout(), TimeUnit.SECONDS));
 
         Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
         // CopyOnWriteArrayList.add() does a volatile write and size() does a volatile read, so child spans

@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 149345
+summary: Add `data_access_tier` and `metadata_access_tier` settings to Azure repository
+type: enhancement

@@ -102,6 +102,134 @@ teardown:
   - not_exists: reload_analyzers_details
 
 ---
+"Append to non-existent set creates it":
+  - requires:
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append param support needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        append: true
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 1 }
+  - match: { synonyms_set.0.id: "rule-1" }
+
+---
+"Append adds rules without removing existing ones":
+  - requires:
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append param support needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+            - synonyms: "bye => goodbye"
+              id: "rule-2"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        append: true
+        body:
+          synonyms_set:
+            - synonyms: "good, great"
+              id: "rule-3"
+
+  - match: { result: "updated" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 3 }
+
+---
+"Append with matching ID overwrites existing rule":
+  - requires:
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append param support needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        append: true
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi, hey"
+              id: "rule-1"
+
+  - match: { result: "updated" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 1 }
+  - match: { synonyms_set.0.synonyms: "hello, hi, hey" }
+
+---
+"Put without append replaces existing rules":
+  - requires:
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append param support needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+            - synonyms: "bye => goodbye"
+              id: "rule-2"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "good, great"
+              id: "rule-3"
+
+  - match: { result: "updated" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 1 }
+  - match: { synonyms_set.0.id: "rule-3" }
+
+---
 "Max synonym rules limit is enforced":
   - requires:
       cluster_features: ["synonyms.max_synonym_rules"]
@@ -134,6 +262,7 @@ teardown:
             - synonyms: "e, f"
 
   - match: { result: "created" }
+
 
 ---
 "Validation fails tests":

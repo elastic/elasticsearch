@@ -1,5 +1,0 @@
-pr: 141074
-summary: Add flat_index_threshold parameter for hnsw dense_vector fields
-area: Vector Search
-type: enhancement
-issues: []

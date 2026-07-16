@@ -23,7 +23,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
+    OrdinalBytesRefVector, DirectBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
     /**
      * Build a contiguous array of bytes for the value stored at the
      * given position. The underlying data is generally stored in pages
@@ -63,7 +63,12 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     OrdinalBytesRefVector asOrdinals();
 
     @Override
-    BytesRefVector filter(boolean mayContainDuplicates, int... positions);
+    BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     BytesRefBlock keepMask(BooleanVector mask);

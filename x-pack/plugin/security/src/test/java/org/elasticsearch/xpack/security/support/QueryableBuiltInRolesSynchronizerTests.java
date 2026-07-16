@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -406,6 +407,29 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         // could not have been updated.
         final ClusterState clusterState = markShardsAvailable(createClusterStateWithClosedSecurityIndex()).nodes(localNodeMaster())
             .blocks(emptyClusterBlocks())
+            .build();
+        final Map<String, String> newRoleDigests = Map.of("superuser", "digest-1", "viewer", "digest-2");
+        final MarkRolesAsSyncedTask task = new MarkRolesAsSyncedTask(
+            ActionListener.noop(),
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            null,
+            newRoleDigests
+        );
+        expectThrows(IndexClosedException.class, () -> task.execute(clusterState));
+    }
+
+    public void testMarkRolesAsSyncedTaskRejectsClosingInProgressIndex() {
+        // INDEX_CLOSED_BLOCK is added before IndexMetadata.state flips to CLOSE; the task must reject
+        // both, not just state == CLOSE.
+        final ClusterBlocks closingInProgressBlocks = ClusterBlocks.builder()
+            .addIndexBlock(
+                ProjectId.DEFAULT,
+                TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+                MetadataIndexStateService.INDEX_CLOSED_BLOCK
+            )
+            .build();
+        final ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(closingInProgressBlocks)
             .build();
         final Map<String, String> newRoleDigests = Map.of("superuser", "digest-1", "viewer", "digest-2");
         final MarkRolesAsSyncedTask task = new MarkRolesAsSyncedTask(

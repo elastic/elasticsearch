@@ -12,12 +12,14 @@ package org.elasticsearch.gradle.internal.snyk;
 import org.elasticsearch.gradle.internal.snyk.SnykDependencyGraph.SnykDependencyNode;
 import org.gradle.api.artifacts.ResolvedDependency;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class SnykDependencyGraphBuilder {
 
-    private Set<SnykDependencyNode> nodes = new LinkedHashSet<>();
+    private Map<String, SnykDependencyNode> nodes = new LinkedHashMap<>();
     private Set<SnykDependencyGraph.SnykDependencyPkg> pkgs = new LinkedHashSet<>();
 
     private SnykDependencyNode currentNode;
@@ -29,13 +31,16 @@ public class SnykDependencyGraphBuilder {
 
     public SnykDependencyNode addNode(String nodeId, String pkgIdPrefix, String version) {
         String pkgId = pkgIdPrefix + "@" + version;
-        SnykDependencyNode node = new SnykDependencyNode(nodeId, pkgId);
-        SnykDependencyGraph.SnykDependencyPkg pkg = new SnykDependencyGraph.SnykDependencyPkg(pkgId);
-        nodes.add(node);
+        pkgs.add(new SnykDependencyGraph.SnykDependencyPkg(pkgId));
         if (currentNode != null) {
             currentNode.addDep(pkgId);
         }
-        pkgs.add(pkg);
+        SnykDependencyNode existing = nodes.get(nodeId);
+        if (existing != null) {
+            return existing;
+        }
+        SnykDependencyNode node = new SnykDependencyNode(nodeId, pkgId);
+        nodes.put(nodeId, node);
         return node;
     }
 
@@ -55,7 +60,7 @@ public class SnykDependencyGraphBuilder {
     }
 
     public SnykDependencyGraph build() {
-        return new SnykDependencyGraph(gradleVersion, nodes, pkgs);
+        return new SnykDependencyGraph(gradleVersion, new LinkedHashSet<>(nodes.values()), pkgs);
     }
 
     public void walkGraph(String rootPkgId, String version, Set<ResolvedDependency> deps) {

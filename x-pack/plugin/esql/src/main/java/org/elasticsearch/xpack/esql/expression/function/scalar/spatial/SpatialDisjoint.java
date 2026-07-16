@@ -77,6 +77,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
+        briefSummary = "Returns whether two geometries are disjoint, sharing no points in common.",
         description = """
             Returns whether the two geometries or geometry columns are disjoint.
             This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function.

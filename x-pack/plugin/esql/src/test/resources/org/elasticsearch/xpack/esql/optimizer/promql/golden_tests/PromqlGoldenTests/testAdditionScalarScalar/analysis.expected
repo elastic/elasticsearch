@@ -1,6 +1,8 @@
 Limit[10000[INTEGER],false,false]
-\_PromqlCommand start=[null] end=[null] step=[PT1H] buckets=[null] scrape_interval=[PT1M] valueColumnName=[sum] promql=[<>
-LiteralSelector[2[INTEGER]]
-\_PlaceholderRelation[]
-<>]]
-  \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#0, client.ip{f}#1, cluster{f}#2, event{f}#3, event_city{f}#4, event_city_boundary{f}#5, event_location{f}#6, event_log{f}#7, event_shape{f}#8, events_received{f}#9, network.bytes_in{f}#10, network.cost{f}#11, network.eth0.currently_connected_clients{f}#12, network.eth0.firmware_version{f}#13, network.eth0.last_up{f}#14, network.eth0.rx{f}#15, network.eth0.tx{f}#16, network.eth0.up{f}#17, network.total_bytes_in{f}#18, network.total_bytes_out{f}#19, network.total_cost{f}#20, pod{f}#21, region{f}#22]
+\_Filter[step{r}#0 >= 0[DATETIME] AND step{r}#0 <= 253402300799999[DATETIME]]
+  \_Filter[ISNOTNULL(sum{r}#1)]
+    \_Project[[sum{r}#1, step{r}#0]]
+      \_Eval[[TODOUBLE(sum{r}#2) AS sum#1]]
+        \_Aggregate[[step{r}#0 AS step#0],[step{r}#0]]
+          \_TimeSeriesAggregate[[_tsid{m}#3, BUCKET(@timestamp{f}#4,PT1H[TIME_DURATION]) AS step#0],[2.0[DOUBLE] AS sum#2, _tsid{m}#3, step{r}#0],BUCKET(@timestamp{f}#4,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#4,PT1H[TIME_DURATION]),@timestamp{f}#4,PROMQL_COMMAND]
+            \_EsRelation[k8s][@timestamp{f}#4, client.ip{f}#5, cluster{f}#6, event{f}#7, event_city{f}#8, event_city_boundary{f}#9, event_location{f}#10, event_log{f}#11, event_shape{f}#12, events_received{f}#13, network.bytes_in{f}#14, network.cost{f}#15, network.eth0.currently_connected_clients{f}#16, network.eth0.firmware_version{f}#17, network.eth0.last_up{f}#18, network.eth0.rx{f}#19, network.eth0.tx{f}#20, network.eth0.up{f}#21, network.total_bytes_in{f}#22, network.total_bytes_out{f}#23, network.total_cost{f}#24, pod{f}#25, region{f}#26, _tsid{m}#3]

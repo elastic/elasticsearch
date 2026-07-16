@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.concurrent.ExecutionException;
 
@@ -39,6 +40,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
 
     private final StorageObject storageObject;
     private final Path path;
+    private final FooterByteCache.Key cacheKey;
 
     /**
      * Creates an adapter for the given StorageObject.
@@ -52,7 +54,21 @@ public class OrcStorageObjectAdapter extends FileSystem {
         }
         this.storageObject = storageObject;
         this.path = new Path(storageObject.path().toString());
+        try {
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject, storageObject.length());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
+        }
         setConf(new Configuration(false));
+    }
+
+    /**
+     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * {@link FooterByteCache} and the parsed-footer cache held by {@link OrcFormatReader} so that
+     * callers reusing this adapter can hit those caches without recomputing the key.
+     */
+    FooterByteCache.Key cacheKey() {
+        return cacheKey;
     }
 
     @Override
@@ -72,6 +88,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
 
     static void clearCacheForTests() {
         FooterByteCache.getInstance().invalidateAll();
+        OrcFormatReader.clearParsedFooterCacheForTests();
     }
 
     @Override

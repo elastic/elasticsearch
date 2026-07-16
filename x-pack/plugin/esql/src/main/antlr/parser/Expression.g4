@@ -13,6 +13,7 @@ booleanExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
+    | valueExpression (NOT)? IN subquery                                         #logicalInSubquery
     | valueExpression IS NOT? NULL                                               #isNull
     | matchBooleanExpression                                                     #matchExpression
     ;
@@ -25,7 +26,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
+    : fieldExp=primaryExpression COLON matchQuery=constant
     ;
 
 valueExpression

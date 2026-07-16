@@ -75,7 +75,7 @@ public class PerFieldFormatSupplierDocValuesFormatProviderTests extends MapperSe
 
     public void testMapperProvidedFormatIsUsedOnlyForItsOwnField() throws IOException {
         MapperService mapperService = createMapperService("""
-            { "properties": { "plain_field": { "type": "keyword" } } }""");
+            { "_doc": { "properties": { } } }""");
         PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
 
         var customMapper = (CustomFormatMetadataMapper) mapperService.mappingLookup().getMapper(CUSTOM_FIELD_NAME);

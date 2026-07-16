@@ -126,6 +126,163 @@ public class SplitCoalescerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(splits, 0, 8));
     }
 
+    public void testParallelismFloorSpreadsTinyFiles() {
+        int count = 100;
+        int parallelism = 14;
+        // 1 KB files all fit one 128 MB bin, so without a floor they collapse to a single group.
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals("tiny files must be spread across at least the parallelism floor", parallelism, result.size());
+        assertEquals(count, countTotalLeaves(result));
+    }
+
+    public void testParallelismFloorCappedBySplitCount() {
+        int count = COALESCING_THRESHOLD + 8; // above the threshold so coalescing runs
+        int parallelism = 100;                // more than the number of files
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals("floor cannot exceed the number of input splits", count, result.size());
+        assertEquals(count, countTotalLeaves(result));
+    }
+
+    public void testSizeRaisesGroupCountAboveParallelismFloor() {
+        int count = 100;
+        long fileSize = 10 * 1024 * 1024;  // 10 MB
+        long target = 128 * 1024 * 1024;   // ~12 files per bin -> ~8 bins by size alone
+        int parallelism = 4;               // lower than the size-required bin count
+        List<ExternalSplit> splits = makeSplits(count, fileSize);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, parallelism);
+
+        int sizeBins = (int) Math.ceil((count * (double) fileSize) / target);
+        assertTrue("size must raise the group count above the parallelism floor", result.size() >= sizeBins);
+        assertEquals(count, countTotalLeaves(result));
+        for (ExternalSplit split : result) {
+            if (split instanceof CoalescedSplit coalesced) {
+                assertTrue("size budget must still be respected under the floor", coalesced.estimatedSizeInBytes() <= target + fileSize);
+            }
+        }
+    }
+
+    public void testParallelismFloorPreservesAllChildren() {
+        int count = 100;
+        int parallelism = 14;
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        Set<ExternalSplit> originalSet = new HashSet<>(splits);
+        Set<ExternalSplit> resultLeaves = new HashSet<>();
+        for (ExternalSplit split : result) {
+            if (split instanceof CoalescedSplit coalesced) {
+                resultLeaves.addAll(coalesced.children());
+            } else {
+                resultLeaves.add(split);
+            }
+        }
+        assertEquals(originalSet, resultLeaves);
+    }
+
+    public void testParallelismFloorWithoutSizeInfo() {
+        int count = 100;
+        int parallelism = 14;
+        List<ExternalSplit> splits = makeSplitsWithoutSize(count);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals("count-based grouping must also honor the parallelism floor", parallelism, result.size());
+        assertEquals(count, countTotalLeaves(result));
+    }
+
+    public void testFloorKeepsOversizedStandaloneAndSpreadsTiny() {
+        long target = 128 * 1024 * 1024;
+        int parallelism = 14;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, 200L * 1024 * 1024)); // oversized
+        splits.add(makeFileSplit(1, 300L * 1024 * 1024)); // oversized
+        for (int i = 2; i < 100; i++) {
+            splits.add(makeFileSplit(i, 1024));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, parallelism);
+
+        assertEquals(parallelism, result.size());
+        assertEquals(100, countTotalLeaves(result));
+        int standaloneOversized = 0;
+        for (ExternalSplit split : result) {
+            if (split instanceof FileSplit fs && fs.length() >= target) {
+                standaloneOversized++;
+            }
+            if (split instanceof CoalescedSplit coalesced) {
+                assertTrue("coalesced groups must stay under the size budget", coalesced.estimatedSizeInBytes() <= target + 1024);
+            }
+        }
+        assertEquals("both oversized files stay standalone", 2, standaloneOversized);
+    }
+
+    public void testFloorProducesBalancedGroups() {
+        int count = 100;
+        int parallelism = 14;
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals(parallelism, result.size());
+        int min = Integer.MAX_VALUE;
+        int max = 0;
+        for (ExternalSplit split : result) {
+            int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            min = Math.min(min, leaves);
+            max = Math.max(max, leaves);
+        }
+        assertTrue("groups should be balanced within one leaf, got min=" + min + " max=" + max, max - min <= 1);
+    }
+
+    public void testFloorSpreadsZeroSizedFilesEvenly() {
+        int count = 100;
+        int parallelism = 14;
+        // Zero-byte files all tie on load, so the least-loaded tie-break must still round-robin them across groups
+        // rather than piling every file after the seed into the first group.
+        List<ExternalSplit> splits = makeSplits(count, 0);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals(parallelism, result.size());
+        assertEquals(count, countTotalLeaves(result));
+        int min = Integer.MAX_VALUE;
+        int max = 0;
+        for (ExternalSplit split : result) {
+            int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            min = Math.min(min, leaves);
+            max = Math.max(max, leaves);
+        }
+        assertTrue("zero-sized files should be balanced within one leaf, got min=" + min + " max=" + max, max - min <= 1);
+    }
+
+    public void testFloorOfOneMatchesDefaultGrouping() {
+        int count = 100;
+        List<ExternalSplit> splits = makeSplits(count, 10 * 1024 * 1024);
+
+        List<ExternalSplit> defaultGrouping = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8);
+        List<ExternalSplit> floored = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 1);
+
+        assertEquals(defaultGrouping, floored);
+    }
+
+    public void testInvalidMinGroupCountThrows() {
+        List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD + 1);
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 0));
+    }
+
+    public void testBelowThresholdIgnoresMinGroups() {
+        List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD - 1);
+        assertSame(splits, SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 14));
+    }
+
     public void testMixedSizesProducesReasonableGroups() {
         List<ExternalSplit> splits = new ArrayList<>();
         long targetGroupSize = 100 * 1024 * 1024;

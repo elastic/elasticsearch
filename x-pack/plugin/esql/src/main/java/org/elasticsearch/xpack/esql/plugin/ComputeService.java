@@ -266,7 +266,7 @@ public class ComputeService {
                 isCancelled
             );
             recordExternalScanStats(execInfo, result);
-            return coalesceSplits(result.plan());
+            return coalesceSplits(result.plan(), externalCoalesceFloor(configuration));
         } catch (TaskCancelledException e) {
             // Cancellation is not a discovery failure — propagate it without the warn.
             throw e;
@@ -287,18 +287,37 @@ public class ComputeService {
         }
     }
 
-    static PhysicalPlan coalesceSplits(PhysicalPlan plan) {
+    static PhysicalPlan coalesceSplits(PhysicalPlan plan, int minGroupCount) {
         return plan.transformUp(ExternalSourceExec.class, exec -> {
             List<ExternalSplit> splits = exec.splits();
             if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
                 return exec;
             }
-            List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+            List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, minGroupCount);
             if (coalesced == splits) {
                 return exec;
             }
             return exec.withSplits(coalesced);
         });
+    }
+
+    private int externalCoalesceFloor(Configuration configuration) {
+        int taskConcurrency = configuration.pragmas().taskConcurrency();
+        int eligibleNodes = Math.max(1, NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(clusterService.state().nodes()).size());
+        return externalCoalesceFloor(taskConcurrency, eligibleNodes);
+    }
+
+    /**
+     * The minimum number of coalesced groups to keep for an external scan, so read parallelism is not collapsed
+     * to a single unit. It is the per-node driver cap ({@code task_concurrency}) times the number of eligible
+     * data nodes: after distribution each node receives about {@code task_concurrency} groups and runs that many
+     * scan drivers. {@link SplitCoalescer} clamps the result to the input split count. The value is held at or
+     * above one (a degenerate {@code task_concurrency} of zero or below still leaves the scan coalescible) and at
+     * or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
+     */
+    static int externalCoalesceFloor(int taskConcurrency, int eligibleNodeCount) {
+        long floor = (long) taskConcurrency * eligibleNodeCount;
+        return (int) Math.max(1, Math.min(floor, Integer.MAX_VALUE));
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
@@ -386,7 +405,7 @@ public class ComputeService {
             } else {
                 PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
-                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
                     if (coalesced != splits) {
                         splits.clear();
                         splits.addAll(coalesced);

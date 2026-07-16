@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -476,6 +478,39 @@ public class ExternalDistributionTests extends ESTestCase {
         withSplits.forEachDown(ExternalSourceExec.class, sources::add);
         assertFalse("Should have at least one ExternalSourceExec", sources.isEmpty());
         assertEquals("Splits should be injected", 2, sources.get(0).splits().size());
+    }
+
+    // --- Split coalescing floor wiring ---
+
+    public void testCoalesceSplitsFloorsTopLevelSplitCount() {
+        int fileCount = 200;
+        int minGroupCount = 14;
+        List<ExternalSplit> splits = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        ExternalSourceExec exec = createExternalSourceExec().withSplits(splits);
+
+        PhysicalPlan coalesced = ComputeService.coalesceSplits(exec, minGroupCount);
+
+        List<ExternalSourceExec> sources = new ArrayList<>();
+        coalesced.forEachDown(ExternalSourceExec.class, sources::add);
+        assertEquals(1, sources.size());
+        List<ExternalSplit> result = sources.get(0).splits();
+        assertEquals("tiny files must stay spread across the floor, not collapse to one split", minGroupCount, result.size());
+        assertEquals("no leaves lost", fileCount, CoalescedSplit.flatten(result).size());
+    }
+
+    public void testExternalCoalesceFloorIsTaskConcurrencyTimesNodes() {
+        assertEquals(14, ComputeService.externalCoalesceFloor(14, 1));
+        assertEquals(56, ComputeService.externalCoalesceFloor(14, 4));
+        // A degenerate task_concurrency must not drive the floor below one, which would make coalescing throw.
+        assertEquals(1, ComputeService.externalCoalesceFloor(0, 4));
+        assertEquals(1, ComputeService.externalCoalesceFloor(-3, 4));
+        // An implausibly wide cluster must clamp rather than overflow.
+        assertEquals(Integer.MAX_VALUE, ComputeService.externalCoalesceFloor(Integer.MAX_VALUE, 4));
     }
 
     // --- Field retention through local optimization tests ---

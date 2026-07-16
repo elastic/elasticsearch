@@ -105,12 +105,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /// A cache region's data timestamp (epoch millis) is a plain `long` partitioned into three domains:
-    /// - a non-negative epoch-millis value (`>= 0`), with [#MINIMAL_TIMESTAMP] (`0`) as the oldest representable instant;
+    /// - a positive epoch-millis value (`> 0`);
     /// - [#UNKNOWN_TIMESTAMP] (`-1`): the content has no representative timestamp;
     /// - [#BACKFILL_IN_PROGRESS_TIMESTAMP] (`-2`): the timestamp is temporarily unknown, e.g. pending backfill.
     ///
-    public static final long MINIMAL_TIMESTAMP = 0L;
-
     public static final long UNKNOWN_TIMESTAMP = -1L;
 
     /// Sentinel used when the timestamp of a cache region is temporarily unknown and will be backfilled later.
@@ -988,7 +986,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * Regions that carry {@link #UNKNOWN_TIMESTAMP} or already carry a real timestamp are left unchanged.
      *
      * @param shard            the shard whose cached regions to scan
-     * @param timestampByBlob  map from blob cache key to the real timestamp (epoch millis, {@code >= 0}) to assign
+     * @param timestampByBlob  map from blob cache key to the real timestamp (epoch millis, {@code > 0}) to assign
      */
     public void backfillRegionTimestamps(ShardId shard, Map<KeyType, Long> timestampByBlob) {
         if (timestampByBlob.isEmpty()) {
@@ -1190,7 +1188,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
-            assert timestampMillis >= 0L || timestampMillis == UNKNOWN_TIMESTAMP || timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP
+            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP || timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP
                 : timestampMillis;
             this.timestampMillis = timestampMillis;
             assert regionSize > 0;
@@ -1310,7 +1308,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * Backfills the region timestamp, transitioning it only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to a real (positive) value.
          */
         void backfillTimestampFromBackfillInProgress(long newTimestampMillis) {
-            assert newTimestampMillis >= 0L : newTimestampMillis;
+            assert newTimestampMillis > 0L : newTimestampMillis;
             // There is a benign race here, but either way we end up with a valid timestamp.
             if (timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP) {
                 timestampMillis = newTimestampMillis;

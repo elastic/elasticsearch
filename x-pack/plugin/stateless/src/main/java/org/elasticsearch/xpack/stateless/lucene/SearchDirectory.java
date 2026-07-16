@@ -119,7 +119,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         for (var entry : timestampByBlob.entrySet()) {
             // If we don't know the timestamp, then we say region is not as important.
             // TODO: always come up with timestamp at the caller level
-            long timestampMillis = Math.max(entry.getValue(), SharedBlobCacheService.MINIMAL_TIMESTAMP);
+            long timestampMillis = Math.max(entry.getValue(), 1L);
             byCacheKey.put(new FileCacheKey(shardId, entry.getKey().primaryTerm(), entry.getKey().blobName()), timestampMillis);
         }
         cacheService.backfillRegionTimestamps(shardId, byCacheKey);

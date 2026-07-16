@@ -294,7 +294,6 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
-                    TestUtils.mockIndicesService(clusterService),
                     System::nanoTime,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};

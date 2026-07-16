@@ -97,7 +97,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
-    private final IndicesService indicesService;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
 
@@ -117,7 +116,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             threadPool,
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
-            indicesService,
             metricsHolder
         );
     }
@@ -129,13 +127,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         EvictionPolicy<FileCacheKey> evictionPolicy,
-        IndicesService indicesService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, evictionPolicy);
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
-        this.indicesService = indicesService;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
@@ -157,7 +153,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             threadPool,
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
-            indicesService,
             relativeTimeInNanosSupplier,
             metricsHolder
         );
@@ -170,14 +165,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         EvictionPolicy<FileCacheKey> evictionPolicy,
-        IndicesService indicesService,
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
         this.shardReadThreadPoolExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
         this.metricsHolder = metricsHolder;
-        this.indicesService = indicesService;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }

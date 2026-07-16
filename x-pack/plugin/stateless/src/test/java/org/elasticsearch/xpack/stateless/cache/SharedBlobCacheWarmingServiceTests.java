@@ -41,7 +41,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -1893,7 +1892,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     new DefaultEvictionPolicy<>(),
-                    mock(IndicesService.class),
                     System::nanoTime,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {
@@ -1946,7 +1944,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
-                    mock(IndicesService.class),
                     System::nanoTime,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};

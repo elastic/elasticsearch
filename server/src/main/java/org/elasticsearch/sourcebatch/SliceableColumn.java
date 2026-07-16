@@ -16,14 +16,20 @@ import org.apache.lucene.search.DocIdSetIterator;
 import java.util.List;
 
 /**
- * A column that can produce a Lucene {@link Column} for its current window on demand and expose
- * a forward-only cursor for the row-oriented (soft-update / non-{@code addBatch}) indexing path.
- *
- * <p>Note: slicing support (zero-copy windowing to a sub-range) will be added when the engine
- * integration is wired; for now the interface covers only the mapper-to-Lucene conversion
- * methods used by the columnar batch-mapping path.
+ * A column that carries its own window ({@code [from, from + count)}) and can produce a Lucene
+ * {@link Column} for that window on demand. Slicing a {@code SliceableColumn} yields a new instance
+ * sharing the same backing data but adjusted to a sub-range — no copying occurs.
  */
 public interface SliceableColumn {
+
+    /**
+     * Returns a view over {@code [from, from + count)} of this column's document range.
+     *
+     * @param from  start (inclusive) relative to this window, must be ≥ 0
+     * @param count number of documents in the new window, must be ≥ 0 and {@code from + count}
+     *              must be ≤ this column's document count
+     */
+    SliceableColumn slice(int from, int count);
 
     /**
      * Returns a Lucene {@link Column} for this column's current window.

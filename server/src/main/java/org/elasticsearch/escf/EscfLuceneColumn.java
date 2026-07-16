@@ -57,6 +57,13 @@ public final class EscfLuceneColumn implements SliceableColumn {
     }
 
     @Override
+    public SliceableColumn slice(int from, int count) {
+        // Safe cast: EscfColumn.sliceInternal always returns an EscfColumn subtype.
+        EscfColumn sliced = values.sliceInternal(from, count);
+        return new EscfLuceneColumn(sliced, name, fieldType, kind);
+    }
+
+    @Override
     public RowFieldCursor rowFieldCursor() {
         // EscfLuceneColumn is always DENSE (no absent set): every doc in [0, docCount) has a value.
         final ColumnLongField field = new ColumnLongField(name, fieldType, kind);

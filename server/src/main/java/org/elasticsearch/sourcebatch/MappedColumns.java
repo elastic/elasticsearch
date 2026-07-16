@@ -87,6 +87,18 @@ public final class MappedColumns {
         }
     }
 
+    public MappedColumns slice(int from, int to) {
+        if (from < 0 || to > this.count || from > to) {
+            throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + this.count + ")");
+        }
+        int newCount = to - from;
+        List<SliceableColumn> slicedColumns = new ArrayList<>(columns.size());
+        for (SliceableColumn c : columns) {
+            slicedColumns.add(c.slice(from, newCount));
+        }
+        return new MappedColumns(this.from + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
+    }
+
     public ColumnBatch toColumnBatch() {
         final List<Column> luceneColumns = columns.stream().map(SliceableColumn::toLuceneColumn).toList();
         return new SliceableColumnBatch(luceneColumns, count);

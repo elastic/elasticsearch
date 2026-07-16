@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -669,12 +670,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(size - 8);
             byte[] trailer = new byte[8];
             stream.readFully(trailer);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, size - 8, size), trailer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8, size), trailer);
 
             stream.seek(size - 8 - footerLength);
             byte[] footer = new byte[footerLength];
             stream.readFully(footer);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
         }
         assertEquals("Trailer and footer body must come from a single GET", 1, requests.size());
         // The single GET must be a backward-extending tail read, not a whole-file read: it starts within
@@ -704,17 +705,17 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(size - 8);
             byte[] trailer = new byte[8];
             stream.readFully(trailer);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, size - 8, size), trailer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8, size), trailer);
 
             stream.seek(size - 8 - footerLength);
             byte[] footer = new byte[footerLength];
             stream.readFully(footer);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
 
             stream.seek(0);
             byte[] head = new byte[64];
             stream.readFully(head);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 0, 64), head);
+            assertArrayEquals(Arrays.copyOfRange(data, 0, 64), head);
         }
         assertEquals("Small file must be read in a single GET", 1, requests.size());
         long[] request = requests.get(0);
@@ -741,12 +742,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(size - 8);
             byte[] trailer = new byte[8];
             stream.readFully(trailer);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, size - 8, size), trailer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8, size), trailer);
 
             stream.seek(size - 8 - footerLength);
             byte[] footer = new byte[footerLength];
             stream.readFully(footer);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
         }
         assertEquals("A footer larger than the tail window needs a second GET for the body", 2, rangeReadCount.get());
     }
@@ -1225,7 +1226,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject obj2 = createCountingStorageObject(data, path, Instant.ofEpochMilli(500), rangeReadCount);
 
         int tailStart = data.length - 1024;
-        byte[] expected = java.util.Arrays.copyOfRange(data, tailStart, data.length);
+        byte[] expected = Arrays.copyOfRange(data, tailStart, data.length);
 
         ParquetStorageObjectAdapter first = new ParquetStorageObjectAdapter(obj1, allocator);
         try (SeekableInputStream s = first.newStream()) {
@@ -1299,7 +1300,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         };
 
         int tailStart = data.length - 1024;
-        byte[] expected = java.util.Arrays.copyOfRange(data, tailStart, data.length);
+        byte[] expected = Arrays.copyOfRange(data, tailStart, data.length);
         Thread[] threads = new Thread[8];
         AtomicReference<AssertionError> firstFailure = new AtomicReference<>();
 
@@ -1350,23 +1351,23 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             byte[] got = new byte[100];
             assertEquals(100, stream.read(got));
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 0, 100), got);
+            assertArrayEquals(Arrays.copyOfRange(data, 0, 100), got);
 
             stream.seek(1000);
             got = new byte[200];
             assertEquals(200, stream.read(got, 0, 200));
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 1000, 1200), got);
+            assertArrayEquals(Arrays.copyOfRange(data, 1000, 1200), got);
 
             stream.seek(500);
             got = new byte[300];
             assertEquals(300, stream.read(got, 0, 300));
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 500, 800), got);
+            assertArrayEquals(Arrays.copyOfRange(data, 500, 800), got);
 
             long endPos = data.length - 100L;
             stream.seek(endPos);
             got = new byte[100];
             stream.readFully(got);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, (int) endPos, data.length), got);
+            assertArrayEquals(Arrays.copyOfRange(data, (int) endPos, data.length), got);
 
             stream.seek(2048);
             ByteBuffer buf = ByteBuffer.allocate(64);
@@ -1374,7 +1375,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             buf.flip();
             byte[] bufBytes = new byte[64];
             buf.get(bufBytes);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 2048, 2048 + 64), bufBytes);
+            assertArrayEquals(Arrays.copyOfRange(data, 2048, 2048 + 64), bufBytes);
         }
     }
 

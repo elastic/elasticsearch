@@ -128,7 +128,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
         // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
         // pre-warm optimization would be silently bypassed.
-        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, allocator, this::currentPreWarmedChunks);
+        return new WindowedSeekableInputStream(
+            storageObject,
+            cacheKey,
+            length,
+            windowSize,
+            ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES,
+            allocator,
+            this::currentPreWarmedChunks
+        );
     }
 
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
@@ -172,6 +180,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final FooterByteCache.Key cacheKey;
         private final long length;
         private final int windowSize;
+        private final int footerTailBytes;
         private final ArrowBuf window;
         // ArrowBuf.getBytes(inputstream) internally allocates an 8 kB buffer. To avoid it,
         // use a staging buffer filled from the InputStream then copied into {@link #window}.
@@ -196,6 +205,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             FooterByteCache.Key cacheKey,
             long length,
             int windowSize,
+            int footerTailBytes,
             BufferAllocator allocator,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
         ) {
@@ -203,6 +213,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
+            this.footerTailBytes = footerTailBytes;
             this.window = allocator.buffer(windowSize);
             this.preWarmedChunksSupplier = preWarmedChunksSupplier;
             this.windowStart = -1;
@@ -260,11 +271,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // footer-body read into a window hit instead of a second GET. The tail size matches the async
             // metadata prefetch so both paths read and cache identically shaped tails.
             long fetchStart = pos;
-            if (remaining <= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES) {
-                long tail = Math.min(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES, windowSize);
+            long fetchLen;
+            if (remaining <= footerTailBytes) {
+                long tail = Math.min(footerTailBytes, windowSize);
                 fetchStart = Math.max(0, length - tail);
+                fetchLen = length - fetchStart;
+            } else {
+                fetchLen = toRead;
             }
-            long fetchLen = Math.min(windowSize, length - fetchStart);
 
             FooterByteCache tailCache = FooterByteCache.getInstance();
             if (fillFromTailCache(tailCache, fetchStart, (int) fetchLen)) {

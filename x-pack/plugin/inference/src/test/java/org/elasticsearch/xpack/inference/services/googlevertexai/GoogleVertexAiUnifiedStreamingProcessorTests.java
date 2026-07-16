@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
     public void testJsonLiteral() {
@@ -234,6 +236,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         var data = initialData + trailingData;
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var processor = new GoogleVertexAiUnifiedStreamingProcessor(RuntimeException::new);
-        expectThrows(XContentParseException.class, () -> processor.parse(parserConfig, data));
+        var exception = expectThrows(XContentParseException.class, () -> processor.parse(parserConfig, data));
+        assertThat(exception.getMessage(), containsString("Found trailing content after the JSON object"));
     }
 }

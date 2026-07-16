@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
@@ -594,6 +595,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             """;
         var data = initialData + trailingData;
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        expectThrows(XContentParseException.class, () -> OpenAiUnifiedStreamingProcessor.parse(parserConfig, data));
+        var exception = expectThrows(XContentParseException.class, () -> OpenAiUnifiedStreamingProcessor.parse(parserConfig, data));
+        assertThat(exception.getMessage(), containsString("Found trailing content after the JSON object"));
     }
 }

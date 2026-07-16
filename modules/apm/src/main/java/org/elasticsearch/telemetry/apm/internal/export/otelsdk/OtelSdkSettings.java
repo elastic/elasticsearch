@@ -136,6 +136,16 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /**
+     * Whether the per-instrument collection-time gauge ({@code es.apm.metrics.instrument.collection.time}) is emitted.
+     */
+    public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
+        "telemetry.metrics.instrument_timing.enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
     // --- Traces
 
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.

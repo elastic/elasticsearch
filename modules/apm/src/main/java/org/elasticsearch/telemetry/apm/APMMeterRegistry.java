@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 public class APMMeterRegistry implements MeterRegistry {
     private static final Logger logger = LogManager.getLogger(APMMeterRegistry.class);
 
-    static final String INSTRUMENT_COLLECT_DURATION = "es.apm.metrics.instrument.collection_time.histogram";
+    static final String INSTRUMENT_COLLECT_DURATION = "es.apm.metrics.instrument.collection.time";
     static final String INSTRUMENT_ATTRIBUTE = "es_instrument_name";
 
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
@@ -70,19 +70,37 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private Meter meter;
 
-    private final DoubleHistogram instrumentCollectDuration;
+    private final Map<String, Double> instrumentCollectDurations = ConcurrentCollections.newConcurrentMap();
+    private volatile boolean instrumentTimingEnabled = false;
 
     public APMMeterRegistry(Meter meter) {
         this.meter = meter;
-        this.instrumentCollectDuration = register(
-            doubleHistograms,
-            new DoubleHistogramAdapter(
+        // Registered directly (not through registerDoublesGauge) so the gauge does not time its own callback.
+        register(
+            doubleGauges,
+            new DoubleGaugeAdapter(
                 meter,
                 INSTRUMENT_COLLECT_DURATION,
-                "Time an observable instrument's callback takes during a metric collection cycle",
-                "s"
+                "Duration of an observable instrument's callback during the most recent metric collection cycle",
+                "s",
+                this::collectInstrumentDurations,
+                deregisterFunc(doubleGauges)
             )
         );
+    }
+
+    private Collection<DoubleWithAttributes> collectInstrumentDurations() {
+        if (instrumentTimingEnabled == false) {
+            return List.of();
+        }
+        return instrumentCollectDurations.entrySet()
+            .stream()
+            .map(e -> new DoubleWithAttributes(e.getValue(), Map.of(INSTRUMENT_ATTRIBUTE, e.getKey())))
+            .toList();
+    }
+
+    public void setInstrumentTimingEnabled(boolean enabled) {
+        this.instrumentTimingEnabled = enabled;
     }
 
     private final List<Registrar<?>> registrars = List.of(
@@ -280,13 +298,15 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     private <T> Supplier<T> timed(String name, Supplier<T> observer) {
-        Map<String, Object> attributes = Map.of(INSTRUMENT_ATTRIBUTE, name);
         return () -> {
+            if (instrumentTimingEnabled == false) {
+                return observer.get();
+            }
             long start = System.nanoTime();
             try {
                 return observer.get();
             } finally {
-                instrumentCollectDuration.record((System.nanoTime() - start) / 1_000_000_000d, attributes);
+                instrumentCollectDurations.put(name, (System.nanoTime() - start) / 1_000_000_000d);
             }
         };
     }

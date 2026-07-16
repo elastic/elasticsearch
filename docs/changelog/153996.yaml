@@ -3,4 +3,4 @@ issues:
  - 146923
 pr: 153996
 summary: [PromQL] Support date_nanos timestamp indices
- type: bug
+type: bug

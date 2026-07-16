@@ -65,6 +65,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument, Tr
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks whether a keyword substring is contained within another string.",
         description = """
             Returns a boolean that indicates whether a keyword substring is within another string.
             Returns `null` if either parameter is null.""",

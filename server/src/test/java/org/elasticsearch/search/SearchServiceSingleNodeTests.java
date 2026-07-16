@@ -1641,7 +1641,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 request,
                 indexService,
                 indexShard,
-                indexShard.acquireSearcherSupplier(),
+                indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
                 SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
                 null
             )
@@ -1674,7 +1674,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 try {
                     latch.await();
                     for (;;) {
-                        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+                        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(
+                            SplitShardCountSummary.IRRELEVANT
+                        );
                         try {
                             final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
                             searchService.createAndPutReaderContext(
@@ -2290,7 +2292,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         request,
                         indexService,
                         indexShard,
-                        indexShard.acquireSearcherSupplier(),
+                        indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
                         SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
                         null
                     );
@@ -2536,7 +2538,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2573,7 +2576,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2612,7 +2616,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2650,7 +2655,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2712,7 +2718,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null
         );
-        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
         ReaderContext context = service.createAndPutReaderContext(
             request,
             indexService,
@@ -3160,7 +3166,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
             indexService,
             indexShard,
-            indexShard.acquireSearcherSupplier(),
+            indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
             randomNonNegativeLong(),
             false,
             0L

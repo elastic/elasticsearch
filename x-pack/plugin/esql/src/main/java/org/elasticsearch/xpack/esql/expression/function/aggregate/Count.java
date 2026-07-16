@@ -56,10 +56,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         .acrossSeries(Count::new)
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Returns the total number of input values.",
         description = "Returns the total number (count) of input values.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -111,6 +114,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "exponential_histogram",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
                 "geo_point",
@@ -183,10 +187,10 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, histogram, or date_range"
+            "any type except counter types or histogram"
         );
     }
 

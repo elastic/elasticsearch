@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.SequencedMap;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -137,20 +138,41 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         final String outputFieldPrefix,
         final Source source
     ) {
-        return outputColumns.entrySet()
-            .stream()
-            .map(
-                entry -> (Attribute) new ReferenceAttribute(
-                    source,
-                    null,
-                    outputFieldPrefix + "." + entry.getKey(),
-                    DataType.fromJavaType(entry.getValue()),
-                    Nullability.TRUE,
-                    null,
-                    false
-                )
-            )
-            .toList();
+        return computeOutputAttributes(outputColumns, outputFieldPrefix, source, name -> null);
+    }
+
+    /**
+     * Computes the output attributes based on the provided output columns and prefix, with a fallback
+     * for Java types that {@link DataType#fromJavaType} cannot map (returns {@code null}).
+     *
+     * @param outputColumns           the output columns by which the output attributes should be named and typed
+     * @param outputFieldPrefix       the prefix to be used for the output field names
+     * @param source                  the source information for the attributes
+     * @param unmappedTypeFallback    called with the field name when {@code DataType.fromJavaType} returns null;
+     *                                may itself return null, which will propagate a null DataType
+     * @return a list of computed output attributes
+     */
+    protected static List<Attribute> computeOutputAttributes(
+        final SequencedMap<String, Class<?>> outputColumns,
+        final String outputFieldPrefix,
+        final Source source,
+        final Function<String, DataType> unmappedTypeFallback
+    ) {
+        return outputColumns.entrySet().stream().map(entry -> {
+            DataType dataType = DataType.fromJavaType(entry.getValue());
+            if (dataType == null) {
+                dataType = unmappedTypeFallback.apply(entry.getKey());
+            }
+            return (Attribute) new ReferenceAttribute(
+                source,
+                null,
+                outputFieldPrefix + "." + entry.getKey(),
+                dataType,
+                Nullability.TRUE,
+                null,
+                false
+            );
+        }).toList();
     }
 
     /**

@@ -1,0 +1,5 @@
+pr: 153580
+summary: "ES|QL: NDJSON `error_mode` treats every unrepresentable cell the same for declared and inferred columns — `skip_row` drops the row (like CSV/TSV), `null_field` nulls the cell, strict fails"
+area: ES|QL
+type: bug
+issues: []

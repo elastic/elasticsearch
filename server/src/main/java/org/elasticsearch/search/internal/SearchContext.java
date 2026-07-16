@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchHits;
@@ -59,6 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -124,6 +126,31 @@ public abstract class SearchContext implements Releasable {
      * Should be called before executing the main query and after all other parameters have been set.
      */
     public abstract void preProcess();
+
+    /**
+     * Returns the number of bytes read by forked search worker threads while executing this context's query.
+     * The caller is responsible for folding this value into the overall directory metrics. Returns {@code 0}
+     * when no worker threads were used (e.g. single-slice execution) or directory metrics are disabled.
+     */
+    public long getWorkerThreadsBytesRead() {
+        return 0L;
+    }
+
+    /**
+     * Supplier of the calling thread's {@link StoreMetrics}, or {@code null} when directory metrics are disabled.
+     */
+    public Supplier<StoreMetrics> currentThreadStoreMetrics() {
+        return null;
+    }
+
+    /**
+     * Returns the number of store bytes read while assembling this context's fetch results.
+     */
+    public long getFetchThreadsBytesRead() {
+        return 0L;
+    }
+
+    public void addFetchThreadsBytesRead(long bytesRead) {}
 
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */

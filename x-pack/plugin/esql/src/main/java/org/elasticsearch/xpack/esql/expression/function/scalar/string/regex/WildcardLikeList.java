@@ -76,7 +76,12 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public WildcardLikeList(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPatternList patterns
+        @Param(
+            name = "pattern",
+            type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Pattern."
+        ) WildcardPatternList patterns
     ) {
         this(source, left, patterns, false);
     }
@@ -110,6 +115,11 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public String functionName() {
+        return "LIKE";
     }
 
     @Override

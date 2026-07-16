@@ -10,14 +10,8 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
@@ -25,18 +19,49 @@ import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingFunction;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
-import org.elasticsearch.lucene.util.BitSets;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
-public class ReshardSearchFilters {
-    public static DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
+/**
+ * Applies search-time directory reader filters during index resharding (split) so shards only expose owned documents.
+ * Owns a node-scoped {@link ReshardUnownedBitsetCache} for bitset reuse across reader wraps.
+ */
+public final class ReshardSearchFilters implements Closeable {
+
+    private final ReshardUnownedBitsetCache unownedBitsetCache;
+
+    public ReshardSearchFilters(Settings settings) {
+        this(new ReshardUnownedBitsetCache(settings));
+    }
+
+    // visible for testing
+    ReshardSearchFilters(ReshardUnownedBitsetCache unownedBitsetCache) {
+        this.unownedBitsetCache = unownedBitsetCache;
+    }
+
+    @Override
+    public void close() {
+        IOUtils.closeWhileHandlingException(unownedBitsetCache);
+    }
+
+    // visible for testing
+    ReshardUnownedBitsetCache unownedBitsetCache() {
+        return unownedBitsetCache;
+    }
+
+    public DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
         DirectoryReader reader,
         ShardId shardId,
         IndexMetadata currentIndexMetadata,
@@ -49,34 +74,37 @@ public class ReshardSearchFilters {
             // There was no resharding in progress when this PIT was opened and no additional logic is necessary.
             return reader;
         }
+        // Number of shards could change due to another resharding operation that was executed while this PIT was open.
+        // Resharding metadata will very likely not exist or differ for the same reason.
+        // But this PIT is only using the shards that existed when it was opened so we should route accordingly.
+        // This number of shards is equal to the "after" number of shards in the resharding metadata
+        // since the metadata is added in the same cluster state update as the number of shards is changed.
+        int numberOfShardsUsedInPIT = relocatedReshardingMetadata.shardCountAfter();
 
-        // This is a hack.
-        // Things like ShardSplittingQuery currently specifically depend on IndexMetadata class (and even our code below does).
-        // So to adhere to that contract we will adjust the current metadata
-        // that has possibly diverged by now to be similar to its state when the PIT was opened.
-        // Specifically the number of shards could change due to another resharding operation
-        // and resharding metadata will very likely not exist or differ for the same reason.
-        IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
-
-        return maybeWrapDirectoryReader(reader, shardId, relocatedSplitShardCountSummary, adjustedMetadata, mapperService);
-    }
-
-    // visible for testing
-    static IndexMetadata adjustMetadataForPitRelocation(
-        IndexMetadata currentIndexMetadata,
-        IndexReshardingMetadata relocatedReshardingMetadata
-    ) {
-        var builder = IndexMetadata.builder(currentIndexMetadata);
-
-        // This assumes that resharding-shrink doesn't exist and so number of shards can only increase.
-        assert currentIndexMetadata.getNumberOfShards() >= relocatedReshardingMetadata.shardCountAfter();
-        if (currentIndexMetadata.getNumberOfShards() > relocatedReshardingMetadata.shardCountAfter()) {
-            builder = builder.reshardRemoveShards(relocatedReshardingMetadata.shardCountAfter());
-        } else if (currentIndexMetadata.getNumberOfShards() < relocatedReshardingMetadata.shardCountAfter()) {
-            throw new IllegalStateException("Number of shards decreased over time");
+        if (shouldFilter(shardId, relocatedSplitShardCountSummary, numberOfShardsUsedInPIT, relocatedReshardingMetadata) == false) {
+            return reader;
         }
 
-        return builder.reshardingMetadata(relocatedReshardingMetadata).build();
+        if (IndexRouting.shouldUseShardCountModRouting(currentIndexMetadata.getCreationVersion()) == false) {
+            assert false : "Resharding is not supported for indices that use legacy routing";
+            throw new IllegalStateException("Resharding is not supported for indices that use legacy routing");
+        }
+        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(numberOfShardsUsedInPIT);
+        IndexRouting customRouting = IndexRouting.reshardingCustom(currentIndexMetadata, routingFunction, relocatedReshardingMetadata);
+
+        boolean routingRequired = currentIndexMetadata.mapping() == null ? false : currentIndexMetadata.mapping().routingRequired();
+        var shardSplittingQuery = new ShardSplittingQuery(
+            currentIndexMetadata.getIndex(),
+            shardId.id(),
+            numberOfShardsUsedInPIT,
+            customRouting,
+            currentIndexMetadata.getCreationVersion(),
+            currentIndexMetadata.isRoutingPartitionedIndex(),
+            routingRequired,
+            mapperService.hasNested()
+        );
+
+        return wrapReader(reader, shardSplittingQuery);
     }
 
     /**
@@ -97,16 +125,14 @@ public class ReshardSearchFilters {
      * @return a wrapped directory reader, or the original reader if no filtering is needed
      * @throws IOException if there is an error constructing the wrapped reader
      */
-    // ES-13106 we'll likely need to add some caching here to avoid duplicate bitsets and query execution
-    // across multiple searches.
-    public static DirectoryReader maybeWrapDirectoryReader(
+    public DirectoryReader maybeWrapDirectoryReader(
         DirectoryReader reader,
         ShardId shardId,
         SplitShardCountSummary summary,
         IndexMetadata indexMetadata,
         MapperService mapperService
     ) throws IOException {
-        if (shouldFilter(summary, indexMetadata, shardId) == false) {
+        if (shouldFilter(shardId, summary, indexMetadata.getNumberOfShards(), indexMetadata.getReshardingMetadata()) == false) {
             return reader;
         }
 
@@ -114,11 +140,20 @@ public class ReshardSearchFilters {
         final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
 
         // and this filter returns the documents that do not match the query, i.e. the documents that are owned by the shard
-        return new QueryFilterDirectoryReader(reader, query);
+        return wrapReader(reader, query);
+    }
+
+    private DirectoryReader wrapReader(DirectoryReader reader, ShardSplittingQuery query) throws IOException {
+        return new QueryFilterDirectoryReader(reader, query, unownedBitsetCache);
     }
 
     // visible for testing
-    static boolean shouldFilter(SplitShardCountSummary summary, IndexMetadata indexMetadata, ShardId shardId) {
+    static boolean shouldFilter(
+        ShardId shardId,
+        SplitShardCountSummary summary,
+        int numberOfShards,
+        IndexReshardingMetadata reshardingMetadata
+    ) {
         if (summary.equals(SplitShardCountSummary.UNSET)) {
             /// See ES-13108 to track injecting the summary at each call site that must provide it.
             /// In the meantime we default to not filtering if the summary is not provided. This
@@ -131,14 +166,13 @@ public class ReshardSearchFilters {
             return false;
         }
 
-        var decision = summary.check(indexMetadata);
+        var decision = summary.check(numberOfShards, reshardingMetadata);
         return switch (decision) {
             /// If the provided summary is older, then the request was only sent to the source shard
             /// and therefore should not be filtered.
             /// However, the request can be so stale that we would not have enough data to serve it after cleaning up
             /// unowned data. In that case we have to fail the request.
             case OLDER -> {
-                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
                 assert reshardingMetadata != null;
                 assert reshardingMetadata.isSplit();
 
@@ -162,7 +196,6 @@ public class ReshardSearchFilters {
                 /// But if the summary is current, that only means that we *may* have to filter.
                 /// * When no resharding is in progress, the summary should usually match, but we have no need to filter.
                 /// * We do not need to filter shards that have moved to DONE, since they have already removed unowned documents.
-                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
                 if (reshardingMetadata == null) {
                     // This is a common case - the summary is current and there is no ongoing split, nothing to do.
                     yield false;
@@ -190,20 +223,22 @@ public class ReshardSearchFilters {
      */
     static class QueryFilterDirectoryReader extends FilterDirectoryReader {
         private final Query query;
+        private final ReshardUnownedBitsetCache unownedBitsetCache;
 
-        QueryFilterDirectoryReader(DirectoryReader in, Query query) throws IOException {
+        QueryFilterDirectoryReader(DirectoryReader in, Query query, ReshardUnownedBitsetCache unownedBitsetCache) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new QueryFilterLeafReader(reader, query);
+                    return new QueryFilterLeafReader(reader, query, unownedBitsetCache);
                 }
             });
             this.query = query;
+            this.unownedBitsetCache = unownedBitsetCache;
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new QueryFilterDirectoryReader(in, query);
+            return new QueryFilterDirectoryReader(in, query, unownedBitsetCache);
         }
 
         @Override
@@ -214,13 +249,15 @@ public class ReshardSearchFilters {
 
     private static class QueryFilterLeafReader extends SequentialStoredFieldsLeafReader {
         private final Query query;
+        private final ReshardUnownedBitsetCache unownedBitsetCache;
 
         private int numDocs = -1;
         private BitSet filteredDocs;
 
-        protected QueryFilterLeafReader(LeafReader in, Query query) {
+        protected QueryFilterLeafReader(LeafReader in, Query query, ReshardUnownedBitsetCache unownedBitsetCache) {
             super(in);
             this.query = query;
+            this.unownedBitsetCache = unownedBitsetCache;
         }
 
         /**
@@ -277,35 +314,22 @@ public class ReshardSearchFilters {
                 synchronized (this) {
                     if (numDocs == -1) {
                         try {
-                            filteredDocs = queryFilteredDocs();
+                            filteredDocs = unownedBitsetCache.getBitSet(query, in.getContext());
                             numDocs = calculateNumDocs(in, filteredDocs);
-                        } catch (Exception e) {
-                            throw new ElasticsearchException("Failed to execute filtered documents query", e);
+                        } catch (ExecutionException e) {
+                            Throwable cause = e.getCause();
+                            throw new ElasticsearchException("Failed to execute filtered documents query", cause != null ? cause : e);
                         }
                     }
                 }
             }
         }
 
-        // Returns a BitSet of documents that match the query, or null if no documents match.
-        private BitSet queryFilteredDocs() throws IOException {
-            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(in.getContext());
-
-            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-            searcher.setQueryCache(null);
-
-            final Query rewrittenQuery = searcher.rewrite(query);
-            // TODO there is a possible optimization of checking for MatchAllDocsQuery which would mean that all documents are unowned.
-            final Weight weight = searcher.createWeight(rewrittenQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
-            final Scorer s = weight.scorer(in.getContext());
-            if (s == null) {
-                return null;
-            } else {
-                return BitSets.of(s.iterator(), in.maxDoc());
-            }
-        }
-
         private static int calculateNumDocs(LeafReader reader, BitSet unownedDocs) {
+            if (unownedDocs == null) {
+                return reader.numDocs();
+            }
+
             final Bits liveDocs = reader.getLiveDocs();
 
             // No deleted documents are present, therefore number of documents is total minus unowned.

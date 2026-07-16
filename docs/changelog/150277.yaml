@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150277
+summary: Add GCS keyless auth via workload identity
+type: enhancement

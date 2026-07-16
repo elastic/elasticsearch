@@ -27,10 +27,13 @@ public interface WhitelistAnnotationParser {
             new AbstractMap.SimpleEntry<>(DeprecatedAnnotation.NAME, DeprecatedAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(NonDeterministicAnnotation.NAME, NonDeterministicAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(InjectConstantAnnotation.NAME, InjectConstantAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(ScriptAwareAnnotation.NAME, ScriptAwareAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(CompileTimeOnlyAnnotation.NAME, CompileTimeOnlyAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(AugmentedAnnotation.NAME, AugmentedAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(DynamicTypeAnnotation.NAME, DynamicTypeAnnotationParser.INSTANCE),
-            new AbstractMap.SimpleEntry<>(AliasAnnotation.NAME, AliasAnnotationParser.INSTANCE)
+            new AbstractMap.SimpleEntry<>(AliasAnnotation.NAME, AliasAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(AllocatesConstantAnnotation.NAME, AllocatesConstantAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(AllocatesDynamicAnnotation.NAME, AllocatesDynamicAnnotationParser.INSTANCE)
         ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

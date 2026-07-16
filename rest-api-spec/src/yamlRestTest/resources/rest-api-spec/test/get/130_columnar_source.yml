@@ -1,0 +1,454 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index mode required"
+
+---
+
+keyword synthetic source:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              field.kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          field:
+            kwd: bar
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+        field.kwd: bar
+  - is_false: fields
+
+---
+
+keyword stored source:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              field.kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          field:
+            kwd: bar
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+        field.kwd: bar
+  - is_false: fields
+
+---
+
+source filtering - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          extra: bar
+
+  # include filter: only kwd
+  - do:
+      get:
+        index: test
+        id: 1
+        _source: kwd
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+  - is_false: _source.extra
+
+  # exclude filter: drop extra
+  - do:
+      get:
+        index: test
+        id: 1
+        _source_excludes: extra
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+  - is_false: _source.extra
+
+---
+
+search - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              field.kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          field:
+            kwd: bar
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: ["1"]
+  - match: {hits.total.value: 1}
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+        field.kwd: bar
+  - is_false: hits.hits.0.fields
+
+---
+
+get_source - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              field.kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          field:
+            kwd: bar
+
+  - do:
+      get_source:
+        index: test
+        id: 1
+
+  - match:
+      '':
+        kwd: foo
+        field.kwd: bar
+
+---
+
+fetch without refresh - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+            index.refresh_interval: -1
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: false
+        body:
+          kwd: foo
+
+  # realtime GET before refresh reads from translog
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+
+---
+
+bulk indexing - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"kwd": "foo"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"kwd": "bar"}'
+  - match: {errors: false}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match: {_source: {kwd: foo}}
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: {found: true}
+  - match: {_source: {kwd: bar}}
+
+---
+
+overwrite existing document - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              kwd2:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: initial
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: replaced
+          kwd2: added
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {_version: 2}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: replaced
+        kwd2: added
+
+---
+
+dynamic mapping - columnar stored:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          num: 42
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+        num: 42
+
+---
+
+dynamic false drops unmapped fields - columnar synthetic source:
+  - requires:
+      cluster_features: ["mapper.columnar.drops_dynamic_false_fields"]
+      reason: "columnar mode drops unmapped dynamic:false fields rather than storing in ignored source"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: mapped_value
+          unmapped_leaf: dropped
+          unmapped_obj:
+            key: also_dropped
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: mapped_value
+  - is_false: _source.unmapped_leaf
+  - is_false: _source.unmapped_obj
+
+---
+
+dynamic false drops unmapped fields - columnar stored source:
+  - requires:
+      cluster_features: ["mapper.columnar.drops_dynamic_false_fields"]
+      reason: "columnar mode drops unmapped dynamic:false fields rather than storing in ignored source"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            dynamic: false
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: mapped_value
+          unmapped_leaf: dropped
+          unmapped_arr:
+            - 1
+            - 2
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: mapped_value
+  - is_false: _source.unmapped_leaf
+  - is_false: _source.unmapped_arr

@@ -33,7 +33,7 @@ public class Cbrt extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cbrt", Cbrt::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Cbrt.class).unary(Cbrt::new).name("cbrt");
 
-    @FunctionInfo(returnType = "double", description = """
+    @FunctionInfo(returnType = "double", briefSummary = "Returns the cube root of a number.", description = """
         Returns the cube root of a number. The input can be any numeric value, the return value is always a double.
         Cube roots of infinities are null.""", examples = @Example(file = "math", tag = "cbrt"))
     public Cbrt(

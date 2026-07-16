@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -42,11 +44,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
 import org.elasticsearch.indices.recovery.DelayRecoveryException;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySnapshotFileRequest;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
@@ -662,6 +667,74 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         } finally {
             updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
         }
+    }
+
+    /// A direct cancellation of a started recovery (via `CancelRecoveriesAction`)
+    public void testDirectCancellationDuringSnapshotFileRestore() throws Exception {
+        final String sourceNode = internalCluster().startDataOnlyNode();
+
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put("index.routing.allocation.require._name", sourceNode)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(1, 1000);
+        indexDocs(indexName, numDocs, numDocs);
+
+        String repoName = "repo";
+        createRepo(repoName, "fs");
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        final String targetNode = internalCluster().startDataOnlyNode();
+
+        final CountDownLatch restoreFileRequestReceived = new CountDownLatch(1);
+        final CountDownLatch proceedWithRestoreFile = new CountDownLatch(1);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT, (handler, request, channel, task) -> {
+                restoreFileRequestReceived.countDown();
+                proceedWithRestoreFile.await();
+                handler.messageReceived(request, channel, task);
+            });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexName);
+        restoreFileRequestReceived.await();
+
+        waitNoPendingTasksOnAll();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+        final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
+
+        final String masterNode = internalCluster().getMasterName();
+        final CountDownLatch shardFailureReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
+                if (request instanceof ShardStateAction.FailedShardEntry failedShard
+                    && failedShard.getShardId().equals(shardId)
+                    && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
+                    shardFailureReceived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithRestoreFile.countDown();
+
+        safeAwait(shardFailureReceived);
     }
 
     public void testCancelledRecoveryAbortsDownloadPromptly() throws Exception {

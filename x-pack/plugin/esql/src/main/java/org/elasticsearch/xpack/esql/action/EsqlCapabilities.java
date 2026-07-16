@@ -2665,9 +2665,9 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar itself is gated by
-         * {@link org.elasticsearch.xpack.esql.parser.EsqlConfig#isExternalDataSourcesEnabled()}, so this capability
-         * mirrors that build-type check rather than reporting unconditionally enabled.
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
+         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
+         * grammar surface, rather than this capability mirroring a separate build-type check.
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 

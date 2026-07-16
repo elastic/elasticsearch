@@ -28,7 +28,7 @@ import java.util.Objects;
  * {@link Block#allowPassingToDifferentDriver()}, to switch to a thread-safe implementation that
  * uses {@code synchronized} blocks around the same {@code int} field.
  */
-public abstract class AbstractBlockRefCounter implements RefCounted, Releasable {
+public abstract class AbstractBlockRefCounted implements RefCounted, Releasable {
 
     private int refCount = 1;
     /**

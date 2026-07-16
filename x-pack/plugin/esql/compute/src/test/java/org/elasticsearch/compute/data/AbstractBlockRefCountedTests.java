@@ -14,13 +14,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests {@link AbstractBlockRefCounter}'s non-atomic-by-default / promote-to-atomic design directly,
+ * Tests {@link AbstractBlockRefCounted}'s non-atomic-by-default / promote-to-atomic design directly,
  * independent of any concrete {@link Block} or {@link Vector}.
  */
-public class AbstractBlockRefCounterTests extends ESTestCase {
+public class AbstractBlockRefCountedTests extends ESTestCase {
 
-    /** {@link AbstractBlockRefCounter} is abstract; this is the minimal concrete shape needed to exercise it. */
-    private static class TestRefCounted extends AbstractBlockRefCounter {
+    /** {@link AbstractBlockRefCounted} is abstract; this is the minimal concrete shape needed to exercise it. */
+    private static class TestRefCounted extends AbstractBlockRefCounted {
         private final AtomicInteger closeCount = new AtomicInteger();
 
         @Override

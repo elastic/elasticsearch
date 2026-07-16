@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class CompositeBlock extends AbstractBlockRefCounter implements Block {
+public final class CompositeBlock extends AbstractBlockRefCounted implements Block {
     private final Block[] blocks;
     private final int positionCount;
 

@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
-public final class LongRangeArrayBlock extends AbstractBlockRefCounter implements LongRangeBlock {
+public final class LongRangeArrayBlock extends AbstractBlockRefCounted implements LongRangeBlock {
     private final LongBlock fromBlock;
     private final LongBlock toBlock;
 

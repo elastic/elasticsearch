@@ -23,7 +23,7 @@ import java.io.IOException;
  * the additional ordinals vector. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefVector extends AbstractBlockRefCounter implements BytesRefVector {
+public final class OrdinalBytesRefVector extends AbstractBlockRefCounted implements BytesRefVector {
     private final IntVector ordinals;
     private final BytesRefVector bytes;
 

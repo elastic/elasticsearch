@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractBlockRefCounter
+public final class ConstantNullBlock extends AbstractBlockRefCounted
     implements
         BooleanBlock,
         IntBlock,

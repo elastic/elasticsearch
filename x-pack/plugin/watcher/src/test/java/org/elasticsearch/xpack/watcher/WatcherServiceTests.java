@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
@@ -75,9 +76,11 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -584,6 +587,73 @@ public class WatcherServiceTests extends ESTestCase {
         // watch must survive until the next reload when routing is available
         assertThat(service.pendingWatches(), aMapWithSize(1));
         assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    /**
+     * Verifies that when a {@code start()} is superseded by a {@code reload()} before the start task runs (i.e. a routing change
+     * arrives while watcher is still in STARTING state), triggered watches are still executed by the reload task.
+     * <p>
+     * The fix introduces {@code executeTriggeredPending}: the start task sets it to {@code true} before exiting early on the version
+     * mismatch, and the reload task picks it up to ensure {@code findTriggeredWatches} / {@code executeTriggeredWatches} are called.
+     */
+    public void testTriggeredWatchesExecutedWhenStartIsSupersededByReload() throws Exception {
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+
+        final var lifecycleThreadPoolName = "watcher-lifecycle";
+        final var executorService = EsExecutors.newFixed(
+            lifecycleThreadPoolName,
+            1,
+            5,
+            daemonThreadFactory(Settings.EMPTY, lifecycleThreadPoolName),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        try {
+            final var executorBlocker = new CountDownLatch(1);
+            executorService.submit(() -> {
+                try {
+                    executorBlocker.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+
+            WatcherService service = new WatcherService(
+                Settings.EMPTY,
+                mock(TriggerService.class),
+                triggeredWatchStore,
+                executionService,
+                mock(WatchParser.class),
+                client,
+                executorService
+            ) {
+                @Override
+                void stopExecutor() {}
+            };
+
+            // Cluster states with distinct versions so the version guard can distinguish them.
+            ClusterState stateV1 = new ClusterState.Builder(new ClusterName("_name")).version(1L).build();
+            ClusterState stateV2 = new ClusterState.Builder(new ClusterName("_name")).version(2L).build();
+
+            TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
+            when(triggeredWatchStore.findTriggeredWatches(any(), any())).thenReturn(List.of(triggeredWatch));
+
+            // start() with stateV1: queues task A, sets processedClusterStateVersion to 1.
+            service.start(stateV1, () -> {}, exception -> {});
+            // reload() with stateV2 before task A runs: queues task B, bumps version to 2.
+            service.reload(stateV2, "shard allocation changed", exception -> {});
+            // Let the threads run
+            executorBlocker.countDown();
+            // Wait till they're finished
+            safeGet(executorService.submit(() -> {}));
+            // Task A: reloadInner(stateV1, "starting", true) → sets executeTriggeredPending=true, exits early (version mismatch).
+            // Task B: reloadInner(stateV2, ..., false) → finds executeTriggeredPending=true, loads and executes triggered watches.
+            verify(triggeredWatchStore).findTriggeredWatches(any(), eq(stateV2));
+            verify(executionService).executeTriggeredWatches(List.of(triggeredWatch));
+        } finally {
+            executorService.shutdownNow();
+        }
     }
 
     private WatcherService createWatcherService(TriggerService triggerService) {

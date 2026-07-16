@@ -419,6 +419,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
+        if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
+            testCase.makeWarningsOptional();
+        }
         return testCase;
     }
 

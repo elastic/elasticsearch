@@ -69,7 +69,14 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         CsvTestCase testCase,
         String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions);
+        super(fileName, groupName, testName, lineNumber, maybeOptionalWarnings(testCase), instructions);
+    }
+
+    private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
+        if (bwcVersion.before(Version.V_9_6_0)) {
+            testCase.makeWarningsOptional();
+        }
+        return testCase;
     }
 
     @AfterClass

@@ -877,9 +877,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Compressed .csv.gz goes through CompressionDelegatingFormatReader; the declared format must reach the wrapped
-        // CSV reader (a missing wrapper override would silently drop it and diverge from the uncompressed result). The
-        // format/compression is driven by the compound `.csv.gz` extension — an explicit `format` override would bypass
-        // the extension-based compression wrapping entirely, so leave it off.
+        // CSV reader (a missing wrapper override would silently drop it and diverge from the uncompressed result). Format
+        // here is inferred from the compound `.csv.gz` extension; testExplicitFormatOverGzipCsvReads covers the sibling
+        // case of an explicit `format` setting composing with the same compression suffix.
         Path gz = createTempFile("dataset-date-fixture-", ".csv.gz");
         byte[] csv = ("ts:keyword,note:keyword\n10/Oct/2000:13:55:36 -0700,alpha\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gz))) {
@@ -920,6 +920,20 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // with "No operator factory for sourceType: gz". It must now resolve to "csv" (through the compression-unwrapping
         // registry) and read the row. Regression guard for the strict compound-extension read fix.
         assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false));
+    }
+
+    public void testExplicitFormatOverGzipCsvReads() throws Exception {
+        // Regression guard for the compressed-read-under-explicit-format fix: an explicit `format` setting used
+        // to bypass compression detection entirely (FormatNameResolver.resolveReader looked the format up by
+        // name with no regard for the resource's outer compression suffix), so this query used to fail trying
+        // to parse raw gzip bytes as CSV. `format: csv` must now compose with the `.csv.gz` suffix exactly like
+        // the extension-inferred path does.
+        assertStrictGzippedTextReads(
+            "logs_csv_gz_explicit_format",
+            ".csv.gz",
+            "some_ts,alpha\n",
+            Map.of("header_row", false, "format", "csv")
+        );
     }
 
     public void testStrictOverGzipTsvReads() throws Exception {

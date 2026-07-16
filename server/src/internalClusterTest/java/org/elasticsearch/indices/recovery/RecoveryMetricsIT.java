@@ -140,7 +140,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Total time measurements", totalTime, hasSize(1));
         Measurement metric = totalTime.getFirst();
         assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
-        assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
+        assertThat("Primary attribute", metric.attributes().get("es_is_primary"), equalTo(true));
         assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
     }
 
@@ -238,7 +238,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Total time measurements", totalTime, hasSize(greaterThanOrEqualTo(1)));
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
-            assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(false));
+            assertThat("Primary attribute", metric.attributes().get("es_is_primary"), equalTo(false));
             assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
 
             List<Measurement> indexTime = targetTelemetry.getLongHistogramMeasurement(
@@ -352,7 +352,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Total time measurements", totalTime, hasSize(1));
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
-            assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
+            assertThat("Primary attribute", metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
 
             awaitRecoveryCountMetrics(node1, node1Telemetry, Map.of(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE, 0L));

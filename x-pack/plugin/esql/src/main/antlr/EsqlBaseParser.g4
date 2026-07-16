@@ -396,7 +396,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryText=string ON highlightFields=qualifiedNames commandNamedParameters
+    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression ON highlightFields=qualifiedNames commandNamedParameters
     ;
 
 qualifiedNames

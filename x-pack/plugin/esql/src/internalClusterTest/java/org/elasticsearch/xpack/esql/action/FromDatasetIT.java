@@ -1080,7 +1080,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             "logs_csv_gz_explicit_format",
             ".csv.gz",
             "some_ts,alpha\n",
-            Map.of("header_row", false, "format", "csv")
+            Map.of("header_row", false, "format", "csv"),
+            "col0",
+            "col1"
         );
     }
 

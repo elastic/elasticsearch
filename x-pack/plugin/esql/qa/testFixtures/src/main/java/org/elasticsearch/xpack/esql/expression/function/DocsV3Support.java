@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -52,7 +52,9 @@ import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -232,7 +234,7 @@ public abstract class DocsV3Support {
     /**
      * Operators are unregistered functions.
      */
-    static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
+    public static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
         // Binary
         operatorEntry("equals", "==", Equals.class, OperatorCategory.BINARY),
         operatorEntry("not_equals", "!=", NotEquals.class, OperatorCategory.BINARY),
@@ -594,7 +596,7 @@ public abstract class DocsV3Support {
             case "match" -> "search-functions";
 
             // Grouping
-            case "bucket", "tbucket", "categorize" -> "grouping-functions";
+            case "bucket", "tbucket", "categorize", "without" -> "grouping-functions";
 
             // Time series
             case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";
@@ -761,6 +763,7 @@ public abstract class DocsV3Support {
             assert info != null;
             boolean hasTypes = renderTypes(name, description.args());
             renderParametersList(description.args());
+            renderBriefSummary(info.briefSummary());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
                 .stream()
@@ -921,6 +924,7 @@ public abstract class DocsV3Support {
             StringBuilder rendered = new StringBuilder(
                 docsWarning() + """
                     $APPLIES_TO$
+                    $BRIEF_SUMMARY$
                     ## Syntax
 
                     :::{image} /reference/query-languages/esql/images/generated/$PLUGIN_NAME$/$CATEGORY$/$NAME$.svg
@@ -932,6 +936,7 @@ public abstract class DocsV3Support {
                     .replace("$CATEGORY$", category)
                     .replace("$PLUGIN_NAME$", pluginName)
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
+                    .replace("$BRIEF_SUMMARY$", addInclude("briefSummary"))
             );
             for (String section : new String[] { "parameters", "description" }) {
                 rendered.append(addInclude(section));
@@ -1077,6 +1082,11 @@ public abstract class DocsV3Support {
                 }
 
                 @Override
+                public String briefSummary() {
+                    return orig.briefSummary();
+                }
+
+                @Override
                 public String detailedDescription() {
                     return "";
                 }
@@ -1138,6 +1148,7 @@ public abstract class DocsV3Support {
                 }
             }
             renderKibanaFunctionDefinition(name, titleName, info, args, variadic, observabilityTier);
+            renderBriefSummary(info.briefSummary());
             renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
             renderExamples(info);
@@ -1235,10 +1246,59 @@ public abstract class DocsV3Support {
                 if (observabilityTier != null && observabilityTier != ObservabilityTier.LOGS_ESSENTIALS) {
                     builder.field("observability_tier", observabilityTier.toString());
                 }
+                renderOutputBlock(builder, command);
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana command definition for [{}]", name);
                 logger.debug("{}", rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
+            }
+        }
+
+        /**
+         * Package prefix under which the {@code <Command>OutputFields} reflection targets live, in the
+         * ES|QL test sourceset alongside {@code CommandLicenseTests}.
+         */
+        private static final String OUTPUT_FIELDS_PACKAGE = "org.elasticsearch.xpack.esql.plan.logical.";
+
+        /**
+         * Renders the "output" block by finding a public static {@code renderOutput(XContentBuilder)}
+         * method on the matching {@code <Command>OutputFields} class and calling it. Commands without a
+         * matching class or without that method render nothing.
+         */
+        private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
+            Class<?> outputFieldsClass = findOutputFieldsClass(command);
+            if (outputFieldsClass == null) {
+                return;
+            }
+            try {
+                Method m = outputFieldsClass.getMethod("renderOutput", XContentBuilder.class);
+                if (Modifier.isStatic(m.getModifiers()) == false) {
+                    return;
+                }
+                m.invoke(null, builder);
+            } catch (NoSuchMethodException e) {
+                return;
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof IOException ioe) {
+                    throw ioe;
+                }
+                throw new RuntimeException(e);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        /**
+         * Finds the {@code <Command>OutputFields} reflection target for the given command by naming
+         * convention, avoiding a per-command switch statement or a dependency on the command's own package.
+         * Returns {@code null} if no such class exists, meaning the command has no known output schema.
+         */
+        private static Class<?> findOutputFieldsClass(LogicalPlan command) {
+            String className = OUTPUT_FIELDS_PACKAGE + command.getClass().getSimpleName() + "OutputFields";
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                return null;
             }
         }
 
@@ -1379,7 +1439,7 @@ public abstract class DocsV3Support {
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
-                builder.append("Map entries: \n    ");
+                builder.append("Map entries:\n");
 
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
@@ -1660,6 +1720,16 @@ public abstract class DocsV3Support {
         writeToTempSnippetsDir("description", rendered);
     }
 
+    void renderBriefSummary(String briefSummary) throws IOException {
+        if (Strings.isNullOrEmpty(briefSummary)) {
+            return;
+        }
+        String rendered = docsWarning() + briefSummary.trim() + "\n";
+        logger.info("Writing brief summary for [{}]", name);
+        logger.debug("{}", rendered);
+        writeToTempSnippetsDir("briefSummary", rendered);
+    }
+
     protected boolean renderExamples(FunctionInfo info) throws IOException {
         if (info == null || info.examples().length == 0) {
             return false;
@@ -1828,6 +1898,13 @@ public abstract class DocsV3Support {
                                 builder.field(constraint.getKey(), constraint.getValue());
                             }
                             builder.endObject();
+                        }
+                        if (arg.hint.allowedValues() != null && arg.hint.allowedValues().isEmpty() == false) {
+                            builder.startArray("allowedValues");
+                            for (String v : arg.hint.allowedValues()) {
+                                builder.value(v);
+                            }
+                            builder.endArray();
                         }
                         builder.endObject();
                     }

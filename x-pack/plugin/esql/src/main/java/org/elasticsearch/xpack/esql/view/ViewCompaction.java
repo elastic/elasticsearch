@@ -372,8 +372,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             if (pattern.startsWith("-")) {
                 return true;
             }
-            String[] split = RemoteClusterAware.splitIndexName(pattern);
-            if (split[0] != null && split[1].startsWith("-")) {
+            var split = RemoteClusterAware.splitIndexName(pattern);
+            if (split.clusterAlias() != null && split.indexExpression().startsWith("-")) {
                 return true;
             }
         }

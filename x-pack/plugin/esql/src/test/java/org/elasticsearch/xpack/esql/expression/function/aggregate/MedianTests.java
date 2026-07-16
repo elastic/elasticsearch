@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +49,7 @@ public class MedianTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100, true)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
                 .toList()
@@ -107,17 +108,14 @@ public class MedianTests extends AbstractAggregationTestCase {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
-            Double expected;
+            Matcher<?> resultMatcher;
             if (fieldTypedData.type() == DataType.EXPONENTIAL_HISTOGRAM) {
-
-                // Note that the merging used underneath can be dependent on the order if zero-buckets are involved
-                // therefore the percentile in theory could vary slightly
-                // however, it seems that the order is the same in the tests vs the reference computation
-                // if we ever encounter flakes here, we should replace the equalTo() assertion with an assertion on the relative error
-                expected = getExpectedPercentileForExponentialHistograms(Types.forciblyCast(fieldTypedData.multiRowData()), 50);
+                resultMatcher = getExpectedPercentileForExponentialHistograms(Types.forciblyCast(fieldTypedData.multiRowData()), 50);
             } else if (fieldTypedData.type() == DataType.TDIGEST) {
-                expected = getExpectedPercentileForTDigests(Types.forciblyCast(fieldTypedData.multiRowData()), 50);
+                Double expected = getExpectedPercentileForTDigests(Types.forciblyCast(fieldTypedData.multiRowData()), 50);
+                resultMatcher = expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10));
             } else {
+                Double expected;
                 try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
                     for (var value : fieldTypedData.multiRowData()) {
                         digest.add(((Number) value).doubleValue());
@@ -125,12 +123,13 @@ public class MedianTests extends AbstractAggregationTestCase {
 
                     expected = digest.size() == 0 ? null : digest.quantile(0.5);
                 }
+                resultMatcher = expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10));
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Percentile", fieldSupplier.type()),
                 DataType.DOUBLE,
-                expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
+                resultMatcher
             );
         });
     }

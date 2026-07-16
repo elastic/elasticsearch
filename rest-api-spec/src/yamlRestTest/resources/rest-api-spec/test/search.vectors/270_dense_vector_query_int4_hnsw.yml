@@ -1,0 +1,89 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_int4_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 8
+                index: true
+                similarity: cosine
+                index_options:
+                  type: int4_hnsw
+
+  - do:
+      index:
+        index: dv_int4_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05, 0.0] }
+  - do:
+      index:
+        index: dv_int4_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [0.1, 0.2, 0.3, 0.4, 0.6, 0.5, 0.4, 0.3] }
+  - do:
+      index:
+        index: dv_int4_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"dense_vector exact query against int4_hnsw uses raw scoring by default":
+  # int4_hnsw is more lossy than int8 but the raw path still iterates the preserved float values.
+  # Top hit must be the document whose vector matches the query (rabbit, all-equal vector).
+  - do:
+      search:
+        index: dv_int4_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+  - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "3"}
+  # Score against an identical (post-normalization) vector ⇒ ≈ 1.0; tighter than int8 because the raw
+  # path is unaffected by int4 quantization.
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}
+
+  - do:
+      search:
+        index: dv_int4_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+              quantized: true
+  - match: {hits.hits.0._id: "3"}
+  # quantized=true on int4 lets int4 quantization noise through — give a wider tolerance.
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.05}}
+
+---
+"similarity_function override on int4_hnsw":
+  # Same denormalization path as int8_hnsw: the override reconstructs the original vectors via the stored
+  # per-doc magnitude, then applies EUCLIDEAN directly against the full-precision preserved floats.
+  - do:
+      search:
+        index: dv_int4_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # dist² from query [0.4,0.5,…] to original doc 3 [0.5,0.5,…] = 0.01 → score = 1/1.01 ≈ 0.990.
+  - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
+

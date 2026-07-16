@@ -21,11 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -50,12 +48,14 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -87,7 +87,76 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .findFirst()
             .orElse(null);
         assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.withoutFields(), hasItem("pod"));
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
+    }
+
+    /**
+     * In PromQL {@code without ()} (empty parens) means "group by every label", i.e. the full runtime label set - not
+     * "no grouping". The innermost aggregate must therefore still own a {@code _timeseries} grouping key (with an empty
+     * exclusion set), otherwise the final PromQL projection references a {@code _timeseries} the plan never produced.
+     */
+    public void testTopLevelWithoutEmptyProducesTimeSeriesOutput() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(sum without () (network.bytes_in))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), empty());
+    }
+
+    /**
+     * Negative pin: a bare aggregate with no grouping clause ({@code sum(...)}) collapses every series into one result,
+     * so it must NOT carry a {@code _timeseries} grouping. Guards against the {@code without ()} fix over-triggering.
+     */
+    public void testBareAggregateDoesNotProduceTimeSeriesOutput() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(sum (network.bytes_in))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), not(hasItem(MetadataAttribute.TIMESERIES)));
+    }
+
+    /**
+     * Negative pin: {@code by ()} (empty parens) groups by nothing - the dual of {@code without ()} - and must NOT carry
+     * a {@code _timeseries} grouping either.
+     */
+    public void testByEmptyDoesNotProduceTimeSeriesOutput() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(sum by () (network.bytes_in))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), not(hasItem(MetadataAttribute.TIMESERIES)));
+    }
+
+    /**
+     * Regression for #149793: {@code without(label)} must exclude the label by name even when it does not resolve to a
+     * dimension {@link org.elasticsearch.xpack.esql.core.expression.FieldAttribute}. Before the fix, the dimension-only
+     * filter silently dropped such exclusions, so labels like Prometheus {@code instance} were retained in the
+     * {@code _timeseries} output. Here {@code event} is a mapped non-dimension field, exercising that path.
+     */
+    public void testWithoutExcludesNonDimensionLabelByName() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(sum without (pod, event) (network.bytes_in))", false)
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
@@ -108,7 +177,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
         PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
             dataNodePlan,
             StreamOutput::writeNamedWriteable,
@@ -126,7 +195,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localLogical = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), SearchStats.EMPTY)
@@ -142,7 +211,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         PhysicalPlan mappedLocalizedFragment = LocalMapper.INSTANCE.map(localizedFragment);
         var mappedPackedTimeSeriesValues = mappedLocalizedFragment.collect(
@@ -157,7 +226,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
@@ -181,32 +250,46 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(extractedTimeSeries.fieldName().string(), equalTo(SourceFieldMapper.NAME));
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
-        assertThat(functionConfig.withoutFields(), hasItem("pod"));
+        assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
     }
 
-    public void testNestedWithoutOverByProducesTimeSeriesOutput() {
+    public void testNestedWithoutOverByProducesConcreteOutput() {
+        // `without(pod)` over `by(cluster,region,pod)` drops pod from the concrete BY keys: the result is grouped by
+        // {cluster, region}, not the opaque `_timeseries` identity (which would leak every other label).
         var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))");
-        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster", "region")));
     }
 
-    public void testNestedWithoutOverByInnerByHasTimeSeriesWithout() {
+    public void testNestedWithoutOverByHasNoTimeSeriesGrouping() {
+        // The inner BY enumerates concrete labels, so the outer WITHOUT is a concrete re-grouping over those keys - no
+        // `_timeseries` identity is needed (or produced) anywhere in the plan.
         LogicalPlan analyzed = planPromql(
             "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))",
             false
         );
-        TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(
-            innerAggregate.toString(),
-            innerAggregate.groupings().stream().filter(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout).toList(),
-            hasSize(1)
-        );
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(0));
     }
 
     public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
         LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))", false);
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
-        assertTrue(innerAggregate.groupings().stream().anyMatch(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout));
-        assertThat(innerAggregate.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+        assertThat(
+            innerAggregate.aggregates()
+                .stream()
+                .filter(
+                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
+                        && values.field() instanceof FieldAttribute field
+                        && field.name().equals("cluster")
+                )
+                .toList(),
+            hasSize(1)
+        );
     }
 
     public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
@@ -217,9 +300,10 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
     }
 
-    public void testNestedWithoutOverPartialByProducesTimeSeriesOutput() {
+    public void testNestedWithoutOverPartialByProducesConcreteOutput() {
+        // `without(pod)` over `by(cluster,pod)` drops pod, leaving the concrete {cluster}.
         var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, pod) (network.cost)))");
-        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
     public void testAvgOverWithoutRangeAggregationPlans() {
@@ -254,13 +338,18 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
     }
 
-    public void testWithoutAbsentLabelIsNoOp() {
+    public void testWithoutAbsentLabelRetainsFullLabelSet() {
+        // `without(<absent label>)` excludes a label that is not present in the series - a no-op exclusion, equivalent
+        // to `without ()`. It therefore groups by the full runtime label set, so the inner aggregate MUST own a
+        // `_timeseries` grouping (with no real exclusion); it is not collapsed away. (Pre-#149793 this wrongly dropped
+        // the unmapped label and produced no `_timeseries`.)
         LogicalPlan analyzed = planPromql(
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))",
             false
         );
-        TimeSeriesAggregate innerTsa = analyzed.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(1));
     }
 
     public void testWithoutAllKnownLabelsProducesEmptyGrouping() {
@@ -272,6 +361,52 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         planPromql("PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))");
     }
 
+    /**
+     * Regression test for OTel passthrough alias exclusion: {@code without(cpu)} on an OTel TSDB index must
+     * resolve the short label name {@code cpu} to the concrete passthrough dimension {@code attributes.cpu},
+     * so the {@code _timeseries} block loader receives the concrete field name and correctly excludes it.
+     * Before the fix, the plan passed {@code "cpu"} in {@code excludedFields()} but the block loader compared
+     * against {@code "attributes.cpu"} (the concrete field name) and the exclusion never matched.
+     */
+    public void testWithoutOtelAttributeShortNameExcludesConcretePassthroughDimension() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.system.cpu.time))", false)
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
+    }
+
+    /**
+     * Regression test for OTel resource-attributes passthrough alias exclusion. The plan-level fix does not
+     * strip {@code resource.attributes.} prefix, so {@code excludedFields()} contains {@code "host.name"} (the
+     * short root-level alias). The block loader fix resolves the alias to the concrete dimension
+     * {@code resource.attributes.host.name} via {@code MappingLookup.getFieldType}, ensuring the exclusion
+     * actually matches the dimension the loader enumerates.
+     */
+    public void testWithoutResourceAttributeShortNameExcludesConcretePassthroughDimension() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=otel-metrics step=1h result=(sum without (host.name) (metrics.system.cpu.time))", false)
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("host.name"));
+    }
+
     public void testWithoutTrailingCommaPlans() {
         planPromql("PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))");
     }
@@ -281,8 +416,22 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))",
             false
         );
-        TimeSeriesAggregate innerTsa = analyzed.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+        TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(
+            innerAggregate.aggregates()
+                .stream()
+                .filter(
+                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
+                        && values.field() instanceof FieldAttribute field
+                        && field.name().equals("cluster")
+                )
+                .toList(),
+            hasSize(1)
+        );
+        // TimeSeriesMetadataAttribute shouldn't be getting created if without has no label
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(0));
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {

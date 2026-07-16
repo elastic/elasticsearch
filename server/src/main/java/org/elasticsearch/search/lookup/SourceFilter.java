@@ -121,8 +121,11 @@ public final class SourceFilter {
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {
-        for (int i = 0; state != -1 && i < key.length(); ++i) {
-            state = automaton.step(state, key.charAt(i));
+        // Step by code point, not UTF-16 char: the automaton is built over code points (see CharacterRunAutomaton#run).
+        for (int i = 0; state != -1 && i < key.length();) {
+            final int cp = key.codePointAt(i);
+            state = automaton.step(state, cp);
+            i += Character.charCount(cp);
         }
         return state;
     }

@@ -11,6 +11,7 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPreco
 apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
@@ -18,8 +19,10 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:tools'))
   javaRestTestImplementation project(xpackModule('esql'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  yamlRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   javaRestTestImplementation project(':libs:arrow')
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
@@ -28,6 +31,15 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
+}
+
+esqlCsvSpecTests {
+    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+    packageName = 'org.elasticsearch.xpack.esql.qa.single_node'
+    variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+    variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
+    variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
+    variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'
 }
 
 restResources {
@@ -45,6 +57,16 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  dependsOn generateEsqlSpecTests
+}
+tasks.named('check').configure { dependsOn csvSpecTests }
+
 // Second rest-test variant: runs EsqlSpecIT against a cluster with xpack security enabled and
 // the REST client authenticated as a superuser. The cluster reads the tests.cluster.security.enabled
 // system property (see Clusters.java); ESRestTestCase.restClientSettings() reads the two auth
@@ -53,11 +75,11 @@ tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
   filter {
-    // We can expand this task to support more test classes by removing this filter
-    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT'
+    // Runs the generated per-csv-spec-file classes with security enabled.
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.EsqlSpec*IT'
   }
   systemProperty 'tests.cluster.security.enabled', 'true'
   systemProperty 'tests.rest.cluster.username', 'test-admin'
@@ -67,6 +89,21 @@ tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+}
+
+// Runs only the CSV spec suite — used by the dedicated releaseTestCheckEsqlQa1 CI job.
+tasks.register('releaseTestCheckCsvSpec') {
+  group = 'Verification'
+  description = 'Runs csvSpecTests against a release distribution.'
+  dependsOn csvSpecTests
+}
+
+// Runs only the two REST test variants — used by the releaseTestCheckEsqlQa3 CI job.
+// csvSpecTests is excluded here; it runs in its own job via releaseTestCheckCsvSpec.
+tasks.register('releaseTestCheckRest') {
+  group = 'Verification'
+  description = 'Runs the REST test suites against a release distribution.'
+  dependsOn 'javaRestTest', 'yamlRestTest'
 }
 
 // Uncomment this to start automatically running this as part of CI

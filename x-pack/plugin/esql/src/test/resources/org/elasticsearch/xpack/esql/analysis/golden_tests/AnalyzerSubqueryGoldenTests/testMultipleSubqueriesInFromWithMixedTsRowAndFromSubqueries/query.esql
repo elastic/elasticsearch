@@ -1,0 +1,5 @@
+FROM
+    employees,
+    (TS k8s-downsampled | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
+    (FROM sample_data | STATS cnt = count(*)),
+    (ROW synthetic = 1)

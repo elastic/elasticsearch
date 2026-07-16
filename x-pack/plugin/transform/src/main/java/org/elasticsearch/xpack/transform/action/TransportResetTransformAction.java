@@ -65,6 +65,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
     private final Settings settings;
     private final Settings destIndexSettings;
     private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportResetTransformAction(
@@ -98,6 +99,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         this.settings = settings;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -157,6 +159,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // hasLinkedProjects (irrelevant since checkAccess is false)
                     request.ackTimeout(),
                     destIndexSettings,
+                    cloudCredentialManager,
+                    false, // mintCloudCredential — validate with stored credential only
                     updateTransformListener
                 );
             },

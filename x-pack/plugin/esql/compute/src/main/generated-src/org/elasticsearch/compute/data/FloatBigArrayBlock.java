@@ -97,9 +97,10 @@ public final class FloatBigArrayBlock extends AbstractArrayBlock implements Floa
     }
 
     @Override
-    public FloatBlock filter(boolean mayContainDuplicates, int... positions) {
-        try (var builder = blockFactory().newFloatBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public FloatBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newFloatBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

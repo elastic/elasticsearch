@@ -251,7 +251,7 @@ public final class CompositeBlock extends AbstractBlockRefCounter implements Blo
 
     @Override
     public long ramBytesUsed() {
-        return AbstractBlockRefCounter.REF_COUNT_BYTES_USED + Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
+        return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
     }
 
     static Block readFrom(StreamInput in) throws IOException {

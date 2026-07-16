@@ -197,6 +197,6 @@ public final class ConstantNullVector extends AbstractVector
 
     @Override
     public long ramBytesUsed() {
-        return AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
+        return 0;
     }
 }

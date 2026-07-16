@@ -234,7 +234,7 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                                 if (count == 0) {
                                     warnings.registerException(
                                         IllegalArgumentException.class,
-                                        "[aggregate_metric_double] fields has [value_count=0],"
+                                        "[aggregate_metric_double] field has [value_count=0],"
                                             + " so it cannot fallback to a single average value, treating result as null"
                                     );
                                     builder.appendNull();

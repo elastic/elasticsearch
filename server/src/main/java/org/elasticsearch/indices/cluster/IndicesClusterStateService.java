@@ -307,12 +307,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // execute them all (because the last thread that decreases the ref count to 0 of a {@link RefCountingListener}
                     // also executes its listeners, which in turn might decrease the ref count to 0 of another
                     // {@link RefCountingListerner}, again executing its listeners, etc...).
-                    ++shardsClosedListenerChainLength < 8 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
+                    shardsClosedListenerChainLength < 8 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
                     null
                 );
-                if (shardsClosedListenerChainLength >= 8) {
-                    shardsClosedListenerChainLength = 0;
-                }
                 // reset the variable before applying the cluster state
                 closingMoreShards = false;
             }
@@ -324,8 +321,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (closingMoreShards == false) {
                 // avoids chaining when no shard has been closed after applying this cluster state
                 lastClusterStateShardsClosedListener = previousShardsClosedListener;
-                if (shardsClosedListenerChainLength > 0) {
-                    shardsClosedListenerChainLength--;
+            } else {
+                // only update the chain length when closing more shards
+                if (shardsClosedListenerChainLength < 8) {
+                    shardsClosedListenerChainLength++;
+                } else {
+                    shardsClosedListenerChainLength = 0;
                 }
             }
         }

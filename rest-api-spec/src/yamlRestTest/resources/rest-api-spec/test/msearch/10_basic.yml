@@ -4,6 +4,12 @@ setup:
       test_runner_features: allowed_warnings
 
   - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_allow_partial_results: false
+
+  - do:
       index:
           index:  index_1
           id:     "1"
@@ -29,6 +35,14 @@ setup:
 
   - do:
       indices.refresh: {}
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_allow_partial_results: null
 
 ---
 "Basic multi-search":
@@ -74,7 +88,6 @@ setup:
         allow_no_indices: false
         expand_wildcards: open
         include_named_queries_score: false
-        allow_partial_search_results: false
         index: index_*
         body:
           - index: index_*

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -59,6 +60,7 @@ public final class HighlightQueryBuilders {
      * Checks that the expression contains only full-text functions supported by HIGHLIGHT.
      */
     private static void verifyQueryStructure(Expression expr, List<String> onFields) {
+        // TODO: Allow HIGHLIGHT queries to use expressions other than full-text functions.
         switch (expr) {
             case Match match -> requireOnField(fieldName(match.field()), onFields);
             case MatchPhrase matchPhrase -> requireOnField(fieldName(matchPhrase.field()), onFields);
@@ -148,7 +150,8 @@ public final class HighlightQueryBuilders {
      * they are not {@link FieldAttribute}s.
      */
     private static QueryBuilder build(Expression expr) {
-        if (usesRuntimeSearchMatch(expr) == false) {
+        boolean runtimeSearch = expr.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch());
+        if (runtimeSearch == false) {
             // TODO: MATCH on a union-typed field translates to the underlying field name, which won't match the
             // ON column name the MemoryIndex is keyed by.
             var query = TranslatorHandler.TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, expr);
@@ -158,6 +161,7 @@ public final class HighlightQueryBuilders {
             }
             return query.toQueryBuilder();
         }
+        // TODO: Use TranslatorHandler for runtime searches instead of rebuilding the query here.
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
             case Or or -> QueryBuilders.boolQuery().should(build(or.left())).should(build(or.right()));
@@ -166,14 +170,6 @@ public final class HighlightQueryBuilders {
             case MatchPhrase matchPhrase -> QueryBuilders.matchPhraseQuery(fieldName(matchPhrase.field()), queryText(matchPhrase.query()));
             default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");
         };
-    }
-
-    /** True if the expression contains a MATCH/MATCH_PHRASE whose target isn't an index-mapped field. */
-    private static boolean usesRuntimeSearchMatch(Expression expr) {
-        return expr.anyMatch(
-            e -> (e instanceof Match match && match.field() instanceof FieldAttribute == false)
-                || (e instanceof MatchPhrase matchPhrase && matchPhrase.field() instanceof FieldAttribute == false)
-        );
     }
 
     private static String fieldName(Expression field) {
@@ -189,9 +185,9 @@ public final class HighlightQueryBuilders {
         return context.toQuery(builder).query();
     }
 
-    /** Builds a Lucene query against synthetic fields for use by {@link #verify}. */
-    private static Query buildLuceneQuery(Expression queryExpr, List<String> onFields) {
-        return toLuceneQuery(toQueryBuilder(queryExpr, onFields), RuntimeSearchExecutionContext.create(onFields));
+    /** Builds and discards a Lucene query so {@link #verify} can report invalid syntax or options. */
+    private static void buildLuceneQuery(Expression queryExpr, List<String> onFields) {
+        toLuceneQuery(toQueryBuilder(queryExpr, onFields), RuntimeSearchExecutionContext.create(onFields));
     }
 
     /**

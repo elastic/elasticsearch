@@ -1542,6 +1542,42 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# With zero_terms_query set to all, punctuation-only input still matches every row. Since analysis produces no terms,
+# there is nothing to highlight.
+highlightMatchZeroTermsQueryAllNoAnalyzedTerms
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH(title, "! , ?", {"zero_terms_query": "all"}) ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | null
+7350            | null
+;
+
+
+# With the AND operator, every analyzed term must be present. Only the title containing both terms matches, and both
+# terms are highlighted.
+highlightMatchAndOperatorMultipleTerms
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH(title, "Return Shadow", {"operator": "AND"}) ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | null
+7350            | <em>Return</em> of the <em>Shadow</em>
+;
+
+
 # QSTR supports phrase_slop.
 highlightQueryStringPhraseSlop
 required_capability: highlight_v4

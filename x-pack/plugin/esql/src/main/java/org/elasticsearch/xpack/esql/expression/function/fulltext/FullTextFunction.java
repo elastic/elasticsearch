@@ -213,7 +213,7 @@ public abstract class FullTextFunction extends Function
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 
-    protected boolean isRuntimeSearch() {
+    public boolean isRuntimeSearch() {
         return false;
     }
 

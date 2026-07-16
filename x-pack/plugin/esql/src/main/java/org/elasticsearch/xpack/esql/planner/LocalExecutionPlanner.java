@@ -1318,6 +1318,7 @@ public class LocalExecutionPlanner {
         if (queryExpr == null) {
             throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
+        // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
 

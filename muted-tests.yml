@@ -178,9 +178,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
-  method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
-  issue: https://github.com/elastic/elasticsearch/issues/148246
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
@@ -538,9 +535,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/153695
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=msearch/10_basic/Least impact smoke test}
-  issue: https://github.com/elastic/elasticsearch/issues/153697
 - class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
   method: testES92ConstructorRejectsUnwrappedFilterIndexInput
   issue: https://github.com/elastic/elasticsearch/issues/153738
@@ -625,9 +619,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/154037
-- class: org.elasticsearch.index.mapper.DocValuesParameterTests
-  method: testIndexSettingIgnoreDefaultsFieldToIgnore
-  issue: https://github.com/elastic/elasticsearch/issues/154054
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
   method: testPreFlushWaitsForOngoingFlushes
   issue: https://github.com/elastic/elasticsearch/issues/154061
@@ -655,3 +646,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/154197
+- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
+  method: testWildcardSpanningIndexAndDatasetSucceeds
+  issue: https://github.com/elastic/elasticsearch/issues/154200

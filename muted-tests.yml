@@ -178,9 +178,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
-  method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
-  issue: https://github.com/elastic/elasticsearch/issues/148246
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
@@ -232,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecWhereLikeIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149964
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testDataVisibility
-  issue: https://github.com/elastic/elasticsearch/issues/150028
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/150045
@@ -637,18 +631,12 @@ tests:
 - class: org.elasticsearch.index.mapper.DocValuesParameterTests
   method: testIndexSettingIgnoreDefaultsFieldToIgnore
   issue: https://github.com/elastic/elasticsearch/issues/154054
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:BASELINE}
-  issue: https://github.com/elastic/elasticsearch/issues/154058
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
   method: testPreFlushWaitsForOngoingFlushes
   issue: https://github.com/elastic/elasticsearch/issues/154061
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/154062
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:BASELINE}
-  issue: https://github.com/elastic/elasticsearch/issues/154058
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateInManyThreads {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/154070

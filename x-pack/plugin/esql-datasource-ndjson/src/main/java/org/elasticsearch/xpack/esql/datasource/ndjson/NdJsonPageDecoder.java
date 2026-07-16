@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -1667,6 +1668,7 @@ public class NdJsonPageDecoder implements Closeable {
                 case UNSIGNED_LONG -> decodeUnsignedLongValue(parser, token, inArray);
                 case DOUBLE -> decodeDoubleValue(parser, token, inArray);
                 case DATETIME -> decodeDatetimeValue(parser, token, inArray);
+                case DATE_NANOS -> decodeDateNanosValue(parser, token, inArray);
                 case KEYWORD, TEXT -> {
                     var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
                     ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
@@ -1823,13 +1825,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void decodeDatetimeValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
-            if (declaredFormatter != null && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT)) {
+            if (declaredFormatter != null
+                && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)) {
                 // A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
                 // CsvFormatReader.tryParseDatetime does (declaredFormatters win over looksNumeric): a column
                 // declared {datetime, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT as epoch
-                // millis. Parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME
-                // string->datetime conversion the columnar readers use — so identical bytes + declared format
-                // yield the same instant across every format.
+                // millis, and {datetime, format:"epoch_second"} reads 1704067200.5 as fractional seconds. Parses
+                // through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME string->datetime
+                // conversion the columnar readers use — so identical bytes + declared format yield the same
+                // instant across every format. getValueAsString returns the token's source text verbatim; a
+                // token the format cannot parse (e.g. a scientific-notation float like 1.7E9 under
+                // epoch_second) fails per value through the read's error policy, never silently.
                 try {
                     ((LongBlock.Builder) blockBuilder).appendLong(
                         DeclaredTypeCoercions.parseDatetimeMillis(parser.getValueAsString(), declaredFormatter)
@@ -1846,6 +1852,15 @@ public class NdJsonPageDecoder implements Closeable {
                 } catch (InputCoercionException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
+                // No declared format: a fractional JSON number is epoch milliseconds and rounds to the nearest
+                // milli, matching the ::datetime semantic (ToDatetime maps DOUBLE via safeDoubleToLong) and the
+                // columnar double->datetime coercion (supports(DOUBLE, DATETIME) is true).
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(DataTypeConverter.safeDoubleToLong(parser.getDoubleValue()));
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
             } else if (token == JsonToken.VALUE_STRING) {
                 // No declared format: parse with the file-level formatter (STRICT_DATE_OPTIONAL_TIME by default).
                 try {
@@ -1854,8 +1869,67 @@ public class NdJsonPageDecoder implements Closeable {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
             } else {
-                // a boolean, or a fractional number, in a datetime column: unsupported cross-kind drift
+                // a boolean (or a non-scalar) in a datetime column: unsupported cross-kind drift
                 crossKindDrift(parser, inArray, DataType.DATETIME);
+            }
+        }
+
+        /**
+         * The {@code date_nanos} twin of {@link #decodeDatetimeValue}, one rail down — mirroring
+         * {@code CsvFormatReader.tryParseDateNanos} exactly:
+         * <ul>
+         *   <li>a declared {@code format} is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
+         *       the datetime arm above (declared formatters win over token kind);</li>
+         *   <li>a numeric token without one is epoch <b>nanoseconds</b> — the declared type names the numeric
+         *       unit ({@code datetime} = millis, {@code date_nanos} = nanos; see {@code DeclaredTypeCoercions}).
+         *       A negative epoch has no {@code date_nanos} representation, so it fails the cell through the
+         *       error policy rather than ever emitting a negative nanos long;</li>
+         *   <li>a string token without one parses with the file-level {@link #datetimeFormatter} — the same
+         *       rail the datetime arm and CSV use ({@code strict_date_optional_time} by default, which parses
+         *       nanosecond fractions) — but through {@code dateNanosToLong} so the instant lands in nanos.</li>
+         * </ul>
+         * Every parse arm goes through {@link EsqlDataTypeConverter#dateNanosToLong}, the SAME string -&gt;
+         * date_nanos conversion the columnar declared coercion and CSV use, so identical bytes with an
+         * identical declared format yield the same instant across every format. A boolean or a fractional
+         * number is an unsupported cross-kind drift, matching the datetime arm.
+         */
+        private void decodeDateNanosValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (declaredFormatter != null
+                && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)) {
+                // The unit rule, mirroring the datetime arm: a declared format names the unit / parse dialect, so a
+                // fractional token is meaningful through it (epoch_second reads 1704067200.5 as sub-second precision,
+                // which date_nanos can actually represent). Without a format a fractional token stays cross-kind drift
+                // below — a fraction of a nanosecond has no meaning, nanos being the type's finest unit.
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(
+                        EsqlDataTypeConverter.dateNanosToLong(parser.getValueAsString(), declaredFormatter)
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    long nanos = parser.getLongValue();
+                    if (nanos < 0) {
+                        // pre-epoch: no date_nanos representation — per-cell failure, never a negative nanos long
+                        coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS);
+                    } else {
+                        ((LongBlock.Builder) blockBuilder).appendLong(nanos);
+                    }
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS); // beyond-long epoch: a real value error
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(
+                        EsqlDataTypeConverter.dateNanosToLong(parser.getValueAsString(), datetimeFormatter)
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS);
+                }
+            } else {
+                // a boolean, or a fractional number, in a date_nanos column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.DATE_NANOS);
             }
         }
 

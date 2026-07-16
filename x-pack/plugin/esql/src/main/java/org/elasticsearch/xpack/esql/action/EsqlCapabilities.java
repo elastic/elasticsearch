@@ -2665,9 +2665,9 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar itself is gated by
-         * {@link org.elasticsearch.xpack.esql.parser.EsqlConfig#isExternalDataSourcesEnabled()}, so this capability
-         * mirrors that build-type check rather than reporting unconditionally enabled.
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
+         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
+         * grammar surface, rather than this capability mirroring a separate build-type check.
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
@@ -3391,6 +3391,18 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
          */
         SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
+         */
+        FIX_MATCH_FUZZINESS_ON_VERSION_FIELD,
+
+        /**
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
+         */
+        FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

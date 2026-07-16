@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,7 +23,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
-import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -38,7 +36,9 @@ import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class RecoveryDirectCancellationService {
@@ -84,15 +84,14 @@ public class RecoveryDirectCancellationService {
     /// immediately and reported back as shard failures. Started recoveries are flagged for cancellation and go through the
     /// usual shardFailure notification to master path ([ShardStateAction]).
     public void computeAndSubmitCancellations(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
-        final ClusterState clusterState = routingAllocation.getClusterState();
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                final DirectCancellationsCandidates cancellations = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
-                if (cancellations.isEmpty()) {
+                final var requests = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
+                if (requests.isEmpty()) {
                     return;
                 }
-                sendCancellations(clusterState.term(), clusterState.version(), cancellations);
+                sendCancellations(requests);
             }
 
             @Override
@@ -101,7 +100,7 @@ public class RecoveryDirectCancellationService {
                     () -> "failed to compute or send direct recovery cancellations for desired balance ["
                         + desiredBalance.lastConvergedIndex()
                         + "] and cluster state version ["
-                        + clusterState.version()
+                        + routingAllocation.getClusterState().version()
                         + "]",
                     e
                 );
@@ -109,12 +108,14 @@ public class RecoveryDirectCancellationService {
         });
     }
 
-    private void sendCancellations(long term, long clusterStateVersion, DirectCancellationsCandidates directCancellations) {
+    /// Sends a batch of direct recovery cancellations to the specified data nodes, lets each node decide
+    /// whether to honor each cancellation and fails any shard the data node cancelled straight out of its queue.
+    private void sendCancellations(Map<DiscoveryNode, CancelRecoveriesAction.Request> requests) {
         if (enableDirectRecoveryCancellations == false) {
             logger.debug(
                 "[{}] is disabled, would have sent direct recovery cancellations {}",
                 ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(),
-                directCancellations
+                requests
             );
             return;
         }
@@ -123,20 +124,15 @@ public class RecoveryDirectCancellationService {
             logger.debug(
                 "not every node in the cluster supports direct recovery cancellation yet, "
                     + "would have sent direct recovery cancellations {}",
-                directCancellations
+                requests
             );
             return;
         }
-        for (DirectCancellationsCandidates.Candidates nodeCandidates : directCancellations.candidates()) {
-            sendDirectCancelRecoveriesRequest(
-                nodeCandidates.node(),
-                new CancelRecoveriesAction.Request(term, clusterStateVersion, nodeCandidates.cancellations())
-            );
+        for (var nodeRequest : requests.entrySet()) {
+            sendDirectCancelRecoveriesRequest(nodeRequest.getKey(), nodeRequest.getValue());
         }
     }
 
-    /// Sends a batch of direct recovery cancellations to a specific data node, lets the node decide
-    /// whether to honor each cancellation and fails any shard the data node cancelled straight out of its queue.
     void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
         transportService.sendRequest(
             node,
@@ -182,9 +178,14 @@ public class RecoveryDirectCancellationService {
     // visible for testing
     // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
     // before the previous cancellations have had time to take effect.
-    static DirectCancellationsCandidates computeDirectCancellationCandidates(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeDirectCancellationCandidates(
+        DesiredBalance desiredBalance,
+        RoutingAllocation allocation
+    ) {
+        final long term = allocation.getClusterState().term();
+        final long version = allocation.getClusterState().version();
         final RoutingNodes routingNodes = allocation.routingNodes();
-        final List<DirectCancellationsCandidates.Candidates> candidates = new ArrayList<>();
+        final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();
         for (RoutingNode routingNode : routingNodes) {
             List<ShardRecoveryCancellation> nodeCancellations = new ArrayList<>();
             for (ShardRouting shardRouting : routingNode) {
@@ -207,10 +208,10 @@ public class RecoveryDirectCancellationService {
                 );
             }
             if (nodeCancellations.isEmpty() == false) {
-                candidates.add(new DirectCancellationsCandidates.Candidates(routingNode.node(), nodeCancellations));
+                cancellationRequests.put(routingNode.node(), new CancelRecoveriesAction.Request(term, version, nodeCancellations));
             }
         }
-        return new DirectCancellationsCandidates(candidates);
+        return cancellationRequests;
     }
 
     private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {

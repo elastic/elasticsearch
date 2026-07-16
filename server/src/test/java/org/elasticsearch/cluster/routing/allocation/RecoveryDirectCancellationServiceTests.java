@@ -48,7 +48,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -108,27 +107,27 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
 
         final var routingAllocation = createRoutingAllocationFrom(clusterState);
-        final var candidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, routingAllocation)
-            .candidates();
+        final var requests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, routingAllocation);
 
-        assertThat(candidates, hasSize(1));
-        final var candidate = candidates.getFirst();
-        assertThat(candidate.node(), equalTo(clusterState.nodes().get("node-1")));
-        assertThat(candidate.cancellations(), hasSize(1));
-        final var cancellation = candidate.cancellations().getFirst();
+        assertThat(requests.entrySet(), hasSize(1));
+        final var node1 = clusterState.nodes().get("node-1");
+        final var request = requests.get(node1);
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
         assertThat(cancellation.shardId(), equalTo(undesiredShardId));
         assertThat(cancellation.allocationId(), equalTo(undesiredReplicaAllocationId.getId()));
         assertFalse(cancellation.cancelIfStarted());
 
         final var forbidRemainOnNode1 = forbidRemainDecider(undesiredShardId, "node-1", false);
         final var routingAllocationWithForbidRemain = createRoutingAllocationFrom(clusterState, forbidRemainOnNode1);
-        final var escalatedCandidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(
+        final var escalatedRequests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(
             balance,
             routingAllocationWithForbidRemain
-        ).candidates();
+        );
 
-        assertThat(escalatedCandidates, hasSize(1));
-        assertTrue(escalatedCandidates.getFirst().cancellations().getFirst().cancelIfStarted());
+        assertThat(escalatedRequests.entrySet(), hasSize(1));
+        assertTrue(escalatedRequests.get(node1).cancellations().getFirst().cancelIfStarted());
     }
 
     public void testDirectCancellationCandidatesForInitializingPrimary() {
@@ -152,14 +151,16 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
         final var forbidRemain = forbidRemainDecider(shardId, "node-1", true);
 
-        final var candidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(
+        final var requests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(
             balance,
             createRoutingAllocationFrom(clusterState, forbidRemain)
-        ).candidates();
+        );
 
-        assertThat(candidates, hasSize(1));
-        assertThat(candidates.getFirst().cancellations(), hasSize(1));
-        final var cancellation = candidates.getFirst().cancellations().getFirst();
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
         assertThat(cancellation.shardId(), equalTo(shardId));
         assertThat(cancellation.allocationId(), equalTo(primaryAllocationId.getId()));
         assertFalse(cancellation.cancelIfStarted());
@@ -186,12 +187,13 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         allocation.routingNodes()
             .relocateShard(startedPrimary, "node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, "test-setup", allocation.changes());
 
-        final var candidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation).candidates();
+        final var requests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation);
 
-        assertThat(candidates, hasSize(1));
-        assertThat(candidates.getFirst().node(), equalTo(clusterState.nodes().get("node-1")));
-        assertThat(candidates.getFirst().cancellations(), hasSize(1));
-        final var cancellation = candidates.getFirst().cancellations().getFirst();
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
         assertThat(cancellation.shardId(), equalTo(shardId));
         assertTrue(cancellation.cancelIfStarted());
     }
@@ -223,12 +225,13 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var forbidRemain = forbidRemainDecider(shardId, "node-1", true);
 
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        final var candidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation).candidates();
+        final var requests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation);
 
-        assertThat(candidates, hasSize(1));
-        assertThat(candidates.getFirst().node(), equalTo(clusterState.nodes().get("node-1")));
-        assertThat(candidates.getFirst().cancellations(), hasSize(1));
-        final var cancellation = candidates.getFirst().cancellations().getFirst();
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
         assertThat(cancellation.shardId(), equalTo(shardId));
         assertThat(cancellation.allocationId(), equalTo(searchOnlyAllocationId.getId()));
         assertFalse(cancellation.cancelIfStarted());
@@ -266,12 +269,13 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
 
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        final var candidates = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation).candidates();
+        final var requests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation);
 
-        assertThat(candidates, hasSize(1));
-        assertThat(candidates.getFirst().node(), equalTo(clusterState.nodes().get("node-1")));
-        assertThat(candidates.getFirst().cancellations(), hasSize(1));
-        final var cancellation = candidates.getFirst().cancellations().getFirst();
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
         assertThat(cancellation.shardId(), equalTo(shardId));
         assertThat(cancellation.allocationId(), equalTo(initializingSearchOnlyAllocationId.getId()));
         assertTrue(cancellation.cancelIfStarted());
@@ -311,7 +315,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         when(state.getMinTransportVersion()).thenReturn(TransportVersion.current());
         final var service = new RecoveryDirectCancellationService(
             transportService,
-            createMockClusterService(state),
+            createMockClusterService(state, false),
             mock(AllocationService.class),
             mock(RerouteService.class)
         );
@@ -353,14 +357,9 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(RoutingTable.builder().add(indexRoutingTable))
             .build();
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
         final var routingAllocation = createRoutingAllocationFrom(replicaClusterState, forbidRemainDecider(shardId, "node-1", false));
         final var expectedCancellation = new ShardRecoveryCancellation(shardId, replicaAllocationId.getId(), true);
-        final var node = routingAllocation.routingNodes().node("node-1").node();
-        final var request = new CancelRecoveriesAction.Request(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            List.of(expectedCancellation)
-        );
         final var taskQueue = new DeterministicTaskQueue();
         final var transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
@@ -373,7 +372,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         when(clusterState.getMinTransportVersion()).thenReturn(unsupportedTransportVersion);
         final var service = new RecoveryDirectCancellationService(
             transportService,
-            createMockClusterService(clusterState),
+            createMockClusterService(clusterState, true),
             mock(AllocationService.class),
             mock(RerouteService.class)
         );
@@ -387,7 +386,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     "*not every node in the cluster supports direct recovery cancellation yet*" + expectedCancellation.allocationId() + "*"
                 )
             );
-            service.sendDirectCancelRecoveriesRequest(node, request);
+            service.computeAndSubmitCancellations(desiredBalance, routingAllocation);
+            taskQueue.runAllRunnableTasks();
             mockLog.assertAllExpectationsMatched();
         }
 
@@ -414,10 +414,13 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         return TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).mutable();
     }
 
-    private ClusterService createMockClusterService(ClusterState clusterState) {
-        final Set<Setting<?>> settings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settings.add(RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING);
-        final var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
+    private ClusterService createMockClusterService(ClusterState clusterState, boolean enableDirectCancellations) {
+        final Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING);
+        final var initialSettings = Settings.builder()
+            .put(RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(), enableDirectCancellations)
+            .build();
+        final var clusterSettings = new ClusterSettings(initialSettings, settingSet);
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

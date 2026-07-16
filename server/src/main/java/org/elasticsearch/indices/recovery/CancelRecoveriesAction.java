@@ -91,6 +91,17 @@ public class CancelRecoveriesAction {
         public int hashCode() {
             return Objects.hash(term, clusterStateVersion, shardRecoveryCancellations);
         }
+
+        @Override
+        public String toString() {
+            return "CancelRecoveriesAction.Request{term="
+                + term
+                + ", clusterStateVersion="
+                + clusterStateVersion
+                + ", cancellations="
+                + shardRecoveryCancellations
+                + "}";
+        }
     }
 
     /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.

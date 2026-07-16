@@ -4189,7 +4189,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .flatMap(ip -> Arrays.stream(ip.getIndices()))
             .collect(Collectors.toSet());
 
-        // Positive: all 7 Defend endpoint patterns must have remote read privileges.
+        // Positive: all 6 Defend endpoint patterns must have remote read privileges.
         // Representative concrete names that each pattern must cover are listed in comments.
         assertThat(remotePatterns, hasItem(".logs-endpoint.action.responses-*"));  // .logs-endpoint.action.responses-default
         assertThat(remotePatterns, hasItem(".fleet-actions-results*"));             // .fleet-actions-results
@@ -4197,11 +4197,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remotePatterns, hasItem(".metrics-endpoint.metadata_united_default*")); // .metrics-endpoint.metadata_united_default
         assertThat(remotePatterns, hasItem("metrics-endpoint.policy-*"));           // metrics-endpoint.policy-default
         assertThat(remotePatterns, hasItem("logs-endpoint.events.*"));              // logs-endpoint.events.process-default
-        assertThat(remotePatterns, hasItem("logs-endpoint.alerts-*"));              // logs-endpoint.alerts-default
 
-        // Negative: actions index is local to the managing cluster only; heartbeat is not read over CCS.
+        // Negative: actions and heartbeat excluded for architectural reasons;
+        // endpoint alerts may contain user data — Kibana intentionally reads them as the current user, not kibana_system.
         assertThat(remotePatterns, not(hasItem(".logs-endpoint.actions-*")));
         assertThat(remotePatterns, not(hasItem(".logs-endpoint.heartbeat-*")));
+        assertThat(remotePatterns, not(hasItem("logs-endpoint.alerts-*")));
 
         // Verify each Defend remote entry carries read and read_cross_cluster privileges.
         final Set<String> defendPatterns = Set.of(
@@ -4210,8 +4211,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "metrics-endpoint.metadata_current_*",
             ".metrics-endpoint.metadata_united_default*",
             "metrics-endpoint.policy-*",
-            "logs-endpoint.events.*",
-            "logs-endpoint.alerts-*"
+            "logs-endpoint.events.*"
         );
         Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
             .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)

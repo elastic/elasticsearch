@@ -2065,7 +2065,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
-                        .datasetName(datasetName)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2251,7 +2250,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
-                    .datasetName(datasetName)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2332,7 +2330,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
-            .datasetName(datasetName)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -2389,7 +2386,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .maxRecordBytes(maxRecordBytes)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
-                        .datasetName(datasetName)
                         .build();
                     opened = reader.read(storageObject, ctx);
                 }

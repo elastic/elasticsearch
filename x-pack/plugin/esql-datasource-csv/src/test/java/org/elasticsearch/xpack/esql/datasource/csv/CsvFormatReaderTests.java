@@ -6570,31 +6570,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [EventTime] is not present in some source files")));
     }
 
-    /** The absent-column warning names its dataset, so ES's identical-string dedup keys per (dataset, column), not per query. */
-    public void testAbsentDeclaredColumnWarningNamesDataset() throws Exception {
-        StorageObject object = createStorageObject("id,ts\n42,7\n");
-        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG));
-        List<String> warnings = new ArrayList<>();
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredPathBinding(true);
-        try (
-            CloseableIterator<Page> it = reader.read(
-                object,
-                FormatReadContext.builder()
-                    .firstSplit(true)
-                    .recordAligned(true)
-                    .batchSize(10)
-                    .readSchema(readSchema)
-                    .datasetName("employees")
-                    .informationalWarningSink(warnings::add)
-                    .build()
-            )
-        ) {
-            it.next().releaseBlocks();
-        }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [nope] of dataset [employees] is not present")));
-    }
-
     /** A non-canonical headerless index ({@code col007} — inference names field 7 exactly {@code col7}) reads null. */
     public void testHeaderlessNonCanonicalIndexReadsNull() throws Exception {
         StorageObject object = createStorageObject("a,b,c,d,e,f,g,h\n");

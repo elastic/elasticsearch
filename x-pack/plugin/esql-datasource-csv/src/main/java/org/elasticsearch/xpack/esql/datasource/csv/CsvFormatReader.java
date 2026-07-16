@@ -952,20 +952,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * headerless split — collapses to a single response warning through the identical-string dedup of the warning
      * layer, rather than flooding one per file.
      */
-    private static void warnAbsentDeclaredColumns(
-        int[] schemaFieldIndex,
-        List<Attribute> readSchema,
-        @Nullable String datasetName,
-        Consumer<String> warningSink
-    ) {
+    private static void warnAbsentDeclaredColumns(int[] schemaFieldIndex, List<Attribute> readSchema, Consumer<String> warningSink) {
         if (schemaFieldIndex == null || warningSink == null) {
             return;
         }
-        String scope = datasetName != null ? " of dataset [" + datasetName + "]" : "";
         for (int i = 0; i < schemaFieldIndex.length; i++) {
             if (schemaFieldIndex[i] == ABSENT_FIELD) {
                 String name = readSchema.get(i).name();
-                warningSink.accept("declared column [" + name + "]" + scope + " is not present in some source files and reads null there");
+                warningSink.accept("declared column [" + name + "] is not present in some source files and reads null there");
             }
         }
     }
@@ -1729,11 +1723,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
-                // The schema was supplied from OUTSIDE the file (a declared mapping) and binds positionally — the
-                // header is otherwise ignored, so a declaration whose order disagrees with the file would silently
-                // read the wrong columns. Cross-check the header names instead of blindly skipping the line.
-                // This throws BEFORE ownership of the stream chain transfers to the returned iterator, so the
-                // reader must be closed here — otherwise the file handle leaks (caught by LeakFS in CI).
+                // A declared (pinned) schema binds its columns to the header BY NAME (when declaredPathBinding), which
+                // consumes the header line — so it is read here, not skipped. Runs before ownership of the stream chain
+                // transfers to the returned iterator, so the reader must be closed here or the file handle leaks
+                // (caught by LeakFS in CI).
                 try {
                     schemaFieldIndex = validateDeclaredHeaderBinding(consumeHeaderLine(recordReader), readSchema, object);
                 } catch (Exception e) {
@@ -1758,7 +1751,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + "] reached a non-first split; the declared-name split gate did not hold"
                 );
             }
-            warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.datasetName(), context.informationalWarningSink());
+            warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.informationalWarningSink());
             effectiveSchema = readSchema;
         } else if (context.firstSplit()) {
             // resolvedSchema from withSchema(...) is the projected output, not the file's column

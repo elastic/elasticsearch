@@ -107,8 +107,7 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
-    @Nullable Consumer<String> informationalWarningSink,
-    @Nullable String datasetName
+    @Nullable Consumer<String> informationalWarningSink
 ) {
 
     public FormatReadContext {
@@ -153,8 +152,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink,
-            datasetName
+            informationalWarningSink
         );
     }
 
@@ -177,8 +175,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink,
-            datasetName
+            informationalWarningSink
         );
     }
 
@@ -201,8 +198,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink,
-            datasetName
+            informationalWarningSink
         );
     }
 
@@ -231,8 +227,6 @@ public record FormatReadContext(
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
-        @Nullable
-        private String datasetName = null;
 
         private Builder() {}
 
@@ -324,12 +318,6 @@ public record FormatReadContext(
             return this;
         }
 
-        /** See {@link FormatReadContext#datasetName()}; scopes an absent-declared-column warning to its dataset. */
-        public Builder datasetName(@Nullable String datasetName) {
-            this.datasetName = datasetName;
-            return this;
-        }
-
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -349,8 +337,7 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
-                informationalWarningSink,
-                datasetName
+                informationalWarningSink
             );
         }
     }

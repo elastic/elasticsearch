@@ -21,7 +21,7 @@ package org.elasticsearch.xpack.esql.datasources;
  *       the self-encoded {@code col<N>} names of a headerless text file). It is never a silent positional fallback; a
  *       declared name the file does not supply is the absence case below (null + one warning), not an error.</li>
  *   <li><b>existence</b> — a {@link #DECLARED} column the file does not supply reads null in every declared mode (the
- *       declaration wins — it names the schema), and the mismatch is surfaced by one deduplicated per-dataset warning so a typo'd
+ *       declaration wins — it names the schema), and the mismatch is surfaced by one deduplicated warning so a typo'd
  *       name or a dropped upstream column is not invisible. It is not an error. An {@link #INFERRED} column cannot be
  *       absent: it was read from the file.</li>
  *   <li><b>coercion</b> — a {@link #DECLARED} type licenses a lossy read-time narrowing toward it; an {@link #INFERRED}

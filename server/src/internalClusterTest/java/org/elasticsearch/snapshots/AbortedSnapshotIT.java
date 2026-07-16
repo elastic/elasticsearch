@@ -105,7 +105,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         stopBlocking.set(true);
         safeAwait(barrier); // release snapshot thread
 
-        awaitClusterState(state -> SnapshotsInProgress.get(state).isEmpty());
+        awaitClusterState(dataNode, state -> SnapshotsInProgress.get(state).isEmpty());
     }
 
 }

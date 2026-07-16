@@ -55,6 +55,7 @@ public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrog
 
     @FunctionInfo(
         returnType = "integer",
+        briefSummary = "Converts a value to an integer.",
         description = """
             Converts an input value to an integer value.
             If the input parameter is of a date type, its value will be interpreted as milliseconds

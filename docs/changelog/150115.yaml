@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 150115
+summary: Add circuit breaker to `TransportMultiSearchAction`
+type: enhancement

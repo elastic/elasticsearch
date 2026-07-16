@@ -706,7 +706,7 @@ setup:
   - match: { completed: true }
   - match: { id: $task }
   - match: { cancelled: true }
-  - match: { status.canceled: '/^(by\ user\ request|task\ cancelled\ \[by\ user\ request\]|cancelled|canceled)$/' }
+  - match: { status.canceled: '/^(by\ user\ request|task\ cancelled\ \[by\ user\ request\]|parent\ task\ was\ cancelled\ \[by\ user\ request\]|cancelled|canceled)$/' }
 
 ---
 "Cancel reindex forbidden without reindex/cancel permission":

@@ -58,8 +58,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     private ClusterSettings clusterSettings;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterApplierService() throws Exception {
         threadPool = new TestThreadPool(ClusterApplierServiceTests.class.getName()) {
             @Override
             public long relativeTimeInMillis() {
@@ -79,12 +78,11 @@ public class ClusterApplierServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterApplierService() throws Exception {
         clusterApplierService.close();
         if (threadPool != null) {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
-        super.tearDown();
     }
 
     private ClusterApplierService createClusterApplierService(boolean makeMaster) {

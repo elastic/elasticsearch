@@ -62,8 +62,10 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
@@ -113,6 +115,7 @@ public class KnnSearcher {
     private final Path indexPath;
     private final Path queryPath;
     private final int numDocs;
+    private final int numDeletedDocs;
     private final int numQueryVectors;
     private final KnnIndexTester.IndexType indexType;
     private final boolean sliced;
@@ -127,6 +130,7 @@ public class KnnSearcher {
         this.indexPath = indexPath;
         this.queryPath = testConfiguration.queryVectors();
         this.numDocs = testConfiguration.numDocs();
+        this.numDeletedDocs = testConfiguration.numDeletedDocs();
         this.numQueryVectors = testConfiguration.numQueries();
         this.dim = testConfiguration.dimensions();
         this.similarityFunction = testConfiguration.vectorSpace();
@@ -349,9 +353,23 @@ public class KnnSearcher {
     public record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
 
     /** Executes searches using the pre-built setup and populates result metrics. */
-    void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup)
-        throws IOException {
-        doSearch(finalResults, searchParameters, dir, setup.floatQueries(), setup.byteQueries(), setup.provider(), setup.consumer());
+    void search(
+        KnnIndexTester.Results finalResults,
+        SearchParameters searchParameters,
+        Directory dir,
+        SearchSetup setup,
+        TestConfiguration testConfiguration
+    ) throws IOException {
+        doSearch(
+            finalResults,
+            searchParameters,
+            dir,
+            setup.floatQueries(),
+            setup.byteQueries(),
+            setup.provider(),
+            setup.consumer(),
+            testConfiguration
+        );
     }
 
     /**
@@ -366,7 +384,8 @@ public class KnnSearcher {
         float[][] floatQueries,
         byte[][] byteQueries,
         FilterQueryProvider filterProvider,
-        ResultsConsumer resultsConsumer
+        ResultsConsumer resultsConsumer,
+        TestConfiguration testConfiguration
     ) throws IOException {
         if (sliced && indexType != KnnIndexTester.IndexType.IVF) {
             logger.info("Data configurartion is sliced but this setting has no effect for index type \"{}\"", indexType);
@@ -412,7 +431,7 @@ public class KnnSearcher {
                     ? new IndexSearcher(reader, executorService)
                     : new IndexSearcher(reader);
 
-                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced;
+                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
                 // warm up
                 for (int i = 0; i < totalSearches; i++) {
@@ -422,7 +441,7 @@ public class KnnSearcher {
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                         doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                     } else {
-                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
+                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
                     }
                 }
 
@@ -434,7 +453,14 @@ public class KnnSearcher {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                         } else {
-                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
+                            results[searchIdx] = doVectorQuery(
+                                floatQueries[qIdx],
+                                searcher,
+                                filter,
+                                searchParameters,
+                                partition,
+                                testConfiguration
+                            );
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -523,6 +549,8 @@ public class KnnSearcher {
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+        finalResults.exact = searchParameters.exact();
+        finalResults.exactQuantized = searchParameters.exactQuantized();
         if (finalResults.totalIndexVectors > 0) {
             finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;
         }
@@ -605,6 +633,7 @@ public class KnnSearcher {
                 indexPath,
                 queryPath,
                 numDocs,
+                numDeletedDocs,
                 numQueryVectors,
                 sampledPartitions,
                 params.topK(),
@@ -678,6 +707,7 @@ public class KnnSearcher {
                 docPath,
                 queryPath,
                 numDocs,
+                numDeletedDocs,
                 numQueryVectors,
                 searchParameters.topK(),
                 similarityFunction.ordinal(),
@@ -710,12 +740,12 @@ public class KnnSearcher {
     private boolean isNewer(Path path, List<Path> paths, Path... others) throws IOException {
         FileTime modified = Files.getLastModifiedTime(path);
         for (Path p : paths) {
-            if (Files.getLastModifiedTime(p).compareTo(modified) >= 0) {
+            if (p != null && Files.exists(p) && Files.getLastModifiedTime(p).compareTo(modified) >= 0) {
                 return false;
             }
         }
         for (Path other : others) {
-            if (Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
+            if (other != null && Files.exists(other) && Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
                 return false;
             }
         }
@@ -723,6 +753,9 @@ public class KnnSearcher {
     }
 
     TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
+        if (searchParameters.exact()) {
+            return doExactVectorQuery(vector, searcher, filterQuery, searchParameters);
+        }
         Query knnQuery;
         if (searchParameters.overSamplingFactor() > 1f) {
             throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
@@ -748,27 +781,46 @@ public class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters, BytesRef partition)
-        throws IOException {
+    TopDocs doVectorQuery(
+        float[] vector,
+        IndexSearcher searcher,
+        Query filterQuery,
+        SearchParameters searchParameters,
+        BytesRef partition,
+        TestConfiguration testConfiguration
+    ) throws IOException {
+        if (searchParameters.exact()) {
+            return doExactVectorQuery(vector, searcher, filterQuery, searchParameters);
+        }
         Query knnQuery;
-        int overSampledTopK = searchParameters.topK();
+        final int resultK = searchParameters.topK();
+        int overSampledTopK = resultK;
         if (searchParameters.overSamplingFactor() > 1f) {
-            // oversample the topK results to get more candidates for the final result
-            overSampledTopK = (int) Math.ceil(overSampledTopK * searchParameters.overSamplingFactor());
+            overSampledTopK = (int) Math.ceil(resultK * searchParameters.overSamplingFactor());
         }
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
+            float mappingOversample = searchParameters.overSamplingFactor() > 0f
+                ? searchParameters.overSamplingFactor()
+                : DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+            int quantBits = testConfiguration.quantizeBits() != null ? testConfiguration.quantizeBits() : 4;
+            var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                testConfiguration.autoCalibrate(),
+                doPrecondition,
+                quantBits,
+                mappingOversample,
+                null // we don't differentiate between mapping and query oversample here
+            );
             if (sliced) {
                 knnQuery = new IVFKnnFloatSlicedVectorQuery(
                     VECTOR_FIELD,
                     vector,
-                    overSampledTopK,
+                    resultK,
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition,
-                    searchParameters.overSamplingFactor(),
+                    ivfQueryConfigResolver,
                     PARTITION_ID_FIELD,
                     partition
                 );
@@ -776,12 +828,11 @@ public class KnnSearcher {
                 knnQuery = new IVFKnnFloatVectorQuery(
                     VECTOR_FIELD,
                     vector,
-                    overSampledTopK,
+                    resultK,
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition,
-                    searchParameters.overSamplingFactor()
+                    ivfQueryConfigResolver
                 );
             }
         } else {
@@ -795,9 +846,8 @@ public class KnnSearcher {
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
         }
-        if (searchParameters.overSamplingFactor() > 1f) {
-            // oversample the topK results to get more candidates for the final result
-            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, searchParameters.topK(), overSampledTopK, knnQuery);
+        if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {
+            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());
@@ -805,6 +855,22 @@ public class KnnSearcher {
         QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
         queryProfilerProvider.profile(profiler);
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+    }
+
+    private TopDocs doExactVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters)
+        throws IOException {
+        DenseVectorQuery exactQuery = searchParameters.exactQuantized()
+            ? DenseVectorQuery.Floats.codecScored(vector, VECTOR_FIELD)
+            : DenseVectorQuery.Floats.rawScored(vector, VECTOR_FIELD, similarityFunction, false);
+        return searcher.search(exactQuery.filteredBy(filterQuery), searchParameters.topK());
+    }
+
+    private TopDocs doExactVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters)
+        throws IOException {
+        DenseVectorQuery exactQuery = searchParameters.exactQuantized()
+            ? DenseVectorQuery.Bytes.codecScored(vector, VECTOR_FIELD)
+            : DenseVectorQuery.Bytes.rawScored(vector, VECTOR_FIELD, similarityFunction);
+        return searcher.search(exactQuery.filteredBy(filterQuery), searchParameters.topK());
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {
@@ -896,6 +962,11 @@ public class KnnSearcher {
         }
     }
 
+    /**
+     * {@link ComputeNNFloatTask} and {@link ComputeNNByteTask} deliberately score with Lucene's
+     * {@link FunctionQuery}/{@link FloatVectorSimilarityFunction}/{@link ByteVectorSimilarityFunction}
+     * rather than {@link DenseVectorQuery} to establish correctness.
+     */
     static class ComputeNNFloatTask implements Callable<Void> {
 
         private final int queryOrd;

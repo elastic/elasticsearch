@@ -291,7 +291,8 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
             scoring,
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
     }
 

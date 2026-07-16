@@ -919,7 +919,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .collect(Collectors.toSet());
             assert matchedIndices.isEmpty() == false;
             return resolvedIndexExpression(pattern, matchedIndices, SUCCESS);
-        }).toList());
+        }).toList(), null);
 
         final String[] expectedIndices = expectedResolvedIndexExpressions.getLocalIndicesList().toArray(String[]::new);
 
@@ -3901,7 +3901,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             remoteExpressions
         );
     }

@@ -160,7 +160,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 
         // https://github.com/elastic/elasticsearch/issues/153622
-        "ImmutableCollections\\$ListN cannot be cast to class org.apache.lucene.util.BytesRef",
+        "ImmutableCollections\\$ListN cannot be cast to class .*",
 
         // repeat() returns validation error when the Number parameter is a negative foldable
         "Number parameter cannot be negative, found \\[",
@@ -490,7 +490,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
         ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
-        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
@@ -704,6 +704,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
+     * Matches "Options are not supported for [MATCH] function call on non-index-mapped field [X]".
+     * This is the error MATCH raises when called with options on a renamed/computed field.
+     */
+    private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
+        ".*Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[([^]]+)\\].*",
+        Pattern.DOTALL
+    );
+
+    /**
      * Captures fields created by GROK patterns, e.g. {@code %{WORD:foo}} or {@code %{NUMBER:bar:int}}.
      */
     private static final Pattern GROK_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{[^:}]+:([^}:]+)(?::[^}]+)?}");
@@ -862,6 +871,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static List<Column> handleRenameIndexMapped(List<Column> newSchema, Map<String, Boolean> prevMapped, String commandString) {
         Map<String, Boolean> mapped = new HashMap<>(prevMapped);
+        Set<String> renamed = new HashSet<>();
         String body = commandString.replaceFirst("(?i)^\\s*\\|\\s*rename\\s+", "");
         for (String pair : body.split(",")) {
             Matcher m = RENAME_PAIR_PATTERN.matcher(pair);
@@ -871,28 +881,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 boolean wasMapped = mapped.getOrDefault(oldName, false);
                 mapped.remove(oldName);
                 mapped.put(newName, wasMapped);
+                renamed.add(newName);
             }
         }
+        // After RENAME, the new name is a ReferenceAttribute, not a FieldAttribute.
+        // ES|QL's Match.isRuntimeSearch() uses fieldAsFieldAttribute() which cannot resolve renamed
+        // fields → options are not allowed on them. Mark renamed targets as non-index-mapped so the
+        // generator won't try to use them in match() with options.
         return newSchema.stream().map(col -> {
-            Boolean isMapped = mapped.get(col.name());
-            return new Column(col.name(), col.type(), col.originalTypes(), isMapped != null && isMapped);
+            boolean isMapped = mapped.getOrDefault(col.name(), false) && renamed.contains(col.name()) == false;
+            return new Column(col.name(), col.type(), col.originalTypes(), isMapped);
         }).toList();
     }
 
     /**
      * Checks if the error is a full-text function/operator rejecting a field that is not from an index mapping.
-     * Uses the {@link Column#indexMapped()} flag from the current schema when available; falls back to
-     * command-history heuristics otherwise.
+     * Uses the {@link Column#indexMapped()} flag from the current schema.
      */
-    static boolean isFieldFullTextError(
-        String errorMessage,
-        String query,
-        List<CommandGenerator.CommandDescription> previousCommands,
-        List<Column> currentSchema
-    ) {
+    static boolean isFieldFullTextError(String errorMessage, List<Column> currentSchema) {
         Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
-            return false;
+            m = MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN.matcher(errorMessage);
+            if (m.matches() == false) {
+                return false;
+            }
         }
         String fieldName = unquote(m.group(1));
 

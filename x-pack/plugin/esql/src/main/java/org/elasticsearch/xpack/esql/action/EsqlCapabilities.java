@@ -596,11 +596,6 @@ public class EsqlCapabilities {
         UNION_TYPES,
 
         /**
-         * Support unmapped using the INSIST keyword.
-         */
-        UNMAPPED_FIELDS(Build.current().isSnapshot()),
-
-        /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
@@ -2670,9 +2665,11 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access).
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
+         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
+         * grammar surface, rather than this capability mirroring a separate build-type check.
          */
-        EXTERNAL_COMMAND,
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -3123,9 +3120,10 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
-         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
+         * Requires the grammar change introduced in the same release.
          */
-        MATCH_RUNTIME_SEARCH,
+        MATCH_OPERATOR_LHS_EXPRESSION(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.
@@ -3157,6 +3155,13 @@ public class EsqlCapabilities {
          * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
          */
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
+
+        /**
+         * Under {@code unmapped_fields="load"} or {@code "nullify"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts
+         * as a mention, so the field is surfaced across the branches (materialized from {@code _source} under {@code load}, null-filled
+         * under {@code nullify}) and null-filled in the dropping one. Dropping it in every branch surfaces nothing.
+         */
+        OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -3386,6 +3391,18 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
          */
         SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
+         */
+        FIX_MATCH_FUZZINESS_ON_VERSION_FIELD,
+
+        /**
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
+         */
+        FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

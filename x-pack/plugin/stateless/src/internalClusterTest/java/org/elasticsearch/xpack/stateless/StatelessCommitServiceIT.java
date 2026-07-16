@@ -214,9 +214,11 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             "--> Index shard's tracked search nodes: {}",
             StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard(indexNodeCommitService, shardId)
         );
-        // There is still a little race with blob store file deletion after cycling the StatelessCommitService machinery above.
+        // searchNodeA's release of the old commit is asynchronous and may lag the single cycle above, so re-poll the search nodes on each
+        // retry. kickConsistencyService alone never re-fetches search-node commit usage, so the full cycle must run inside the loop for the
+        // stale commit to ever be marked deletable and removed from the blob store.
         assertBusy(() -> {
-            kickConsistencyService(indexNode);
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
             Set<PrimaryTermAndGeneration> shardCommitBlobs = listBlobsTermAndGenerations(shardId);
             for (PrimaryTermAndGeneration generation : commitsBeforeForceMerge) {

@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -125,26 +126,27 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """, "Unknown column [does_not_exist_field]");
     }
 
-    public void testFailDropWithNonMatchingStar() {
-        assertUnmappedFailure(test(), """
-            FROM test
-            | DROP does_not_exist_field*
-            """, "No matches found for pattern [does_not_exist_field*]");
-    }
-
-    public void testFailDropWithMatchingAndNonMatchingStar() {
-        assertUnmappedFailure(test(), """
-            FROM test
-            | DROP emp_*, does_not_exist_field*
-            """, "No matches found for pattern [does_not_exist_field*]");
-    }
-
     public void testFailEvalAfterDrop() {
         assertUnmappedFailure(test(), """
             FROM test
             | DROP does_not_exist_field
             | EVAL x = does_not_exist_field + 1
             """, "3:12: Unknown column [does_not_exist_field]");
+    }
+
+    // A DROP wildcard matching an existing but unsupported-typed field (which reports resolved()==false) must still drop it under
+    // nullify/load (so not be mistaken for a non-matching pattern and skipped).
+    public void testDropWildcardMatchingUnsupportedField() {
+        TestAnalyzer analyzer = analyzer().addIndex("test", "mapping-multi-field-variation.json");
+        for (Function<String, String> setUnmapped : List.<Function<String, String>>of(
+            AnalyzerUnmappedTestBase::setUnmappedNullify,
+            AnalyzerUnmappedTestBase::setUnmappedLoad
+        )) {
+            assertThat(
+                Expressions.names(analyzer.statement(setUnmapped.apply("FROM test | DROP unsupp*")).output()),
+                equalTo(Expressions.names(analyzer.statement(setUnmapped.apply("FROM test | DROP unsupported")).output()))
+            );
+        }
     }
 
     public void testFailFilterAfterDrop() {
@@ -420,6 +422,33 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadModeAllowsForkWithUnmappedFieldInBranch() {
         test().statement(setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"));
+    }
+
+    // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
+    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveFork.
+    public void testLoadModeRejectsMultipleForksWithDroppedUnmappedField() {
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message) (WHERE true)
+            | FORK (WHERE true) (WHERE true)
+            """), containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // Same guard as above for a FORK nested inside a FORK branch: the outer branch drops the unmapped field ahead of the inner FORK,
+    // so both the outer sibling materialization and the nesting are seen before the single-FORK rejection fires.
+    public void testLoadModeRejectsNestedForkWithDroppedUnmappedField() {
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message | FORK (WHERE true) (WHERE true)) (WHERE true)
+            """), containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testLoadModeRejectsSubqueryUnionForkWithDroppedUnmappedField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM (FROM partial_mapping_sample_data),(FROM partial_mapping_sample_data)
+            | FORK (DROP unmapped_message) (WHERE true)
+            """), containsString("FORK after subquery is not supported"));
     }
 
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
@@ -923,7 +952,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSingleTypeLongUnmappedAutoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -946,24 +975,24 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testTypeConflictLongKeywordUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("baz", Map.of())
+                fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("test2", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("test3", Map.of())
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
+        var resolutions = indexResolutions(mergedResolution("test1,test2,test3", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+            typeConflictVerificationFailure(setUnmappedLoad("FROM test1, test2, test3 " + suffix), resolutions);
         }
     }
 
     public void testTypeConflictLongIntUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -980,7 +1009,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSameMappingHashNotPartiallyUnmapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -1002,7 +1031,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSameMappingHashWithUnmappedIndexAutoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(

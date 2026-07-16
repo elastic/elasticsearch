@@ -59,5 +59,12 @@
         "auto-backport"
       ]
     }
+  ],
+  "baseBranches": [
+    "main",
+    "9.5",
+    "9.4",
+    "9.3",
+    "8.19"
   ]
 }

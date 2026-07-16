@@ -20,8 +20,7 @@ import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 
 /**
- * Selects the appropriate TSDB doc values format based on index settings,
- * feature flags, and index version.
+ * Selects the appropriate TSDB doc values format based on index settings and index version.
  */
 public final class TSDBDocValuesFormatSelector {
 

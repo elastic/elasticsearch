@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152496
+pr: 152697
+summary: "[ES|QL]: Fix EVAL after STATS with union types/PUNK"
+type: bug

@@ -194,6 +194,14 @@ public interface IndexEventListener {
     }
 
     /**
+     * Called before an index shard recovery retry attempt is made. Only called on retry attempts, not on the first recovery attempt.
+     * At this point, the shard has been removed and not yet recreated.
+     *
+     * @param shardId the shard ID for the retry attempt
+     */
+    default void beforeIndexShardRecoveryRetry(ShardId shardId) {}
+
+    /**
      * Called after the raw files have been restored from the repository but any other recovery processing has happened
      * @param indexShard the shard that is recovering
      */

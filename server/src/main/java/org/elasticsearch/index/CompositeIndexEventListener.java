@@ -339,6 +339,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
+    public void beforeIndexShardRecoveryRetry(ShardId shardId) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.beforeIndexShardRecoveryRetry(shardId);
+            } catch (Exception e) {
+                logger.warn("failed to invoke on index shard recovery retry", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
     public void afterFilesRestoredFromRepository(IndexShard indexShard) {
         for (IndexEventListener listener : listeners) {
             try {

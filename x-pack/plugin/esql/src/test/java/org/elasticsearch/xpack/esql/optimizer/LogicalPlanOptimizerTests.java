@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -197,7 +196,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -2952,45 +2950,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 )
             )
         );
-    }
-
-    public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_\uD83D\uDC14 foo");
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        assertPartialTypeKeyword(relation, "foo");
-    }
-
-    public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword");
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-
-        assertPartialTypeKeyword(relation, "partial_type_keyword");
-    }
-
-    public void testInsist_multipleInsistClauses_insistsAreFolded() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword | INSIST_\uD83D\uDC14 foo");
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-
-        assertPartialTypeKeyword(relation, "partial_type_keyword");
-        assertPartialTypeKeyword(relation, "foo");
-    }
-
-    private static void assertPartialTypeKeyword(EsRelation relation, String name) {
-        var attribute = (FieldAttribute) singleValue(relation.output().stream().filter(attr -> attr.name().equals(name)).toList());
-        assertThat(attribute.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
     }
 
     public void testSimplifyLikeNoWildcard() {
@@ -9097,7 +9056,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         for (var command : List.of(
             "ENRICH languages_idx on first_name",
             "EVAL x = 1",
-            // "INSIST emp_no", // TODO
             "KEEP emp_no",
             "DROP emp_no",
             "RENAME emp_no AS x",

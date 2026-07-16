@@ -109,7 +109,12 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPattern pattern
+        @Param(
+            name = "pattern",
+            type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Pattern."
+        ) WildcardPattern pattern
     ) {
         this(source, left, pattern, false);
     }

@@ -60,11 +60,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     /** Composable index template resource for {@value #CHANGE_HISTORY_DATA_STREAM_NAME}. */
     public static final String CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE = "kibana-change-history.json";
 
-    /** Substitution key for the template version in {@value #CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    /** Substitution key for the mappings version in {@value #CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE}. */
     public static final String CHANGE_HISTORY_VERSION_VARIABLE = "kibana.change.history.version";
-
-    /** Substitution key for managed index version in {@value #CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE}. */
-    public static final String CHANGE_HISTORY_MANAGED_INDEX_VERSION_VARIABLE = "kibana.change.history.managed.index.version";
 
     /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
     public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";
@@ -189,12 +186,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
                 CHANGE_HISTORY_COMPOSABLE_TEMPLATE_RESOURCE,
-                Map.of(
-                    CHANGE_HISTORY_VERSION_VARIABLE,
-                    Version.CURRENT.toString(),
-                    CHANGE_HISTORY_MANAGED_INDEX_VERSION_VARIABLE,
-                    Integer.toString(CHANGE_HISTORY_MAPPINGS_VERSION)
-                )
+                Map.of(CHANGE_HISTORY_VERSION_VARIABLE, Integer.toString(CHANGE_HISTORY_MAPPINGS_VERSION))
             );
             return new SystemDataStreamDescriptor(
                 CHANGE_HISTORY_DATA_STREAM_NAME,

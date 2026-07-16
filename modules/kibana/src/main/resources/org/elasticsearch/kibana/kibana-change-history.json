@@ -15,8 +15,7 @@
     },
     "mappings": {
       "_meta": {
-        "version": "${kibana.change.history.version}",
-        "managed_index_mappings_version": ${kibana.change.history.managed.index.version}
+        "version": ${kibana.change.history.version}
       },
       "dynamic": false,
       "properties": {

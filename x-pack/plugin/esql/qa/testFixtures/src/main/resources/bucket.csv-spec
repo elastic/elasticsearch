@@ -1009,3 +1009,106 @@ hire_date:date           | bucketHours:date         | bucketDay:date
 1985-07-09T00:00:00.000Z | 1985-07-08T22:00:00.000Z | 1985-07-08T19:00:00.000Z
 1985-09-17T00:00:00.000Z | 1985-09-16T22:00:00.000Z | 1985-09-16T19:00:00.000Z
 ;
+
+veryLargeNumberOfBuckets
+required_capability: fix_bucket_large_number_of_buckets
+
+FROM sample_data
+// The target bucket count (8*10^9) is larger than Integer.MAX_VALUE and somewhat smaller than
+// the number of milliseconds in the one year. Therefore, buckets of 10ms should be picked.
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 8000000000, "2023-01-01T00:00:00.000", "2024-01-01T00:00:00.000")
+| SORT b
+;
+
+c:long | b:date
+1      | 2023-10-23T12:15:03.360Z
+1      | 2023-10-23T12:27:28.940Z
+1      | 2023-10-23T13:33:34.930Z
+1      | 2023-10-23T13:51:54.730Z
+1      | 2023-10-23T13:52:55.010Z
+1      | 2023-10-23T13:53:55.830Z
+1      | 2023-10-23T13:55:01.540Z
+;
+
+
+largeNumberOfBucketsWithTimeZone
+required_capability: fix_bucket_large_number_of_buckets
+
+SET time_zone = "America/New_York"\;
+ROW ts = TO_DATETIME("2023-06-01T12:34:56.789Z")
+| STATS c = COUNT(*) BY b = BUCKET(ts, 2000000000, "2023-01-01T00:00:00Z", "2025-01-01T00:00:00Z")
+;
+
+c:long | b:datetime
+1      | 2023-06-01T08:34:56.750-04:00
+;
+
+
+maxLongNumberOfBuckets
+required_capability: fix_bucket_large_number_of_buckets
+
+FROM sample_data
+// The target bucket count is Long.MAX_VALUE, which should lead to bucket of 1ms (the minimum size).
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 9223372036854775807, "2023-01-01T00:00:00.000", "2024-01-01T00:00:00.000")
+| SORT b
+;
+
+c:long | b:datetime
+1      | 2023-10-23T12:15:03.360Z
+1      | 2023-10-23T12:27:28.948Z
+1      | 2023-10-23T13:33:34.937Z
+1      | 2023-10-23T13:51:54.732Z
+1      | 2023-10-23T13:52:55.015Z
+1      | 2023-10-23T13:53:55.832Z
+1      | 2023-10-23T13:55:01.543Z
+;
+
+
+autoBucketCountAcrossDstFallback
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "America/New_York"\;
+ROW ts = TO_DATETIME("2024-11-03T12:00:00Z")
+| STATS c = COUNT(*) BY b = BUCKET(ts, 8, "2024-11-03T00:00:00-04:00", "2024-11-04T00:00:00-05:00")
+;
+
+c:long | b:datetime
+1      | 2024-11-03T11:00:00.000Z
+;
+
+
+autoBucketCountAcrossRepeatedDstHour
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "America/New_York"\;
+ROW ts = TO_DATETIME("2024-11-03T12:00:00Z")
+| STATS c = COUNT(*) BY b = BUCKET(ts, 24, "2024-11-03T00:00:00-04:00", "2024-11-04T00:00:00-05:00")
+;
+
+c:long | b:datetime
+1      | 2024-11-03T11:00:00.000Z
+;
+
+
+calendarCountingLargeRange
+required_capability: fix_bucket_large_number_of_buckets
+
+ROW ts = 0::datetime
+| STATS c = COUNT(*) BY b = BUCKET(ts, 2147483647, 0::datetime, 6300000000000000000::datetime)
+;
+
+c:long | b:datetime
+1      | 1970-01-01T00:00:00.000Z
+;
+
+
+fixedWidthCountingOverflow
+required_capability: fix_bucket_large_number_of_buckets
+
+ROW ts = 123::datetime
+| STATS c = COUNT(*) BY b = BUCKET(ts, 9223372036854775807, (-5000000000000000000)::datetime, 5000000000000000000::datetime)
+;
+
+c:long | b:datetime
+1      | 1970-01-01T00:00:00.120Z
+;

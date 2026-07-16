@@ -19,17 +19,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -38,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -151,38 +147,30 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Builds a query for runtime columns, such as those produced by ROW or EVAL, that cannot use normal pushdown because
-     * they are not {@link FieldAttribute}s.
+     * Builds the query used by HIGHLIGHT. MATCH and MATCH_PHRASE are rebuilt as lexical queries using the ON column
+     * name. This works for runtime and union-typed columns, and avoids using an inference query for {@code semantic_text}.
+     * QSTR and KQL already resolve their fields, so they use the normal coordinator translation.
      */
     private static QueryBuilder build(Expression expr) {
-        boolean runtimeSearch = expr.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch());
-        if (runtimeSearch == false) {
-            // TODO: MATCH on a union-typed field translates to the underlying field name, which won't match the
-            // ON column name the MemoryIndex is keyed by.
-            var query = TranslatorHandler.TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, expr);
-            if (query instanceof SingleValueQuery) {
-                // Structural verification should have rejected this non-full-text expression.
-                throw new EsqlIllegalArgumentException("Unexpected pushdown query for expression [" + expr.sourceText() + "] in HIGHLIGHT");
-            }
-            return query.toQueryBuilder();
-        }
-        // TODO: Use TranslatorHandler for runtime searches instead of rebuilding the query here.
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
             case Or or -> QueryBuilders.boolQuery().should(build(or.left())).should(build(or.right()));
             case Not not -> QueryBuilders.boolQuery().mustNot(build(not.field()));
-            case Match match -> QueryBuilders.matchQuery(fieldName(match.field()), queryText(match.query()));
-            case MatchPhrase matchPhrase -> QueryBuilders.matchPhraseQuery(fieldName(matchPhrase.field()), queryText(matchPhrase.query()));
+            case Match match -> match.asLexicalQueryBuilder(fieldName(match.field()));
+            case MatchPhrase matchPhrase -> matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
+            case QueryString queryString -> pushdownQueryBuilder(queryString);
+            case Kql kql -> pushdownQueryBuilder(kql);
             default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");
         };
     }
 
-    private static String fieldName(Expression field) {
-        return field instanceof NamedExpression named ? named.name() : Expressions.name(field);
+    /** Translates an expression using the standard pushdown path. */
+    private static QueryBuilder pushdownQueryBuilder(Expression expr) {
+        return TranslatorHandler.TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, expr).toQueryBuilder();
     }
 
-    private static String queryText(Expression query) {
-        return BytesRefs.toString(query.fold(FoldContext.small()));
+    private static String fieldName(Expression field) {
+        return field instanceof NamedExpression named ? named.name() : Expressions.name(field);
     }
 
     /** Rewrites the builder and converts it to a Lucene query. */

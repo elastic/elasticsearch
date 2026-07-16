@@ -947,6 +947,25 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# MATCH uses the semantic query to select rows, while HIGHLIGHT looks for literal terms in the returned text.
+# Only the row that contains "prosper" is highlighted.
+highlightMatchOnSemanticText
+required_capability: highlight_semantic_text
+
+FROM semantic_text
+| WHERE match(semantic_text_field, "prosper")
+| HIGHLIGHT MATCH(semantic_text_field, "prosper") ON semantic_text_field
+| KEEP semantic_text_field, highlight_semantic_text_field
+| SORT semantic_text_field ASC
+;
+
+semantic_text_field:text                                             | highlight_semantic_text_field:keyword
+all we have to decide is what to do with the time that is given to us | null
+be excellent to each other                                           | null
+live long and prosper                                                | live long and <em>prosper</em>
+;
+
+
 # Sorting by the highlight column pushes this MATCH query to the data nodes.
 highlightMatchFunctionPushedToDataNodes
 required_capability: highlight_v5

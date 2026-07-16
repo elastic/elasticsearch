@@ -3349,6 +3349,11 @@ public class EsqlCapabilities {
         HIGHLIGHT_V5(Build.current().isSnapshot()),
 
         /**
+         * Support for HIGHLIGHT on {@code semantic_text} fields.
+         */
+        HIGHLIGHT_SEMANTIC_TEXT(HIGHLIGHT_V4.isEnabled()),
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,

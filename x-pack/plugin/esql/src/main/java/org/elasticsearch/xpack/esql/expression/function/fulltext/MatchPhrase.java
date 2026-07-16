@@ -247,6 +247,13 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     }
 
     /**
+     * Builds a lexical query for the supplied field name, preserving the function's options.
+     */
+    public QueryBuilder asLexicalQueryBuilder(String fieldName) {
+        return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions()).toQueryBuilder();
+    }
+
+    /**
      * Runtime search on non-index-mapped expressions is under development and enabled in snapshot builds only,
      * advertised through the snapshot-only {@code fn_match_phrase_runtime_filter} function capability declared on
      * {@link #DEFINITION}.

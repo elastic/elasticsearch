@@ -241,10 +241,8 @@ public class HighlightQueryBuildersTests extends ESTestCase {
 
     public void testNot() {
         Not not = new Not(EMPTY, match("title", "fox", null));
-        // Non-scoring queries are wrapped in a zero-boost query.
-        BoostQuery boost = asInstanceOf(BoostQuery.class, translate(not, TITLE));
-        assertThat(boost.getBoost(), equalTo(0.0f));
-        BooleanQuery bq = asInstanceOf(BooleanQuery.class, boost.getQuery());
+        // A bool query with only must_not gets an implicit match_all filter.
+        BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(not, TITLE));
         BooleanClause filter = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.FILTER).findFirst().orElseThrow();
         BooleanClause mustNot = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.MUST_NOT).findFirst().orElseThrow();
         assertThat(filter.query(), instanceOf(MatchAllDocsQuery.class));

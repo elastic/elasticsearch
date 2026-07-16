@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154127
+summary: "ESQL Data Sources: JDBC support"
+type: feature

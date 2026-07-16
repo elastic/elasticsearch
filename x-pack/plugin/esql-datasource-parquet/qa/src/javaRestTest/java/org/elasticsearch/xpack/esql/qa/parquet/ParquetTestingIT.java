@@ -287,11 +287,7 @@ public class ParquetTestingIT extends ESRestTestCase {
             try {
                 result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
             } catch (IOException ioe) {
-                if (isTransientExternalFailure(ioe)) {
-                    assumeNoException("External host unavailable while querying [" + parquetFile + "]", ioe);
-                    return;
-                }
-                throw ioe;
+                throw skipIfTransientFailure(ioe, "querying");
             }
             assertNotNull("ESQL should read " + parquetFile + " despite parquet-mr failure", result.get("columns"));
             return;
@@ -307,11 +303,7 @@ public class ParquetTestingIT extends ESRestTestCase {
         try {
             result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
         } catch (IOException e) {
-            if (isTransientExternalFailure(e)) {
-                assumeNoException("External host unavailable while querying [" + parquetFile + "]", e);
-                return;
-            }
-            throw e;
+            throw skipIfTransientFailure(e, "querying");
         } catch (org.elasticsearch.xcontent.XContentParseException e) {
             // ESQL returned 200 but the response contains raw binary that isn't valid UTF-8/JSON.
             // This happens for files with raw BINARY/FIXED_LEN_BYTE_ARRAY columns without string annotation.
@@ -373,10 +365,7 @@ public class ParquetTestingIT extends ESRestTestCase {
                 assertNotNull("Expected " + parquetFile + " to read successfully (known readable)", result.get("columns"));
                 logger.info("Confirmed: {} is readable by ESQL despite being in bad_data/", parquetFile);
             } catch (IOException ex) {
-                if (isTransientExternalFailure(ex)) {
-                    assumeNoException("External host unavailable while testing bad data [" + parquetFile + "]", ex);
-                    return;
-                }
+                skipIfTransientFailure(ex, "testing bad data");
                 throw new AssertionError("File " + parquetFile + " is in BAD_DATA_READS_OK but returned error: " + ex.getMessage(), ex);
             }
             return;
@@ -390,17 +379,9 @@ public class ParquetTestingIT extends ESRestTestCase {
             runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
             throw new AssertionError("Expected " + parquetFile + " to produce a 4xx error, but the query succeeded");
         } catch (ResponseException e) {
-            if (isTransientExternalFailure(e)) {
-                assumeNoException("External host unavailable while testing bad data [" + parquetFile + "]", e);
-                return;
-            }
-            ex = e;
+            ex = skipIfTransientFailure(e, "testing bad data");
         } catch (IOException e) {
-            if (isTransientExternalFailure(e)) {
-                assumeNoException("External host unavailable while testing bad data [" + parquetFile + "]", e);
-                return;
-            }
-            throw e;
+            throw skipIfTransientFailure(e, "testing bad data");
         }
         int status = ex.getResponse().getStatusLine().getStatusCode();
         assertTrue(
@@ -423,6 +404,23 @@ public class ParquetTestingIT extends ESRestTestCase {
             return responseException.getResponse().getStatusLine().getStatusCode() == 503;
         }
         return true;
+    }
+
+    /**
+     * Skips the test via {@code assumeNoException} if {@code failure} is a
+     * {@linkplain #isTransientExternalFailure transient external-host failure} encountered while
+     * {@code action} (e.g. {@code "querying"}); {@code assumeNoException} always throws, so this
+     * method never returns normally in that case. Otherwise returns {@code failure} unchanged, so
+     * callers can either {@code throw} it to propagate as-is, or assign it (the declared type is the
+     * caller's exception type, e.g. {@link ResponseException}, so no cast is needed) to keep handling
+     * it below -- centralizing the classify-and-skip logic that would otherwise be repeated at every
+     * {@code runEsqlSync} call site in this class.
+     */
+    private <T extends IOException> T skipIfTransientFailure(T failure, String action) {
+        if (isTransientExternalFailure(failure)) {
+            assumeNoException("External host unavailable while " + action + " [" + parquetFile + "]", failure);
+        }
+        return failure;
     }
 
     // -- Ground truth generation using parquet-mr --

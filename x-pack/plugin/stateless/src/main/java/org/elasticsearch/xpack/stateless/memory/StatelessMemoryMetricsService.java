@@ -262,17 +262,16 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             }
             heapUsageBuilders.put(nodeId, builderForNode);
         }
-        // Take the max postings memory across all nodes and apply that to all nodes.
+        // Take the max postings memory across all nodes and use that for all nodes' total heap estimate
         final long maxTotalPostingsInMemoryBytes = heapUsageBuilders.values()
             .stream()
             .mapToLong(builder -> builder.totalPostingsInMemoryBytes)
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        heapUsageBuilders.values().forEach(builder -> builder.maximisedPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes);
         final Map<String, NodeHeapEstimate> nodeIdToHeapUsage = Maps.transformValues(
             heapUsageBuilders,
-            EstimatedHeapUsageBuilder::getHeapEstimate
+            builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)
         );
         lastPerNodeHeapSnapshots.set(nodeIdToHeapUsage.entrySet().stream().filter(e -> discoveryNodes.get(e.getKey()) != null).map(e -> {
             final DiscoveryNode node = discoveryNodes.get(e.getKey());
@@ -823,7 +822,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private final Set<String> seenIndices = new HashSet<>();
         private long mappingSizeInBytes;
         private long totalPostingsInMemoryBytes;
-        private long maximisedPostingsInMemoryBytes;
         private long shardMemoryUsageInBytes;
         private long totalShardMemoryOverheadBytes;
         private int totalShards;
@@ -848,25 +846,30 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 totalShardsWithSelfReportedOverhead++;
             } else {
                 // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
-                // getPerNodeMemoryMetrics later overrides totalPostingsInMemoryBytes with the max across all nodes.
+                // getPerNodeMemoryMetrics later uses the maximum totalPostingsInMemoryBytes across all nodes.
                 shardMemoryUsageInBytes += estimateShardOverheadExcludingPostings(shardMemoryMetrics);
                 totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
-                maximisedPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
             }
             totalShards++;
         }
 
-        NodeHeapEstimate getHeapEstimate() {
-            final long totalHeapEstimateInBytes = getHeapUsageEstimate();
+        /**
+         * Calculate the heap estimates for this node
+         *
+         * @param postingsForTotalEstimate The postings value to use for the total heap estimate
+         * @return The heap usage estimate for this node
+         */
+        NodeHeapEstimate getHeapEstimate(long postingsForTotalEstimate) {
+            final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
             final long hostedShardsHeapEstimateInBytes = totalShardMemoryOverheadBytes + shardMemoryUsageInBytes
                 + totalPostingsInMemoryBytes;
             return new NodeHeapEstimate(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
         }
 
-        long getHeapUsageEstimate() {
+        long getHeapUsageEstimate(long effectivePostingsValue) {
             assert totalShards >= totalShardsWithSelfReportedOverhead;
             return totalShardMemoryOverheadBytes + shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate
-                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + maximisedPostingsInMemoryBytes;
+                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + effectivePostingsValue;
         }
     }
 

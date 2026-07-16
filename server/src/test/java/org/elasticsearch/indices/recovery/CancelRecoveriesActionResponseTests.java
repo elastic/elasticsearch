@@ -41,8 +41,8 @@ public class CancelRecoveriesActionResponseTests extends AbstractWireSerializing
         for (int i = 0; i < size; i++) {
             cancelledInQueue.add(
                 new CancelRecoveriesAction.CancelledInQueue(
-                    UUIDs.randomBase64UUID(),
-                    new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i)
+                    new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i),
+                    UUIDs.randomBase64UUID()
                 )
             );
         }

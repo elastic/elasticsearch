@@ -100,7 +100,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         }
         final Set<CancelRecoveriesAction.CancelledInQueue> response = new HashSet<>(cancelledInQueue.size());
         for (String allocationId : cancelledInQueue) {
-            response.add(new CancelRecoveriesAction.CancelledInQueue(allocationId, toCancel.get(allocationId)));
+            response.add(new CancelRecoveriesAction.CancelledInQueue(toCancel.get(allocationId), allocationId));
         }
         listener.onResponse(new CancelRecoveriesAction.Response(response));
     }

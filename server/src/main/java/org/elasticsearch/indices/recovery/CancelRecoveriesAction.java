@@ -97,16 +97,16 @@ public class CancelRecoveriesAction {
     }
 
     /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.
-    public record CancelledInQueue(String allocationId, ShardId shardId) implements Writeable {
+    public record CancelledInQueue(ShardId shardId, String allocationId) implements Writeable {
 
         public CancelledInQueue(StreamInput in) throws IOException {
-            this(in.readString(), new ShardId(in));
+            this(new ShardId(in), in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(allocationId);
             shardId.writeTo(out);
+            out.writeString(allocationId);
         }
     }
 

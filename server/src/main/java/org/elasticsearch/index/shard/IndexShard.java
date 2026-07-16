@@ -3947,6 +3947,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryListener.onRecoveryAborted();
             }
         }, cause -> {
+            logger.trace("executeRecovery: caught exception", cause);
             RecoveryFailedException e = new RecoveryFailedException(recoveryState, null, cause);
             recoveryListener.onRecoveryFailure(e, failureStrategySelector.select(e, FAIL_SEND));
         });

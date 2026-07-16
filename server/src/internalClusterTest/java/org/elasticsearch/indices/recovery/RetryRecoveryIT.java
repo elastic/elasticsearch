@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
@@ -19,6 +20,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RecoveryFailureStrategySelectorPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -27,6 +30,7 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,19 +39,24 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@TestLogging(reason = "test investigation", value = "org.elasticsearch.indices.recovery.ThrottlingRecoveryService:TRACE")
+@TestLogging(
+    reason = "test investigation",
+    value = "org.elasticsearch.indices.recovery.ThrottlingRecoveryService:TRACE,"
+        + "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE,"
+        + "org.elasticsearch.index.shard.IndexShard:TRACE"
+)
 public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestRecoveryFailurePlugin.class);
+        plugins.add(RetryRecoveryTestPlugin.class);
         return plugins;
     }
 
     @After
     public void reset() {
-        TestRecoveryFailurePlugin.reset();
+        RetryRecoveryTestPlugin.reset();
     }
 
     public void testRetryOnFailureOnRecoveryFromEmptyStore() {
@@ -55,12 +64,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String indexName = randomIndexName();
 
         // Index will fail in recovery on first attempt
-        TestRecoveryFailurePlugin.armFailure();
+        RetryRecoveryTestPlugin.armFailure();
         createIndex(indexName, indexSettings(1, 0).build());
 
-        // Recovery should succeed, and we should have tried to recover twice
+        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
-        assertThat(TestRecoveryFailurePlugin.recoveryCounter.get(), equalTo(2));
+        assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
+        assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }
 
     public void testRetryOnFailureOnRecoveryFromExistingStore() {
@@ -75,15 +85,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(indicesAdmin().prepareClose(indexName));
 
         // Fail next recovery attempt
-        TestRecoveryFailurePlugin.reset();
-        TestRecoveryFailurePlugin.armFailure();
+        RetryRecoveryTestPlugin.reset();
+        RetryRecoveryTestPlugin.armFailure();
 
         // Recover from existing store
         assertAcked(indicesAdmin().prepareOpen(indexName).execute());
 
-        // Recovery should succeed, and we should have tried to recover twice
+        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
-        assertThat(TestRecoveryFailurePlugin.recoveryCounter.get(), equalTo(2));
+        assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
+        assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }
 
     public void testRetryOnFailureOnRecoveryFromLocalShard() {
@@ -101,15 +112,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
         // Fail next recovery attempt
-        TestRecoveryFailurePlugin.reset();
-        TestRecoveryFailurePlugin.armFailure();
+        RetryRecoveryTestPlugin.reset();
+        RetryRecoveryTestPlugin.armFailure();
 
         // Recover from local shard
         ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
 
-        // Recovery should succeed, and we should have tried to recover twice
+        // Recovery should succeed, and we should have retried once
         ensureGreen(targetIndexName);
-        assertThat(TestRecoveryFailurePlugin.recoveryCounter.get(), equalTo(2));
+        assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
+        assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }
 
     public void testRetryOnFailureOnRecoveryFromSnapshot() {
@@ -135,15 +147,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         // Fail next recovery attempt
-        TestRecoveryFailurePlugin.reset();
-        TestRecoveryFailurePlugin.armFailure();
+        RetryRecoveryTestPlugin.reset();
+        RetryRecoveryTestPlugin.armFailure();
 
         // Recover from snapshot
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
 
-        // Recovery should succeed, and we should have tried to recover twice
+        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
-        assertThat(TestRecoveryFailurePlugin.recoveryCounter.get(), equalTo(2));
+        assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
+        assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }
 
     public void testRetryOnFailureOnRecoveryFromPeer() {
@@ -160,15 +173,45 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String target = internalCluster().startNode();
 
         // Fail next recovery attempt
-        TestRecoveryFailurePlugin.reset();
-        TestRecoveryFailurePlugin.armFailure();
+        RetryRecoveryTestPlugin.reset();
+        RetryRecoveryTestPlugin.armFailure();
 
         // Recover from peer
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, source, target));
 
-        // Recovery should succeed, and we should have tried to recover twice
+        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
-        assertThat(TestRecoveryFailurePlugin.recoveryCounter.get(), equalTo(2));
+        assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
+        assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion() throws Exception {
+        internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        // Block index on the next recovery
+        RetryRecoveryTestPlugin.stateChangePostRecovery.block();
+
+        // Index creation will block in recovery and then fail immediately when unblocked
+        RetryRecoveryTestPlugin.armFailure();
+        prepareCreate(indexName, indexSettings(1, 0)).execute();
+
+        // Wait for index creation recovery attempt
+        RetryRecoveryTestPlugin.stateChangePostRecovery.await();
+
+        // Delete index asynchronously while shard is blocked in recovery
+        logger.info("--> prepareDelete");
+        indicesAdmin().prepareDelete(indexName).execute();
+
+        // Release recovery will make retry mechanism race with index deletion
+        RetryRecoveryTestPlugin.stateChangePostRecovery.release();
+
+        // Let all tasks complete
+        waitNoPendingTasksOnAll();
+
+        // Index should not exist, and we should have reached retry step
+        assertThat(indexExists(indexName), equalTo(false));
+        assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
     }
 
     // Test matrix:
@@ -192,14 +235,58 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     // - PEER
     // RESHARD_SPLIT depends on x-pack plugin, so implement inside StatelessReshardIT
 
-    public static class TestRecoveryFailurePlugin extends Plugin implements RecoveryFailureStrategySelectorPlugin {
+    static class Gate {
+        private final Semaphore gate = new Semaphore(1);
+        private final Semaphore entered = new Semaphore(0);
+
+        void reset() {
+            gate.drainPermits();
+            gate.release();
+            entered.drainPermits();
+        }
+
+        /// Block someone from entering
+        void block() {
+            safeAcquire(gate);
+        }
+
+        /// Release block from someone entering
+        public void release() {
+            gate.release();
+        }
+
+        /// Wait for someone to enter()
+        void await() {
+            safeAcquire(entered);
+            entered.release();
+        }
+
+        /// Try to enter through the gate
+        void enter() {
+            entered.release();
+            safeAcquire(gate);
+        }
+
+        /// Exit through the gate
+        void exit() {
+            gate.release();
+            safeAcquire(entered);
+        }
+    }
+
+    public static class RetryRecoveryTestPlugin extends Plugin implements RecoveryFailureStrategySelectorPlugin {
         private static final AtomicBoolean failNextRecovery = new AtomicBoolean(false);
         private static final AtomicInteger recoveryCounter = new AtomicInteger();
+        private static final AtomicInteger retryCounter = new AtomicInteger();
         private static final RuntimeException RETRY_CAUSE = new RuntimeException("RETRY_CAUSE");
+
+        private static final Gate stateChangePostRecovery = new Gate();
 
         public static void reset() {
             failNextRecovery.set(false);
             recoveryCounter.set(0);
+            retryCounter.set(0);
+            stateChangePostRecovery.reset();
         }
 
         public static void armFailure() {
@@ -212,17 +299,35 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
                     recoveryCounter.incrementAndGet();
-                    if (failNextRecovery.getAndSet(false)) {
-                        throw RETRY_CAUSE;
-                    }
                     listener.onResponse(null);
+                }
+
+                @Override
+                public void beforeIndexShardRecoveryRetry(ShardId shardId) {
+                    retryCounter.incrementAndGet();
+                }
+
+                @Override
+                public void indexShardStateChanged(IndexShard indexShard, IndexShardState previousState, IndexShardState currentState, String reason) {
+                    if (currentState == IndexShardState.POST_RECOVERY) {
+                        stateChangePostRecovery.enter();
+                        try {
+                            if (failNextRecovery.getAndSet(false)) {
+                                throw RETRY_CAUSE;
+                            }
+                        } finally {
+                            stateChangePostRecovery.exit();
+                        }
+                    }
                 }
             });
         }
 
         @Override
         public FailureStrategySelector createFailureStrategySelector() {
-            return (e, defaultStrategy) -> e.getCause() == RETRY_CAUSE ? RETRY : defaultStrategy;
+            return (e, defaultStrategy) -> ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t == RETRY_CAUSE).isPresent()
+                ? RETRY
+                : defaultStrategy;
         }
     }
 }

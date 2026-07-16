@@ -309,6 +309,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public IndexEventListener getIndexEventListener() {
+            return IndexEventListener.NOOP;
+        }
+
+        @Override
         public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
             failRandomly();
         }

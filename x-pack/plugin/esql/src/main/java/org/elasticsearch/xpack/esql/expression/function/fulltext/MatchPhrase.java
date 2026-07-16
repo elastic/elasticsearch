@@ -253,7 +253,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     }
 
     @Override
-    protected boolean isRuntimeSearch() {
+    public boolean isRuntimeSearch() {
         // Runtime match_phrase currently supports only text expressions.
         // TODO keyword expressions still require an index-mapped field.
         return runtimeSearchEnabled() && fieldAsFieldAttribute() == null && (field.dataType() == TEXT || field.dataType() == NULL);

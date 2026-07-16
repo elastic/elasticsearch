@@ -18,7 +18,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateIndex;
+import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateIndices;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -26,7 +26,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex(this::ensureYellow);
+        createAndPopulateIndices(this::ensureYellow);
     }
 
     /**

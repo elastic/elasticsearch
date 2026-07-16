@@ -923,7 +923,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Serialise copies via a per-shard single-slot runner so that
                     // fireUploadedGenerationListeners is always called in generation order.
                     // (ES-12456)
-                    commitState.copyExecutor.execute(() -> {
+                    commitState.splitTargetCopyExecutor.execute(() -> {
                         for (ShardId targetShardId : splitTargets) {
                             while (commitState.isClosed() == false) {
                                 try {
@@ -1420,7 +1420,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * Serialises copies to split targets (one at a time, in submission order) so that
          * {@link #fireUploadedGenerationListeners} is always called in generation order.
          */
-        private final Executor copyExecutor;
+        private final Executor splitTargetCopyExecutor;
 
         // Visible for testing
         ShardCommitState(
@@ -1432,7 +1432,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Runnable triggerTranslogReplicator
         ) {
             this.shardId = shardId;
-            this.copyExecutor = new ThrottledTaskRunner(
+            this.splitTargetCopyExecutor = new ThrottledTaskRunner(
                 "copy-to-split-targets[" + shardId + "]",
                 1,
                 threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)

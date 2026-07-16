@@ -42,8 +42,8 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
@@ -316,7 +316,14 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
-            checkDataStreamAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true, IndexComponentSelector.DATA, true);
+            checkDataStreamAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                allowedSystemDataStream,
+                true,
+                IndexComponentSelector.DATA,
+                true
+            );
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -324,7 +331,14 @@ public class InternalUsersTests extends ESTestCase {
                 true
             );
 
-            checkDataStreamAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true, IndexComponentSelector.FAILURES, true);
+            checkDataStreamAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                allowedSystemDataStream,
+                true,
+                IndexComponentSelector.FAILURES,
+                true
+            );
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -489,7 +503,9 @@ public class InternalUsersTests extends ESTestCase {
             is(expectedValue)
         );
 
-        final IndexMetadata metadata = IndexMetadata.builder(".ds-" + dataStreamName).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final IndexMetadata metadata = IndexMetadata.builder(".ds-" + dataStreamName)
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .build();
 
         DataStream dataStream = new DataStream(
             dataStreamName,

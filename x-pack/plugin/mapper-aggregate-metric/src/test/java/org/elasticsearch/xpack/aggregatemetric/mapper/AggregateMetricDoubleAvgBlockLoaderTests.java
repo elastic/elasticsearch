@@ -104,10 +104,41 @@ public class AggregateMetricDoubleAvgBlockLoaderTests extends ESTestCase {
                     }
                 }
                 assertThat(capturedMessages.size(), equalTo(1));
-                assertThat(
-                    capturedMessages.getFirst(),
-                    containsString("fields has [value_count=0], so it cannot fallback to a single average value")
-                );
+                assertThat(capturedMessages.getFirst(), containsString("fields has a non-positive count [value_count="));
+            }
+        }
+    }
+
+    public void testNegativeCountProducesNullWithWarning() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(
+                        subfieldName(FIELD, AggregateMetricDoubleFieldMapper.Metric.sum),
+                        Double.doubleToLongBits(randomDouble())
+                    ),
+                    new NumericDocValuesField(
+                        subfieldName(FIELD, AggregateMetricDoubleFieldMapper.Metric.value_count),
+                        randomIntBetween(-100, -1)
+                    )
+                )
+            );
+            iw.forceMerge(1);
+
+            try (DirectoryReader reader = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(reader).getContext();
+                List<String> capturedMessages = new ArrayList<>();
+                var loader = new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields(), (cls, msg) -> capturedMessages.add(msg));
+                var breaker = new NoopCircuitBreaker("test");
+                BlockLoader.Docs docs = TestBlock.docs(ctx);
+
+                try (BlockLoader.ColumnAtATimeReader r = loader.reader(breaker, ctx)) {
+                    try (TestBlock block = (TestBlock) r.read(TestBlock.factory(), docs, 0, false)) {
+                        assertNull("expected null for zero-count doc", block.get(0));
+                    }
+                }
+                assertThat(capturedMessages.size(), equalTo(1));
+                assertThat(capturedMessages.getFirst(), containsString("fields has a non-positive count [value_count="));
             }
         }
     }

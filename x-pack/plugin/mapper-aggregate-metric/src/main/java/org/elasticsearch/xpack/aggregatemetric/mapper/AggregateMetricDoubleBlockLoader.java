@@ -231,11 +231,12 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                                 lastDoc = doc;
                                 double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                                 long count = valueCountValues.longValue();
-                                if (count == 0) {
+                                if (count <= 0) {
                                     warnings.registerException(
                                         IllegalArgumentException.class,
-                                        "[aggregate_metric_double] field has [value_count=0],"
-                                            + " so it cannot fallback to a single average value, treating result as null"
+                                        "[aggregate_metric_double] fields has a non-positive count [value_count="
+                                            + count
+                                            + "], so it cannot fallback to a single average value, treating result as null"
                                     );
                                     builder.appendNull();
                                 } else {

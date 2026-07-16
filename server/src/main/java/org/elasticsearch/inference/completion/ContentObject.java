@@ -55,6 +55,8 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         IMAGE_URL,
         FILE;
 
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(ContentObjectType.class);
+
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
@@ -96,10 +98,6 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
 
     public ContentObjectType type() {
         return type;
-    }
-
-    public long typeRamBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(type());
     }
 
     public static final class ContentObjectFile extends ContentObject {
@@ -165,7 +163,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         @Override
         public long ramBytesUsed() {
             var fileFieldsRamBytesUsed = fileFields.ramBytesUsed();
-            return SHALLOW_SIZE + fileFieldsRamBytesUsed + typeRamBytesUsed();
+            return SHALLOW_SIZE + fileFieldsRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
         }
 
         /**
@@ -307,7 +305,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         @Override
         public long ramBytesUsed() {
             var imageUrlRamBytesUsed = imageUrl().ramBytesUsed();
-            return SHALLOW_SIZE + imageUrlRamBytesUsed + typeRamBytesUsed();
+            return SHALLOW_SIZE + imageUrlRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
         }
 
         public record ContentObjectImageUrl(String url, @Nullable ImageUrlDetail detail)
@@ -440,7 +438,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         @Override
         public long ramBytesUsed() {
             var textRamBytesUsed = RamUsageEstimator.sizeOf(text);
-            return SHALLOW_SIZE + textRamBytesUsed + typeRamBytesUsed();
+            return SHALLOW_SIZE + textRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
         }
     }
 }

@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
@@ -76,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -460,8 +460,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      */
     private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
         return switch (node) {
-            case AcrossSeriesAggregate agg when agg.definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION ->
-                translateAcrossSeriesReduction(agg, currentPlan, ctx);
+            case AcrossSeriesReduction reduction -> translateAcrossSeriesReduction(reduction, currentPlan, ctx);
             case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
             case HistogramQuantile histogramQuantile -> translateHistogramQuantile(histogramQuantile, currentPlan, ctx);
             case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
@@ -511,66 +510,82 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         var resultPlan = findAggregate(childResult.plan(), Aggregate.class) != null
             /* child already aggregated, no additional `_tsid` grouping needed */
-            ? createOuterAggregatePlan(ctx, childResult.plan(), synthesizedAttributes, aggExpression)
+            ? createOuterAggregatePlan(ctx, childResult.plan(), synthesizedAttributes, aggExpression, List.of())
             /* group by _tsid, timestamp and compute optional aggregates, e.g., avg_over_time() */
             : createInnermostAggregatePlan(
                 ctx,
                 childResult.plan(),
                 synthesizedAttributes,
                 inheritedAttributes.pathExclusions(),
-                aggExpression
+                aggExpression,
+                List.of()
             );
 
         return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), synthesizedAttributes);
     }
 
-    private TranslationResult translateAcrossSeriesReduction(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
-        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-            throw new VerificationException("PromQL function [{}] does not yet support [without]", agg.functionName());
+    /**
+     * Translates an {@link AcrossSeriesReduction} ({@code topk}): collapse the child to one row per series
+     * (identity grouping - the child's labels pass through unchanged), then rank and keep the top {@code k}.
+     * <p>
+     * A {@code by} clause only partitions that ranking; the partition labels are resolved as concrete columns
+     * alongside the identity key so {@link TopNBy} can group on them, without going through the aggregating
+     * fold algebra that would otherwise narrow the surviving series away.
+     */
+    private TranslationResult translateAcrossSeriesReduction(
+        AcrossSeriesReduction reduction,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
+        if (reduction.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+            throw new VerificationException("PromQL function [{}] does not yet support [without]", reduction.functionName());
         }
-        TranslationResult aggregated = translateAcrossSeriesAggregate(agg, currentPlan, ctx);
-        if (aggregated.constFolded()) {
-            return aggregated;
+
+        TranslationContext childCtx = new TranslationContext(
+            ctx.promqlCommand,
+            ctx.analyzerContext,
+            ctx.stepBucketAlias,
+            InheritedAttributes.unconstrained(),
+            ctx.time
+        );
+        TranslationResult childResult = translateNode(reduction.child(), currentPlan, childCtx);
+        if (childResult.constFolded()) {
+            return childResult;
         }
-        LogicalPlan wrapped = wrapWithTopNBy(agg, aggregated.plan(), ctx);
-        return new TranslationResult(wrapped, getValueOutput(wrapped), aggregated.pendingFilter(), aggregated.synthesizedAttributes());
+
+        // Empty without-fold: keep the child's full identity so every series survives to be ranked.
+        var identity = SynthesizedAttributes.foldExcluding(List.of(), childResult.synthesizedAttributes());
+        List<Attribute> partitionLabels = reduction.grouping() == AcrossSeriesAggregate.Grouping.BY ? reduction.groupings() : List.of();
+
+        var aggExpression = createAggregateExpression(reduction, childResult.expression(), ctx);
+        var resultPlan = findAggregate(childResult.plan(), Aggregate.class) != null
+            ? createOuterAggregatePlan(ctx, childResult.plan(), identity, aggExpression, partitionLabels)
+            : createInnermostAggregatePlan(ctx, childResult.plan(), identity, List.of(), aggExpression, partitionLabels);
+
+        LogicalPlan wrapped = wrapWithTopNBy(reduction, resultPlan, ctx);
+        return new TranslationResult(wrapped, getValueOutput(wrapped), childResult.pendingFilter(), identity);
     }
 
     /**
      * Ranks the already-collapsed per-series rows and keeps the top {@code k} within the query's step - and, for
-     * {@code by}, within each partition of the demanded labels, resolved against what the collapse actually
-     * produced (see {@link #getSynthesizedAttributes}'s passthrough demand).
+     * {@code by}, within each partition of the demanded labels, resolved against what the collapse actually produced.
      */
-    private static LogicalPlan wrapWithTopNBy(AcrossSeriesAggregate agg, LogicalPlan resultPlan, TranslationContext ctx) {
+    private static LogicalPlan wrapWithTopNBy(AcrossSeriesReduction reduction, LogicalPlan resultPlan, TranslationContext ctx) {
         Expression value = getValueOutput(resultPlan);
         var groupings = new ArrayList<Expression>();
         groupings.add(ctx.stepAttr());
-        if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
-            for (Attribute label : agg.groupings()) {
+        if (reduction.grouping() == AcrossSeriesAggregate.Grouping.BY) {
+            for (Attribute label : reduction.groupings()) {
                 Attribute resolved = findAttributeByLabelName(resultPlan.output(), canonicalName(label));
                 groupings.add(resolved != null ? resolved : label);
             }
         }
-        var order = List.of(new Order(agg.source(), value, Order.OrderDirection.DESC, Order.NullsPosition.LAST));
-        Expression k = new ToInteger(agg.source(), agg.parameters().getFirst());
-        return new TopNBy(agg.source(), resultPlan, order, k, groupings);
+        var order = List.of(new Order(reduction.source(), value, Order.OrderDirection.DESC, Order.NullsPosition.LAST));
+        Expression k = new ToInteger(reduction.source(), reduction.parameters().getFirst());
+        return new TopNBy(reduction.source(), resultPlan, order, k, groupings);
     }
 
-    /**
-     * Order-statistic functions ({@code topk}) rank and select whole series rather than reducing them, so - unlike
-     * every other {@code AcrossSeriesAggregate} - their grouping must NOT fold down to concrete labels the way a
-     * reducing aggregate's would: doing so would collapse the very rows {@code topk} needs to rank among before
-     * {@link #wrapWithTopNBy} ever gets a chance to run. They therefore always synthesize the full identity, exactly
-     * as an empty {@code without ()} would. A {@code by} clause additionally demands its labels as passthrough
-     * columns (see {@link SynthesizedAttributes#keep}) so {@link #wrapWithTopNBy} can partition the
-     * ranking by them without narrowing the identity (only {@code by}/{@code none} reach here -
-     * {@link #translateAcrossSeriesReduction} rejects {@code without} before this runs).
-     */
     private static SynthesizedAttributes getSynthesizedAttributes(AcrossSeriesAggregate agg, TranslationResult childResult) {
-        if (agg.definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
-            var identity = SynthesizedAttributes.foldExcluding(List.of(), childResult.synthesizedAttributes());
-            return agg.grouping() == AcrossSeriesAggregate.Grouping.BY ? identity.keep(agg.groupings()) : identity;
-        }
         return switch (agg.grouping()) {
             case BY -> SynthesizedAttributes.foldIncluding(agg.output(), childResult.synthesizedAttributes());
             case WITHOUT -> SynthesizedAttributes.foldExcluding(agg.groupings(), childResult.synthesizedAttributes());
@@ -578,11 +593,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         };
     }
 
-    /** See {@link #getSynthesizedAttributes}: order-statistic functions never narrow what the child must produce. */
     private static InheritedAttributes getInheritedAttributes(AcrossSeriesAggregate agg, TranslationContext ctx) {
-        if (agg.definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
-            return InheritedAttributes.unconstrained();
-        }
         return switch (agg.grouping()) {
             case BY -> ctx.inheritedAttributes().limitedTo(agg.groupings());
             case WITHOUT -> ctx.inheritedAttributes().excluding(agg.groupings());
@@ -1039,14 +1050,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     /** Build the aggregate function (sum, max, etc.) from the PromQL registry. */
-    private static Expression createAggregateExpression(AcrossSeriesAggregate agg, Expression inputValue, TranslationContext ctx) {
+    private static Expression createAggregateExpression(PromqlFunctionCall call, Expression inputValue, TranslationContext ctx) {
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.time(),
             AggregateFunction.NO_WINDOW,
             ctx.stepAttr(),
             ctx.analyzerContext().configuration()
         );
-        return agg.buildEsqlFunction(inputValue, promqlCtx);
+        return call.buildEsqlFunction(inputValue, promqlCtx);
     }
 
     private static LogicalPlan createInnermostAggregatePlan(
@@ -1055,6 +1066,17 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         SynthesizedAttributes synthesizedAttributes,
         List<Attribute> pathExclusions,
         Expression agg
+    ) {
+        return createInnermostAggregatePlan(ctx, plan, synthesizedAttributes, pathExclusions, agg, List.of());
+    }
+
+    private static LogicalPlan createInnermostAggregatePlan(
+        TranslationContext ctx,
+        LogicalPlan plan,
+        SynthesizedAttributes synthesizedAttributes,
+        List<Attribute> pathExclusions,
+        Expression agg,
+        List<Attribute> extraPassthrough
     ) {
         PromqlCommand command = ctx.promqlCommand();
         Source source = command.promqlPlan().source();
@@ -1111,15 +1133,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
         }
 
-        // Order-statistic functions (topk) demand specific labels resolved as concrete columns alongside the full
-        // `_timeseries` identity, so a `by` clause can partition the ranking without narrowing away the identity the
-        // winning series need to keep. Added as plain grouping/aggregate attributes, same as the
-        // `translation.groupings()` loop above: TranslateTimeSeriesAggregate applies the DimensionValues/pack/unpack
-        // treatment to any plain-attribute grouping key generically - it must not be pre-wrapped here, or it becomes
-        // a disallowed nested aggregate. See SynthesizedAttributes#withPassthrough.
-        for (Attribute label : translation.passthrough()) {
-            groupings.add(label);
-            aggregates.add(label);
+        // Across-series reductions ({@code topk ... by}) demand partition labels as concrete columns alongside the
+        // full `_timeseries` identity. Added as plain grouping/aggregate attributes: TranslateTimeSeriesAggregate
+        // applies DimensionValues/pack/unpack to any plain-attribute grouping key generically.
+        for (Attribute label : extraPassthrough) {
+            Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
+            Attribute key = resolved != null ? resolved : label;
+            groupings.add(key);
+            aggregates.add(key);
         }
 
         return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, ctx.time(), TimeSeriesAggregate.Origin.PROMQL_COMMAND);
@@ -1135,6 +1156,17 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         LogicalPlan plan,
         SynthesizedAttributes labels,
         Expression aggExpr
+    ) {
+        return createOuterAggregatePlan(ctx, plan, labels, aggExpr, List.of());
+    }
+
+    /** Outer aggregation over an already-aggregated child. */
+    private static LogicalPlan createOuterAggregatePlan(
+        TranslationContext ctx,
+        LogicalPlan plan,
+        SynthesizedAttributes labels,
+        Expression aggExpr,
+        List<Attribute> extraPassthrough
     ) {
         PromqlCommand promqlCommand = ctx.promqlCommand();
         NamedExpression value = new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr);
@@ -1216,6 +1248,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
         }
         keys.addAll(translation.passthrough());
+        for (Attribute label : extraPassthrough) {
+            Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
+            keys.add(resolved != null ? resolved : label);
+        }
         if (translation.absent().isEmpty() == false) {
             List<Alias> missingAliases = new ArrayList<>();
             for (var missing : translation.absent()) {

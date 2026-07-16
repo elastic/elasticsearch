@@ -365,18 +365,6 @@ public final class PromqlAttributesTranslationContext {
         }
 
         /**
-         * Declare {@code labels} as this shape's {@link #output} without narrowing {@link #grouping} the way
-         * {@link #foldIncluding} would. Order-statistic functions ({@code topk}) use this for their {@code by}
-         * clause: {@link #grouping} must stay {@code T} (so {@link #translateAgainst} still forces {@code _timeseries}
-         * and every series survives to be ranked), while {@link #output} still gets these labels resolved into
-         * {@link ResolvedAttributes#passthrough} via the normal {@link #projected} path - the same mechanism a
-         * reducing aggregate's {@code by} already uses, just without the narrowing it accepts.
-         */
-        public SynthesizedAttributes keep(List<Attribute> labels) {
-            return new SynthesizedAttributes(grouping, canonicalizeByFieldName(labels), subtreeWithouts);
-        }
-
-        /**
          * Translate the innermost aggregate, whose child is the raw selector and which therefore owns the single
          * physical {@code _timeseries} grouping. Labels resolve against this shape's own {@link #grouping}; the
          * dimensions to exclude are the full path exclusions supplied by the matching {@link InheritedAttributes#pathExclusions}.
@@ -411,11 +399,10 @@ public final class PromqlAttributesTranslationContext {
         }
 
         /**
-         * The label set to resolve against the available output in {@link #translate}: a shape with a declared
-         * {@link #output} (from {@link #foldIncluding} or {@link #keep}) projects that list (so missing
-         * labels can be null-filled); every other shape projects its in-scope {@link #grouping}. Whether {@code _timeseries}
-         * gets forced is decided separately, from {@link #grouping} directly - see {@link #translateAgainst} - precisely
-         * so a {@link #keep} shape can have both a concrete {@link #output} and a forced {@code _timeseries}.
+         * The label set to resolve against the available output in {@link #translate}: a {@code BY} shape projects its
+         * declared {@code BY} {@link #output} (so missing labels can be null-filled); every other shape projects its
+         * in-scope {@link #grouping}. A non-empty {@link #output} is produced only by a {@code BY}, so it doubles as the
+         * discriminator.
          */
         private List<Attribute> projected() {
             return output.isEmpty() ? grouping : output;
@@ -434,28 +421,25 @@ public final class PromqlAttributesTranslationContext {
              * `without` means "group by the runtime label set", represented by `_timeseries`.
              * If the input plan does not expose `_timeseries` yet, synthesize it here so the
              * plan builder can lower it normally. Do not do this for the scalar/NONE sentinel.
-             * Keyed off `grouping` itself (not `projected`) so a `by`-shaped `output` set via
-             * `withPassthrough` doesn't suppress this: order-statistic functions need `_timeseries`
-             * forced even though `projected` resolves to a concrete `by`-list.
              */
-            if (timeseries == null && grouping == UNIVERSE) {
+            if (timeseries == null && projected == UNIVERSE) {
                 timeseries = FieldAttribute.timeSeriesAttribute(Source.EMPTY);
             }
 
             var resolved = new ArrayList<Attribute>();
 
-            if (isTop(projected) == false && projected.isEmpty() == false) {
+            if (isTop(projected) == false) {
                 if (available == UNIVERSE) {
                     resolved.addAll(projected);
                 } else {
                     resolved.ensureCapacity(projected.size());
                     for (Attribute attr : projected) {
                         Attribute match = available.contains(attr) ? attr : findByFieldName(available, canonicalName(attr));
+
                         if (match != null) {
                             resolved.add(match);
                         }
                     }
-
                 }
             }
 

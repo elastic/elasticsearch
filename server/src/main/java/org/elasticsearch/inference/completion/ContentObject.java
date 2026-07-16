@@ -347,7 +347,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
             @Override
             public long ramBytesUsed() {
                 var imageUrlRamBytesUsed = RamUsageEstimator.sizeOf(url());
-                var detailRamBytesUsed = detail() == null ? 0L : RamUsageEstimator.shallowSizeOf(detail());
+                var detailRamBytesUsed = RamUsageEstimator.shallowSizeOf(detail());
 
                 return SHALLOW_SIZE + imageUrlRamBytesUsed + detailRamBytesUsed;
             }

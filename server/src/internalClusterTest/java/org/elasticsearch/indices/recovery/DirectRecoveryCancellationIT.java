@@ -157,7 +157,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -199,7 +199,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -242,7 +242,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -290,7 +290,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -337,7 +337,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         // Set the cancellation flag, then release restoreShard so checkpoint fires after it completes
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -392,7 +392,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(replicaNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -450,7 +450,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(replicaNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -507,7 +507,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -570,7 +570,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         proceedWithHandoff.countDown();
@@ -609,7 +609,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         // All checkpoints are already past, so the flag is never read.
@@ -652,7 +652,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId.getId(), true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId.getId(), true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
 

@@ -142,9 +142,9 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(
             0L,
             List.of(
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, allocationId0, true),
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, allocationId1, true),
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId2, allocationId2, true)
+                new ShardRecoveryCancellation(shardId0, allocationId0, true),
+                new ShardRecoveryCancellation(shardId1, allocationId1, true),
+                new ShardRecoveryCancellation(shardId2, allocationId2, true)
             )
         );
         action.execute(mock(Task.class), request, responseFuture);
@@ -202,8 +202,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(
             0L,
             List.of(
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, allocationId0, false),
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, allocationId1, false)
+                new ShardRecoveryCancellation(shardId0, allocationId0, false),
+                new ShardRecoveryCancellation(shardId1, allocationId1, false)
             )
         );
         action.execute(mock(Task.class), request, responseFuture);
@@ -219,10 +219,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(eq(shardId.getIndex()))).thenThrow(new IndexNotFoundException("index not found"));
 
         final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        final var request = new CancelRecoveriesAction.Request(
-            0L,
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
-        );
+        final var request = new CancelRecoveriesAction.Request(0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
         assertTrue(response.cancelledInQueue().isEmpty());
@@ -239,10 +236,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
 
         final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        final var request = new CancelRecoveriesAction.Request(
-            0L,
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
-        );
+        final var request = new CancelRecoveriesAction.Request(0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
         assertTrue(response.cancelledInQueue().isEmpty());
@@ -292,8 +286,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(
             0L,
             List.of(
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, UUIDs.randomBase64UUID(), true),
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, UUIDs.randomBase64UUID(), false)
+                new ShardRecoveryCancellation(shardId0, UUIDs.randomBase64UUID(), true),
+                new ShardRecoveryCancellation(shardId1, UUIDs.randomBase64UUID(), false)
             )
         );
         action.execute(mock(Task.class), request, responseFuture);
@@ -350,9 +344,9 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(
             0L,
             List.of(
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, allocationId0, true),
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, allocationId1, true),
-                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId2, allocationId2, true)
+                new ShardRecoveryCancellation(shardId0, allocationId0, true),
+                new ShardRecoveryCancellation(shardId1, allocationId1, true),
+                new ShardRecoveryCancellation(shardId2, allocationId2, true)
             )
         );
         action.execute(mock(Task.class), request, responseFuture);
@@ -393,10 +387,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
                 )
             );
             final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-            final var request = new CancelRecoveriesAction.Request(
-                0L,
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
-            );
+            final var request = new CancelRecoveriesAction.Request(0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
             action.execute(mock(Task.class), request, responseFuture);
             final var response = responseFuture.actionGet();
             assertTrue(response.cancelledInQueue().isEmpty());
@@ -411,10 +402,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenThrow(new IndexNotFoundException("not found"));
         final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        final var request = new CancelRecoveriesAction.Request(
-            0L,
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
-        );
+        final var request = new CancelRecoveriesAction.Request(0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
         assertTrue(response.cancelledInQueue().isEmpty());

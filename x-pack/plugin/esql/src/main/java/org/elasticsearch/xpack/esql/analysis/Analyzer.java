@@ -132,11 +132,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-<<<<<<< HEAD
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
-=======
-import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -388,9 +383,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int i = 0; i < attributes.size(); i++) {
                 if (attributes.get(i) instanceof FieldAttribute fa && isPartiallyUnmappedRegularField(fa, esIndex)) {
                     if (fa.dataType() == KEYWORD) {
-                        attributes.set(i, ResolveRefs.insistKeyword(fa));
+                        attributes.set(i, ResolveRefs.unmappedKeyword(fa));
                     } else {
-                        attributes.set(i, ResolveRefs.invalidInsistAttribute(fa, esIndex));
+                        attributes.set(i, ResolveRefs.invalidUnmappedAttribute(fa, esIndex));
                     }
                 }
             }
@@ -704,11 +699,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-<<<<<<< HEAD
-                case Insist i -> resolveInsist(i, childrenOutput, context);
-=======
-                case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
@@ -1111,22 +1101,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-<<<<<<< HEAD
                 List<Alias> aliases = missing.stream().map(attr -> {
-=======
-                List<Alias> aliases = new ArrayList<>(missing.size());
-                List<FieldAttribute> toLoad = new ArrayList<>();
-                for (Attribute attr : missing) {
-                    // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
-                    // branch can't surface it: loaded from _source under load, null-typed under nullify. This keeps the branches' source
-                    // relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
-                    if (alignUnmappedAcrossBranches
-                        && forkMaterializedUnmappedFieldNames.contains(attr.name())
-                        && branchCanSurfaceLoadedField(logicalPlan)) {
-                        toLoad.add(unmappedResolution == UnmappedResolution.LOAD ? unmappedKeyword(attr) : nullifyField(attr));
-                        continue;
-                    }
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
@@ -1192,111 +1167,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
         }
 
-<<<<<<< HEAD
-=======
-        /**
-         * Names of unmapped fields materialized by any FORK branch's {@link EsRelation}: {@link PotentiallyUnmappedKeywordEsField} under
-         * {@code load}, {@link MissingEsField} under {@code nullify}. Scans the relations, not branch outputs, so a referencing generating
-         * command (EVAL/MV_EXPAND/...) can't hide the origin.
-         */
-        private static Set<String> materializedUnmappedFieldNames(Fork fork) {
-            Set<String> names = new HashSet<>();
-            for (LogicalPlan branch : fork.children()) {
-                branch.forEachDown(EsRelation.class, esr -> {
-                    if (esr.indexMode() == IndexMode.LOOKUP) {
-                        return;
-                    }
-                    for (Attribute attr : esr.output()) {
-                        if (attr instanceof FieldAttribute fa
-                            && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)) {
-                            names.add(fa.name());
-                        }
-                    }
-                });
-            }
-            return names;
-        }
-
-        /**
-         * Unmapped fields a {@link Project} in a FORK branch drops outright, in the projection input but neither surfaced nor referenced
-         * (a plain {@code DROP}, not a {@code RENAME}). Detects both materialization markers: {@link PotentiallyUnmappedKeywordEsField}
-         * under {@code load} and {@link MissingEsField} under {@code nullify}. Keyed by name, first occurrence wins. A field consumed by an
-         * {@link Aggregate} (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a
-         * {@code FORK} column.
-         */
-        private static Map<String, FieldAttribute> unmappedFieldsDroppedByProjection(Fork fork) {
-            Map<String, FieldAttribute> byName = new LinkedHashMap<>();
-            for (LogicalPlan branch : fork.children()) {
-                branch.forEachDown(Project.class, project -> {
-                    Set<String> survivingNames = project.outputSet().names();
-                    Set<String> referencedNames = project.references().names();
-                    for (Attribute attr : project.child().output()) {
-                        if (attr instanceof FieldAttribute fa
-                            // We can ignore PUNKs here since they are by definition mapped in some indices (whereas
-                            // PotentiallyUnmappedKeywordEsField can be entirely unmapped).
-                            && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)
-                            && survivingNames.contains(fa.name()) == false
-                            && referencedNames.contains(fa.name()) == false) {
-                            byName.putIfAbsent(fa.name(), fa);
-                        }
-                    }
-                });
-            }
-            return byName;
-        }
-
-        /**
-         * Mutates {@code outputUnion} in place, inserting a loader for each dropped unmapped fields missing from it right before the
-         * {@code _fork} discriminator, so a {@code DROP}-mentioned field lands where a {@code WHERE}/{@code KEEP}-mentioned one would and
-         * {@code _fork} stays last.
-         */
-        private static void addDroppedUnmappedFieldsMissingFromUnion(
-            List<Attribute> outputUnion,
-            Map<String, FieldAttribute> droppedUnmappedFields
-        ) {
-            if (droppedUnmappedFields.isEmpty()) {
-                return;
-            }
-            Set<String> unionNames = new HashSet<>(Expressions.names(outputUnion));
-            List<Attribute> loaders = new ArrayList<>();
-            for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedFields.entrySet()) {
-                if (unionNames.contains(entry.getKey()) == false) {
-                    FieldAttribute dropped = entry.getValue();
-                    // Match how the field was materialized: a nullified MissingEsField under nullify, else an insisted keyword under load.
-                    loaders.add(dropped.field() instanceof MissingEsField ? nullifyField(dropped) : unmappedKeyword(dropped));
-                }
-            }
-            if (loaders.isEmpty()) {
-                return;
-            }
-            int forkFieldIndex = Iterables.indexOf(outputUnion, a -> a.name().equals(Fork.FORK_FIELD));
-            if (forkFieldIndex < 0) {
-                forkFieldIndex = outputUnion.size();
-            }
-            outputUnion.addAll(forkFieldIndex, loaders);
-        }
-
-        /**
-         * Whether an unmapped field materialized at this branch's source would reach the branch output: true only if walking
-         * column-preserving unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
-         */
-        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
-            if (plan instanceof EsRelation esRelation) {
-                return esRelation.indexMode() != IndexMode.LOOKUP;
-            }
-            if (plan instanceof Project || plan instanceof Aggregate) {
-                return false;
-            }
-            if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
-                return branchCanSurfaceLoadedField(join.left());
-            } else if (plan instanceof UnaryPlan unaryPlan) {
-                return branchCanSurfaceLoadedField(unaryPlan.child());
-            } else {
-                return false;
-            }
-        }
-
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
@@ -1361,47 +1231,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-<<<<<<< HEAD
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
-            List<Attribute> list = new ArrayList<>();
-            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
-            for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
-            }
-            return insist.withAttributes(list);
-        }
-
-        private static List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
-            List<IndexResolution> resolutions = new ArrayList<>();
-            plan.forEachDown(EsRelation.class, e -> {
-                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
-                if (resolution != null) {
-                    resolutions.add(resolution);
-                }
-            });
-            return resolutions;
-        }
-
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
-            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
-            // Field isn't mapped anywhere.
-            if (resolvedCol instanceof UnresolvedAttribute) {
-                return insistKeyword(attribute);
-            }
-
-            // Field is partially unmapped.
-            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
-            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst().get());
-            }
-
-            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
-            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
-            return resolvedCol;
-        }
-
-        static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
+        static FieldAttribute invalidUnmappedAttribute(FieldAttribute fa, EsIndex esIndex) {
             InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.field().getName(), getTypesToIndices(fa, esIndex));
             return new FieldAttribute(fa.source(), fa.parentName(), fa.qualifier(), fa.name(), field);
         }
@@ -1416,10 +1246,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return Map.of(fa.dataType().typeName(), indicesWithField);
         }
 
-        public static FieldAttribute insistKeyword(Attribute attribute) {
-=======
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
             return new FieldAttribute(
                 attribute.source(),
                 null,

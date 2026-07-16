@@ -434,28 +434,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-<<<<<<< HEAD
-    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
-        var source = source(ctx);
-        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
-            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
-                Source neSource = ne.source();
-                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
-            }
-        });
-        return input -> new Insist(
-            source,
-            input,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
-        );
-=======
-    public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
-        Source source = source(ctx);
-        return input -> new Dedup(source, input);
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
-    }
-
-    @Override
     public PlanFactory visitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx) {
         Source source = source(ctx);
 

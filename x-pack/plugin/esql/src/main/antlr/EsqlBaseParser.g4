@@ -77,12 +77,6 @@ processingCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-<<<<<<< HEAD
-    | {this.isDevVersion()}? insistCommand
-=======
-    | {this.isDevVersion()}? dedupCommand
-    | {this.isDevVersion()}? highlightCommand
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
     ;
 
 whereCommand
@@ -380,23 +374,6 @@ tsInfoCommand
 //
 lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-<<<<<<< HEAD
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
-=======
-dedupCommand
-    : DEV_DEDUP
-    ;
-
-highlightCommand
-    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryText=string ON highlightFields=qualifiedNames commandNamedParameters
-    ;
-
-qualifiedNames
-    : qualifiedName (COMMA qualifiedName)*
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
     ;
 
 uriPartsCommand

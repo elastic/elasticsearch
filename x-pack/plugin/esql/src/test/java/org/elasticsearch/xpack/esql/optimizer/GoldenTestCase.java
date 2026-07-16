@@ -249,15 +249,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
-<<<<<<< HEAD
                 .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
             loadIndexResolution(testDatasets(parsedPlan)).forEach(
-=======
-                .externalSourceResolution(externalSourceResolution)
-                .unmappedResolution(unmappedResolution);
-            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
-            loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();

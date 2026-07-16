@@ -491,32 +491,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-<<<<<<< HEAD
-   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
-=======
-   * Visit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
->>>>>>> ebb85cd839b5 (ESQL: Purge INSIST from the codebase (#153845))
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
    * @return the visitor result

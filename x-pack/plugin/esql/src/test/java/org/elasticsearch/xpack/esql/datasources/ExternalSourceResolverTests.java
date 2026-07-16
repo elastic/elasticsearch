@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -83,6 +85,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -141,6 +144,90 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
         assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
+    }
+
+    // ===== Declared date `format` on a columnar column (rejectUncoercibleFileTypedRetypes) =====
+
+    /**
+     * A declared date {@code format} on a NUMERIC physical column is legal: the format is that column's epoch unit /
+     * parse dialect ({@code epoch_second} reads seconds). Covers every numeric physical the coercion admits, in both
+     * the non-strict overlay and the strict path — the two resolution routes funnel through the one reject method, so
+     * a regression in either would surface here. The read-VALUE half lives in {@code DeclaredTypeCoercionsTests} and
+     * {@code FromDatasetIT}; this pins the resolver's admission.
+     */
+    public void testDeclaredDateFormatOnNumericColumnResolves() throws Exception {
+        for (DataType numeric : List.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE)) {
+            for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+                Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+                props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+                ExternalSourceResolution resolution = resolveWithDeclaredMapping(List.of(attr("event_ts", numeric)), props, dynamic);
+                assertNotNull(
+                    "[format] on a [" + numeric.typeName() + "] physical must resolve (dynamic=" + dynamic + ")",
+                    resolution.resolvedSource(DECLARED_GLOB)
+                );
+            }
+        }
+    }
+
+    /**
+     * A declared date {@code format} is still rejected where it could never apply. An already-temporal physical (an
+     * annotated parquet TIMESTAMP infers as {@code datetime}) passes the preceding TYPE check as an identity coercion,
+     * so it reaches — and must be caught by — the format check. The message names the two places a format does apply.
+     */
+    public void testDeclaredDateFormatOnTemporalColumnRejected() throws Exception {
+        for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.DATETIME)), props, dynamic)
+            );
+            assertThat(e.getMessage(), containsString("[format] on column [ts]"));
+            assertThat(e.getMessage(), containsString("datetime"));
+            assertThat(e.getMessage(), containsString("epoch unit"));
+        }
+    }
+
+    /**
+     * A boolean physical declared {@code date} never reaches the format check — it dies at the preceding TYPE check,
+     * because no coercion boolean&rarr;date exists at all. Pins WHICH guard rejects it, so the two are not conflated.
+     */
+    public void testDeclaredDateOnBooleanColumnRejectedByTypeCheckNotFormatCheck() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.BOOLEAN)), props, DatasetMapping.Dynamic.TRUE)
+        );
+        assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
+        assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
+    }
+
+    private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
+
+    /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
+    private ExternalSourceResolution resolveWithDeclaredMapping(
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, fileSchema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), List.of(entry(file, 100)));
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        return future.actionGet();
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -325,6 +412,113 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // id is uniformly LONG -> folds normally.
         assertEquals(1L, agg.get(SourceStatisticsSerializer.columnMinKey("id")));
         assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
+    }
+
+    /**
+     * The UNION_BY_NAME reconciliation aggregate must safe-miss a text-format column that a widening pin retyped. Its
+     * cached per-file stats were harvested at the narrower read type (a solo narrow read shares the read-schema-blind
+     * cache entry), so under {@code null_field} the pinned column's extrema are poisoned and its value/null counts
+     * dropped, while a non-pinned column and the shared row count still fold normally. Without the boundary the fold
+     * would serve the narrow read's stale {@code max} (here 20) as the widened column's MAX, a silent wrong answer.
+     */
+    public void testReconcileAggregatePoisonsPinnedColumnUnderNullField() {
+        StoragePath pathA = StoragePath.of("s3://bucket/a.csv");
+        StoragePath pathB = StoragePath.of("s3://bucket/b.csv");
+
+        Map<String, Object> flatA = new HashMap<>();
+        flatA.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        flatA.put(SourceStatisticsSerializer.columnMinKey("val"), 1L);
+        flatA.put(SourceStatisticsSerializer.columnMaxKey("val"), 20L);
+        flatA.put(SourceStatisticsSerializer.columnValueCountKey("val"), 3L);
+        flatA.put(SourceStatisticsSerializer.columnNullCountKey("val"), 0L);
+        flatA.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        flatA.put(SourceStatisticsSerializer.columnMaxKey("id"), 3L);
+
+        Map<String, Object> flatB = new HashMap<>();
+        flatB.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        flatB.put(SourceStatisticsSerializer.columnMinKey("val"), -5L);
+        flatB.put(SourceStatisticsSerializer.columnMaxKey("val"), 100L);
+        flatB.put(SourceStatisticsSerializer.columnValueCountKey("val"), 2L);
+        flatB.put(SourceStatisticsSerializer.columnNullCountKey("val"), 0L);
+        flatB.put(SourceStatisticsSerializer.columnMinKey("id"), 4L);
+        flatB.put(SourceStatisticsSerializer.columnMaxKey("id"), 5L);
+
+        List<Attribute> longSchema = List.of(attr("val", DataType.LONG), attr("id", DataType.LONG));
+        Map<StoragePath, SourceMetadata> allMetadata = new LinkedHashMap<>();
+        allMetadata.put(pathA, new SimpleSourceMetadata(longSchema, "csv", pathA.toString(), null, null, flatA, null));
+        allMetadata.put(pathB, new SimpleSourceMetadata(longSchema, "csv", pathB.toString(), null, null, flatB, null));
+
+        Map<String, DataType> reconciledTypes = Map.of("val", DataType.LONG, "id", DataType.LONG);
+        Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+        perFileTypes.put(pathA, Map.of("val", DataType.LONG, "id", DataType.LONG));
+        perFileTypes.put(pathB, Map.of("val", DataType.LONG, "id", DataType.LONG));
+        // a.csv's val was inferred INTEGER and pinned to LONG; b.csv was already LONG (not pinned).
+        Map<StoragePath, Set<String>> perFilePinnedColumns = Map.of(pathA, Set.of("val"));
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            allMetadata,
+            perFileTypes,
+            reconciledTypes,
+            perFilePinnedColumns,
+            false, // null_field keeps rows, so row count stays trustworthy
+            false  // csv does not fold an absent column as implicit null (irrelevant here: every column present)
+        );
+
+        assertNotNull(agg);
+        // Pinned "val" is untrustworthy -> extrema poisoned (value dropped, unservable marker set) -> MIN/MAX(val) safe-miss.
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("val")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("val")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("val")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("val")));
+        // ... and its value count is dropped, so COUNT(val) safe-misses rather than serving a subset count.
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("val")));
+        // Row count folds normally under null_field (the row is kept, only the cell nulls).
+        assertEquals(5L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        // Non-pinned "id" folds normally.
+        assertEquals(1L, ((Number) agg.get(SourceStatisticsSerializer.columnMinKey("id"))).longValue());
+        assertEquals(5L, ((Number) agg.get(SourceStatisticsSerializer.columnMaxKey("id"))).longValue());
+    }
+
+    /**
+     * Under {@code skip_row} a narrow-read parse failure on a pinned column drops the whole row, so the pinned file's
+     * cached row count is short too. Dropping it forces the entire aggregate to safe-miss ({@code mergeStatistics}
+     * requires a numeric row count from every file), so even {@code COUNT(*)} re-scans rather than serving an undercount.
+     */
+    public void testReconcileAggregateDropsRowCountForPinnedColumnUnderSkipRow() {
+        StoragePath pathA = StoragePath.of("s3://bucket/a.csv");
+        StoragePath pathB = StoragePath.of("s3://bucket/b.csv");
+
+        Map<String, Object> flatA = new HashMap<>();
+        flatA.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        flatA.put(SourceStatisticsSerializer.columnMinKey("val"), 1L);
+        flatA.put(SourceStatisticsSerializer.columnMaxKey("val"), 20L);
+
+        Map<String, Object> flatB = new HashMap<>();
+        flatB.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        flatB.put(SourceStatisticsSerializer.columnMinKey("val"), -5L);
+        flatB.put(SourceStatisticsSerializer.columnMaxKey("val"), 100L);
+
+        List<Attribute> longSchema = List.of(attr("val", DataType.LONG));
+        Map<StoragePath, SourceMetadata> allMetadata = new LinkedHashMap<>();
+        allMetadata.put(pathA, new SimpleSourceMetadata(longSchema, "csv", pathA.toString(), null, null, flatA, null));
+        allMetadata.put(pathB, new SimpleSourceMetadata(longSchema, "csv", pathB.toString(), null, null, flatB, null));
+
+        Map<String, DataType> reconciledTypes = Map.of("val", DataType.LONG);
+        Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+        perFileTypes.put(pathA, Map.of("val", DataType.LONG));
+        perFileTypes.put(pathB, Map.of("val", DataType.LONG));
+        Map<StoragePath, Set<String>> perFilePinnedColumns = Map.of(pathA, Set.of("val"));
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            allMetadata,
+            perFileTypes,
+            reconciledTypes,
+            perFilePinnedColumns,
+            true, // skip_row: a dropped row makes a.csv's cached row count untrustworthy
+            false
+        );
+
+        assertNull(agg);
     }
 
     // ===== Stats partial / file-count flag tests =====

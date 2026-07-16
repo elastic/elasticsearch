@@ -205,6 +205,85 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals("São Paulo", partitions.get("city"));
     }
 
+    /**
+     * A literal {@code +} in a partition folder must survive as {@code +}, not be turned into a space. Hive
+     * partition folders are {@code %XX}-escaped only and write {@code +} literally, so decoding a value the
+     * {@code application/x-www-form-urlencoded} way corrupts {@code tag=a+b/} to {@code "a b"} and a filter on the
+     * true value drops every row of that folder.
+     */
+    public void testLiteralPlusIsNotDecodedToSpace() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+b/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("tag"));
+
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+b/file.parquet"));
+        assertEquals("a+b", partitions.get("tag"));
+    }
+
+    /** An escaped {@code +} ({@code %2B}) decodes to a literal {@code +}, round-tripping the {@code %XX} escape. */
+    public void testPercentEncodedPlusDecodesToPlus() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a%2Bb/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a%2Bb/file.parquet"));
+        assertEquals("a+b", partitions.get("tag"));
+    }
+
+    /** An escaped {@code :} ({@code %3A}) decodes to a literal colon (the everyday shape for namespace/timestamp values). */
+    public void testPercentEncodedColonDecodesToColon() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=ns%3Aclick/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=ns%3Aclick/file.parquet"));
+        assertEquals("ns:click", partitions.get("tag"));
+    }
+
+    /**
+     * Within one value a literal {@code +} stays {@code +} while an escaped space ({@code %20}) decodes to a space.
+     * Form-urlencoded decoding would collapse both to spaces.
+     */
+    public void testLiteralPlusAndEscapedSpaceInOneValue() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+b%20c/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+b%20c/file.parquet"));
+        assertEquals("a+b c", partitions.get("tag"));
+    }
+
+    /** A malformed escape ({@code %} not followed by two hex digits) is left as the raw value, never throwing. */
+    public void testMalformedPercentEscapeFallsBackToRawValue() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a%2/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a%2/file.parquet"));
+        assertEquals("a%2", partitions.get("tag"));
+    }
+
+    /**
+     * A literal {@code +} next to a malformed escape falls back to the raw value, keeping the {@code +} literal rather
+     * than surfacing the {@code %2B} form the decoder would use for a well-formed value.
+     */
+    public void testLiteralPlusWithMalformedEscapeFallsBackToRawValue() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+%2/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+%2/file.parquet"));
+        assertEquals("a+%2", partitions.get("tag"));
+    }
+
     public void testSingleFile() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/file.parquet"));
 

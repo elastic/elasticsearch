@@ -15,8 +15,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,21 +76,6 @@ public class CancelRecoveriesAction {
         @Override
         public int hashCode() {
             return Objects.hash(clusterStateVersion, shardRecoveryCancellations);
-        }
-    }
-
-    /// Details of a single shard recovery to be cancelled.
-    public record ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted) implements Writeable {
-
-        public ShardRecoveryCancellation(StreamInput in) throws IOException {
-            this(new ShardId(in), in.readString(), in.readBoolean());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            shardId.writeTo(out);
-            out.writeString(allocationId);
-            out.writeBoolean(cancelIfStarted);
         }
     }
 

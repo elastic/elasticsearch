@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation.Replica
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -410,7 +411,7 @@ public class TransportWriteActionTests extends ESTestCase {
             // simulate the primary has been demoted
             transport.handleRemoteError(
                 shardFailedRequest.requestId(),
-                new ShardStateAction.NoLongerPrimaryShardException(replica.shardId(), "shard-failed-test")
+                new NoLongerPrimaryShardException(replica.shardId(), "shard-failed-test")
             );
             assertFalse(success.get());
             assertNotNull(failure.get());

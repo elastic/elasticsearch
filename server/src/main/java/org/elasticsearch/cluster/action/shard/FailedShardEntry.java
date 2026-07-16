@@ -29,7 +29,7 @@ public class FailedShardEntry extends AbstractTransportRequest {
     final Exception failure;
     final boolean markAsStale;
 
-    public FailedShardEntry(StreamInput in) throws IOException {
+    FailedShardEntry(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
         allocationId = in.readString();
@@ -104,6 +104,7 @@ public class FailedShardEntry extends AbstractTransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FailedShardEntry that = (FailedShardEntry) o;
+        // Exclude message and exception from equals and hashCode
         return Objects.equals(this.shardId, that.shardId)
             && Objects.equals(this.allocationId, that.allocationId)
             && primaryTerm == that.primaryTerm

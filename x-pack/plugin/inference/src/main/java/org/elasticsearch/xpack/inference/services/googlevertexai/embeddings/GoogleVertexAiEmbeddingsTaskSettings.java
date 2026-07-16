@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -164,5 +165,10 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

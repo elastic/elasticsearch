@@ -66,6 +66,7 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
     private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
+    @SuppressWarnings("this-escape")
     public TransportSearchShardsAction(
         TransportService transportService,
         SearchService searchService,

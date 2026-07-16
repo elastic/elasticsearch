@@ -10,6 +10,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -50,6 +53,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_RANGE, EqualsLongRangeEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
@@ -62,7 +66,10 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.VERSION, EqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.IP, EqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorEvaluator.Factory::new),
-        Map.entry(DataType.FLATTENED, EqualsBytesRefEvaluator.Factory::new)
+        Map.entry(DataType.FLATTENED, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TDIGEST, EqualsTDigestEvaluator.Factory::new),
+        Map.entry(DataType.EXPONENTIAL_HISTOGRAM, EqualsExponentialHistogramEvaluator.Factory::new),
+        Map.entry(DataType.HISTOGRAM, EqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -83,18 +90,22 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -108,18 +119,22 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -163,9 +178,6 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
                     return Translatable.YES_BUT_RECHECK_NEGATED;
                 }
-            }
-            if (left() instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-                return Translatable.YES;
             }
         }
         return super.translatable(pushdownPredicates);
@@ -266,6 +278,21 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Evaluator(extraName = "Geometries")
     static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
         return lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "LongRange")
+    static boolean processLongRange(LongRangeBlockBuilder.LongRange lhs, LongRangeBlockBuilder.LongRange rhs) {
+        return lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "TDigest")
+    static boolean processTDigest(TDigestHolder lhs, TDigestHolder rhs) {
+        return lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "ExponentialHistogram")
+    static boolean processExponentialHistogram(ExponentialHistogram lhs, ExponentialHistogram rhs) {
+        return ExponentialHistogram.equals(lhs, rhs);
     }
 
 }

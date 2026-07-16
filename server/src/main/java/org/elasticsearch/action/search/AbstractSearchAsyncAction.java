@@ -31,6 +31,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -56,6 +58,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -74,6 +78,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
+
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
@@ -109,10 +114,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
+    private final LongAdder phaseResultBytesRead = new LongAdder();
+    private final LongAdder phaseRequestBytesWritten = new LongAdder();
 
     AbstractSearchAsyncAction(
         String name,
@@ -174,6 +182,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
         this.isPitRelocationEnabled = pitRelocationEnabled;
+    }
+
+    protected final boolean hasShardResponse() {
+        return hasShardResponse.get();
     }
 
     protected void notifyListShards(
@@ -369,6 +381,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
                 return;
             }
+            long resultBytes = phaseResultBytesRead.sumThenReset();
+            long requestBytes = phaseRequestBytesWritten.sumThenReset();
+            // bytes tracked is 0 in the following scenarios:
+            // - all requests/responses were local
+            // - for the expand phase whose sub-searches are tracked separately
+            // - for the result side if all shards failed, which is the only case where remote requests track bytes but results don't
+            if (resultBytes > 0) {
+                assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                searchResponseMetrics.recordSearchPhaseShardResultBytes(currentPhase, resultBytes, searchRequestAttributes);
+            }
+            if (requestBytes > 0) {
+                searchResponseMetrics.recordSearchPhaseShardRequestBytes(currentPhase, requestBytes, searchRequestAttributes);
+            }
+            assert currentPhase.equals(ExpandSearchPhase.NAME) == false || (requestBytes == 0 && resultBytes == 0)
+                : "bytes should not be tracked for the expand phase, whose sub-searches are tracked individually";
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
@@ -518,10 +545,41 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
+        // accumulate the per-shard metrics into the single merged reference before consuming the result
+        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         results.consumeResult(result, () -> {
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard result to the running total for the current phase.
+     * Called once per shard result, from the transport response handler's read path.
+     */
+    void trackPhaseResultBytesRead(long bytes) {
+        phaseResultBytesRead.add(bytes);
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard request to the running total for the current phase.
+     * Called once per shard request, before sending it to the data node.
+     */
+    void trackPhaseRequestBytesWritten(long bytes) {
+        phaseRequestBytesWritten.add(bytes);
+    }
+
+    /**
+     * Merges the {@link DirectoryMetrics} carried by a single shard result into the search-wide total. This is the only
+     * place metrics are accumulated on the coordinating node.
+     */
+    void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        DirectoryMetrics.accumulate(mergedDirectoryMetrics, metrics);
+    }
+
+    // package private for testing
+    DirectoryMetrics getMergedDirectoryMetrics() {
+        return mergedDirectoryMetrics.get();
     }
 
     /**
@@ -582,7 +640,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        return new SearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             scrollId,
             getNumShards(),
@@ -595,6 +653,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             request.source(),
             request.indices()
         );
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        searchResponse.setDirectoryMetrics(directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
+        return searchResponse;
     }
 
     /**
@@ -610,17 +672,31 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            ActionListener.respondAndRelease(
-                listener,
-                buildSearchResponse(
-                    internalSearchResponse,
-                    failures,
-                    request.scroll() != null
-                        ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
-                        : null,
-                    buildSearchContextId(failures)
-                )
+            SearchResponse searchResponse = buildSearchResponse(
+                internalSearchResponse,
+                failures,
+                request.scroll() != null
+                    ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
+                    : null,
+                buildSearchContextId(failures)
             );
+            if (request.bufferSubSearchResponseForMultiSearch() && results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
+                if (handoffBytes > 0) {
+                    searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+                }
+            }
+            ActionListener.respondAndRelease(listener, searchResponse);
+        }
+    }
+
+    void recordStoreMetrics(DirectoryMetrics directoryMetrics) {
+        if (directoryMetrics.isEmpty()) {
+            return;
+        }
+        var storeMetrics = directoryMetrics.metrics(StoreMetrics.NAME);
+        if (storeMetrics != null) {
+            searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
         }
     }
 
@@ -805,17 +881,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-     * Builds an request for the initial search phase.
+     * Builds a shard search request before each search phase, on the coordinating node
      *
      * @param shardIt the target {@link SearchShardIterator}
      * @param shardIndex the index of the shard that is used in the coordinator node to
      *                   tiebreak results with identical sort values
      */
-    protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
+    protected ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        ShardSearchRequest shardRequest = new ShardSearchRequest(
+        return new ShardSearchRequest(
             shardIt.getOriginalIndices(),
             request,
             shardIt.shardId(),
@@ -827,14 +903,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
-            shardIt.getSplitShardCountSummary()
+            shardIt.getSplitShardCountSummary(),
+            ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled()
         );
-        // if we already received a search result we can inform the shard that it
-        // can return a null response if the request rewrites to match none rather
-        // than creating an empty response in the search thread pool.
-        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
-        return shardRequest;
     }
 
     /**

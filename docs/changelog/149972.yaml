@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 149972
+summary: Fix PromQL round(to_nearest) floating point accuracy
+type: enhancement

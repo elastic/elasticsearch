@@ -1,0 +1,206 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: "columnar index modes and synthetic recovery source required"
+
+---
+columnar index defaults to synthetic recovery source:
+  - do:
+      indices.create:
+        index: test_columnar_recovery_default
+        body:
+          settings:
+            index:
+              mode: columnar
+
+  - do:
+      indices.get_settings:
+        index: test_columnar_recovery_default
+        include_defaults: true
+
+  - match: { test_columnar_recovery_default.settings.index.mode: "columnar" }
+  - match: { test_columnar_recovery_default.defaults.index.recovery.use_synthetic_source: "true" }
+
+---
+columnar index accepts explicit synthetic recovery source:
+  - do:
+      indices.create:
+        index: test_columnar_recovery_explicit
+        body:
+          settings:
+            index:
+              mode: columnar
+              recovery.use_synthetic_source: true
+
+  - do:
+      indices.get_settings:
+        index: test_columnar_recovery_explicit
+        include_defaults: true
+
+  - match: { test_columnar_recovery_explicit.settings.index.mode: "columnar" }
+  - match: { test_columnar_recovery_explicit.settings.index.recovery.use_synthetic_source: "true" }
+
+---
+columnar index rejects disabling synthetic recovery source:
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_recovery_rejected
+        body:
+          settings:
+            index:
+              mode: columnar
+              recovery.use_synthetic_source: false
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "The setting [index.recovery.use_synthetic_source] must not be false when [index.mode] is set to [COLUMNAR]." }
+
+---
+logsdb_columnar index defaults to synthetic recovery source:
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_recovery_default
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+  - do:
+      indices.get_settings:
+        index: test_logsdb_columnar_recovery_default
+        include_defaults: true
+
+  - match: { test_logsdb_columnar_recovery_default.settings.index.mode: "logsdb_columnar" }
+  - match: { test_logsdb_columnar_recovery_default.defaults.index.recovery.use_synthetic_source: "true" }
+
+---
+logsdb_columnar index accepts explicit synthetic recovery source:
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_recovery_explicit
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              recovery.use_synthetic_source: true
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+  - do:
+      indices.get_settings:
+        index: test_logsdb_columnar_recovery_explicit
+        include_defaults: true
+
+  - match: { test_logsdb_columnar_recovery_explicit.settings.index.mode: "logsdb_columnar" }
+  - match: { test_logsdb_columnar_recovery_explicit.settings.index.recovery.use_synthetic_source: "true" }
+
+---
+logsdb_columnar index rejects disabling synthetic recovery source:
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_recovery_rejected
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              recovery.use_synthetic_source: false
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "The setting [index.recovery.use_synthetic_source] must not be false when [index.mode] is set to [LOGSDB_COLUMNAR]." }
+
+---
+columnar data stream defaults to synthetic recovery source:
+  - do:
+      allowed_warnings:
+        - "index template [columnar-recovery-template] has index patterns [columnar-recovery-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-recovery-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-recovery-template
+        body:
+          index_patterns: [ "columnar-recovery-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_replicas: 0
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: columnar-recovery-logs
+
+  - do:
+      indices.get_data_stream:
+        name: columnar-recovery-logs
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: columnar-recovery-logs
+        include_defaults: true
+
+  - match: { .$backing_index.defaults.index.recovery.use_synthetic_source: "true" }
+
+---
+columnar data stream rejects disabling synthetic recovery source:
+  - do:
+      allowed_warnings:
+        - "index template [columnar-recovery-bad-template] has index patterns [columnar-recovery-bad-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-recovery-bad-template] will take precedence during new index creation"
+      catch: bad_request
+      indices.put_index_template:
+        name: columnar-recovery-bad-template
+        body:
+          index_patterns: [ "columnar-recovery-bad-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_replicas: 0
+                recovery.use_synthetic_source: false
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - match: { error.type: "invalid_index_template_exception" }
+  - match: { error.reason: "index_template [columnar-recovery-bad-template] invalid, cause [Validation Failed: 1: The setting [index.recovery.use_synthetic_source] must not be false when [index.mode] is set to [COLUMNAR].;]" }
+
+---
+logsdb_columnar component template rejects disabling synthetic recovery source:
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: columnar-recovery-component
+        body:
+          template:
+            settings:
+              index:
+                mode: logsdb_columnar
+                recovery.use_synthetic_source: false
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "The setting [index.recovery.use_synthetic_source] must not be false when [index.mode] is set to [LOGSDB_COLUMNAR]." }

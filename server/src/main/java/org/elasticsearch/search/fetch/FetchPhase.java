@@ -325,7 +325,7 @@ public final class FetchPhase {
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        return new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadStoreMetrics()) {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -402,6 +402,7 @@ public final class FetchPhase {
                 }
             }
         };
+        return docsIterator;
     }
 
     /**
@@ -417,6 +418,7 @@ public final class FetchPhase {
         ActionListener<SearchHitsWithSizeBytes> wrappedListener = new ActionListener<>() {
             @Override
             public void onResponse(SearchHitsWithSizeBytes result) {
+                context.addFetchThreadsBytesRead(docsIterator.getStoreBytesRead());
                 buildListener.onResponse(null);
                 listener.onResponse(result);
             }
@@ -535,6 +537,7 @@ public final class FetchPhase {
                         onFailure(e);
                         return;
                     }
+                    context.addFetchThreadsBytesRead(docsIterator.getStoreBytesRead());
                     buildListener.onResponse(null);
                     mainBuildListener.onResponse(null);
                 }
@@ -691,10 +694,12 @@ public final class FetchPhase {
                 rootSource = innerHitsContext.getRootLookup();
             }
         } else {
+            IdLoader idLoader = context.newIdLoader();
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(requiresSource, Collections.emptySet()));
             LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(subReaderContext, null);
             leafRootLoader.advanceTo(nestedInfo.rootDoc());
-            rootId = leafRootLoader.id();
+            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafRootLoader, subReaderContext.reader(), null);
+            rootId = leafIdLoader.getId(nestedInfo.rootDoc());
 
             if (requiresSource) {
                 if (leafRootLoader.source() != null) {

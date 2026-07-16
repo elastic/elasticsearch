@@ -20,7 +20,12 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
     boolean isNull(int position);
 
     @Override
-    LongRangeBlock filter(boolean mayContainDuplicates, int... positions);
+    LongRangeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default LongRangeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     LongRangeBlock keepMask(BooleanVector mask);
@@ -98,6 +103,11 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
          * Append the given range to this builder.
          */
         Block.Builder appendLongRange(LongRangeBlockBuilder.LongRange range);
+
+        /**
+         * Append the given range to this builder.
+         */
+        Block.Builder appendLongRange(long from, long to);
 
         /**
          * Copy the value(s) at the given position of {@code block} into this builder.

@@ -742,8 +742,8 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | KEEP _id, my_score, my_fork
 ;
 
-warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+warningRegex:Line 6:3: evaluation of \[FUSE LINEAR SCORE BY my_score GROUP BY my_fork\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -794,8 +794,8 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | KEEP _id, my_score, my_fork
 ;
 
-warning:Line 6:3: evaluation of [FUSE RRF SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+warningRegex:Line 6:3: evaluation of \[FUSE RRF SCORE BY my_score GROUP BY my_fork\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -859,15 +859,16 @@ fuseWithForkAndRowWithNullValues
 required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: fuse_passthrough_with_first
 
 ROW x = null, _id = "", _index = "", _score = 1.0
-| FORK (EVAl y = 2 | LIMIT 1) (EVAl y = 3 | LIMIT 1)
+| FORK (EVAl y = 1 | LIMIT 1) (EVAl y = 1 | LIMIT 1)
 | FUSE LINEAR
-| EVAL y = mv_sort(y), _fork = mv_sort(_fork)
+| EVAL _fork = mv_sort(_fork)
 ;
 
 _score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword
-2             | null   | ""          | ""             | [2, 3]    | [fork1,fork2]
+2             | null   | ""          | ""             | 1    | [fork1,fork2]
 ;
 
 fuseWithForkAndFromWithNullValues
@@ -959,4 +960,91 @@ language_code:integer | language_name:keyword | label:keyword | my_score:double
 4                     | German                | label1        | 0.01639
 2                     | French                | label2        | 0.01613
 3                     | Spanish               | label2        | 0.01587
+;
+
+fuseWithDenseVector
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: match_operator_colon
+required_capability: knn_function_v5
+required_capability: fuse_passthrough_with_first
+
+FROM colors METADATA _id, _index, _score
+| FORK (WHERE color:"red"                  | EVAL score1 = 1.0    | SORT _score DESC | LIMIT 10)
+       (WHERE knn(rgb_vector, [255, 0, 0]) | EVAL score2 = _score | SORT _score DESC | LIMIT 10)
+| FUSE
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, color, rgb_vector, hex_code, primary, _index, _fork, score1, score2
+| SORT _score DESC, color ASC
+;
+
+_score:double | color:keyword | rgb_vector:dense_vector | hex_code:keyword | primary:boolean | _index:keyword | _fork:keyword  | score1:double          | score2:double
+0.03279       | red           | [255.0, 0.0, 0.0]       | #FF0000          | true            | colors         | [fork1, fork2] | 1.0                    | 1.0
+0.01613       | crimson       | [220.0, 20.0, 60.0]     | #DC143C          | false           | colors         | fork2          | null                   | 1.9135093316435814E-4
+0.01587       | firebrick     | [178.0, 34.0, 34.0]     | #B22222          | false           | colors         | fork2          | null                   | 1.2132977280998603E-4
+0.01563       | brown         | [165.0, 42.0, 42.0]     | #A52A2A          | false           | colors         | fork2          | null                   | 8.599191642133519E-5
+0.01538       | chocolate     | [210.0, 105.0, 30.0]    | #D2691E          | false           | colors         | fork2          | null                   | 7.167945295805112E-5
+0.01515       | tomato        | [255.0, 99.0, 71.0]     | #FF6347          | false           | colors         | fork2          | null                   | 6.737182411598042E-5
+0.01493       | maroon        | [128.0, 0.0, 0.0]       | #800000          | false           | colors         | fork2          | null                   | 6.199628114700317E-5
+0.01471       | sienna        | [160.0, 82.0, 45.0]     | #A0522D          | false           | colors         | fork2          | null                   | 5.625879202852957E-5
+0.01449       | coral         | [255.0, 127.0, 80.0]    | #FF7F50          | false           | colors         | fork2          | null                   | 4.438526229932904E-5
+0.01429       | peru          | [205.0, 133.0, 63.0]    | #CD853F          | false           | colors         | fork2          | null                   | 4.1392442653886974E-5
+;
+
+fuseWithDenseVectorPassthrough
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: match_operator_colon
+required_capability: knn_function_v5
+required_capability: fuse_passthrough_with_first
+
+FROM colors METADATA _id, _index, _score
+| FORK (WHERE color:"red"                                      | SORT _score DESC | LIMIT 10)
+     (WHERE knn(rgb_byte_vector, [127.0, -128.0, -128.0])     | SORT _score DESC | LIMIT 10)
+| FUSE
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, color, hex_code, id, primary, rgb_byte_vector, rgb_vector, _index, _fork
+| SORT _score DESC, color ASC
+;
+
+_score:double | color:keyword | hex_code:keyword | id:integer | primary:boolean | rgb_byte_vector:dense_vector | rgb_vector:dense_vector | _index:keyword | _fork:keyword
+0.03279       | red           | #FF0000          | 4          | true            | [127.0, -128.0, -128.0]      | [255.0, 0.0, 0.0]       | colors         | [fork1, fork2]
+0.01613       | crimson       | #DC143C          | 3          | false           | [92.0, -108.0, -68.0]        | [220.0, 20.0, 60.0]     | colors         | fork2
+0.01587       | firebrick     | #B22222          | 2          | false           | [50.0, -94.0, -94.0]         | [178.0, 34.0, 34.0]     | colors         | fork2
+0.01563       | brown         | #A52A2A          | 1          | false           | [37.0, -86.0, -86.0]         | [165.0, 42.0, 42.0]     | colors         | fork2
+0.01538       | chocolate     | #D2691E          | 37         | false           | [82.0, -23.0, -98.0]         | [210.0, 105.0, 30.0]    | colors         | fork2
+0.01515       | tomato        | #FF6347          | 5          | false           | [127.0, -29.0, -57.0]        | [255.0, 99.0, 71.0]     | colors         | fork2
+0.01493       | maroon        | #800000          | 0          | false           | [0.0, -128.0, -128.0]        | [128.0, 0.0, 0.0]       | colors         | fork2
+0.01471       | sienna        | #A0522D          | 36         | false           | [32.0, -46.0, -83.0]         | [160.0, 82.0, 45.0]     | colors         | fork2
+0.01449       | coral         | #FF7F50          | 6          | false           | [127.0, -1.0, -48.0]         | [255.0, 127.0, 80.0]    | colors         | fork2
+0.01429       | peru          | #CD853F          | 38         | false           | [77.0, 5.0, -65.0]           | [205.0, 133.0, 63.0]    | colors         | fork2
+;
+
+fuseFirstFiltersNullPassthroughColumns
+required_capability: fuse_v6
+required_capability: fuse_passthrough_with_first
+
+ROW row = [
+  "id1|idx|fork1|1.0|abc|",
+  "id1|idx|fork2|1.0||def",
+  "id2|idx|fork1|1.0|foo|",
+  "id2|idx|fork2|1.0||bar"
+]
+| MV_EXPAND row
+| DISSECT row "%{_id}|%{_index}|%{_fork}|%{_score}|%{title}|%{col1}"
+| EVAL _score = _score::double
+| EVAL title = CASE(title == "", null, title)
+| EVAL col1 = CASE(col1 == "", null, col1)
+| DROP row
+| LIMIT 100
+| FUSE LINEAR
+| KEEP _score, _id, _index, _fork, title, col1
+| SORT _id ASC
+;
+
+_score:double | _id:keyword | _index:keyword | _fork:keyword  | title:keyword | col1:keyword
+2.0           | id1         | idx            | [fork1, fork2] | abc           | def
+2.0           | id2         | idx            | [fork1, fork2] | foo           | bar
 ;

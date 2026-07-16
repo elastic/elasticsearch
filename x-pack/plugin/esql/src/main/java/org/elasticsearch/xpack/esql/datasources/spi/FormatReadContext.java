@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Immutable context for a single {@link FormatReader#read} or {@link FormatReader#readAsync} call.
@@ -43,8 +44,53 @@ import java.util.List;
  *                         {@link FormatReader#withSchema}, which carries the projection. Empty
  *                         list and {@code null} both mean "no schema"; the compact constructor
  *                         collapses empty to {@code null} so readers do one check.
+ * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
+ *                         Text readers add the bytes they consume to this anchor to emit a file-global,
+ *                         split-invariant start byte per record for the {@code _rowPosition} channel
+ *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
+ *                         whole-file (non-split) case and for columnar formats, which derive a file-global
+ *                         row index from their own footer/stripe metadata rather than from a byte anchor.
+ *                         <p>Note: this carries the SAME VALUE as {@code statsBaseOffset} at every current call
+ *                         site, but they are distinct CONTRACTS, not one quantity: {@code splitStartByte} may be a
+ *                         COMPRESSED coordinate under compressed-offset splits ({@code COMPRESSED_OFFSET_SPLIT_KEY}),
+ *                         whereas {@code statsBaseOffset} is decompressed-stream only. Stripe capture is disabled
+ *                         exactly where the two would diverge, so they must stay separate — a blind unification
+ *                         would mis-address stripes on compressed splits.
  * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
  *                         scans for a record boundary.
+ * @param statsBaseOffset  the DECOMPRESSED-stream byte offset of this read's first byte, used by the reader to
+ *                         address records to canonical stripes
+ *                         ({@code ordinal = floor((statsBaseOffset + recordOffsetInRead) / statsStripeSize)}).
+ *                         Ignored when {@code statsStripeSize <= 0}. Same value as {@code splitStartByte} at every
+ *                         current call site, but a distinct contract under compressed-offset splits (see its note).
+ * @param statsStripeSize  canonical-stripe grid in bytes for per-stripe stats attribution, or
+ *                         {@code <= 0} to disable stripe addressing (the reader then emits no
+ *                         stripe-addressed contributions and the warm short-circuit safe-misses). A
+ *                         pure stats overlay — it never affects how the read is chunked or split.
+ * @param statsFileFinal   whether this read reaches the file's true end (the segmentator's EOF chunk,
+ *                         or the segmented coordinator's trailing segment). Only the file-final read
+ *                         may mark its last stripe complete-on-the-right ({@code atStripeEnd}) and
+ *                         terminal ({@code eof}); a non-final chunk ends mid-stripe at a chunk boundary,
+ *                         so its trailing stripe is a partial right fragment the next chunk continues.
+ *                         Marking a non-final chunk's trailing stripe complete would silently undercount.
+ * @param statsColumnScope how much per-stripe statistics the read harvests while it scans (row count
+ *                         only / row count + projected columns / row count + all file columns / nothing).
+ *                         Orthogonal to {@code statsStripeSize}: the grid decides which stripe a record
+ *                         lands in, this decides what is summarised per stripe. {@code null} defaults to
+ *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
+ *                         setting); the compact constructor collapses {@code null} to that default so
+ *                         readers do one check.
+ * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
+ *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
+ *                         should fall back to emitting warnings directly via {@link
+ *                         org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
+ *                         the read runs on the request/driver thread. Callers that dispatch reads to a
+ *                         background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set
+ *                         this to a sink — typically {@code AsyncExternalSourceBuffer::recordInformationalWarning},
+ *                         preserving these warnings' pre-existing behavior of never flipping the response's
+ *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
+ *                         the one warning that does) — so the warning is relayed back and re-emitted on
+ *                         the correct thread instead of being silently dropped.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -55,7 +101,13 @@ public record FormatReadContext(
     boolean lastSplit,
     boolean recordAligned,
     @Nullable List<Attribute> readSchema,
-    int maxRecordBytes
+    long splitStartByte,
+    int maxRecordBytes,
+    long statsBaseOffset,
+    long statsStripeSize,
+    boolean statsFileFinal,
+    StripeColumnScope statsColumnScope,
+    @Nullable Consumer<String> informationalWarningSink
 ) {
 
     public FormatReadContext {
@@ -64,6 +116,9 @@ public record FormatReadContext(
         }
         if (maxRecordBytes <= 0) {
             throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
+        }
+        if (statsColumnScope == null) {
+            statsColumnScope = StripeColumnScope.PROJECTED;
         }
     }
 
@@ -91,7 +146,13 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
-            maxRecordBytes
+            splitStartByte,
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal,
+            statsColumnScope,
+            informationalWarningSink
         );
     }
 
@@ -108,7 +169,13 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
-            maxRecordBytes
+            splitStartByte,
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal,
+            statsColumnScope,
+            informationalWarningSink
         );
     }
 
@@ -125,7 +192,13 @@ public record FormatReadContext(
             last,
             recordAligned,
             readSchema,
-            maxRecordBytes
+            splitStartByte,
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal,
+            statsColumnScope,
+            informationalWarningSink
         );
     }
 
@@ -146,7 +219,14 @@ public record FormatReadContext(
         private boolean recordAligned = false;
         @Nullable
         private List<Attribute> readSchema = null;
+        private long splitStartByte = 0L;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private long statsBaseOffset = 0L;
+        private long statsStripeSize = -1L;
+        private boolean statsFileFinal = false;
+        private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        @Nullable
+        private Consumer<String> informationalWarningSink = null;
 
         private Builder() {}
 
@@ -195,8 +275,46 @@ public record FormatReadContext(
             return this;
         }
 
+        /** See {@link FormatReadContext#splitStartByte()}; the file-global byte offset of this split's start. */
+        public Builder splitStartByte(long splitStartByte) {
+            this.splitStartByte = splitStartByte;
+            return this;
+        }
+
         public Builder maxRecordBytes(int maxRecordBytes) {
             this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
+        /**
+         * Canonical-stripe addressing for per-stripe stats capture: {@code baseOffset} is this read's
+         * first byte in file/decompressed coordinates, {@code stripeSize} the grid ({@code <= 0}
+         * disables), {@code fileFinal} whether this read reaches the file's true end (only the final
+         * read may mark its last stripe complete + terminal). A pure stats overlay; never affects
+         * chunking or splitting.
+         */
+        public Builder stats(long baseOffset, long stripeSize, boolean fileFinal) {
+            this.statsBaseOffset = baseOffset;
+            this.statsStripeSize = stripeSize;
+            this.statsFileFinal = fileFinal;
+            return this;
+        }
+
+        /**
+         * Sets how much per-stripe statistics the read harvests (see {@link FormatReadContext#statsColumnScope()}).
+         * {@code null} restores the {@link StripeColumnScope#PROJECTED} default. Orthogonal to {@link #stats}.
+         */
+        public Builder statsColumnScope(@Nullable StripeColumnScope statsColumnScope) {
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            return this;
+        }
+
+        /**
+         * See {@link FormatReadContext#informationalWarningSink()}; pass {@code null} for
+         * direct-to-HeaderWarning emission.
+         */
+        public Builder informationalWarningSink(@Nullable Consumer<String> informationalWarningSink) {
+            this.informationalWarningSink = informationalWarningSink;
             return this;
         }
 
@@ -213,7 +331,13 @@ public record FormatReadContext(
                 lastSplit,
                 recordAligned,
                 readSchema,
-                maxRecordBytes
+                splitStartByte,
+                maxRecordBytes,
+                statsBaseOffset,
+                statsStripeSize,
+                statsFileFinal,
+                statsColumnScope,
+                informationalWarningSink
             );
         }
     }

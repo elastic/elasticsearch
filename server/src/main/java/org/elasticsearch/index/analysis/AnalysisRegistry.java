@@ -703,9 +703,12 @@ public final class AnalysisRegistry implements Closeable {
     ) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
-         * Elasticsearch defaults them to 0 only before version 2.0
-         * and 100 afterwards so we override the positionIncrementGap if it
-         * doesn't match here.
+         * Elasticsearch defaults it to 100 (see TextFieldMapper.Defaults) so we
+         * override the positionIncrementGap if it doesn't match here. Prebuilt
+         * analyzers already bake in this default (see PreBuiltAnalyzerProvider),
+         * so for those this override is a no-op and the shared instance is
+         * returned unchanged; it still applies to analyzers that arrive here
+         * without the Elasticsearch default set.
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         if (analyzerFactory instanceof CustomAnalyzerProvider) {

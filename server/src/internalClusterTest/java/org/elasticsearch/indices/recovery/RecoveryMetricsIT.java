@@ -463,11 +463,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             new CancelRecoveriesAction.Request(
                 0L,
                 List.of(
-                    new CancelRecoveriesAction.ShardRecoveryCancellation(
-                        indexShardRouting.get().shardId(),
-                        indexShardRouting.get().allocationId().getId(),
-                        false
-                    )
+                    new ShardRecoveryCancellation(indexShardRouting.get().shardId(), indexShardRouting.get().allocationId().getId(), false)
                 )
             )
         ).get();
@@ -560,7 +556,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(queuedStoreShardId, queuedStoreAllocationId, false))
+                List.of(new ShardRecoveryCancellation(queuedStoreShardId, queuedStoreAllocationId, false))
             )
         ).get();
 
@@ -583,7 +579,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(queuedPeerShardId, queuedPeerAllocationId, false))
+                List.of(new ShardRecoveryCancellation(queuedPeerShardId, queuedPeerAllocationId, false))
             )
         ).get();
 
@@ -608,7 +604,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(startedShardId, startedAllocationId, true))
+                List.of(new ShardRecoveryCancellation(startedShardId, startedAllocationId, true))
             )
         ).get();
         proceedWithBlockedRecovery.countDown();

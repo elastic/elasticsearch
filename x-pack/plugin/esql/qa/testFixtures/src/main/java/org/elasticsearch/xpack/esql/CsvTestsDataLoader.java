@@ -91,6 +91,7 @@ public class CsvTestsDataLoader {
 
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
+        new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
         new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(

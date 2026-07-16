@@ -1,0 +1,46 @@
+{
+    "properties": {
+        "id": {
+            "type": "integer"
+        },
+        "cartesian_point_wkt": {
+            "type": "keyword"
+        },
+        "cartesian_shape_wkt": {
+            "type": "keyword"
+        },
+        "geo_shape_wkt": {
+            "type": "keyword"
+        },
+        "datetime_str": {
+            "type": "keyword"
+        },
+        "date_nanos_str": {
+            "type": "keyword"
+        },
+        "date_range_str": {
+            "type": "keyword"
+        },
+        "dense_vector_hex": {
+            "type": "keyword"
+        },
+        "double_str": {
+            "type": "keyword"
+        },
+        "geohash_str": {
+            "type": "keyword"
+        },
+        "geohex_str": {
+            "type": "keyword"
+        },
+        "geotile_str": {
+            "type": "keyword"
+        },
+        "unsigned_long_str": {
+            "type": "keyword"
+        },
+        "version_str": {
+            "type": "keyword"
+        }
+    }
+}

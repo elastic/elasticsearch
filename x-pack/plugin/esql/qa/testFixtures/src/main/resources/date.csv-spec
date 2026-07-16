@@ -94,6 +94,13 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
+convertFromKeywordField
+FROM conv_from_keyword | EVAL dt = TO_DATETIME(datetime_str) | KEEP datetime_str, dt;
+
+datetime_str:keyword     | dt:date
+2023-01-01T00:00:00.000Z | 2023-01-01T00:00:00.000Z
+;
+
 convert with zones
 ROW str = "2025-04-11T05:00:00+0400"
 | EVAL dt = TO_DATETIME(str);

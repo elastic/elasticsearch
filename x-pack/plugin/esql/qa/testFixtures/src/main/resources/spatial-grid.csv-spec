@@ -17,6 +17,18 @@ u3bu           | u3bu
 // end::to_geohash-result[]
 ;
 
+toGeohashFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geohash = TO_GEOHASH(geohash_str)
+| KEEP geohash_str, geohash
+;
+
+geohash_str:keyword | geohash:geohash
+u3bu                | u3bu
+;
+
 toGeohashToLong
 required_capability: spatial_grid_types
 
@@ -532,6 +544,18 @@ string:keyword | geotile:geotile
 // end::to_geotile-result[]
 ;
 
+toGeotileFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geotile = TO_GEOTILE(geotile_str)
+| KEEP geotile_str, geotile
+;
+
+geotile_str:keyword | geotile:geotile
+4/8/5               | 4/8/5
+;
+
 toGeotileToLong
 required_capability: spatial_grid_types
 
@@ -946,6 +970,18 @@ ROW string = "841f059ffffffff"
 string:keyword  | geohex:geohex
 841f059ffffffff | 841f059ffffffff
 // end::to_geohex-result[]
+;
+
+toGeohexFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geohex = TO_GEOHEX(geohex_str)
+| KEEP geohex_str, geohex
+;
+
+geohex_str:keyword | geohex:geohex
+841f059ffffffff    | 841f059ffffffff
 ;
 
 toGeohexToLong

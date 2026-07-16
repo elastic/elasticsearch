@@ -1348,19 +1348,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
         "TEXT_EMBEDDING:text is missing",
-        "TO_CARTESIANPOINT:field is missing",
-        "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATETIME:field is missing",
-        "TO_DATE_NANOS:field is missing",
-        "TO_DATE_RANGE:field is missing",
-        "TO_DENSE_VECTOR:field is missing",
-        "TO_DOUBLE:field is missing",
-        "TO_GEOHASH:field is missing",
-        "TO_GEOHEX:field is missing",
-        "TO_GEOSHAPE:field is missing",
-        "TO_GEOTILE:field is missing",
-        "TO_UNSIGNED_LONG:field is missing",
-        "TO_VERSION:field is missing",
         "WITHOUT:dimension is missing"
     );
 

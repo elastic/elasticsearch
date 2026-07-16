@@ -189,7 +189,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
 
         // TopNOperator type mismatch in ValueExtractor
-        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
+
+        // https://github.com/elastic/elasticsearch/issues/154068
+        "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*"
     );
 
     /**
@@ -501,6 +504,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUserAgentLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
 
@@ -668,6 +672,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             String functionExpression = matcher.group(1);
             String foundValue = matcher.group(2);
             return UNMAPPED_NAMES.stream().anyMatch(name -> functionExpression.contains(name) || foundValue.contains(name));
+        }
+
+        if (isKeywordTypeMismatchForLoadedField(errorWithoutLineBreaks)) {
+            return true;
         }
 
         return false;
@@ -1121,6 +1129,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern USER_AGENT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*USER_AGENT\\b");
+    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\d+\\s+BY\\b");
+
+    /**
+     * The LIMIT BY optimizer prunes the {@code USER_AGENT} input field from {@code ProjectExec}
+     * because it does not appear in the LIMIT BY output columns, but {@code UserAgentExec} still
+     * needs it as its source reference.
+     * See https://github.com/elastic/elasticsearch/issues/154069
+     */
+    static boolean isUserAgentLimitByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return USER_AGENT_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");

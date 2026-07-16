@@ -481,9 +481,10 @@ public class InternalUsersTests extends ESTestCase {
             assertThat("Role " + role + " should grant " + action, role.indices().check(action), is(true));
         }
 
-        final Automaton automaton = role.indices().allowedActionsMatcher(dataStreamName);
+        final String combinedName = new IndexNameExpressionResolver.ResolvedExpression(dataStreamName, selector).combined();
+        final Automaton automaton = role.indices().allowedActionsMatcher(combinedName);
         assertThat(
-            "Role " + role + ", action " + action + " access to " + dataStreamName,
+            "Role " + role + ", action " + action + " access to " + combinedName,
             new CharacterRunAutomaton(automaton).run(action),
             is(expectedValue)
         );
@@ -508,8 +509,7 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         assertThat(
-            "Role " + role + ", action " + action + " access to "
-                + new IndexNameExpressionResolver.ResolvedExpression(dataStreamName, selector).combined(),
+            "Role " + role + ", action " + action + " access to " + combinedName,
             role.allowedIndicesMatcher(action).test(dataStream, selector),
             is(expectedValue)
         );

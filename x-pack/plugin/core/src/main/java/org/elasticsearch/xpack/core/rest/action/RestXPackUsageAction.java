@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,13 +23,24 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestXPackUsageAction extends BaseRestHandler {
+
+    private final Set<String> capabilities;
+
+    public RestXPackUsageAction(boolean isStateless) {
+        capabilities = Stream.of("global_retention_telemetry", "logging_usage", isStateless ? null : "frozen_after_telemetry")
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    }
 
     @Override
     public List<Route> routes() {
@@ -64,6 +74,6 @@ public class RestXPackUsageAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Sets.union(super.supportedCapabilities(), Set.of("global_retention_telemetry", "logging_usage"));
+        return capabilities;
     }
 }

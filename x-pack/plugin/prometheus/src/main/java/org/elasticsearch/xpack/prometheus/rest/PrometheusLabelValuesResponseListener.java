@@ -37,10 +37,6 @@ import java.util.List;
  *
  * <p>Truncation detection uses a {@code limit + 1} sentinel: if the result contains exactly
  * {@code limit + 1} rows, the last row is dropped and a warning is emitted.
- *
- * <p>When ESQL returns a {@code "Unknown column"} BAD_REQUEST error (label name absent from all
- * index mappings), the listener converts it into an empty {@code data:[]} success response — the
- * correct Prometheus behaviour for a label with no values.
  */
 public class PrometheusLabelValuesResponseListener {
 
@@ -57,19 +53,7 @@ public class PrometheusLabelValuesResponseListener {
         // decRef() after this method returns, which is the correct single release.
         return ActionListener.<Void>wrap(ignored -> {}, e -> {
             logger.debug("Label values query failed", e);
-            // When ESQL cannot find the label name in any index mapping it throws a BAD_REQUEST
-            // "Unknown column [<name>]" error. The correct Prometheus response for a label that has
-            // no values is an empty data array, not an error.
-            if (isUnknownColumn(e)) {
-                try {
-                    channel.sendResponse(buildSuccessResponse(List.of(), 0));
-                } catch (Exception sendEx) {
-                    sendEx.addSuppressed(e);
-                    logger.warn("Failed to send empty-data response for unknown column", sendEx);
-                }
-            } else {
-                PrometheusErrorResponse.send(channel, e, logger);
-            }
+            PrometheusErrorResponse.send(channel, e, logger);
         }).delegateFailureAndWrap((l, response) -> {
             List<String> values = collectValues(response.rows());
             channel.sendResponse(buildSuccessResponse(values, limit));
@@ -132,16 +116,5 @@ public class PrometheusLabelValuesResponseListener {
         }
         builder.endObject();
         return new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder));
-    }
-
-    /**
-     * Returns {@code true} if {@code e} is an ESQL analysis error caused by a label name that is
-     * absent from all index mappings. ESQL produces a {@code "Unknown column [name]"} message in
-     * its {@code VerificationException}. When no TS indices exist at all, the error may be
-     * combined with an {@code "@timestamp"} unresolved message and arrive as a 500; both cases
-     * mean no data exists for the requested label, so an empty {@code data:[]} response is correct.
-     */
-    static boolean isUnknownColumn(Exception e) {
-        return e != null && e.getMessage() != null && e.getMessage().contains("Unknown column [");
     }
 }

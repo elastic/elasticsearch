@@ -9,26 +9,30 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkSparse;
-
 /**
  * JDK-22+ implementation for Int7 OSQ query-time scorers.
  */
 public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer permits
     Int7uOSQVectorScorer.DotProductScorer, Int7uOSQVectorScorer.EuclideanScorer, Int7uOSQVectorScorer.MaxInnerProductScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
 
@@ -136,7 +140,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         long vectorOffset = (long) node * vectorPitch;
         input.seek(vectorOffset);
         return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, secondSeg -> {
-            int dotProduct = dotProductI7u(query, secondSeg, vectorByteSize);
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, secondSeg, vectorByteSize);
             return applyCorrections(dotProduct, node);
         });
     }
@@ -155,7 +159,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
         boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, addrsScratch::get, addrs -> {
             var scoresSeg = MemorySegment.ofArray(scores);
-            dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, scoresSeg);
+            DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, scoresSeg);
             maxScore[0] = applyCorrectionsBulk(scores, nodes, numNodes);
         });
         if (resolved == false) {
@@ -164,7 +168,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
                 input.seek(offsets[i]);
                 var documentOrdinal = nodes[i];
                 scores[i] = IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, documentSeg -> {
-                    int rawScore = dotProductI7u(query, documentSeg, vectorByteSize);
+                    int rawScore = DISTANCE_FUNCS.dotProductI7u(query, documentSeg, vectorByteSize);
                     float adjustedScore = applyCorrections(rawScore, documentOrdinal);
                     maxScore[0] = Math.max(maxScore[0], adjustedScore);
                     return adjustedScore;

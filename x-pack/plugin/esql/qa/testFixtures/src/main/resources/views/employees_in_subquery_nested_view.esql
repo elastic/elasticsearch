@@ -1,0 +1,4 @@
+FROM employees
+| WHERE emp_no IN (FROM employees_all
+                   | WHERE languages IN (FROM languages | WHERE language_name IN ("English", "French") | KEEP language_code)
+                   | SORT emp_no ASC | LIMIT 10 | KEEP emp_no)

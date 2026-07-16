@@ -13,6 +13,7 @@ plugins {
   id "com.gradle.develocity" version "4.2.2"
 }
 include 'reaper'
+include 'gradle-runner'
 
 dependencyResolutionManagement {
     versionCatalogs {

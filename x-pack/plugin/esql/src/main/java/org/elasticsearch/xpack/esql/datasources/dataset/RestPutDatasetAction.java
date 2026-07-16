@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutDatasetAction extends BaseRestHandler {
 
     @Override
@@ -52,6 +52,6 @@ public class RestPutDatasetAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
+        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES, EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA);
     }
 }

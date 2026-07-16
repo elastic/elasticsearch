@@ -9,10 +9,12 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -86,17 +88,11 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
-    public void testDecompressDirectByteBufferValidation() {
-        try (var dst = nativeAccess.newConfinedBuffer(500)) {
-            var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, ByteBuffer.allocateDirect(1)));
-            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
-            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(dst, (ByteBuffer) null));
-            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
-
-            var heapBuf = ByteBuffer.allocate(100);
-            var iae = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(dst, heapBuf));
-            assertThat(iae.getMessage(), equalTo("Source buffer must be direct"));
-        }
+    public void testDecompressMemorySegmentValidation() {
+        var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, MemorySegment.ofArray(new byte[1])));
+        assertThat(npe1.getMessage(), equalTo("Null dst segment"));
+        var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(MemorySegment.ofArray(new byte[1]), null));
+        assertThat(npe2.getMessage(), equalTo("Null src segment"));
     }
 
     /**
@@ -322,8 +318,8 @@ public class ZstdTests extends ESTestCase {
     }
 
     /**
-     * Compress with CloseableByteBuffer, then decompress using a direct ByteBuffer source
-     * to exercise the {@link Zstd#decompress(CloseableByteBuffer, ByteBuffer)} overload.
+     * Compress with CloseableByteBuffer, then decompress using a MemorySegment source
+     * to exercise the {@link Zstd#decompress(MemorySegment, MemorySegment)} overload.
      */
     private void doTestRoundtripWithDirectByteBuffer(byte[] data) {
         try (
@@ -334,12 +330,13 @@ public class ZstdTests extends ESTestCase {
             original.buffer().put(0, data);
             int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
 
-            ByteBuffer directSrc = ByteBuffer.allocateDirect(compressedLength);
+            byte[] compressedBytes = new byte[compressedLength];
             for (int i = 0; i < compressedLength; i++) {
-                directSrc.put(i, compressed.buffer().get(i));
+                compressedBytes[i] = compressed.buffer().get(i);
             }
 
-            int decompressedLength = zstd.decompress(restored, directSrc);
+            MemorySegment dstSegment = MemorySegment.ofBuffer(restored.buffer());
+            int decompressedLength = zstd.decompress(dstSegment, MemorySegment.ofArray(compressedBytes));
             assertThat(restored.buffer(), equalTo(original.buffer()));
             assertThat(decompressedLength, equalTo(data.length));
         }
@@ -380,6 +377,40 @@ public class ZstdTests extends ESTestCase {
                 equalTo(original.buffer().slice(decompressedOffset, data.length))
             );
         }
+    }
+
+    /**
+     * Regression test for the {@code JAVA_INT} vs {@code JAVA_LONG} descriptor bug on the heap
+     * {@code decompress(byte[], int, int, byte[], int, int)} path (fixed in {@code JdkZstdLibrary}).
+     * <p>
+     * The wrong descriptor caused C2 to emit a native call with stale upper-32 bits in the {@code srcSize}
+     * register on x86-64, making ZSTD see a {@code srcSize} like {@code 0xXXXXXXXX_00000020} instead of
+     * {@code 0x20}. This test validates the correct round-trip on the heap path using large enough payloads
+     * to span the range of sizes where the upper-bits corruption would produce a wrong value.
+     */
+    public void testHeapRoundtripSmall() {
+        byte[] data = new byte[randomIntBetween(1, 100)];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        doTestHeapRoundtrip(data);
+    }
+
+    public void testHeapRoundtripMedium() {
+        byte[] data = new byte[randomIntBetween(1_000, 100_000)];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        doTestHeapRoundtrip(data);
+    }
+
+    private void doTestHeapRoundtrip(byte[] data) {
+        byte[] compressed = new byte[zstd.compressBound(data.length)];
+        int compressedLen = zstd.compress(compressed, 0, compressed.length, data, 0, data.length, 1);
+        byte[] restored = new byte[data.length];
+        int written = zstd.decompress(restored, 0, restored.length, compressed, 0, compressedLen);
+        assertThat(written, equalTo(data.length));
+        assertThat(restored, equalTo(data));
     }
 
     // ---- Streaming API (DStream) tests -----------------------------------------------------------

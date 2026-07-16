@@ -150,7 +150,7 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToLong#[skip:-8.13.99, reason:warning changed in 8.14]
+convertStringToLong
 // tag::to_long-str[]
 ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
@@ -289,6 +289,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup3
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -346,6 +347,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup5
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -412,6 +414,7 @@ string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:
 ;
 
 convertStringToBaseIndexGroup7
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -516,7 +519,7 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
+convertStringToIntFail
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warningRegex:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -779,6 +782,20 @@ row a = 1
 
 a:integer | a1:integer
 1         | 1
+;
+
+mvSliceKeywordField
+required_capability: mv_sort
+request_stored: skip
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL sliced = MV_SLICE(job_positions, 0, 0)
+| KEEP emp_no, sliced
+;
+
+emp_no:integer | sliced:keyword
+10001          | "Accountant"
 ;
 
 mvSliceOutOfBound
@@ -1195,49 +1212,49 @@ required_capability: agg_values
       [1, 4] | null
 ;
 
-signumOfPositiveInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfPositiveInteger
 row i = 100 | eval s = signum(i);
 
 i:integer | s:double
 100       | 1.0
 ;
 
-signumOfNegativeInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfNegativeInteger
 row i = -100 | eval s = signum(i);
 
 i:integer | s:double
 -100      | -1.0
 ;
 
-signumOfZeroInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfZeroInteger
 row i = 0 | eval s = signum(i);
 
 i:integer | s:double
 0         | 0.0
 ;
 
-signumOfPositiveLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfPositiveLong
 row l = to_long(100) | eval s = signum(l);
 
 l:long | s:double
 100    | 1.0
 ;
 
-signumOfNegativeLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfNegativeLong
 row l = to_long(-100) | eval s = signum(l);
 
 l:long | s:double
 -100   | -1.0
 ;
 
-signumOfZeroLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfZeroLong
 row l = to_long(0) | eval s = signum(l);
 
 l:long | s:double
 0      | 0.0
 ;
 
-signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalWhereAndStats
 
 from employees
 | eval s = signum(mv_min(salary_change.int))
@@ -1248,7 +1265,7 @@ x:double
 0.5409836065573771
 ;
 
-signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalAndSort
 from employees
 | eval s = signum(60000 - salary)
 | where signum(salary - 55000) >= 0
@@ -1572,4 +1589,150 @@ MV_MAX(VALUES(languages.byte)):integer | first_letter:keyword
 4                                      | P
 2                                      | S
 4                                      | T
+;
+
+mvInRange
+required_capability: fn_mv_in_range
+// tag::mv_in_range[]
+ROW values = [1, 5, 10]
+| EVAL in_range = mv_in_range(values, 4, 6)
+// end::mv_in_range[]
+;
+
+// tag::mv_in_range-result[]
+values:integer | in_range:boolean
+[1, 5, 10]     | true
+// end::mv_in_range-result[]
+;
+
+mvInRangeElementWise
+required_capability: fn_mv_in_range
+// tag::mv_in_range_element_wise[]
+ROW values = [0, 100]
+| EVAL in_range = mv_in_range(values, 40, 60)
+// end::mv_in_range_element_wise[]
+;
+
+// tag::mv_in_range_element_wise-result[]
+values:integer | in_range:boolean
+[0, 100]       | false
+// end::mv_in_range_element_wise-result[]
+;
+
+mvInRangeNullFieldIsFalse
+required_capability: fn_mv_in_range
+// two-valued: a null field is out of range (false), so NOT of it is true
+ROW x = 1
+| EVAL in_range = mv_in_range(null, 1, 2), negated = NOT mv_in_range(null, 1, 2)
+;
+
+x:integer | in_range:boolean | negated:boolean
+1         | false            | true
+;
+
+mvInRangeNullBoundIsFalse
+required_capability: fn_mv_in_range
+ROW values = [1, 2, 3]
+| EVAL in_range = mv_in_range(values, null, 2)
+;
+
+values:integer | in_range:boolean
+[1, 2, 3]      | false
+;
+
+mvInRangeMultivaluedBoundIsFalse
+required_capability: fn_mv_in_range
+// a multivalued bound has no single range endpoint, so the evaluator returns false
+ROW values = [1, 2, 3]
+| EVAL in_range = mv_in_range(values, [1, 2], 5)
+;
+
+values:integer | in_range:boolean
+[1, 2, 3]      | false
+;
+
+mvInRangeKeyword
+required_capability: fn_mv_in_range
+// tag::mv_in_range_keyword[]
+ROW words = ["apple", "cherry"]
+| EVAL in_range = mv_in_range(words, "banana", "date")
+// end::mv_in_range_keyword[]
+;
+
+// tag::mv_in_range_keyword-result[]
+words:keyword       | in_range:boolean
+[apple, cherry]     | true
+// end::mv_in_range_keyword-result[]
+;
+
+mvInRangeHalfOpen
+required_capability: fn_mv_in_range
+// tag::mv_in_range_half_open[]
+ROW values = [3, 6]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_upper": false})
+// end::mv_in_range_half_open[]
+;
+
+// tag::mv_in_range_half_open-result[]
+values:integer | in_range:boolean
+[3, 6]         | false
+// end::mv_in_range_half_open-result[]
+;
+
+mvInRangeOpen
+required_capability: fn_mv_in_range
+// tag::mv_in_range_open[]
+ROW values = [4, 6]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_lower": false, "include_upper": false})
+// end::mv_in_range_open[]
+;
+
+// tag::mv_in_range_open-result[]
+values:integer | in_range:boolean
+[4, 6]         | false
+// end::mv_in_range_open-result[]
+;
+
+mvInRangeExclusiveLowerInteriorMatches
+required_capability: fn_mv_in_range
+// an exclusive lower bound still matches an interior value: 4 is excluded but 5 is in (4, 6]
+ROW values = [4, 5]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_lower": false})
+;
+
+values:integer | in_range:boolean
+[4, 5]         | true
+;
+
+mvInRangeExplicitInclusiveEqualsDefault
+required_capability: fn_mv_in_range
+// spelling out the defaults is identical to omitting the options map
+ROW values = [4]
+| EVAL default = mv_in_range(values, 4, 6), explicit = mv_in_range(values, 4, 6, {"include_lower": true, "include_upper": true})
+;
+
+values:integer | default:boolean | explicit:boolean
+[4]            | true            | true
+;
+
+mvInRangeOpenPointIsFalse
+required_capability: fn_mv_in_range
+// an open range (5, 5) contains nothing, so a value on the excluded bound does not match — unlike the closed [5, 5]
+ROW values = [5]
+| EVAL open = mv_in_range(values, 5, 5, {"include_lower": false, "include_upper": false}), closed = mv_in_range(values, 5, 5)
+;
+
+values:integer | open:boolean | closed:boolean
+[5]            | false        | true
+;
+
+mvInRangeOpenAdjacentIntsIsFalse
+required_capability: fn_mv_in_range
+// no integer lies strictly between 5 and 6, so the open range (5, 6) matches nothing
+ROW values = [5, 6]
+| EVAL in_range = mv_in_range(values, 5, 6, {"include_lower": false, "include_upper": false})
+;
+
+values:integer | in_range:boolean
+[5, 6]         | false
 ;

@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -65,10 +66,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
             .endObject();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void setupShapeQueryData() throws Exception {
         // create test index
         assertAcked(indicesAdmin().prepareCreate(INDEX).setMapping(FIELD, "type=shape", "alias", "type=alias,path=" + FIELD).get());
         // create index that ignores malformed geometry

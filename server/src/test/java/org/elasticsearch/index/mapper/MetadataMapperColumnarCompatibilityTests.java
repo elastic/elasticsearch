@@ -24,8 +24,7 @@ import java.io.IOException;
  * {@link SourceFieldMapper} (no-op and synthetic-recovery branches),
  * {@link VersionFieldMapper}, {@link SeqNoFieldMapper} ({@code POINTS_AND_DOC_VALUES},
  * {@code DOC_VALUES_ONLY}, {@code disable_sequence_numbers}),
- * and {@link RoutingFieldMapper} ({@code doc_values=true}; {@code doc_values=false} is
- * {@code @AwaitsFix} pending columnar {@code _field_names} support).
+ * and {@link RoutingFieldMapper} ({@code doc_values=true} and {@code doc_values=false}).
  */
 public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -62,11 +61,9 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
     }
 
     /**
-     * {@code _routing doc_values=false}: x-content adds a {@code _field_names/_routing} entry that
-     * the columnar path cannot yet produce. {@code @AwaitsFix} until columnar {@code _field_names}
-     * support is added (see TODO in {@link RoutingFieldMapper#preColumnarParse}).
+     * {@code _routing doc_values=false}: both paths produce a {@code _field_names/_routing} indexed
+     * entry so that exists queries on {@code _routing} work for indices without routing doc values.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/TODO")
     public void testRoutingWithoutDocValues() throws IOException {
         assertColumnarMatchesXContent(
             topMapping(b -> b.startObject(RoutingFieldMapper.NAME).field("doc_values", false).endObject()),

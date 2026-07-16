@@ -420,11 +420,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
             // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
         } else {
-            // TODO(columnar): the row path also calls context.addToFieldNames(NAME) here so _routing
-            // participates in _field_names-based exists queries; the columnar path has no _field_names
-            // column plumbing yet. Narrow, documented gap — does not affect indices that never set an
-            // explicit routing value.
             context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
+            for (int d = 0; d < routings.length; d++) {
+                if (routings[d] != null) {
+                    context.addFieldNamesColumnar(d, fieldType().name());
+                }
+            }
         }
     }
 

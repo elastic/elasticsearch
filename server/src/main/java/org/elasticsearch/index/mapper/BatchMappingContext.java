@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.MappedColumns;
@@ -36,6 +37,7 @@ public final class BatchMappingContext {
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
     private final List<SliceableColumn> columns = new ArrayList<>();
+    private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
     // Will go in translog
     /** {@code _seq_no}: docCount * 8 bytes, little-endian longs; lazily allocated. */
@@ -48,12 +50,15 @@ public final class BatchMappingContext {
     private BytesRef[] routings;
 
     private boolean routingsInitialized;
+    /** Per-document {@code _field_names} entries; lazily allocated on first write via {@link #fieldNames()}. */
+    private BytesRef[] fieldNames;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
         this.docCount = requests.length;
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
+        this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
     public MappingLookup mappingLookup() {
@@ -72,6 +77,16 @@ public final class BatchMappingContext {
     /** Attaches a fully-assembled {@link SliceableColumn} covering all {@code docCount} documents. */
     public void addColumn(SliceableColumn column) {
         columns.add(column);
+    }
+
+    /**
+     * Returns the {@code _field_names} backing array, or {@code null} if no field names have been
+     * registered for any document in the batch. Called only by {@link FieldNamesFieldMapper} during
+     * {@link FieldNamesFieldMapper#postColumnarParse}.
+     */
+    @Nullable
+    BytesRef[] fieldNamesIfPresent() {
+        return fieldNames;
     }
 
     /**
@@ -152,6 +167,29 @@ public final class BatchMappingContext {
             }
         }
         return uids;
+    }
+
+    /**
+     * Records that {@code field} should appear in {@code _field_names} for document {@code doc}.
+     * Delegates to {@link FieldNamesFieldMapper} which owns the per-document accumulation and
+     * column assembly. No-op when {@code _field_names} is absent or disabled for the index.
+     */
+    public void addFieldNamesColumnar(int doc, String field) {
+        if (fieldNamesFieldMapper != null) {
+            fieldNamesFieldMapper.addFieldNamesColumnar(this, doc, field);
+        }
+    }
+
+    /**
+     * Lazily allocates and returns the {@code _field_names} backing array (length {@code docCount}).
+     * Called only by {@link FieldNamesFieldMapper} when registering a field name.
+     */
+    BytesRef[] fieldNames() {
+        if (fieldNames == null) {
+            // TODO: Single value only currently. Will replace this with a multi-value Escf array column.
+            fieldNames = new BytesRef[docCount];
+        }
+        return fieldNames;
     }
 
     /** The number of documents in this chunk. */

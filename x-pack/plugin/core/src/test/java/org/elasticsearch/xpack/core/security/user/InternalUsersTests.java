@@ -42,6 +42,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -471,7 +472,7 @@ public class InternalUsersTests extends ESTestCase {
         SimpleRole role,
         String action,
         String dataStreamName,
-        boolean systemIndex,
+        boolean isSystem,
         IndexComponentSelector selector,
         boolean expectedValue
     ) {
@@ -494,9 +495,9 @@ public class InternalUsersTests extends ESTestCase {
             List.of(metadata.getIndex()),
             randomLongBetween(0, 1000),
             Map.of(),
-            systemIndex || randomBoolean(),
+            isSystem || randomBoolean(),
             false,
-            systemIndex,
+            isSystem,
             false,
             IndexMode.STANDARD,
             null,
@@ -507,8 +508,8 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         assertThat(
-            "Role " + role + ", action " + action + " access to " + dataStreamName
-                + (selector == IndexComponentSelector.FAILURES ? " failure store" : ""),
+            "Role " + role + ", action " + action + " access to "
+                + new IndexNameExpressionResolver.ResolvedExpression(dataStreamName, selector).combined(),
             role.allowedIndicesMatcher(action).test(dataStream, selector),
             is(expectedValue)
         );

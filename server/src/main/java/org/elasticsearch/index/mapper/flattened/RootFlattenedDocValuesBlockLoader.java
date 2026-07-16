@@ -91,7 +91,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             @Override
             public boolean canReuse(int startingDocID) {
                 // Logic emulated from BlockDocValuesReader#canReuse
-                return creationThread == Thread.currentThread() && trackingReader.getCurDocId() <= startingDocID;
+                return creationThread == Thread.currentThread()
+                    && (trackingReader == null || trackingReader.getCurDocId() <= startingDocID);
             }
 
             @Override

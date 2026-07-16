@@ -256,6 +256,41 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         return name;
     }
 
+    /**
+     * Registers a NON-STRICT ({@code dynamic:true}) dataset with a declared mapping against the shared data source,
+     * creating it on first use, and records it for teardown. A non-strict mapping overlays the declared columns onto
+     * the inferred schema and leaves undeclared columns to normal inference/reconciliation, so it exercises the
+     * declared-overlay path on top of inference (e.g. {@code union_by_name} widening of an undeclared column).
+     */
+    protected String registerNonStrictDataset(
+        String name,
+        String resourceUri,
+        LinkedHashMap<String, DatasetFieldMapping> properties,
+        Map<String, Object> settings
+    ) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    SHARED_TEST_DATA_SOURCE,
+                    resourceUri,
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+        registeredDatasets.add(name);
+        return name;
+    }
+
     @After
     public void cleanupRegistry() {
         for (String dataset : registeredDatasets) {

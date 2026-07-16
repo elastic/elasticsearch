@@ -16,6 +16,8 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
@@ -23,15 +25,16 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkSparse;
-
 /**
  * Int7 OSQ scorer supplier backed by {@link MemorySegmentAccessInput} storage.
  */
 public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVectorScorerSupplier permits
     Int7uOSQVectorScorerSupplier.DotProductSupplier, Int7uOSQVectorScorerSupplier.EuclideanSupplier,
     Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
     // Size of the corrections trailer that follows each quantized vector in the codec's per-vector
@@ -41,7 +44,6 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     protected final IndexInput input;
     protected final QuantizedByteVectorValues values;
     protected final int dims;
-    protected final int maxOrd;
     protected final int vectorPitch;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
@@ -52,7 +54,6 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.vectorPitch = dims + CORRECTIONS_BYTES;
         // Scratches are sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first dims bytes) and the corrections
@@ -86,7 +87,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
@@ -103,7 +104,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         return IndexInputUtils.withSlice(input, vectorPitch, firstScratch::getScratch, firstSeg -> {
             input.seek(secondVectorOffset);
             return IndexInputUtils.withSlice(input, vectorPitch, secondScratch::getScratch, secondSeg -> {
-                int rawScore = dotProductI7u(firstSeg, secondSeg, dims);
+                int rawScore = DISTANCE_FUNCS.dotProductI7u(firstSeg, secondSeg, dims);
                 return applyCorrections(rawScore, secondSeg.asSlice(dims, CORRECTIONS_BYTES), query);
             });
         });
@@ -130,7 +131,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
             boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
                 var scoresSeg = MemorySegment.ofArray(scores);
-                dotProductI7uBulkSparse(addrs, querySeg, dims, numNodes, scoresSeg);
+                DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, querySeg, dims, numNodes, scoresSeg);
                 maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes, query);
             });
             if (resolved == false) {
@@ -138,7 +139,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
                 for (int i = 0; i < numNodes; i++) {
                     input.seek(offsets[i]);
                     scores[i] = IndexInputUtils.withSlice(input, vectorPitch, secondScratch::getScratch, documentSeg -> {
-                        int rawScore = dotProductI7u(querySeg, documentSeg, dims);
+                        int rawScore = DISTANCE_FUNCS.dotProductI7u(querySeg, documentSeg, dims);
                         float adjustedScore = applyCorrections(rawScore, documentSeg.asSlice(dims, CORRECTIONS_BYTES), query);
                         maxScore[0] = Math.max(maxScore[0], adjustedScore);
                         return adjustedScore;

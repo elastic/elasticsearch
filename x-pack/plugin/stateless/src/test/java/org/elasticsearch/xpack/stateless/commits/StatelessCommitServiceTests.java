@@ -1660,7 +1660,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .onLocalReaderClosed(recoveryCommit.getGeneration(), Set.of(getPrimaryTermAndGenerationForCommit(newCommit)));
             HashSet<StaleCompoundCommit> newDeleted = new HashSet<>(expectedDeletedCommits);
             newDeleted.add(staleCommit(shardId, recoveryCommit));
-            assertThat(deletedCommits, equalTo(newDeleted));
+            // markCommitDeleted and onLocalReaderClosed release the recovery commit's local references synchronously, but the commit is
+            // only deleted once its search-node (external reader) reference has also been released. That release happens asynchronously as
+            // part of the commit-in-use processing described above, so the deletion may not have been recorded yet when we reach here.
+            // Wrap in assertBusy for the same reason as the assertion above.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(newDeleted)));
         }
     }
 

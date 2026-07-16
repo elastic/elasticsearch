@@ -582,16 +582,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return metadata;
     }
 
-    @Nullable
-    public BlobLocation getBlobLocationForFile(String fileName) {
-        BlobFileRanges blobFileRanges = currentMetadata.get(fileName);
-        if (blobFileRanges != null) {
-            return blobFileRanges.blobLocation();
-        }
-        return null;
-    }
-
-    // used in tests only
+    /// Retrieves the [BlobFileRanges] metadata for a specific file by its name.
+    ///
+    /// @param fileName the name of the file for which to retrieve the metadata
+    /// @return the [BlobFileRanges] associated with the specified file,
+    ///         or `null` if no metadata is found for the given file name
     @Nullable
     public BlobFileRanges getBlobFileRangesForFile(String fileName) {
         return currentMetadata.get(fileName);

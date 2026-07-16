@@ -296,7 +296,7 @@ public class InternalUsersTests extends ESTestCase {
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
 
-        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.DATA, true);
         // Also check backing index access
         checkIndexAccess(
             role,
@@ -304,6 +304,8 @@ public class InternalUsersTests extends ESTestCase {
             DataStream.BACKING_INDEX_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
             true
         );
+
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.FAILURES, true);
         // Also check failure index access
         checkIndexAccess(
             role,
@@ -313,13 +315,15 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
-            checkDataStreamAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true, true);
+            checkDataStreamAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true, IndexComponentSelector.DATA, true);
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
                 DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
                 true
             );
+
+            checkDataStreamAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true, IndexComponentSelector.FAILURES, true);
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -365,7 +369,7 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
-        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.DATA, true);
         // Also check backing index access
         checkIndexAccess(
             role,
@@ -463,7 +467,14 @@ public class InternalUsersTests extends ESTestCase {
         );
     }
 
-    private static void checkDataStreamAccess(SimpleRole role, String action, String dataStreamName, boolean systemIndex, boolean expectedValue) {
+    private static void checkDataStreamAccess(
+        SimpleRole role,
+        String action,
+        String dataStreamName,
+        boolean systemIndex,
+        IndexComponentSelector selector,
+        boolean expectedValue
+    ) {
         if (expectedValue) {
             // Can't check this if "expectedValue" is false, because the role might grant the action for a different index
             assertThat("Role " + role + " should grant " + action, role.indices().check(action), is(true));
@@ -496,13 +507,9 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         assertThat(
-            "Role " + role + ", action " + action + " access to " + dataStreamName,
-            role.allowedIndicesMatcher(action).test(dataStream, IndexComponentSelector.DATA),
-            is(expectedValue)
-        );
-        assertThat(
-            "Role " + role + ", action " + action + " access to " + dataStreamName + " failure store",
-            role.allowedIndicesMatcher(action).test(dataStream, IndexComponentSelector.FAILURES),
+            "Role " + role + ", action " + action + " access to " + dataStreamName
+                + (selector == IndexComponentSelector.FAILURES ? " failure store" : ""),
+            role.allowedIndicesMatcher(action).test(dataStream, selector),
             is(expectedValue)
         );
     }

@@ -192,6 +192,11 @@ public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatele
                 var live = cacheService.liveTimestamps(cacheKey);
                 assertThat("recovery must leave live cache regions for blob " + cacheKey, live, not(empty()));
                 assertThat("backfill must resolve the header region to the blob's data timestamp", live, hasItem(blob.dataTimestamp()));
+                assertThat(
+                    "backfill must leave no live region stamped BACKFILL_IN_PROGRESS_TIMESTAMP",
+                    live,
+                    not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+                );
             }
         });
     }

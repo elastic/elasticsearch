@@ -29,12 +29,13 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
             class MyResolver implements SymbolResolver {
                 public MyResolver() {}
                 @Override
-                public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
-                    return lookup.find(symbolName).orElseThrow();
+                public ResolvedSymbol resolve(String symbolName, SymbolLookup lookup) {
+                    return new ResolvedSymbol(symbolName, lookup.find(symbolName).orElseThrow());
                 }
             }
             @LibrarySpecification(name = "testlib", symbolResolver = MyResolver.class)
@@ -92,12 +93,13 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
             class BadResolver implements SymbolResolver {
                 public BadResolver(String config) {}
                 @Override
-                public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
-                    return lookup.find(symbolName).orElseThrow();
+                public ResolvedSymbol resolve(String symbolName, SymbolLookup lookup) {
+                    return new ResolvedSymbol(symbolName, lookup.find(symbolName).orElseThrow());
                 }
             }
             @LibrarySpecification(name = "testlib", symbolResolver = BadResolver.class)
@@ -145,13 +147,15 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
             class PrefixResolver implements SymbolResolver {
                 public PrefixResolver() {}
                 @Override
-                public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
-                    return lookup.find("mylib_" + symbolName).orElseThrow(
-                        () -> new UnsatisfiedLinkError(symbolName));
+                public ResolvedSymbol resolve(String symbolName, SymbolLookup lookup) {
+                    String actualName = "mylib_" + symbolName;
+                    return new ResolvedSymbol(actualName, lookup.find(actualName).orElseThrow(
+                        () -> new UnsatisfiedLinkError(symbolName)));
                 }
             }
             @LibrarySpecification(name = "testlib", symbolResolver = PrefixResolver.class)

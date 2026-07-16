@@ -9,7 +9,6 @@
 
 package org.elasticsearch.foreign;
 
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 
 /**
@@ -20,7 +19,7 @@ import java.lang.foreign.SymbolLookup;
 public final class DefaultSymbolResolver implements SymbolResolver {
 
     @Override
-    public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
-        return lookup.find(symbolName).orElseThrow(() -> new UnsatisfiedLinkError("Symbol not found: " + symbolName));
+    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+        return new ResolvedSymbol(name, lookup.find(name).orElseThrow(() -> new UnsatisfiedLinkError("Symbol not found: " + name)));
     }
 }

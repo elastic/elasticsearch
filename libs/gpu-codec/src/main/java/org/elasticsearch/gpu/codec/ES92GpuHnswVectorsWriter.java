@@ -19,8 +19,8 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -37,21 +37,18 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.NeighborArray;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.quantization.BaseQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
-import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IndexingKnnVectorsWriter;
-import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -71,7 +68,6 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERS
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
-import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
@@ -632,35 +628,30 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             try {
                 // Lazily finish flat writer and open a reader for the written segment
                 ensureFlatReaderOpen();
-                // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
-                // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
-                // Unlike flush(), we don't need to explicitly handle sorting here.
+                // The merged raw/quantized vectors have already been written to the flat file by mergeOneFlatVectorField
+                // (which applies mergeState.docMaps), so the flat reader returns them in final sorted document (ordinal) order.
+                // We therefore read the merged vectors straight from the reader - either the mmap-backed IndexInput slice
+                // (fast path) or, if the values are not off-heap, by iterating them (slow path) - without going through a
+                // scorer supplier. Unlike flush(), we don't need to explicitly handle sorting here.
                 assert fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32 : "GPU writer only supports FLOAT32 indexing";
-                FloatVectorValues vectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
-                int numVectors = vectorValues.size();
+                FloatVectorValues floatVectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
+                int numVectors = floatVectorValues.size();
                 if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                     // we don't really need real value for vectors here,
                     // we just build a mock graph where every node is connected to every other node
                     generateMockGraphAndWriteMeta(fieldInfo, numVectors);
                 } else if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer(fieldInfo.getName())
-                        .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
-                    mergeFloatVectorField(fieldInfo, mergeState, scorerSupplier, numVectors);
+                    mergeFloatVectorField(fieldInfo, mergeState, floatVectorValues, numVectors);
                 } else {
                     // During merging, we use quantized data, so we need to support byte[] too.
                     // That's how our current formats work: use floats during indexing, and quantized data to build a graph
                     // during merging.
                     assert dataType == CuVSMatrix.DataType.BYTE;
                     assert flatVectorsReader instanceof QuantizedVectorsReader;
-                    try (
-                        CloseableRandomVectorScorerSupplier scorerSupplier = ((QuantizedVectorsReader) flatVectorsReader)
-                            .getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)
-                    ) {
-                        var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
-                            scorerSupplier
-                        );
-                        mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
-                    }
+                    BaseQuantizedByteVectorValues byteVectorValues = ((QuantizedVectorsReader) flatVectorsReader).getQuantizedVectorValues(
+                        fieldInfo.name
+                    );
+                    mergeByteVectorField(fieldInfo, mergeState, byteVectorValues, numVectors);
                 }
                 var elapsed = System.nanoTime() - started;
                 logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
@@ -673,91 +664,54 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     private void mergeByteVectorField(
         FieldInfo fieldInfo,
         MergeState mergeState,
-        RandomVectorScorerSupplier randomScorerSupplier,
+        BaseQuantizedByteVectorValues byteVectorValues,
         int numVectors
     ) throws IOException, InterruptedException {
-        var vectorValues = randomScorerSupplier == null
-            ? null
-            : VectorsFormatReflectionUtils.getByteScoringSupplierVectorOrNull(randomScorerSupplier);
-
         CagraIndexParams cagraIndexParams = createCagraIndexParams(
             fieldInfo.getVectorSimilarityFunction(),
             numVectors,
             fieldInfo.getVectorDimension()
         );
 
-        if (vectorValues != null) {
-            IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrap(slice);
-            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
-                // Direct access to mmapped file
-                // for int8_hnsw, the raw vector data has extra 4-byte at the end of each vector to encode a correction constant
-                int sourceRowPitch = fieldInfo.getVectorDimension() + 4;
+        IndexInput slice = byteVectorValues.getSlice();
+        var input = slice == null ? null : FilterIndexInput.unwrap(slice);
+        if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+            // Fast path: direct access to the mmapped merged quantized file.
+            // for int8_hnsw, the raw vector data has extra 4-byte at the end of each vector to encode a correction constant
+            int sourceRowPitch = fieldInfo.getVectorDimension() + 4;
 
-                // The current (25.10) CuVS implementation of CAGRA index build has problems with strides;
-                // the explicit copy removes them.
-                // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
-                // when cuvs has fixed this problem
-                int packedRowSize = fieldInfo.getVectorDimension();
-                // Acquire the GPU resource first, before creating the potentially large
-                // temporary memory-mapped copy. This bounds the number of concurrent temp
-                // files to the number of GPU resources (MAX_RESOURCES), preventing the
-                // page thrashing that occurs when many merge threads each create multi-GB
-                // temp copies while waiting for a GPU slot.
-                try (
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
-                    );
-                    var packedSegmentHolder = getContiguousPackedMemorySegment(
-                        memorySegmentAccessInput,
-                        mergeState.segmentInfo.dir,
-                        mergeState.segmentInfo.name,
-                        numVectors,
-                        sourceRowPitch,
-                        packedRowSize
-                    );
-                    var dataset = DatasetUtilsImpl.fromMemorySegment(
-                        packedSegmentHolder.memorySegment(),
-                        numVectors,
-                        packedRowSize,
-                        dataType
-                    )
-                ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                }
-            } else {
-                logger.info(
-                    () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
+            // The current (25.10) CuVS implementation of CAGRA index build has problems with strides;
+            // the explicit copy removes them.
+            // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
+            // when cuvs has fixed this problem
+            int packedRowSize = fieldInfo.getVectorDimension();
+            // Acquire the GPU resource first, before creating the potentially large
+            // temporary memory-mapped copy. This bounds the number of concurrent temp
+            // files to the number of GPU resources (MAX_RESOURCES), preventing the
+            // page thrashing that occurs when many merge threads each create multi-GB
+            // temp copies while waiting for a GPU slot.
+            try (
+                var resourcesHolder = new ResourcesHolder(
+                    cuVSResourceManager,
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                 );
-
-                // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
-                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
-
-                try (IndexInput clonedSlice = slice.clone()) {
-                    clonedSlice.seek(0);
-                    int dims = fieldInfo.getVectorDimension();
-                    byte[] vector = new byte[dims];
-                    for (int i = 0; i < numVectors; ++i) {
-                        clonedSlice.readBytes(vector, 0, dims);
-                        clonedSlice.skipBytes(4); // skip scalar quantization correction constant
-                        builder.addVector(vector);
-                    }
-                }
-
-                try (
-                    var dataset = builder.build();
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
-                    )
-                ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                }
+                var packedSegmentHolder = getContiguousPackedMemorySegment(
+                    memorySegmentAccessInput,
+                    mergeState.segmentInfo.dir,
+                    mergeState.segmentInfo.name,
+                    numVectors,
+                    sourceRowPitch,
+                    packedRowSize
+                );
+                var dataset = DatasetUtilsImpl.fromMemorySegment(packedSegmentHolder.memorySegment(), numVectors, packedRowSize, dataType)
+            ) {
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
         } else {
-            logger.warn("Cannot get merged raw vectors from scorer. Performances will be degraded.");
-            var byteVectorValues = getMergedByteVectorValues(fieldInfo, mergeState);
+            // Slow path: the merged quantized values are not mmap-backed, so build the dataset by iterating them.
+            logger.info(
+                () -> "Cannot mmap merged quantized vectors. Iterating values of type [" + byteVectorValues.getClass().getSimpleName() + "]"
+            );
 
             // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
             final var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
@@ -781,78 +735,48 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     private void mergeFloatVectorField(
         FieldInfo fieldInfo,
         MergeState mergeState,
-        RandomVectorScorerSupplier randomScorerSupplier,
+        FloatVectorValues floatVectorValues,
         final int numVectors
     ) throws IOException, InterruptedException {
-        var vectorValues = randomScorerSupplier == null
-            ? null
-            : VectorsFormatReflectionUtils.getFloatScoringSupplierVectorOrNull(randomScorerSupplier);
         CagraIndexParams cagraIndexParams = createCagraIndexParams(
             fieldInfo.getVectorSimilarityFunction(),
             numVectors,
             fieldInfo.getVectorDimension()
         );
 
-        if (vectorValues != null) {
-            IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrap(slice);
-            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
-                // Fast path, possible direct access to mmapped file.
-                // Acquire the GPU resource first to limit concurrent temp file creation
-                // (see mergeByteVectorField for full rationale).
-                try (
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
-                    );
-                    var memorySegmentHolder = getContiguousMemorySegment(
-                        memorySegmentAccessInput,
-                        mergeState.segmentInfo.dir,
-                        mergeState.segmentInfo.name
-                    );
-                    var dataset = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType)
-                ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                }
-            } else {
-                logger.info(
-                    () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
+        IndexInput slice = floatVectorValues instanceof HasIndexSlice hasIndexSlice ? hasIndexSlice.getSlice() : null;
+        var input = slice == null ? null : FilterIndexInput.unwrap(slice);
+        if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+            // Fast path, possible direct access to mmapped file.
+            // Acquire the GPU resource first to limit concurrent temp file creation
+            // (see mergeByteVectorField for full rationale).
+            try (
+                var resourcesHolder = new ResourcesHolder(
+                    cuVSResourceManager,
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                 );
-
-                // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
-                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
-
-                try (IndexInput clonedSlice = slice.clone()) {
-                    clonedSlice.seek(0);
-                    float[] vector = new float[fieldInfo.getVectorDimension()];
-                    for (int i = 0; i < numVectors; ++i) {
-                        clonedSlice.readFloats(vector, 0, fieldInfo.getVectorDimension());
-                        builder.addVector(vector);
-                    }
-                }
-
-                try (
-                    var dataset = builder.build();
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
-                    )
-                ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                }
+                var memorySegmentHolder = getContiguousMemorySegment(
+                    memorySegmentAccessInput,
+                    mergeState.segmentInfo.dir,
+                    mergeState.segmentInfo.name
+                );
+                var dataset = DatasetUtils.getInstance()
+                    .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType)
+            ) {
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
         } else {
-            logger.warn("Cannot get merged raw vectors from scorer.");
-            FloatVectorValues floatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+            // Slow path: the merged raw vectors are not mmap-backed, so build the dataset by iterating them.
+            logger.info(
+                () -> "Cannot mmap merged raw vectors. Iterating values of type [" + floatVectorValues.getClass().getSimpleName() + "]"
+            );
 
             // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
             var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
 
             final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
             for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-                float[] vector = floatVectorValues.vectorValue(iterator.index());
-                builder.addVector(vector);
+                builder.addVector(floatVectorValues.vectorValue(iterator.index()));
             }
             try (
                 var dataset = builder.build();
@@ -864,14 +788,6 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
         }
-    }
-
-    private ByteVectorValues getMergedByteVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        // TODO: expose confidence interval from the format
-        final byte bits = 7;
-        final Float confidenceInterval = null;
-        ScalarQuantizer quantizer = mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, bits);
-        return MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(fieldInfo, mergeState, quantizer);
     }
 
     private void writeMeta(

@@ -1,0 +1,6 @@
+pr: 152957
+summary: ES|QL [JSON_EXTRACT function](/reference/query-languages/esql/functions-operators/string-functions/json_extract.md)
+  is GA
+area: ES|QL
+type: enhancement
+issues: []

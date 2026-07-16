@@ -23,10 +23,6 @@ public abstract class ParserConfig extends Parser {
         return config == null || config.isDevVersion();
     }
 
-    boolean isExternalDataSourcesEnabled() {
-        return config == null || config.isExternalDataSourcesEnabled();
-    }
-
     void setEsqlConfig(EsqlConfig config) {
         this.config = config;
     }

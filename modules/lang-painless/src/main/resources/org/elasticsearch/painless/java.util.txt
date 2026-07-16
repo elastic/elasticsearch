@@ -27,8 +27,8 @@ class java.util.Collection {
   int size()
   Spliterator spliterator()
   Stream stream()
-  def[] toArray()
-  def[] toArray(def[])
+  def[] toArray() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="toArrayBytes"]
+  def[] toArray(def[]) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="toArrayBytes"]
 
   # some adaptations of groovy methods
   List org.elasticsearch.painless.api.Augmentation collect(Function) @script_aware
@@ -348,20 +348,20 @@ class java.util.AbstractSet {
 }
 
 class java.util.ArrayDeque {
-  ()
+  () @allocates_constant[bytes="176b"]
   (Collection)
   ArrayDeque clone()
 }
 
 class java.util.ArrayList {
-  ()
-  (Collection)
+  () @allocates_constant[bytes="40b"]
+  (Collection) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="arrayListCollectionBytes"]
   def clone()
   void trimToSize()
 }
 
 class java.util.Arrays {
-  List asList(Object[])
+  List asList(Object[]) @allocates_constant[bytes="24b"]
   boolean deepEquals(Object[],Object[])
   int deepHashCode(Object[])
   String deepToString(Object[])
@@ -389,7 +389,7 @@ class java.util.Base64$Encoder {
 }
 
 class java.util.BitSet {
-  ()
+  () @allocates_constant[bytes="56b"]
   (int)
   void and(BitSet)
   void andNot(BitSet)
@@ -538,7 +538,7 @@ class java.util.Collections {
   Map EMPTY_MAP
   Set EMPTY_SET
   boolean addAll(Collection,def[])
-  Queue asLifoQueue(Deque)
+  Queue asLifoQueue(Deque) @allocates_constant[bytes="24b"]
   int binarySearch(List,def)
   int binarySearch(List,def,Comparator)
   void copy(List,List)
@@ -563,8 +563,8 @@ class java.util.Collections {
   def max(Collection,Comparator)
   def min(Collection)
   def min(Collection,Comparator)
-  List nCopies(int,def)
-  Set newSetFromMap(Map)
+  List nCopies(int,def) @allocates_constant[bytes="24b"]
+  Set newSetFromMap(Map) @allocates_constant[bytes="24b"]
   boolean replaceAll(List,def,def)
   void reverse(List)
   Comparator reverseOrder()
@@ -572,20 +572,20 @@ class java.util.Collections {
   void rotate(List,int)
   void shuffle(List) @nondeterministic
   void shuffle(List,Random)
-  Set singleton(def)
-  List singletonList(def)
-  Map singletonMap(def,def)
+  Set singleton(def) @allocates_constant[bytes="24b"]
+  List singletonList(def) @allocates_constant[bytes="24b"]
+  Map singletonMap(def,def) @allocates_constant[bytes="32b"]
   void sort(List)
   void sort(List,Comparator)
   void swap(List,int,int)
-  Collection unmodifiableCollection(Collection)
-  List unmodifiableList(List)
-  Map unmodifiableMap(Map)
-  NavigableMap unmodifiableNavigableMap(NavigableMap)
-  NavigableSet unmodifiableNavigableSet(NavigableSet)
-  Set unmodifiableSet(Set)
-  SortedMap unmodifiableSortedMap(SortedMap)
-  SortedSet unmodifiableSortedSet(SortedSet)
+  Collection unmodifiableCollection(Collection) @allocates_constant[bytes="24b"]
+  List unmodifiableList(List) @allocates_constant[bytes="24b"]
+  Map unmodifiableMap(Map) @allocates_constant[bytes="24b"]
+  NavigableMap unmodifiableNavigableMap(NavigableMap) @allocates_constant[bytes="24b"]
+  NavigableSet unmodifiableNavigableSet(NavigableSet) @allocates_constant[bytes="24b"]
+  Set unmodifiableSet(Set) @allocates_constant[bytes="24b"]
+  SortedMap unmodifiableSortedMap(SortedMap) @allocates_constant[bytes="24b"]
+  SortedSet unmodifiableSortedSet(SortedSet) @allocates_constant[bytes="24b"]
 }
 
 class java.util.Currency {
@@ -674,19 +674,19 @@ class java.util.GregorianCalendar {
 }
 
 class java.util.HashMap {
-  ()
-  (Map)
+  () @allocates_constant[bytes="64b"]
+  (Map) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="mapCopyBytes"]
   def clone()
 }
 
 class java.util.HashSet {
-  ()
-  (Collection)
+  () @allocates_constant[bytes="88b"]
+  (Collection) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="setCopyBytes"]
   def clone()
 }
 
 class java.util.Hashtable {
-  ()
+  () @allocates_constant[bytes="144b"]
   (Map)
   def clone()
 }
@@ -710,7 +710,7 @@ class java.util.HexFormat {
 }
 
 class java.util.IdentityHashMap {
-  ()
+  () @allocates_constant[bytes="560b"]
   (Map)
   def clone()
 }
@@ -726,18 +726,18 @@ class java.util.IntSummaryStatistics {
 }
 
 class java.util.LinkedHashMap {
-  ()
-  (Map)
+  () @allocates_constant[bytes="80b"]
+  (Map) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="mapCopyBytes"]
 }
 
 class java.util.LinkedHashSet {
-  ()
-  (Collection)
+  () @allocates_constant[bytes="104b"]
+  (Collection) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="setCopyBytes"]
 }
 
 class java.util.LinkedList {
-  ()
-  (Collection)
+  () @allocates_constant[bytes="32b"]
+  (Collection) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="linkedListCopyBytes"]
   def clone()
 }
 
@@ -919,7 +919,7 @@ class java.util.OptionalLong {
 }
 
 class java.util.PriorityQueue {
-  ()
+  () @allocates_constant[bytes="144b"]
   (Comparator)
 }
 
@@ -974,7 +974,7 @@ class java.util.Spliterators {
 }
 
 class java.util.Stack {
-  ()
+  () @allocates_constant[bytes="128b"]
   def push(def)
   def pop()
   def peek()
@@ -1027,13 +1027,13 @@ class java.util.TimeZone {
 }
 
 class java.util.TreeMap {
-  ()
+  () @allocates_constant[bytes="40b"]
   (Comparator)
   def clone()
 }
 
 class java.util.TreeSet {
-  ()
+  () @allocates_constant[bytes="64b"]
   (Comparator)
   def clone()
 }
@@ -1054,7 +1054,7 @@ class java.util.UUID {
 }
 
 class java.util.Vector {
-  ()
+  () @allocates_constant[bytes="128b"]
   (Collection)
   void addElement(def)
   void copyInto(Object[])

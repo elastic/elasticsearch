@@ -391,9 +391,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/152005
-- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
-  method: testCreateIndexBatching
-  issue: https://github.com/elastic/elasticsearch/issues/152041
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testDownsampling
   issue: https://github.com/elastic/elasticsearch/issues/152060

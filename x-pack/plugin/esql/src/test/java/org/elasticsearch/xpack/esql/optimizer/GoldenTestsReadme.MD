@@ -143,6 +143,9 @@ range, at a random released version inside it. The two names mute independently:
 - Warning about a dead range: the compatibility floor (advances at major releases) passed a label.
   Harmless, but clean up as the message says; a weekly CI sweep (`-Dtests.golden.gc.strict=true`)
   auto-files leftovers as tickets.
+- Error that a declaration no longer resolves: the transport version name was retired, meaning the
+  code path it gated is gone. Remove the declaration; for a label, also delete or fold its
+  directory (its files described planning that no longer exists).
 
 ## How do I run **all** the golden tests?
 ```sh

@@ -276,7 +276,7 @@ public abstract class GoldenTestCase extends ESTestCase {
          * the feature under test. Distinct from {@link #expectationChangesAt}, which splits coverage instead of removing it.
          */
         public TestBuilder since(String transportVersionName) {
-            return since(TransportVersion.fromName(transportVersionName));
+            return since(resolve(transportVersionName));
         }
 
         public TestBuilder since(TransportVersion since) {
@@ -289,8 +289,26 @@ public abstract class GoldenTestCase extends ESTestCase {
          * version range with its own expected files, in a subdirectory named after the version. Declare oldest-first.
          */
         public TestBuilder expectationChangesAt(String transportVersionName) {
-            labels.add(new Label(transportVersionName, TransportVersion.fromName(transportVersionName)));
+            labels.add(new Label(transportVersionName, resolve(transportVersionName)));
             return this;
+        }
+
+        /** A retired transport version name means the code path it gated is gone — the declaration must go with it. */
+        private static TransportVersion resolve(String transportVersionName) {
+            try {
+                return TransportVersion.fromName(transportVersionName);
+            } catch (IllegalStateException e) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "golden version declaration [%s] no longer resolves — its transport version was retired, so the planning "
+                            + "path it covered no longer exists. Remove this declaration; for a label, also delete or fold its "
+                            + "[%s] directory. See GoldenTestsReadme.MD.",
+                        transportVersionName,
+                        transportVersionName
+                    ),
+                    e
+                );
+            }
         }
 
         public TestBuilder aliasFilter(AliasFilter aliasFilter) {

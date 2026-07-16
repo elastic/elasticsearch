@@ -237,7 +237,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

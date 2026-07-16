@@ -237,7 +237,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

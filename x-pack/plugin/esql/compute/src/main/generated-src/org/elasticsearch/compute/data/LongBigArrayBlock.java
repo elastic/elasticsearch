@@ -237,7 +237,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

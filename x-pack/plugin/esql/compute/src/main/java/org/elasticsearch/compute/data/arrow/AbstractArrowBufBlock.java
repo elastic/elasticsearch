@@ -167,7 +167,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         // FIXME: Does this apply to Arrow buffers? Their allocator references the circuit breaker.
     }
 

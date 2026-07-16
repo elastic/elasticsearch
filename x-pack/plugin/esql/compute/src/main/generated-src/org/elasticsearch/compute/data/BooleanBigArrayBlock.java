@@ -258,7 +258,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

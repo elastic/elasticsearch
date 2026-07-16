@@ -24,7 +24,7 @@ import java.util.Objects;
  * {@code incRef} -- between sibling pages, and those sibling pages can be released concurrently
  * by different threads once dispatched to background workers (e.g. by
  * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}). Callers must invoke
- * {@link #makeRefCountsAtomic()} before doing that, e.g. from
+ * {@link #makeRefCountsThreadSafe()} before doing that, e.g. from
  * {@link Block#allowPassingToDifferentDriver()}, to switch to a thread-safe implementation that
  * uses {@code synchronized} blocks around the same {@code int} field.
  */
@@ -35,7 +35,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
      * When {@code true}, all ref-count mutations are guarded by {@code synchronized(this)}.
      * Set once by the owning thread before safe publication; never cleared.
      */
-    private boolean atomic;
+    private boolean threadSafe;
     private Releasable onClose;
 
     /**
@@ -58,10 +58,10 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
      * Switches this object's reference counting to a thread-safe mode, guarding all subsequent
      * mutations with {@code synchronized(this)}. Must be called by the single thread that currently
      * owns this object, before any reference to it can be used concurrently from more than one
-     * thread. Idempotent: a no-op if already atomic.
+     * thread. Idempotent: a no-op if already thread-safe.
      */
-    public final void makeRefCountsAtomic() {
-        atomic = true;
+    public final void makeRefCountsThreadSafe() {
+        threadSafe = true;
     }
 
     @Override
@@ -73,7 +73,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
 
     @Override
     public final boolean tryIncRef() {
-        if (atomic) {
+        if (threadSafe) {
             synchronized (this) {
                 if (refCount <= 0) {
                     return false;
@@ -93,7 +93,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
     @Override
     public final boolean decRef() {
         boolean closed;
-        if (atomic) {
+        if (threadSafe) {
             synchronized (this) {
                 assert refCount > 0 : AbstractRefCounted.INVALID_DECREF_MESSAGE;
                 closed = --refCount == 0;
@@ -111,7 +111,7 @@ public abstract class AbstractBlockRefCounter implements RefCounted, Releasable 
 
     @Override
     public final boolean hasReferences() {
-        if (atomic) {
+        if (threadSafe) {
             synchronized (this) {
                 return refCount > 0;
             }

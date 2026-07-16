@@ -228,7 +228,7 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounter implemen
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }

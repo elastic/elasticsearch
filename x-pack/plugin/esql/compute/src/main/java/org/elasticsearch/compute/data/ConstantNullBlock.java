@@ -396,7 +396,7 @@ public final class ConstantNullBlock extends AbstractBlockRefCounter
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         blockFactory = blockFactory.parent();
     }
 }

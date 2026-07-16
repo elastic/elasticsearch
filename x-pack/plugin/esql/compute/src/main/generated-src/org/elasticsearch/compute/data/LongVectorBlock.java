@@ -115,7 +115,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

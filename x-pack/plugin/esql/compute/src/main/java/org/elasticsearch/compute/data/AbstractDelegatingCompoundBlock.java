@@ -175,7 +175,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 

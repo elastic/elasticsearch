@@ -122,7 +122,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractBlockRefCount
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 

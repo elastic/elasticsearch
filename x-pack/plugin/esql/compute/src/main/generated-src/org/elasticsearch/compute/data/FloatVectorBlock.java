@@ -115,7 +115,7 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

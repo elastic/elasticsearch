@@ -239,7 +239,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

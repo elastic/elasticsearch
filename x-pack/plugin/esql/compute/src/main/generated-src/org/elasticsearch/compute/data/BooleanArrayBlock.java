@@ -260,7 +260,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

@@ -115,7 +115,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

@@ -127,7 +127,7 @@ public final class CompositeBlock extends AbstractBlockRefCounter implements Blo
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }

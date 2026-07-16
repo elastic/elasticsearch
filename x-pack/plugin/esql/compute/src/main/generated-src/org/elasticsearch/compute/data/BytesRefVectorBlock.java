@@ -132,7 +132,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

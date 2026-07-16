@@ -44,7 +44,7 @@ public class AbstractBlockRefCounterTests extends ESTestCase {
         for (int i = 0; i < extraRefs; i++) {
             counted.incRef();
         }
-        counted.makeRefCountsAtomic();
+        counted.makeRefCountsThreadSafe();
 
         for (int i = 0; i < extraRefs; i++) {
             assertFalse(counted.decRef());
@@ -58,8 +58,8 @@ public class AbstractBlockRefCounterTests extends ESTestCase {
     public void testMakeRefCountsAtomicIsIdempotent() {
         var counted = new TestRefCounted();
         counted.incRef();
-        counted.makeRefCountsAtomic();
-        counted.makeRefCountsAtomic(); // must be a no-op -- not reset or re-seed the count
+        counted.makeRefCountsThreadSafe();
+        counted.makeRefCountsThreadSafe(); // must be a no-op -- not reset or re-seed the count
 
         assertFalse(counted.decRef());
         assertThat(counted.closeCount.get(), equalTo(0));
@@ -84,7 +84,7 @@ public class AbstractBlockRefCounterTests extends ESTestCase {
         for (int i = 0; i < refs - 1; i++) {
             counted.incRef();
         }
-        counted.makeRefCountsAtomic();
+        counted.makeRefCountsThreadSafe();
 
         AtomicInteger closingDecRefs = new AtomicInteger();
         startInParallel(refs, i -> {

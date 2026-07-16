@@ -100,7 +100,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
 
     @Override
     public void allowPassingToDifferentDriver() {
-        makeRefCountsAtomic();
+        makeRefCountsThreadSafe();
         // FIXME: does this apply to Arrow buffers?
     }
 

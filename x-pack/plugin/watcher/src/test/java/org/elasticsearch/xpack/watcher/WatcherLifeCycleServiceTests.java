@@ -271,7 +271,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         assertThat(lifeCycleService.getState().get(), equalTo(WatcherState.STARTED));
     }
 
-    public void testRoutingChangeWhileStartingTriggersStart() {
+    public void testRoutingChangeWhileStartingTriggersReload() {
         /*
          * Regression test for a race where a replica shard transitions to STARTED while watcher
          * is mid-start (state=STARTING, reloadInner in flight). Without handling this case the
@@ -336,12 +336,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // Step 3: replica becomes STARTED while reloadInner(CS_S) is still in flight.
         // localAffectedShardRoutings changes from [primary] to [primary, replica], so the routing
-        // differs. The fix must call start(CS_3) to bump processedClusterStateVersion so the
+        // differs. The fix must call reload(CS_3) to bump processedClusterStateVersion so the
         // stale reloadInner exits early and a new one uses the correct shardCount=2.
         reset(watcherService);
         when(watcherService.validate(csWithReplica)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithReplica, csWithPrimary));
-        verify(watcherService, times(1)).start(eq(csWithReplica), any(), any());
+        verify(watcherService, times(1)).reload(eq(csWithReplica), any(), any());
         assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTING));
     }
 

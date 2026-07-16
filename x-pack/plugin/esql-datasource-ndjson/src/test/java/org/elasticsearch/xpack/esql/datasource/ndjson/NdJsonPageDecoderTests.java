@@ -27,8 +27,10 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -48,9 +50,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -550,6 +551,156 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
+    public void testDeclaredEpochSecondFormatParsesNumericTokens() throws Exception {
+        // A declared epoch_second format parses a JSON INT token as whole seconds and a JSON FLOAT token as fractional
+        // seconds, overriding the numeric-epoch-millis shortcut — the parse-dialect / epoch-unit semantic.
+        String ndjson = "{\"ts\":1704067200}\n{\"ts\":1704067200.5}\n";
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("ts", DataType.DATETIME)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-epoch-second",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "epoch_second")
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(2, page.getPositionCount());
+                LongBlock ts = (LongBlock) page.getBlock(0);
+                assertEquals("epoch_second on an int token reads whole seconds", 1704067200000L, ts.getLong(0));
+                assertEquals("epoch_second on a float token reads fractional seconds", 1704067200500L, ts.getLong(1));
+            }
+        }
+    }
+
+    public void testNoFormatFloatDatetimeRoundsToEpochMillis() throws Exception {
+        // With no declared format a fractional JSON number in a datetime column is epoch millis and rounds to the
+        // nearest milli — the ::datetime / safeDoubleToLong semantic, matching the columnar double->datetime coercion.
+        try (Page page = decodePage("{\"ts\":1704067200000.6}\n", List.of(attribute("ts", DataType.DATETIME)))) {
+            assertEquals(1704067200001L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    // --- declared date_nanos reads ---
+
+    /**
+     * An ISO string in a declared date_nanos column parses through the file-level formatter rail
+     * (strict_date_optional_time by default) into dateNanosToLong — and sub-millisecond digits SURVIVE:
+     * strict_date_optional_time parses fractions to nanosecond resolution, so the default rail does not
+     * truncate the very precision the type exists for.
+     */
+    public void testDeclaredDateNanosIsoStringKeepsNanoPrecision() throws IOException {
+        String ndjson = "{\"v\":\"2024-01-15T12:34:56.123456789Z\"}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.DATE_NANOS, ErrorPolicy.STRICT)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), block.getLong(0));
+        }
+    }
+
+    /**
+     * A numeric token in a declared date_nanos column with NO declared format is epoch NANOSECONDS — the
+     * declared type names the numeric unit (datetime = millis, date_nanos = nanos) — matching the CSV numeric
+     * rail and the columnar whole-number identity coercion. NOT the mapper-ingest millis reading.
+     */
+    public void testDeclaredDateNanosNumericTokenIsEpochNanos() throws IOException {
+        long nanos = 1_700_000_000_123_456_789L;
+        try (Page page = decodeOneColumn("{\"v\":" + nanos + "}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("identity epoch-nanos reinterpret, no scaling", nanos, block.getLong(0));
+        }
+    }
+
+    /**
+     * A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as the datetime
+     * arm does: a column declared {date_nanos, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT
+     * as an epoch-nanos number. This is the unit rule — the format names the unit, else the type does.
+     */
+    public void testDeclaredDateNanosFormatOverridesNumericShortcut() throws IOException {
+        String ndjson = "{\"ts\":20260101}\n";
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // file-level formatter unused; the column carries its own declared format
+                List.of(attribute("ts", DataType.DATE_NANOS)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-date-nanos",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "yyyyMMdd")
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(EsqlDataTypeConverter.dateNanosToLong("2026-01-01T00:00:00Z"), ((LongBlock) page.getBlock(0)).getLong(0));
+            }
+        }
+    }
+
+    /**
+     * A negative epoch has no date_nanos representation: never a negative nanos long — the cell fails through
+     * the error policy (null_field nulls + warns; fail_fast fails the read).
+     */
+    public void testDeclaredDateNanosNegativeEpochIsPerCellFailure() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":-1}\n{\"v\":5}\n", DataType.DATE_NANOS, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("negative epoch nulls the cell", block.isNull(0));
+            assertEquals("the good cell still decodes", 5L, block.getLong(block.getFirstValueIndex(1)));
+        }
+        drainWarnings();
+        expectThrows(EsqlIllegalArgumentException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
+    }
+
+    /**
+     * With NO declared format, a boolean or a fractional number in a date_nanos column is an unsupported cross-kind
+     * drift. The fractional case differs from the datetime arm on purpose: a fraction of a nanosecond has no meaning
+     * (nanos is this type's finest unit), whereas a fractional epoch-milli rounds. With a declared format a fractional
+     * token IS meaningful and parses — pinned by {@link #testDeclaredDateNanosFractionalTokenParsesThroughFormat}.
+     */
+    public void testDeclaredDateNanosCrossKindDrift() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":true}\n{\"v\":1.5}\n{\"v\":7}\n", DataType.DATE_NANOS, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("boolean in a date_nanos column nulls the cell", block.isNull(0));
+            assertTrue("fractional number with no format nulls the cell", block.isNull(1));
+            assertEquals(7L, block.getLong(block.getFirstValueIndex(2)));
+        }
+        drainWarnings();
+    }
+
+    /**
+     * A fractional token under a declared format parses through it: {@code epoch_second} on {@code 1704067200.5} is
+     * sub-second precision that date_nanos can represent exactly. The unit rule again — the format names the unit, so
+     * the token is a fractional SECOND, not a fractional nanosecond.
+     */
+    public void testDeclaredDateNanosFractionalTokenParsesThroughFormat() throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"ts\":1704067200.5}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("ts", DataType.DATE_NANOS)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-date-nanos-fraction",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "epoch_second")
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T00:00:00.5Z"), ((LongBlock) page.getBlock(0)).getLong(0));
+            }
+        }
+    }
+
     /**
      * Reads the response-header warnings emitted on the test thread and clears them so the parent
      * {@code ensureNoWarnings} post-check passes. Returns the unwrapped warning messages.
@@ -716,6 +867,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             DataType.BOOLEAN,
             "true",
             DataType.DATETIME,
+            "\"2020-01-01T00:00:00.000Z\"",
+            DataType.DATE_NANOS,
             "\"2020-01-01T00:00:00.000Z\"",
             DataType.UNSIGNED_LONG,
             "18446744073709551615",

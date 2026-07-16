@@ -64,6 +64,20 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
+    /**
+     * The tail-extension in fetchWindowAt computes fetchStart = length - min(footerTailBytes, windowSize).
+     * When windowSize &lt; footerTailBytes that makes fetchStart &gt; pos, leaving pos outside the window and
+     * causing an infinite ensureWindow loop. The default window size must therefore be at least as large
+     * as the footer-tail prefetch size; this test catches a bad change to either constant immediately.
+     */
+    public void testDefaultWindowSizeIsAtLeastFooterTailPrefetchBytes() {
+        assertTrue(
+            "DEFAULT_WINDOW_SIZE (" + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + ") must be >= FOOTER_TAIL_PREFETCH_BYTES ("
+                + ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + "); see fetchWindowAt tail-extension logic",
+            ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE >= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+        );
+    }
+
     public void testNullStorageObjectThrowsException() {
         QlIllegalArgumentException e = expectThrows(
             QlIllegalArgumentException.class,

@@ -209,6 +209,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             BufferAllocator allocator,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
         ) {
+            if (windowSize < footerTailBytes) {
+                throw new IllegalArgumentException(
+                    "windowSize (" + windowSize + ") must be >= footerTailBytes (" + footerTailBytes + "); "
+                        + "tail extension computes fetchStart = length - min(footerTailBytes, windowSize), "
+                        + "which exceeds pos when windowSize < footerTailBytes, leaving pos outside the window"
+                );
+            }
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
             this.length = length;

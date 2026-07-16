@@ -38,6 +38,10 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -210,6 +214,9 @@ public class KnnIndexTester {
                 var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                    : IvfMergeConfigResolver.useCodecDefault();
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
@@ -223,7 +230,9 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             }
             case GPU_HNSW -> {
@@ -657,11 +666,11 @@ public class KnnIndexTester {
         };
     }
 
-    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+    private static QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
         if (queryQuantizeBits == null) {
-            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+            return QuantEncoding.fromBits((byte) docQuantizeBits);
         }
-        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+        return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
@@ -776,7 +785,9 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination"
+                "early_termination",
+                "exact",
+                "exact_quantized"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -821,7 +832,9 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination)
+                    Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.exact),
+                    Boolean.toString(queryResult.exactQuantized)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";
@@ -920,6 +933,8 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean exact;
+        boolean exactQuantized;
         int numCandidates;
         int topK;
         Map<String, Float> perPartitionRecall;
@@ -1061,6 +1076,8 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "exact",
+        "exact_quantized",
         "filter_selectivity",
         "filter_cached",
         "search_threads",
@@ -1173,6 +1190,8 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.exact()),
+                            Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
                             Boolean.toString(sp.filterCached()),
                             Integer.toString(sp.searchThreads()),

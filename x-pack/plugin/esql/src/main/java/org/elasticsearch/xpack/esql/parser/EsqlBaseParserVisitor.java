@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -502,12 +503,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
    * @param ctx the parse tree

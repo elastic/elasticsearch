@@ -14,15 +14,15 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
-
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkSparse;
 
 /**
  * Int4 packed-nibble query-time scorer. The float query is quantized externally
@@ -31,6 +31,10 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkSp
  * followed by corrective terms (3 floats + 1 int).
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     private final ScorerImpl scorerImpl;
     private final QueryContext query;
@@ -202,7 +206,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
             return IndexInputUtils.withSlice(input, packedDims, this::getScratch, packedTarget -> {
-                int rawScore = dotProductI4(query.unpackedQuery(), packedTarget, packedDims);
+                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), packedTarget, packedDims);
                 return applyCorrections(rawScore, node, query);
             });
         }
@@ -222,7 +226,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
                 packedDims,
                 numNodes,
                 addrsScratch::get,
-                addrs -> dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
+                addrs -> DISTANCE_FUNCS.dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
             );
             if (resolved) {
                 return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);

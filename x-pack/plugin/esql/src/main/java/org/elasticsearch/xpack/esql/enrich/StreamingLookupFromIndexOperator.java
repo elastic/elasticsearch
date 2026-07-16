@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeBase;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
@@ -218,7 +220,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     listener.onResponse(response.planString());
                 }, e -> {
                     planningEndNanos = System.nanoTime();
-                    logger.error("Server setup failed for node=" + serverNode.getId(), e);
+                    BidirectionalBatchExchangeBase.logExchangeFailure(
+                        logger,
+                        Level.ERROR,
+                        e,
+                        "Server setup failed for node=" + serverNode.getId(),
+                        e
+                    );
                     failure.set(e);
                     listener.onFailure(e);
                 }));
@@ -244,7 +252,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             );
 
         } catch (Exception e) {
-            logger.error("Failed to create client", e);
+            BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Failed to create client", e);
             failure.set(e);
             driverContext.removeAsyncAction();
         }
@@ -281,7 +289,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private void handleBatchExchangeFailure(Exception e) {
-        logger.error("Batch exchange failed", e);
+        BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Batch exchange failed", e);
         failure.set(e);
         driverContext.removeAsyncAction();
     }
@@ -326,14 +334,28 @@ public class StreamingLookupFromIndexOperator implements Operator {
             client.sendPage(pageWithMetadata);
             logger.trace("addInput: sent batchId={} to worker", batchId);
         } catch (RuntimeException e) {
-            logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
+            BidirectionalBatchExchangeBase.logExchangeFailure(
+                logger,
+                Level.ERROR,
+                e,
+                "addInput: failed to send batchId={}: {}",
+                batchId,
+                e.getMessage()
+            );
             if (pageWithMetadata != null) {
                 pageWithMetadata.releaseBlocks();
             }
             page.releaseBlocks();
             throw e;
         } catch (Exception e) {
-            logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
+            BidirectionalBatchExchangeBase.logExchangeFailure(
+                logger,
+                Level.ERROR,
+                e,
+                "addInput: failed to send batchId={}: {}",
+                batchId,
+                e.getMessage()
+            );
             if (pageWithMetadata != null) {
                 pageWithMetadata.releaseBlocks();
             }
@@ -674,13 +696,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
             try {
                 client.finish();
             } catch (Exception e) {
-                logger.error("Error finishing client", e);
+                BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Error finishing client", e);
             }
             client.finishCollectingResponseHeaders();
             try {
                 client.close();
             } catch (Exception e) {
-                logger.error("Error closing client", e);
+                BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Error closing client", e);
             }
         }
     }

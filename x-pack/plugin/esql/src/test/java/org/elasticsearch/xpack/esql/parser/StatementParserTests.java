@@ -113,6 +113,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -576,7 +577,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -587,7 +588,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         var countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -599,7 +600,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1253,7 +1254,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1268,23 +1269,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
-        // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
     }
 
-    public void testHighlightRejectsPrefixSyntax() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
-        // grammar extension can flip it on without breaking serialization.
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
+    public void testHighlightCustomPrefix() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("h_"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("h_title", "h_body")));
+    }
+
+    public void testHighlightEmptyPrefixParses() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // Empty prefix overwrites the source column name.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo(""));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("content")));
+    }
+
+    public void testHighlightFieldNamedPrefix() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // `prefix` can be used as a field name and is not a reserved keyword.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("prefix"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("highlight_prefix")));
+    }
+
+    public void testPrefixIsNotAReservedKeyword() {
+        as(query("FROM foo | EVAL prefix = 1"), Eval.class);
+        as(query("FROM foo | STATS x = COUNT(*) BY prefix"), Aggregate.class);
+        as(query("ROW prefix = 1"), Row.class);
+        as(query("FROM foo | KEEP prefix"), Keep.class);
+        as(query("FROM foo | WHERE prefix > 0"), Filter.class);
+    }
+
+    public void testHighlightRejectsUnknownModifier() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
+            () -> query("FROM foo | HIGHLIGHT bogus = \"h_\" \"elasticsearch\" ON title")
+        );
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1293,8 +1333,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
     }
 
+    public void testHighlightAcceptsAllOptions() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
+              "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
+              "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
+              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
+              "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
+    }
+
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1303,17 +1356,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsExpressionQuery() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
@@ -1746,33 +1799,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2")));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2 days")));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("4 hours")));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("1.2.3")));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("127.0.0.1")));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
@@ -2060,7 +2113,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         Aggregate agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2080,7 +2133,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2100,7 +2153,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2118,7 +2171,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2136,7 +2189,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2197,14 +2250,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         NamedExpression field = eval.fields().get(0);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("2024-01-01"))
-        );
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("3 days"))
-        );
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo(toBytesRef("2024-01-01")));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo(toBytesRef("3 days")));
     }
 
     public void testParamForIdentifier() {
@@ -2712,7 +2759,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef(string)));
     }
 
     public void testIdPatternUnquoted() {
@@ -2766,15 +2813,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
     }
 
-    public void testInlineConvertToSnapshotOnlyType() {
-        assumeFalse("date_range is exposed on snapshot builds", Build.current().isSnapshot());
-        expectError(
-            "ROW str = \"2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z\" | EVAL range = str::date_range",
-            "Unknown data type named [date_range]"
-        );
-        expectError("ROW range = \"x\"::date_range", "Unknown data type named [date_range]");
-    }
-
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
@@ -2784,7 +2822,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef("t")));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -2966,7 +3004,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testInvalidMatchOperator() {
@@ -2984,14 +3022,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
-        expectError(
-            "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
-        expectError(
-            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
+    }
+
+    public void testMatchOperatorWithFunctionLhs() {
+        var plan = query("FROM test | WHERE CONCAT(first_name, \" \", last_name):\"Anneke Preusig\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var concat = (UnresolvedFunction) match.field();
+        assertThat(concat.name(), equalTo("CONCAT"));
+        assertThat(concat.children().size(), equalTo(3));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("Anneke Preusig")));
+    }
+
+    public void testMatchOperatorWithNestedFunctionLhs() {
+        var plan = query("FROM test | WHERE TO_UPPER(CONCAT(first_name, \" \", last_name)):\"ANNEKE PREUSIG\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var toUpper = (UnresolvedFunction) match.field();
+        assertThat(toUpper.name(), equalTo("TO_UPPER"));
+        var concat = (UnresolvedFunction) toUpper.children().get(0);
+        assertThat(concat.name(), equalTo("CONCAT"));
     }
 
     public void testMatchFunctionFieldCasting() {
@@ -3001,7 +3051,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -3011,7 +3061,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testFailingMetadataWithSquareBrackets() {
@@ -3326,30 +3376,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testFunctionNamedParameterNotInMap() {
-        Map<String, String> commands = Map.ofEntries(
-            Map.entry("eval x = {}", "38"),
-            Map.entry("where {}", "35"),
-            Map.entry("stats {}", "35"),
-            Map.entry("stats agg() by {}", "44"),
-            Map.entry("sort {}", "34"),
-            Map.entry("dissect {} \"%{bar}\"", "37"),
-            Map.entry("grok {} \"%{WORD:foo}\"", "34")
-        );
-
-        for (Map.Entry<String, String> command : commands.entrySet()) {
-            String cmd = command.getKey();
-            String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "extraneous input ':' expecting {',', ')'}"
-                : "no viable alternative at input 'fn(f1, \"option1\":'";
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, \"option1\":\"string\")"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
-            );
-        }
-    }
-
     public void testFunctionNamedParameterNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
@@ -3653,12 +3679,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testInvalidInsistAsterisk() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
-    }
-
     public void testFillNullAllFields() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = processingCommand("fillnull");
@@ -3697,7 +3717,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         FillNull fillNull = (FillNull) plan;
         assertThat(fillNull.fillValue(), instanceOf(Literal.class));
         Literal lit = (Literal) fillNull.fillValue();
-        assertEquals(BytesRefs.toBytesRef("N/A"), lit.value());
+        assertEquals(toBytesRef("N/A"), lit.value());
         assertEquals(KEYWORD, lit.dataType());
         assertEquals(2, fillNull.targetFields().size());
         assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("status")));
@@ -3750,7 +3770,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("row a = 1 | fillnull WITH ? a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
-        assertEquals(BytesRefs.toBytesRef("missing"), lit.value());
+        assertEquals(toBytesRef("missing"), lit.value());
         assertEquals(KEYWORD, lit.dataType());
         assertEquals(1, fillNull.targetFields().size());
         assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
@@ -3795,7 +3815,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -3809,7 +3829,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("b"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bar")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bar")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -3818,7 +3838,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("c"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bat")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bat")));
 
         // fourth subplan
         eval = as(subPlans.get(3), Eval.class);
@@ -3936,7 +3956,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo*
             | FORK
                ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
-               ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;
@@ -4698,7 +4717,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = query("from test | enrich \"" + indexName + "\"");
         Enrich enrich = as(plan, Enrich.class);
-        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(toBytesRef(indexName)));
         as(enrich.child(), UnresolvedRelation.class);
 
         if (indexName.contains("*")) {
@@ -4734,10 +4753,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled() == false) {
-                // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("date_range"));
-            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);

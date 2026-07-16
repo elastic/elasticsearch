@@ -77,7 +77,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.SIX;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -319,8 +318,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             completion.targetField(),
             randomLiteral(DataType.TEXT),
             mock(Expression.class),
-            mock(QueryBuilder.class),
-            TEST_CFG
+            mock(QueryBuilder.class)
         );
         Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
 
@@ -626,7 +624,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(c), null);
-        Join join = new Join(EMPTY, left, right, joinConfig);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
 
         // Predicates
         Expression p1 = greaterThanOf(c, ONE);                                  // pushable
@@ -877,7 +875,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b));
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b), List.of(b, c), null);
-        return new Join(EMPTY, left, right, joinConfig);
+        return new Join(Source.EMPTY, left, right, joinConfig, false);
     }
 
     private Join createLeftJoinOnExpression() {
@@ -889,7 +887,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b2));
         Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(b2), joinOnCondition);
-        return new Join(EMPTY, left, right, joinConfig);
+        return new Join(Source.EMPTY, left, right, joinConfig, false);
     }
 
     public void testLeftJoinOnExpressionPushable() {

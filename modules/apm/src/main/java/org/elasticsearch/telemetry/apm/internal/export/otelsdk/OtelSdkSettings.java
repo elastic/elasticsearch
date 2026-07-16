@@ -50,6 +50,13 @@ public final class OtelSdkSettings {
      * Required when the SDK metrics or trace path is active. */
     public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
 
+    /** When {@code false}, TLS certificate verification is disabled for the OTLP exporters. */
+    public static final Setting<Boolean> TELEMETRY_EXPORT_VERIFY_SERVER_CERT = Setting.boolSetting(
+        "telemetry.export.verify_server_cert",
+        true,
+        NodeScope
+    );
+
     /**
      * Initial backoff of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
      * The default allows for fast retry and manageable total timeout.
@@ -197,6 +204,17 @@ public final class OtelSdkSettings {
                 return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
             }
         },
+        NodeScope
+    );
+
+    /**
+     * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
+     * Sized for ~30 MB of in-flight records at ~3 KB/record average.
+     */
+    public static final Setting<Integer> TELEMETRY_LOGS_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.logs.max_queue_size",
+        10_000,
+        1,
         NodeScope
     );
 

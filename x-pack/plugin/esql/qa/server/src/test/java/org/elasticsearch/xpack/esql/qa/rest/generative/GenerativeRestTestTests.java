@@ -122,4 +122,18 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testMatchOptionsOnNonIndexMappedFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchOptionsOnIndexMappedFieldIsNotAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), true));
+
+        assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
 }

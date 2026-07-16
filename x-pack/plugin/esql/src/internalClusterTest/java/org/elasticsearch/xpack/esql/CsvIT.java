@@ -67,10 +67,12 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -108,7 +110,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -178,7 +179,9 @@ public class CsvIT extends ESTestCase {
          * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
          * appears in the query and so re-running the spec would only re-test the unmodified behavior.
          */
-        String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+        TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+
+        record TransformedQuery(String query, Settings extraPragmas) {}
 
         /**
          * Transforms the expected results loaded from the csv-spec entry before they are compared
@@ -209,8 +212,8 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
-        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
-            return testCase.query;
+        public TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            return new TransformedQuery(testCase.query, Settings.EMPTY);
         }
 
         @Override
@@ -256,7 +259,7 @@ public class CsvIT extends ESTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
-        return SpecReader.readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
     @BeforeClass
@@ -283,6 +286,7 @@ public class CsvIT extends ESTestCase {
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
                         .put("ingest.geoip.downloader.enabled", false)
+                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
                         .build();
                 }
 
@@ -295,9 +299,9 @@ public class CsvIT extends ESTestCase {
             "node_",
             List.of(
                 getTestTransportPlugin(),
-                EsqlTestPlugin.class,
                 // EncryptionService binding for the always-registered data-source CRUD actions.
                 TestEncryptionServicePlugin.class,
+                EsqlTestPlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
@@ -347,6 +351,7 @@ public class CsvIT extends ESTestCase {
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;
@@ -356,8 +361,8 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        String queryToRun = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
-        var request = syncEsqlQueryRequest(queryToRun);
+        IndexLoadStrategy.TransformedQuery transformed = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
+        EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
@@ -366,6 +371,7 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
+        pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
         if (pragmaSettings.build().isEmpty() == false) {
             request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
@@ -499,7 +505,7 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName) || "unmapped-load".equals(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
                 if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
                     views.maybeLoad(name, view);
@@ -570,9 +576,19 @@ public class CsvIT extends ESTestCase {
             assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
                     String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
-                    bulk.add(cluster.client().prepareIndex(dataset.indexName()).setId(document.id()).setSource(source, XContentType.JSON));
+                    var indexRequestBuilder = cluster.client()
+                        .prepareIndex(dataset.indexName())
+                        .setId(document.id())
+                        .setSource(source, XContentType.JSON);
+                    if (document.slice() != null) {
+                        indexRequestBuilder.setRouting(document.slice());
+                        indexRequestBuilder.setRoutingFromSlice(true);
+                    }
+
+                    bulk.add(indexRequestBuilder);
                     if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
                         var result = bulk.get();
                         assertFalse(

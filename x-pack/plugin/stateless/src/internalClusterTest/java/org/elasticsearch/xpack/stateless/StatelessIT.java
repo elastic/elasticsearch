@@ -52,7 +52,6 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.HealthStatus;
@@ -67,7 +66,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -987,7 +985,6 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(exception.getCause(), is(notNullValue()));
         assertThat(exception.getCause(), instanceOf(UnavailableShardsException.class));
     }
-
 
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {
         var request = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);

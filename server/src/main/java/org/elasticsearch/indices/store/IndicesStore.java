@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -127,9 +126,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         );
                         switch (shardDeletionCheckResult) {
                             case FOLDER_FOUND_CAN_DELETE:
-                                indicesClusterStateService.onClusterStateShardsClosed(
-                                    () -> deleteShardStore(shardId)
-                                );
+                                indicesClusterStateService.onClusterStateShardsClosed(() -> deleteShardStore(shardId));
                                 break;
                             case NO_FOLDER_FOUND:
                                 folderNotFoundCache.add(shardId);
@@ -190,10 +187,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                     if (indexRouting != null) {
                         IndexShardRoutingTable currentShardRouting = indexRouting.shard(shardId.id());
                         if (currentShardRouting != null && shardIsAllocatedOnNode(localNodeId, currentShardRouting)) {
-                            logger.trace(
-                                "not deleting shard {}, shard has been re-allocated to this node",
-                                shardId
-                            );
+                            logger.trace("not deleting shard {}, shard has been re-allocated to this node", shardId);
                             return;
                         }
                     }

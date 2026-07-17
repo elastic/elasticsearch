@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -975,6 +976,25 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             );
         }
 
+        // coordinator lookup join after sort and limit
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | SORT key
+            | LIMIT 1
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator")
+                    )
+                )
+            );
+        }
+
         // remote lookup then coordinator lookup
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:data
@@ -1011,6 +1031,30 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 | SORT key
                 """, randomBoolean()).close()
         );
+    }
+
+    public void testCoordinatorLookupJoinConflictsWithRemoteClusterName() throws Exception {
+        setupClusters(2);
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1));
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(LOCAL_CLUSTER, "lookup", lookupSettings, Map.of("key", 1));
+
+        // register a remote cluster under the reserved "_coordinator" alias
+        var remoteCluster = cluster(REMOTE_CLUSTER_1);
+        var seedAddresses = Arrays.stream(remoteCluster.getNodeNames())
+            .map(node -> remoteCluster.getInstance(TransportService.class, node).boundAddress().publishAddress())
+            .toList();
+        configureRemoteClusterWithSeedAddresses("_coordinator", seedAddresses);
+        try {
+            expectThrows(
+                VerificationException.class,
+                containsString("coordinator LOOKUP JOIN is not supported with a remote cluster [_coordinator]. Please rename it."),
+                () -> runQuery("FROM cluster-a:data | LOOKUP JOIN _coordinator:lookup ON key", randomBoolean()).close()
+            );
+        } finally {
+            removeRemoteCluster("_coordinator");
+        }
     }
 
     @SafeVarargs

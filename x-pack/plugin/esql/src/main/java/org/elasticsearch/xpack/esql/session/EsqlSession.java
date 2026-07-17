@@ -1531,6 +1531,16 @@ public class EsqlSession {
         Set<String> lookupIndexScope;
 
         if (lookupIndexPattern.isCoordinatorMode()) {
+            // "_coordinator" is our reserved alias for the local coordinator node.
+            // If a remote cluster is registered under the same name, reject the query to avoid ambiguity.
+            if (remoteClusterService.getRegisteredRemoteClusterNames().contains("_coordinator")) {
+                listener.onFailure(
+                    new VerificationException(
+                        "coordinator LOOKUP JOIN is not supported with a remote cluster [_coordinator]. Please rename it."
+                    )
+                );
+                return;
+            }
             lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             qualifiedPattern = RemoteClusterAware.splitIndexName(localPattern).indexExpression();
         } else {

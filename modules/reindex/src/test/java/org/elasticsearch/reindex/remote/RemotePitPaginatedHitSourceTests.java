@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -343,7 +344,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    /** Verifies cleanup closes the RestClient and RemoteInfo. */
+    /** Verifies cleanup closes the RestClient. */
     public void testCleanupSuccessful() throws Exception {
         AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
         RestClient client = mock(RestClient.class);
@@ -392,6 +393,52 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
+    }
+
+    /**
+     * Verifies cleanup closes the (search-scoped) RestClient but does not close the (request-scoped) RemoteInfo credentials. Ownership of
+     * the RemoteInfo lifecycle belongs to {@code Reindexer}, so the credentials must remain usable after cleanup (they need to survive a
+     * relocation handoff serialization).
+     */
+    public void testCleanupDoesNotCloseRemoteInfoCredentials() throws Exception {
+        AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
+        RestClient client = mock(RestClient.class);
+        SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        RemoteInfo remoteInfo = new RemoteInfo(
+            "http",
+            randomAlphaOfLength(8),
+            randomIntBetween(4000, 9000),
+            null,
+            new BytesArray("{}"),
+            randomAlphaOfLength(8),
+            password,
+            Map.of(),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30))
+        );
+        try {
+            RemotePitPaginatedHitSource hitSource = new RemotePitPaginatedHitSource(
+                logger,
+                BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+                threadPool,
+                Assert::fail,
+                r -> fail(),
+                e -> fail(),
+                client,
+                remoteInfo,
+                searchRequest,
+                Version.CURRENT,
+                keepaliveDeadline(),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                1024L
+            );
+            hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+            verify(client).close();
+            assertTrue(cleanupCallbackCalled.get());
+            assertArrayEquals(password.getChars(), remoteInfo.getPassword().getChars());
+        } finally {
+            remoteInfo.close();
+        }
     }
 
     /** Verifies getPitId returns the PIT ID from the response after doFirstSearch. */

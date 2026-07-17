@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -17,7 +18,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateIndex;
+import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateIndices;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -25,7 +26,15 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex(this::ensureYellow);
+        createAndPopulateIndices(this::ensureYellow);
+    }
+
+    /**
+     * Runtime match_phrase is gated behind a snapshot-only capability; in release builds the queries these tests
+     * run are rejected by the verifier instead.
+     */
+    private static void assumeRuntimeMatchPhraseEnabled() {
+        assumeTrue("requires runtime match_phrase", MatchPhrase.runtimeSearchEnabled());
     }
 
     public void testSimpleWhereMatchPhrase() {
@@ -323,33 +332,55 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchPhraseAfterMvExpand() {
+        assumeRuntimeMatchPhraseEnabled();
+        // After MV_EXPAND on the searched field, the expanded attribute is no longer a direct index field, so
+        // runtime search takes over: the MV_EXPAND restriction is bypassed and the phrase is evaluated per row.
         var query = """
             FROM test
             | MV_EXPAND content
             | WHERE match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
     }
 
     public void testMatchPhraseAfterMvExpandWithIntermediateCommands() {
-        var error = expectThrows(VerificationException.class, () -> run("""
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
             FROM test
             | MV_EXPAND content
             | EVAL upper_content = to_upper(content)
             | WHERE match_phrase(content, "brown fox")
-            """));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
+            | KEEP id
+            | SORT id
+            """;
 
-        error = expectThrows(VerificationException.class, () -> run("""
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+
+        query = """
             FROM test
             | MV_EXPAND content
             | SORT id
             | KEEP id, content
             | WHERE match_phrase(content, "brown fox")
-            """));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchPhrase() {
@@ -375,6 +406,117 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+    }
+
+    // ---- runtime match_phrase: searching text expressions that are not index-mapped fields ----
+
+    public void testSimpleWhereRuntimeMatchPhrase() {
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            FROM test
+            | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testRuntimeMatchPhraseOrderMatters() {
+        assumeRuntimeMatchPhraseEnabled();
+        // Both tokens exist in ids 1 and 6, but never adjacent in this order, so a runtime phrase matches nothing.
+        var query = """
+            FROM test
+            | WHERE match_phrase(to_text(concat(content, " extra")), "fox brown")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), Collections.emptyList());
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseEvalTextColumn() {
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            FROM test
+            | EVAL text_content = content
+            | WHERE match_phrase(text_content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseWithRow() {
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            ROW content = to_text("a brown fox")
+            | WHERE match_phrase(content, "brown fox")
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(resp.values(), List.of(List.of("a brown fox")));
+        }
+    }
+
+    public void testSimpleWhereRuntimeMatchPhraseWithScore() {
+        assumeRuntimeMatchPhraseEnabled();
+        // Runtime match_phrase does not contribute to the score, so matching rows keep a 0.0 score.
+        var query = """
+            FROM test METADATA _score
+            | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox")
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+        }
+    }
+
+    public void testMatchPhraseRuntimeEvalWithOptionsThrowsError() {
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match_phrase(new_content, "brown fox", {"slop": 5})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [new_content]")
+        );
+    }
+
+    public void testMatchPhraseRuntimeRowWithOptionsThrowsError() {
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            ROW content = to_text("a brown fox")
+            | WHERE match_phrase(content, "brown fox", {"analyzer": "standard"})
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [content]")
+        );
     }
 
     public void testMatchPhraseWithLookupJoin() {

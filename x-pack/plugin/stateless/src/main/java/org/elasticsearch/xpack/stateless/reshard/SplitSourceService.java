@@ -280,7 +280,7 @@ public class SplitSourceService {
             // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
             if (targetPrimaryTerm >= currentSplit.targetPrimaryTerm) {
                 // Cancel current split request as it is likely stale
-                taskManager.cancelTaskAndDescendants(task, "stale split request", false, ActionListener.noop());
+                taskManager.cancelTaskAndDescendants(currentSplit.task, "stale split request", false, ActionListener.noop());
             }
             String message = String.format(
                 Locale.ROOT,
@@ -350,7 +350,7 @@ public class SplitSourceService {
             logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
             // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
             // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
-            engine.flush(/* force */ false, /* waitIfOngoing */ false, afterFirstFlush);
+            engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
             return null;
         }))
             .<Releasable>andThen(acquiredPermits -> stateMachine.split().withPermits(acquiredPermits))

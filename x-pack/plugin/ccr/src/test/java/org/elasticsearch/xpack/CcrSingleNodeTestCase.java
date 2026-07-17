@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
@@ -73,7 +74,10 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
+        ClusterServiceUtils.awaitClusterState(
+            state -> state.metadata().custom(LicensesMetadata.TYPE) != null,
+            getInstanceFromNode(ClusterService.class)
+        );
     }
 
     @After

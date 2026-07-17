@@ -256,6 +256,30 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runGoldenTest(query, STAGES);
     }
 
+    public void testMvIntersectsOnKeyword() {
+        String query = """
+                FROM employees
+                | WHERE mv_intersects(first_name, ["Alice", "Anna", "Peter"])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsOnDouble() {
+        String query = """
+                FROM all_types
+                | WHERE mv_intersects(double, [1.0, 2.0, 3.0])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsWithFoldableLeftArgument() {
+        String query = """
+                FROM employees
+                | WHERE mv_intersects(["Alice", "Anna", "Peter"], first_name)
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */
     private static ProjectMetadata salariesDatasetMetadata() {
         DataSource dataSource = new DataSource("golden_ds", "test", null, Map.of());

@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
+/** Pins down {@link GoldenTestCase#deriveRanges}: how declared cut-points partition the released versions into ranges. */
 public class GoldenVersionRangesTests extends ESTestCase {
 
     private static TransportVersion v(int id) {

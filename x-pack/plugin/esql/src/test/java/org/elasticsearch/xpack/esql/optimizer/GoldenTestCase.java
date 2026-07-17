@@ -278,6 +278,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             return since(resolve(transportVersionName));
         }
 
+        /** Same as {@link #since(String)}, for callers that already hold the version constant. */
         public TestBuilder since(TransportVersion since) {
             this.since = since;
             return this;
@@ -388,10 +389,16 @@ public abstract class GoldenTestCase extends ESTestCase {
         /** Ranges whose window can still be sampled; a dead range is a cleanup prompt, not a failure. */
         private List<VersionRange> liveRanges(String testName) {
             TransportVersion lowerBound = since != null ? since : TransportVersion.minimumCompatible();
-            List<VersionRange> ranges = deriveRanges(lowerBound, labels, compatibleReleasedVersions());
+            List<VersionRange> ranges = deriveRanges(lowerBound, labels, COMPATIBLE_RELEASED_VERSIONS);
             List<VersionRange> live = new ArrayList<>(ranges.size());
             for (int i = 0; i < ranges.size(); i++) {
                 if (ranges.get(i).sampled().isEmpty()) {
+                    if (i >= labels.size()) {
+                        // the newest range always samples current(); an empty one means the version bookkeeping broke
+                        throw new IllegalStateException(
+                            Strings.format("test [%s]: the newest golden range has no sampled versions", testName)
+                        );
+                    }
                     // dead ranges form the oldest prefix, so the boundary that lost its meaning is labels[i]
                     reportDeadRange(testName, ranges.get(i), labels.get(i).name());
                 } else {
@@ -577,9 +584,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         return false;
     }
 
-    private static List<TransportVersion> compatibleReleasedVersions() {
-        return TransportVersionUtils.allReleasedVersions().stream().filter(TransportVersion::isCompatible).toList();
-    }
+    private static final List<TransportVersion> COMPATIBLE_RELEASED_VERSIONS = TransportVersionUtils.allReleasedVersions()
+        .stream()
+        .filter(TransportVersion::isCompatible)
+        .toList();
 
     private static boolean overwriteMode() {
         return System.getProperty("golden.overwrite") != null;

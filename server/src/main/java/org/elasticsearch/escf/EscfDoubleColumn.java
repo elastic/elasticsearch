@@ -26,12 +26,22 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.DOUBLE;
     }
 
     @Override
-    double getDoubleValue(int d) {
-        return Double.longBitsToDouble(rawLong(d));
+    double getDoubleValue(int row) {
+        return Double.longBitsToDouble(rawLong(row));
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfDoubleColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
     }
 }

@@ -14,6 +14,15 @@
 | date | integer | text | date | date |
 | date | integer | text | keyword | date |
 | date | integer | text | text | date |
+| date | long | date | date | date |
+| date | long | date | keyword | date |
+| date | long | date | text | date |
+| date | long | keyword | date | date |
+| date | long | keyword | keyword | date |
+| date | long | keyword | text | date |
+| date | long | text | date | date |
+| date | long | text | keyword | date |
+| date | long | text | text | date |
 | date | time_duration | | | date |
 | date_nanos | date_period | | | date_nanos |
 | date_nanos | integer | date | date | date_nanos |
@@ -25,6 +34,15 @@
 | date_nanos | integer | text | date | date_nanos |
 | date_nanos | integer | text | keyword | date_nanos |
 | date_nanos | integer | text | text | date_nanos |
+| date_nanos | long | date | date | date_nanos |
+| date_nanos | long | date | keyword | date_nanos |
+| date_nanos | long | date | text | date_nanos |
+| date_nanos | long | keyword | date | date_nanos |
+| date_nanos | long | keyword | keyword | date_nanos |
+| date_nanos | long | keyword | text | date_nanos |
+| date_nanos | long | text | date | date_nanos |
+| date_nanos | long | text | keyword | date_nanos |
+| date_nanos | long | text | text | date_nanos |
 | date_nanos | time_duration | | | date_nanos |
 | double | double | | | double |
 | double | integer | double | double | double |

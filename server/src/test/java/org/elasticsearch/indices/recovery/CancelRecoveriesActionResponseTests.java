@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -34,7 +35,17 @@ public class CancelRecoveriesActionResponseTests extends AbstractWireSerializing
         return new CancelRecoveriesAction.Response(randomValueOtherThan(instance.cancelledInQueue(), this::randomCancelledInQueue));
     }
 
-    private Set<String> randomCancelledInQueue() {
-        return new HashSet<>(randomList(0, 5, UUIDs::randomBase64UUID));
+    private Set<CancelRecoveriesAction.CancelledInQueue> randomCancelledInQueue() {
+        final int size = randomIntBetween(0, 5);
+        final var cancelledInQueue = new HashSet<CancelRecoveriesAction.CancelledInQueue>(size);
+        for (int i = 0; i < size; i++) {
+            cancelledInQueue.add(
+                new CancelRecoveriesAction.CancelledInQueue(
+                    new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i),
+                    UUIDs.randomBase64UUID()
+                )
+            );
+        }
+        return cancelledInQueue;
     }
 }

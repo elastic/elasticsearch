@@ -274,7 +274,7 @@ public class FieldNameUtils {
                 canRemoveAliases.set(savedCanRemoveAliases);
                 lastSeenFork.set(savedLastSeenFork);
                 reduceColumnsAfterFork.set(savedReduceColumnsAfterFork);
-            }  else {
+            } else {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.

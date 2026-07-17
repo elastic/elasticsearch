@@ -257,7 +257,7 @@ public class ArchiveTests extends PackagingTestCase {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
-        verifySecurityAutoConfigured(installation);
+        verifySecurityAutoConfigured(installation, password);
 
         stopElasticsearch();
 

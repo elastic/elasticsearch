@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Registers APM gauges for the node-level analyzer cache so operators can observe the sharing
+ * Registers APM instruments for the node-level analyzer cache so operators can observe the sharing
  * factor delivered by {@link AnalysisRegistry}'s recipe-keyed cache.
  *
  * <p>Two gauges are the core of "shared vs total":
@@ -34,8 +34,8 @@ import java.util.List;
  *       sharing factor.</li>
  * </ul>
  *
- * <p>Additional observability gauges: normalizer cache size and cumulative cache hit / miss
- * counters since process start (useful for sharing-rate over time).
+ * <p>Additional observability instruments: a normalizer-cache-size gauge, plus monotonic cache
+ * hit / miss counters accumulated since process start (useful for sharing-rate over time).
  */
 public class AnalyzerMetrics extends AbstractLifecycleComponent {
 
@@ -83,8 +83,10 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 () -> new LongWithAttributes(analysisRegistry.normalizerCacheSize())
             )
         );
+        // Hits/misses only ever increase (their {@code .total} suffix and monotonic semantics make them
+        // counters, not gauges), so register them as async counters rather than gauges.
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncCounter(
                 CACHE_HITS_METRIC,
                 "cumulative analyzer-cache hits since process start",
                 "1",
@@ -92,7 +94,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncCounter(
                 CACHE_MISSES_METRIC,
                 "cumulative analyzer-cache misses (fresh builds) since process start",
                 "1",

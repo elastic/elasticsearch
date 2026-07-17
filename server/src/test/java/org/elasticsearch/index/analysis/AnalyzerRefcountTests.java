@@ -132,7 +132,7 @@ public class AnalyzerRefcountTests extends ESTestCase {
     }
 
     /**
-     * The cache hit/miss counters (surfaced as APM gauges by {@code AnalyzerMetrics}) must track
+     * The cache hit/miss counters (surfaced as APM counters by {@code AnalyzerMetrics}) must track
      * real builds vs shares: the first index of a recipe builds (misses), and a second index with
      * the identical recipe is served entirely from cache (hits, no new misses).
      */

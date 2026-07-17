@@ -135,6 +135,15 @@ final class PageColumnReader implements Releasable {
     private long rowPositionInRowGroup;
     private boolean columnExhausted;
 
+    /**
+     * Source rows by which the physical cursor ({@link #rowPositionInRowGroup}) is ahead of the
+     * caller's coordinate space. When {@link #loadNextPage()} skips a survivor-excluded page it can
+     * jump the physical cursor PAST a {@link #skipRows} target; the surplus is recorded here and
+     * credited against subsequent skip requests rather than being discarded (which would leave the
+     * reader silently ahead and misread later survivor rows).
+     */
+    private long pendingPrejumped;
+
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
         this(pageReader, descriptor, info, rowRanges, null);
     }
@@ -545,16 +554,29 @@ final class PageColumnReader implements Releasable {
     }
 
     void skipRows(int count) {
+        // The physical cursor may already be ahead of the caller (a previous skip jumped a
+        // survivor-excluded page past its target). Spend that credit before touching the cursor,
+        // so a skip that lands entirely within the pre-jumped span is a no-op on the decoder.
+        if (pendingPrejumped > 0) {
+            long credited = Math.min(pendingPrejumped, count);
+            pendingPrejumped -= credited;
+            count -= (int) credited;
+            if (count == 0) {
+                return;
+            }
+        }
         long target = rowPositionInRowGroup + count;
         while (rowPositionInRowGroup < target) {
             if (ensurePage() == false) {
                 break;
             }
             if (rowPositionInRowGroup >= target) {
-                // ensurePage advanced past target via a firstRowIndex jump in loadNextPage
-                // (page-filtered prefetch with a survivor-range gap wider than `count`).
-                // Falling through would compute a negative fromPage and corrupt decoder /
-                // page-consumed state.
+                // ensurePage advanced past target via a firstRowIndex / excluded-page jump in
+                // loadNextPage (page-filtered prefetch with a survivor-range gap wider than
+                // `count`). Falling through would compute a negative fromPage and corrupt decoder /
+                // page-consumed state. Bank the surplus so the next skip credits it instead of the
+                // physical cursor advancing again, since the caller still counts those source rows.
+                pendingPrejumped += rowPositionInRowGroup - target;
                 break;
             }
             int fromPage = (int) Math.min(target - rowPositionInRowGroup, availableInPage());

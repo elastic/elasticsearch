@@ -134,17 +134,6 @@ public class SingleValueQuery extends Query {
         private final String field;
         private final Source source;
 
-        /**
-         * Bridge used to resolve per-driver {@link org.elasticsearch.compute.operator.Warnings} for any
-         * {@link SingleValueMatchQuery} built from this builder. This can't be a constructor parameter:
-         * this builder is (de)serialized as a {@link QueryBuilder} (see {@link #AbstractBuilder(StreamInput)})
-         * well before a bridge exists for the local query execution that will eventually run it. Instead,
-         * it's injected once, after the {@link QueryBuilder} tree is fully built and known locally --
-         * see {@code EsPhysicalOperationProviders#querySupplier} -- and carried across rewrites in
-         * {@link #doRewrite}.
-         */
-        private QueryWarnings warnings;
-
         AbstractBuilder(QueryBuilder next, String field, Source source) {
             this.next = next;
             this.field = field;
@@ -185,18 +174,6 @@ public class SingleValueQuery extends Query {
             return source;
         }
 
-        /**
-         * Bind the bridge used to resolve per-driver warnings for any {@link SingleValueMatchQuery}
-         * built from this builder (and, transitively, any builder produced by rewriting it).
-         */
-        public void warnings(QueryWarnings warnings) {
-            this.warnings = warnings;
-        }
-
-        public QueryWarnings warnings() {
-            return warnings;
-        }
-
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
         @Override
@@ -208,9 +185,7 @@ public class SingleValueQuery extends Query {
             if (rewritten == next) {
                 return this;
             }
-            AbstractBuilder rewrittenBuilder = rewrite(rewritten);
-            rewrittenBuilder.warnings(warnings);
-            return rewrittenBuilder;
+            return rewrite(rewritten);
         }
 
         @Override
@@ -224,12 +199,7 @@ public class SingleValueQuery extends Query {
         }
 
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
-            // In production, QueryWarnings is bound to the SearchExecutionContext (an EsqlSearchExecutionContext).
-            // Tests bind it directly on the builder via warnings(QueryWarnings). The field takes priority so that
-            // test code that calls warnings(bridge) continues to work unchanged.
-            QueryWarnings w = warnings != null
-                ? warnings
-                : (context instanceof EsqlSearchExecutionContext esqlCtx ? esqlCtx.queryWarnings() : null);
+            QueryWarnings w = ((EsqlSearchExecutionContext) context).queryWarnings();
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
                 w,
@@ -355,12 +325,14 @@ public class SingleValueQuery extends Query {
             }
             ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
 
+            QueryWarnings w = ((EsqlSearchExecutionContext) context).queryWarnings();
+
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
 
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                warnings(),
+                w,
                 source(),
                 "single-value function encountered multi-value"
             );

@@ -25,7 +25,7 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
      * @param queryWarnings the bridge, or {@code null} for contexts that never build warnings
      *                      like remote-fetch detached contexts
      */
-    EsqlSearchExecutionContext(SearchExecutionContext base, @Nullable QueryWarnings queryWarnings) {
+    public EsqlSearchExecutionContext(SearchExecutionContext base, @Nullable QueryWarnings queryWarnings) {
         super(base);
         this.queryWarnings = queryWarnings;
     }

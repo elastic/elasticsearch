@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -188,9 +189,9 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                SearchExecutionContext baseCtx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 QueryWarnings bridge = new QueryWarnings();
-                builder.warnings(bridge);
+                EsqlSearchExecutionContext ctx = new EsqlSearchExecutionContext(baseCtx, bridge);
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
                 try (Releasable ignored = bridge.bind(warningsFor(query))) {

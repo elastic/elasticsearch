@@ -297,14 +297,14 @@ public class WatcherService implements WatcherEventConsumer {
         // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
         // execution service, so that we make sure that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
-            // If we got this far we'll execute the triggered watches, we don't need to do it again until the next start
-            executeTriggeredPending = false;
             executionService.unPause();
             triggerService.start(watches);
             addPendingWatches(state);
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
+            // If we got this far we've executed the triggered watches, we don't need to do it again until the next start
+            executeTriggeredPending = false;
             logger.debug("watch service has been reloaded, reason [{}]", reason);
             return true;
         } else {

@@ -341,7 +341,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         reset(watcherService);
         when(watcherService.validate(csWithReplica)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithReplica, csWithPrimary));
-        verify(watcherService, times(1)).reload(eq(csWithReplica), any(), any());
+        verify(watcherService, times(1)).reload(eq(csWithReplica), any(), any(), any());
         assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTING));
     }
 

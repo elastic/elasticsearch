@@ -299,7 +299,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                         experimentalFeaturesEnabled,
                         vectorsFormatProviders,
                         false
-                    );
+                    ).setSliceEnabled(indexSettings.isSliceEnabled());
                     ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                         ? getExtendedDenseVectorIndexOptions(indexOptions.get())
                         : null;

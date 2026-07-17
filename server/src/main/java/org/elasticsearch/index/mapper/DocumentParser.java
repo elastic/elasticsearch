@@ -898,7 +898,7 @@ public final class DocumentParser {
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
             context.getVectorFormatProviders(),
             context.indexSettings().isIndexDisabledByDefault()
-        );
+        ).setSliceEnabled(context.indexSettings().isSliceEnabled());
         builder.dimensions(arraySize);
         context.updateDynamicMappers(fullFieldName, List.of(builder));
     }

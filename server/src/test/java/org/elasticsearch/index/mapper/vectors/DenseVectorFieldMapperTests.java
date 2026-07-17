@@ -1707,6 +1707,52 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
     }
 
+    public void testSliceEnabledRejectsUnsupportedIndexType() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        for (String indexType : List.of("hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw", "flat", "int8_flat", "int4_flat", "bbq_flat")) {
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 384);
+                b.startObject("index_options");
+                b.field("type", indexType);
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("index type [" + indexType + "] which does not support [index.slice.enabled]"));
+        }
+    }
+
+    public void testSliceEnabledRejectsDefaultIndexType() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 128)))
+        );
+        assertThat(e.getMessage(), containsString("does not support [index.slice.enabled]"));
+    }
+
+    public void testSliceEnabledAllowsBBQDisk() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 384);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.endObject();
+        }));
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
+    }
+
+    public void testSliceEnabledAllowsNonIndexedDenseVector() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 128).field("index", false))
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertNull(mapper.fieldType().getIndexOptions());
+    }
+
     private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {
         int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
         float[] vector = new float[dimCount];

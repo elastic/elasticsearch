@@ -309,6 +309,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
         private final boolean indexDisabledByDefault;
+        private boolean sliceEnabled;
 
         public Builder(
             String name,
@@ -552,6 +553,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder setSliceEnabled(boolean sliceEnabled) {
+            this.sliceEnabled = sliceEnabled;
+            return this;
+        }
+
         @Override
         public String contentType() {
             return CONTENT_TYPE;
@@ -562,6 +568,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
+            if (sliceEnabled && indexed.getValue() && indexOptions.getValue() instanceof BBQIVFIndexOptions == false) {
+                DenseVectorIndexOptions options = indexOptions.getValue();
+                throw new MapperParsingException(
+                    "Field ["
+                        + context.buildFullName(leafName())
+                        + "] uses dense vector index type ["
+                        + (options == null ? "default" : options.type)
+                        + "] which does not support ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "]"
+                );
+            }
             boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && indexed.getValue() && isExcludeSourceVectors;
             return new DenseVectorFieldMapper(
                 leafName(),
@@ -584,7 +602,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders,
-                indexDisabledByDefault
+                indexDisabledByDefault,
+                sliceEnabled
             );
         }
     }
@@ -3114,7 +3133,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
             c.getVectorsFormatProviders(),
             c.getIndexSettings().isIndexDisabledByDefault()
-        ),
+        ).setSliceEnabled(c.getIndexSettings().isSliceEnabled()),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -3846,6 +3865,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final boolean experimentalFeaturesEnabled;
     private final List<VectorsFormatProvider> extraVectorsFormatProviders;
     private final boolean indexDisabledByDefault;
+    private final boolean sliceEnabled;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -3858,7 +3878,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders,
-        boolean indexDisabledByDefault
+        boolean indexDisabledByDefault,
+        boolean sliceEnabled
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
@@ -3869,6 +3890,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
         this.extraVectorsFormatProviders = vectorsFormatProviders;
         this.indexDisabledByDefault = indexDisabledByDefault;
+        this.sliceEnabled = sliceEnabled;
     }
 
     @Override
@@ -3997,7 +4019,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             experimentalFeaturesEnabled,
             extraVectorsFormatProviders,
             indexDisabledByDefault
-        ).init(this);
+        ).setSliceEnabled(sliceEnabled).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(

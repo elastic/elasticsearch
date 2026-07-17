@@ -413,7 +413,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders,
                 false
-            );
+            ).setSliceEnabled(indexSettings.isSliceEnabled());
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())
                 : null;

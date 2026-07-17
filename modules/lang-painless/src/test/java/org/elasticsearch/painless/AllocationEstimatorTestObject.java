@@ -10,7 +10,7 @@
 package org.elasticsearch.painless;
 
 /**
- * Support class for {@code @allocates_dynamic} tests: allowlisted methods paired with deliberately misbehaving estimators (see
+ * Support class for {@code @allocates} tests: allowlisted methods paired with deliberately misbehaving estimators (see
  * the {@code org.elasticsearch.painless.allocation-estimator*} test allowlist resources). Resolving these by FQCN also covers
  * the plugin-style path where the estimator lives outside the Painless module.
  */
@@ -46,12 +46,12 @@ public class AllocationEstimatorTestObject {
         return n;
     }
 
-    /** Instance method allowlisted with {@code @allocates_constant}; used to exercise the {@code def}-dispatch constant charge. */
+    /** Instance method allowlisted with {@code @allocates}; used to exercise the {@code def}-dispatch constant charge. */
     public int constantAllocating() {
         return 0;
     }
 
-    /** Instance method allowlisted with {@code @allocates_constant[0]}; an audited no-op that must charge nothing via def. */
+    /** Instance method allowlisted with {@code @allocates[0]}; an audited no-op that must charge nothing via def. */
     public int zeroAllocating() {
         return 0;
     }
@@ -72,5 +72,39 @@ public class AllocationEstimatorTestObject {
      */
     public static long augmentedEstimate(String receiver, int n) {
         return receiver.length() * 100L + n;
+    }
+
+    /**
+     * Instance method with a <em>boxed</em> ({@link Integer}) parameter, allowlisted with {@code @allocates}. A boxed
+     * parameter makes Painless generate a runtime bridge method for def dispatch, so calling this via def exercises that the
+     * constant annotation survives onto the derived bridge.
+     */
+    public int constantBoxed(Integer n) {
+        return 0;
+    }
+
+    /** Like {@link #constantBoxed} but dynamic — its estimator survives onto the bridge and reads the (widened) boxed arg. */
+    public int dynamicBoxed(Integer n) {
+        return 0;
+    }
+
+    /** Estimator for {@link #dynamicBoxed}: instance signature (receiver first) with the boxed parameter type. */
+    public static long boxedEstimate(AllocationEstimatorTestObject receiver, Integer n) {
+        return n * 100L;
+    }
+
+    /** Fixed-cost estimator for {@link #constantAllocating()}: instance signature (receiver first), argument-independent. */
+    public static long constantEstimate(AllocationEstimatorTestObject receiver) {
+        return 48;
+    }
+
+    /** Fixed zero-cost estimator for {@link #zeroAllocating()}: an audited no-op charges nothing. */
+    public static long zeroEstimate(AllocationEstimatorTestObject receiver) {
+        return 0;
+    }
+
+    /** Fixed-cost estimator for {@link #constantBoxed}: instance signature (receiver first) with the boxed parameter type. */
+    public static long constantBoxedEstimate(AllocationEstimatorTestObject receiver, Integer n) {
+        return 48;
     }
 }

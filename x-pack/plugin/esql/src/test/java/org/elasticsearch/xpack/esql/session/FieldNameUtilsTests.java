@@ -3465,6 +3465,98 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "hire_date", "hire_date.*"));
     }
 
+    public void testForkBeforeInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testForkBeforeNotInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testFromSubqueryBeforeInSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name)
+            | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testForkWithNestedForkAndInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no IN (
+                FROM employees
+                | FORK (WHERE last_name LIKE "A*") (WHERE last_name LIKE "Z*")
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    public void testForkWithNestedFromSubqueryAndInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no IN (
+                FROM
+                  (FROM employees | WHERE last_name LIKE "A*" | KEEP emp_no),
+                  (FROM employees | WHERE last_name LIKE "Z*" | KEEP emp_no)
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    public void testFromSubqueryWithNestedForkAndInSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name)
+            | WHERE emp_no IN (
+                FROM employees
+                | FORK (WHERE last_name LIKE "A*") (WHERE last_name LIKE "Z*")
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    public void testFromSubqueryWithNestedFromSubqueryAndInSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name)
+            | WHERE emp_no IN (
+                FROM
+                  (FROM employees | WHERE last_name LIKE "A*" | KEEP emp_no),
+                  (FROM employees | WHERE last_name LIKE "Z*" | KEEP emp_no)
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
     /**
      * Both {@code FROM}-style source leaves are alias-safe: a source relation is a tree leaf and cannot shadow an
      * alias defined above it, so {@link FieldNameUtils} must collect the same fields whether the leaf is an

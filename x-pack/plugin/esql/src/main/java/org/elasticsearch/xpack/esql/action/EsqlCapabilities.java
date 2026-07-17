@@ -1475,6 +1475,13 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fixed a bug where a FORK preceding a WHERE IN subquery would fail with "Unknown column" because the early-exit tree traversal
+         * triggered by FORK skipped the subquery's right child during field-caps resolution.
+         */
+        WHERE_IN_SUBQUERY_FORK_FIX,
+
         /**
          * Support for views in cluster state (and REST API).
          */

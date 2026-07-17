@@ -81,12 +81,15 @@ public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting {
     }
 
     public Lambda lambda() {
-        return (Lambda) lambda;
+        if (lambda instanceof Lambda l) {
+            return l;
+        }
+        throw new IllegalStateException("expected Lambda, got " + lambda.getClass().getSimpleName());
     }
 
     @Override
     public List<Attribute> resolveLambdaParams(Lambda l, List<Attribute> upstreamAttrs) {
-        if (field.resolved() == false || l.parameters().isEmpty()) {
+        if (field.resolved() == false || l.parameters().size() != 1) {
             return List.of();
         }
         Attribute param = l.parameters().getFirst();
@@ -103,6 +106,11 @@ public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting {
             return resolution;
         }
         if (lambda instanceof Lambda l) {
+            if (l.parameters().size() != 1) {
+                return new TypeResolution(
+                    "second argument of [" + sourceText() + "] must be a lambda with exactly one parameter, got " + l.parameters().size()
+                );
+            }
             return TypeResolutions.isType(l.body(), dt -> dt == DataType.BOOLEAN, sourceText(), SECOND, "boolean");
         }
         return TypeResolutions.isType(lambda, dt -> dt == DataType.LAMBDA, sourceText(), SECOND, "lambda");

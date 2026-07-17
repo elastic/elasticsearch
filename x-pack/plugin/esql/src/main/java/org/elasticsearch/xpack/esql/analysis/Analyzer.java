@@ -1146,9 +1146,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
-            return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
-                ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
-                : maybeNewAggregate;
+            LogicalPlan afterTimestamp = maybeNewAggregate instanceof TimeSeriesAggregate ts
+                && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
+                    ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
+                    : maybeNewAggregate;
+            return resolveAllLambdas(afterTimestamp, childrenOutput);
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {

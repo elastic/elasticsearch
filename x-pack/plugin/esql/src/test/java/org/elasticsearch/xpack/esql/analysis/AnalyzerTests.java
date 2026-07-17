@@ -5606,6 +5606,35 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    // ---------- lambda inside STATS ----------
+
+    public void testAnyMatchInStatsGroupBy() {
+        // any_match in STATS GROUP BY — resolveAggregate must call resolveAllLambdas
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | STATS count(*) BY r = any_match(first_name, x -> x == \"Alice\")");
+        var limit = as(plan, Limit.class);
+        var stats = as(limit.child(), Aggregate.class);
+        var groupKey = as(stats.groupings().get(0), Alias.class);
+        var anyMatch = as(groupKey.child(), AnyMatch.class);
+        assertTrue("any_match in GROUP BY should be resolved", anyMatch.resolved());
+        assertThat(anyMatch.lambda().parameters().get(0), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testAnyMatchLambdaZeroParams() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = any_match(salary, () -> true)",
+            containsString("must be a lambda with exactly one parameter, got 0")
+        );
+    }
+
+    public void testAnyMatchLambdaMultipleParams() {
+        // Two-parameter lambda: (x, y) -> x > y. Should fail — any_match requires exactly one param.
+        // The error may be about arity or about unresolved columns, depending on when the arity gate fires.
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error("FROM test | EVAL r = any_match(salary, (x, y) -> x > y)", containsString("Unknown column"));
+    }
+
     // ---------- multiple lambdas in same EVAL ----------
 
     public void testTwoAnyMatchInSameEvalClause() {

@@ -337,6 +337,31 @@ public class VerifierTests extends ESTestCase {
             )
         );
 
+        if (EsqlCapabilities.Cap.FILLNULL.isEnabled()) {
+            analyzer.error(
+                "from test* | fillnull unsupported",
+                equalTo("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            analyzer.error(
+                "from test* | fillnull multi_typed",
+                equalTo(
+                    "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                        + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+                )
+            );
+            analyzer.error(
+                "from test* | fillnull with 0 unsupported",
+                equalTo("1:30: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            analyzer.error(
+                "from test* | fillnull with 0 multi_typed",
+                equalTo(
+                    "1:30: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                        + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+                )
+            );
+        }
+
         // Verify that UnsupportedAttribute can pass through KEEP (Project) unchanged without error.
         // This is valid because the field is just being projected, not used in operations.
         analyzer.query("from test* | keep unsupported");

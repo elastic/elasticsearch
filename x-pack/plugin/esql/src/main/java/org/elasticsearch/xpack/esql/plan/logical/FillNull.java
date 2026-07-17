@@ -48,7 +48,8 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * A string {@code WITH} value is implicitly cast to the types the language casts string literals to (datetime,
  * date_nanos, ip, version, boolean), mirroring {@code Analyzer.ImplicitCasting}. A column whose type has no default
  * fill value and that receives no {@code WITH} value is left unchanged; {@code WarnUnfillableFillNull} then surfaces a
- * response-header warning for it.
+ * response-header warning for it. An explicit {@code WITH null} fills nothing: every targeted column is left unchanged,
+ * with no type default applied (unlike bare {@code FILLNULL}) and no warning emitted.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 

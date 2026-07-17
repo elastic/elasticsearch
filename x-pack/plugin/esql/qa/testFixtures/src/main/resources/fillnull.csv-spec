@@ -253,6 +253,18 @@ d:datetime | i:integer
 null       | 0
 ;
 
+fillNullAllFieldsWithNullIsSilentNoOp
+required_capability: fillnull
+
+ROW d = null, i = null
+| EVAL d = d::datetime, i = i::integer
+| FILLNULL WITH null
+;
+
+d:datetime | i:integer
+null       | null
+;
+
 fillNullWithStringDate
 required_capability: fillnull
 

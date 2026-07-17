@@ -213,7 +213,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
     /**
      * Asserts reconstructed sources are the same & field is stored in _ignored across both source types when normalizer is used.
-     * @throws Exception
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
         var mappingXContent = XContentFactory.jsonBuilder()

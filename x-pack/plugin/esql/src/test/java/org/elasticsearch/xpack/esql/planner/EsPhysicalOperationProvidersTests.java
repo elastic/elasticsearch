@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -101,7 +102,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -222,7 +224,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -255,7 +258,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));

@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -27,12 +25,13 @@ import java.util.Objects;
  * access to all contexts created for the data drivers.
  * <p>
  * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
- * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by {@link #shardContext()}
- * reaches 0.
+ * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by
+ * {@link #shardContext(QueryWarnings)} reaches 0.
  * <p>
  * Two flavors of {@link ShardContext} creation are provided:
  * <ul>
- *     <li>{@link #shardContext()} — the normal path. The returned {@link ShardContext} holds a releasable back-reference to this context,
+ *     <li>{@link #shardContext(QueryWarnings)} — the normal path. The returned {@link ShardContext} holds a releasable back-reference to
+ *     this context,
  *     so when operators finish and the shard context's ref count reaches zero, the underlying {@link SearchContext} is closed. This is
  *     cached via {@link SetOnce} since the same shard context is shared across data and node-reduce drivers.</li>
  *     <li>{@link #newDetachedShardContext()} — for the retained-contexts path (remote fetch). Creates a <i>fresh, independent</i>
@@ -73,9 +72,9 @@ class ComputeSearchContext implements Releasable {
         return index;
     }
 
-    ShardContext shardContext() {
+    ShardContext shardContext(QueryWarnings queryWarnings) {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext());
+            shardContext.set(createShardContext(this, queryWarnings));
         }
         return shardContext.get();
     }
@@ -94,21 +93,15 @@ class ComputeSearchContext implements Releasable {
      * being finalized. Expect it to be replaced or folded into a unified context ownership scheme in a follow-up.
      */
     ShardContext newDetachedShardContext() {
-        return createShardContext(() -> {});
+        return createShardContext(() -> {}, QueryWarnings.NOOP);
     }
 
-    private ShardContext createShardContext() {
-        return createShardContext(this);
-    }
-
-    private ShardContext createShardContext(Releasable releasable) {
+    private ShardContext createShardContext(Releasable releasable, QueryWarnings queryWarnings) {
         ensureNotTombstone();
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-            @Override
-            public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-                return new ReinitializingSourceProvider(super::createSourceProvider);
-            }
-        };
+        EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
+            searchContext.getSearchExecutionContext(),
+            queryWarnings
+        );
         // Registered unconditionally; for detached shard contexts this is a no-op since the remote fetch path does not construct
         // Lucene queries and the counter stays at zero.
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);

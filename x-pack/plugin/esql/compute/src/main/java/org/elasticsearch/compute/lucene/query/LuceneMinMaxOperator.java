@@ -22,6 +22,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.MultiValueMode;
@@ -69,15 +71,16 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
     LuceneMinMaxOperator(
         IndexedByShardId<? extends RefCounted> shardRefCounters,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         LuceneSliceQueue sliceQueue,
         String fieldName,
         NumberType numberType,
         int limit,
         long initialResult,
-        java.util.function.LongSupplier directoryBytesRead
+        java.util.function.LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue, directoryBytesRead);
+        super(shardRefCounters, driverContext, PAGE_SIZE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;

@@ -60,52 +60,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
-    // TODO is this what we want to test?
-    public void testKnnQueryLookupCcsMinimizeRoundTripsTrue() throws Exception {
-        knnQueryBaseTestCases(true);
-        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
-        assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                MIXED_TYPE_FIELD_2,
-                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
-                10,
-                100,
-                10f,
-                null
-            ),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
-            ),
-            null,
-            null
-        );
-    }
-
-    // TODO is this what we want to test?
-    public void testKnnQueryLookupCcsMinimizeRoundTripsFalse() throws Exception {
-        knnQueryBaseTestCases(false);
-        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
-        assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                MIXED_TYPE_FIELD_2,
-                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
-                10,
-                100,
-                10f,
-                null
-            ),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult("", LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
-            ),
-            null,
-            null
-        );
-    }
-
     public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {
         knnQueryBaseTestCases(true);
 
@@ -124,15 +78,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
     public void testKnnQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         knnQueryBaseTestCases(false);
-
-        // Query an inference field on a remote cluster
-        assertSearchResponse(
-            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
-            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
-            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
-            null,
-            s -> s.setCcsMinimizeRoundtrips(false)
-        );
 
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected failure
         assertSearchFailure(

@@ -38,7 +38,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.upgrades.IndexingIT.assertCount;
+import static org.elasticsearch.upgrades.XPackIndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {

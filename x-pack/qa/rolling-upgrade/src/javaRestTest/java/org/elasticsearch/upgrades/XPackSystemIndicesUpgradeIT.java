@@ -35,14 +35,14 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SystemIndicesUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
-    private static final Logger log = LogManager.getLogger(SystemIndicesUpgradeIT.class);
+public class XPackSystemIndicesUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
+    private static final Logger log = LogManager.getLogger(XPackSystemIndicesUpgradeIT.class);
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "test_user",
         new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
     );
 
-    public SystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    public XPackSystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 

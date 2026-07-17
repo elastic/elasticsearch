@@ -25,9 +25,9 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * oss rolling restart tests. We should work on a way to remove this
  * duplication but for now we have no real way to share code.
  */
-public class IndexingIT extends AbstractXPackRollingUpgradeTestCase {
+public class XPackIndexingIT extends AbstractXPackRollingUpgradeTestCase {
 
-    public IndexingIT(@Name("upgradedNodes") int upgradedNodes) {
+    public XPackIndexingIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 

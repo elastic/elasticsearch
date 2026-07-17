@@ -151,14 +151,14 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected NodeInfo<Percentile> info() {
-        double comp = compression;
         return NodeInfo.create(
             this,
-            (src, f, fil, w, p) -> new Percentile(src, f, fil, w, p, comp),
+            (src, f, fil, w, p, comp) -> new Percentile(src, f, fil, w, p, comp),
             field(),
             filter(),
             window(),
-            percentile
+            percentile,
+            (Double) compression  // boxed: Mockito cannot mock primitive double
         );
     }
 
@@ -174,6 +174,10 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     public Expression percentile() {
         return percentile;
+    }
+
+    public double compression() {
+        return compression;
     }
 
     @Override

@@ -3425,7 +3425,6 @@ public class EsqlCapabilities {
          */
         FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
 
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

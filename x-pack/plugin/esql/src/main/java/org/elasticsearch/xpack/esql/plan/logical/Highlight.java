@@ -259,10 +259,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         try {
             if (value != null) {
                 String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
-                // Tests may omit the registry. In that case, execution resolves the analyzer.
-                if (analysisRegistry != null) {
-                    analyzer = HighlightQueryBuilders.resolveAnalyzer(name, analysisRegistry);
-                }
+                analyzer = HighlightQueryBuilders.resolveAnalyzer(name, analysisRegistry);
             }
         } catch (InvalidArgumentException e) {
             failures.add(fail(this, "{}", e.getMessage()));

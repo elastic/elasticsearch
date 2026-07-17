@@ -148,26 +148,26 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
   Integer ascii(String)
   Integer bitLength(String)
-  String  character(Number) @allocates_constant[bytes="34b"]
+  String  character(Number) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="characterBytes"]
   Integer charLength(String)
-  String  concat(String, String) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="concatBytes"]
+  String  concat(String, String) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="concatBytes"]
   String  insert(String, Number, Number, String)
-  String  lcase(String) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
-  String  left(String, Number) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="boundedStringBytes"]
+  String  lcase(String) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
+  String  left(String, Number) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="boundedStringBytes"]
   Integer length(String)
   Integer locate(String, String)
   Integer locate(String, String, Number)
-  String  ltrim(String) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
+  String  ltrim(String) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
   Integer octetLength(String)
   Integer position(String, String)
-  String  repeat(String, Number) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="stringRepeatBytes"]
+  String  repeat(String, Number) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="stringRepeatBytes"]
   String  replace(String, String, String)
-  String  right(String, Number) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="boundedStringBytes"]
-  String  rtrim(String) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
-  String  space(Number) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="stringOfCountBytes"]
-  String  substring(String, Number, Number) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="boundedStringBytes"]
-  String  trim(String) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
-  String  ucase(String) @allocates_dynamic[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
+  String  right(String, Number) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="boundedStringBytes"]
+  String  rtrim(String) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
+  String  space(Number) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="stringOfCountBytes"]
+  String  substring(String, Number, Number) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="boundedStringBytes"]
+  String  trim(String) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
+  String  ucase(String) @allocates[class="org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlAllocationEstimators", method="recaseBytes"]
 
 #
 # Geo Functions

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -223,9 +224,15 @@ public class SingleValueQuery extends Query {
         }
 
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
+            // In production, QueryWarnings is bound to the SearchExecutionContext (an EsqlSearchExecutionContext).
+            // Tests bind it directly on the builder via warnings(QueryWarnings). The field takes priority so that
+            // test code that calls warnings(bridge) continues to work unchanged.
+            QueryWarnings w = warnings != null
+                ? warnings
+                : (context instanceof EsqlSearchExecutionContext esqlCtx ? esqlCtx.queryWarnings() : null);
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                warnings(),
+                w,
                 source(),
                 "single-value function encountered multi-value"
             );

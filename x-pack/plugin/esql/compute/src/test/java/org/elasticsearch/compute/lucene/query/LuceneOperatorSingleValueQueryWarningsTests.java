@@ -83,17 +83,18 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
         // Report as multi-valued only for rewrite() purposes (see javadoc above) -- that check only
         // looks at getValueMode()/getSparsity(), not at any real per-doc values.
         when(sortedBinaryDocValues.getValueMode()).thenReturn(SortedBinaryDocValues.ValueMode.MULTI_VALUED);
-        // But when actually scoring, report every doc as present-and-single-valued, so every document
-        // matches without ever triggering the multi-value warning. That keeps this test focused on
-        // proving the map gets populated identically for shared query nodes, and lets docs flow through
-        // normally (in ordinary page-sized batches) so both operators get a fair share of the shared
-        // slice queue, instead of one operator racing through every slice before the other gets a turn.
+        // When actually scoring, alternate between single-valued (1) and multi-valued (2) docs.
+        // Single-valued docs match the query and fill pages normally -- so operators yield at page
+        // boundaries and both get a fair share of the slice queue. Multi-valued docs trigger
+        // registerException(), which is how Warnings instances are lazily created in each operator's
+        // map (Warnings creation is no longer pre-populated; it happens on first registerException).
         try {
             when(sortedBinaryDocValues.advanceExact(anyInt())).thenReturn(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        when(sortedBinaryDocValues.docValueCount()).thenReturn(1);
+        int[] count = { 0 };
+        when(sortedBinaryDocValues.docValueCount()).thenAnswer(inv -> ++count[0] % 2 == 0 ? 2 : 1);
         return fieldData;
     }
 
@@ -212,6 +213,13 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
                     // Same query node (by identity, and by shared Weight), but two different drivers
                     // must never share a Warnings instance -- that's the whole point of the bridge.
                     assertThat(map1.get(matchQueryNode), not(sameInstance(map2.get(matchQueryNode))));
+                    // Consume the warnings emitted by the multi-valued docs (every other doc in the stub
+                    // reports two values, triggering a registerException() call that creates Warnings
+                    // lazily -- which is exactly what this test exercises).
+                    assertWarnings(
+                        "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                    );
                 } finally {
                     op1.close();
                     op2.close();

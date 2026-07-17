@@ -28,7 +28,9 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -88,8 +90,8 @@ public final class SingleValueMatchQuery extends Query {
     }
 
     /**
-     * The location that produced this query. Used by {@link org.elasticsearch.compute.lucene.query.LuceneOperator}
-     * to build a driver-local {@link org.elasticsearch.compute.operator.Warnings} for this node.
+     * The location that produced this query. Used by {@link LuceneOperator}
+     * to build a driver-local {@link Warnings} for this node.
      */
     public WarningSourceLocation source() {
         return source;

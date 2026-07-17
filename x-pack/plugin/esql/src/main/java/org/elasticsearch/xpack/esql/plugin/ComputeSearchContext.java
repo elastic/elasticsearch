@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -79,12 +76,7 @@ class ComputeSearchContext implements Releasable {
     }
 
     private ShardContext createShardContext(Releasable releasable) {
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-            @Override
-            public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-                return new ReinitializingSourceProvider(super::createSourceProvider);
-            }
-        };
+        EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(searchContext.getSearchExecutionContext());
         // Registered unconditionally; for detached shard contexts this is a no-op since the remote fetch path does not construct
         // Lucene queries and the counter stays at zero.
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);

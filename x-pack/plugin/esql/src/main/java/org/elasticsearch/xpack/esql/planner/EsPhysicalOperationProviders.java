@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -193,6 +193,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
         this.singleValueQueryWarnings = singleValueQueryWarnings;
+        for (ShardContext shardCtx : shardContexts.iterable()) {
+            if (shardCtx instanceof DefaultShardContext dsc && dsc.ctx instanceof EsqlSearchExecutionContext esqlCtx) {
+                esqlCtx.setQueryWarnings(singleValueQueryWarnings);
+            }
+        }
     }
 
     @Override
@@ -433,18 +438,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         QueryBuilder builder
     ) {
         QueryBuilder qb = builder == null ? QueryBuilders.matchAllQuery().boost(0.0f) : builder;
-        injectSingleValueQueryWarnings(qb, singleValueQueryWarnings);
         return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
     public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
         List<EsQueryExec.QueryBuilderAndTags> queryAndTagsFromEsQueryExec
     ) {
-        for (EsQueryExec.QueryBuilderAndTags queryBuilderAndTags : queryAndTagsFromEsQueryExec) {
-            if (queryBuilderAndTags.query() != null) {
-                injectSingleValueQueryWarnings(queryBuilderAndTags.query(), singleValueQueryWarnings);
-            }
-        }
         return ctx -> queryAndTagsFromEsQueryExec.stream().map(queryBuilderAndTags -> {
             QueryBuilder qb = queryBuilderAndTags.query();
             return new LuceneSliceQueue.QueryAndTags(
@@ -452,36 +451,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 queryBuilderAndTags.tags()
             );
         }).toList();
-    }
-
-    /**
-     * Walk {@code queryBuilder}, binding {@code warnings} onto every
-     * {@link SingleValueQuery.AbstractBuilder} node found (including nested ones, e.g. under an
-     * {@code AND}/{@code OR}-composed {@link BoolQueryBuilder}), so that when this tree is eventually
-     * converted to a Lucene {@code Query} (see {@link DefaultShardContext#toQuery}), every
-     * {@code SingleValueMatchQuery} it produces can resolve its per-driver warnings through the bridge.
-     * This has to happen here -- once, locally, right after the {@link QueryBuilder} tree is known --
-     * rather than at {@code SingleValueQuery} construction time, since that tree may have arrived
-     * pre-built over the wire (as part of the physical plan) with no bridge available yet.
-     */
-    static void injectSingleValueQueryWarnings(QueryBuilder queryBuilder, QueryWarnings warnings) {
-        switch (queryBuilder) {
-            case SingleValueQuery.AbstractBuilder svq -> {
-                svq.warnings(warnings);
-                injectSingleValueQueryWarnings(svq.next(), warnings);
-            }
-            case BoolQueryBuilder bq -> {
-                for (List<QueryBuilder> clauses : List.of(bq.must(), bq.filter(), bq.should(), bq.mustNot())) {
-                    for (QueryBuilder c : clauses) {
-                        injectSingleValueQueryWarnings(c, warnings);
-                    }
-                }
-            }
-            case ConstantScoreQueryBuilder csq -> injectSingleValueQueryWarnings(csq.innerQuery(), warnings);
-            default -> {
-                // Leaf query types (Term, Range, Exists, ...) can't contain a nested SingleValueQuery.
-            }
-        }
     }
 
     @Override

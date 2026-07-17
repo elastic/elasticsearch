@@ -41,9 +41,14 @@ dependencies {
 
   // Connection pooling. SHIPPED with the plugin (Apache 2.0). HikariCP obtains its physical connections through our
   // DriverRegistry-backed javax.sql.DataSource, so the pool routes through the plugin's isolated driver classloader
-  // rather than DriverManager. HikariCP logs via slf4j-api, which is declared compileOnly here so thirdPartyAudit
-  // resolves org.slf4j.* without bundling a second slf4j into the plugin distribution.
-  implementation 'com.zaxxer:HikariCP:5.1.0'
+  // rather than DriverManager. HikariCP logs via slf4j-api: we EXCLUDE its transitive slf4j-api so a second slf4j
+  // jar is NOT bundled into the plugin distribution. Bundling HikariCP's slf4j-api (1.7.x) collides with the
+  // slf4j-api (2.0.x) already shipped by x-pack-core and trips the module jar-hell check at node boot. slf4j-api is
+  // declared compileOnly below so HikariCP still compiles and thirdPartyAudit resolves org.slf4j.*; at runtime the
+  // node's own slf4j-api (from x-pack-core, visible via the extended-plugin classloader) provides it.
+  implementation('com.zaxxer:HikariCP:5.1.0') {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+  }
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
   testImplementation project(':test:framework')

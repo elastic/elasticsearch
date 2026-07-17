@@ -52,7 +52,7 @@ public final class SubqueryGenerator {
             logger.warn(() -> "Subquery generation failed for inner query [" + last.query() + "]", last.exception());
             throw ExceptionsHelper.convertToRuntime(last.exception());
         }
-        return new SubqueryResult("(" + last.query() + ")", last.outputSchema());
+        return new SubqueryResult("(" + last.query() + ")", inner.currentSchema());
     }
 
     /**

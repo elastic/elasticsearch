@@ -384,6 +384,17 @@ public class ComputeService {
             return new ExternalDistributionResult(resolvedPlan, distributionPlan, List.of());
         }
 
+        // Staying local but a gather is required: preserve the exchange and run the partial-aggregation stage on the local
+        // (coordinator) node via the same path the distributed modes use, so the parallel per-group drivers are gathered into a
+        // single final aggregation. Collapsing here instead would drop the gather boundary and emit one row per split group.
+        if (externalSplits.size() > 1 && hasCollapsibleExternalExchange(resolvedPlan)) {
+            ExternalDistributionPlan localNodePlan = new ExternalDistributionPlan(
+                Map.of(clusterService.localNode().getId(), externalSplits),
+                true
+            );
+            return new ExternalDistributionResult(resolvedPlan, localNodePlan, List.of());
+        }
+
         return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, externalSplits);
     }
 
@@ -623,6 +634,21 @@ public class ComputeService {
             }
             return topN;
         });
+    }
+
+    /**
+     * Whether the plan contains an {@link ExchangeExec} that {@link #collapseExternalSourceExchanges} would remove, i.e. an
+     * exchange sitting directly above an external source. Such an exchange is the gather boundary between the parallel
+     * partial-aggregation drivers and the single final-aggregation driver, so it must be preserved when the external source
+     * runs with more than one split group.
+     */
+    static boolean hasCollapsibleExternalExchange(PhysicalPlan plan) {
+        return plan.anyMatch(
+            p -> p instanceof ExchangeExec exchange
+                && (exchange.child() instanceof ExternalSourceExec
+                    || (exchange.child() instanceof FragmentExec fragment
+                        && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)))
+        );
     }
 
     public void execute(

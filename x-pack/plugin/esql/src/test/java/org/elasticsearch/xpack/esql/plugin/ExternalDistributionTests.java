@@ -338,6 +338,51 @@ public class ExternalDistributionTests extends ESTestCase {
         );
     }
 
+    // --- Gather-boundary detection tests ---
+
+    // Detecting the exchange that collapseExternalSourceExchanges would remove is what tells the local path a gather is
+    // still needed. When true and there is more than one split group, the exchange must be preserved and the partial
+    // aggregation run on the local node so the parallel per-group drivers merge into a single final aggregation.
+
+    public void testHasCollapsibleExternalExchangeDetectsFragmentExchange() {
+        ExternalRelation external = createExternalRelation();
+        Aggregate aggregate = new Aggregate(SRC, external, List.of(), List.of());
+
+        Mapper mapper = new Mapper();
+        PhysicalPlan physicalPlan = mapper.map(new Versioned<>(aggregate, TransportVersion.current()));
+
+        assertTrue(
+            "STATS over an external source must keep a collapsible exchange",
+            ComputeService.hasCollapsibleExternalExchange(physicalPlan)
+        );
+    }
+
+    public void testHasCollapsibleExternalExchangeDetectsDirectSourceExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        ExchangeExec exchange = new ExchangeExec(SRC, externalSource);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+
+        assertTrue(ComputeService.hasCollapsibleExternalExchange(limit));
+    }
+
+    public void testHasCollapsibleExternalExchangeFalseWithoutExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), null);
+
+        assertFalse("A plain external scan without an exchange needs no gather", ComputeService.hasCollapsibleExternalExchange(limit));
+    }
+
+    public void testHasCollapsibleExternalExchangeFalseForNonExternalExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        AggregateExec agg = new AggregateExec(SRC, externalSource, List.of(), List.of(), AggregatorMode.INITIAL, List.of(), null);
+        ExchangeExec exchange = new ExchangeExec(SRC, agg);
+
+        assertFalse(
+            "An exchange whose child is not directly the external source is not collapsible",
+            ComputeService.hasCollapsibleExternalExchange(exchange)
+        );
+    }
+
     // --- localPlan expansion tests ---
 
     public void testLocalPlanExpandsFragmentExecToExternalSourceExec() {

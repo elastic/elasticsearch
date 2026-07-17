@@ -63,6 +63,21 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    /**
+     * Counterpart to {@link #testFilterNoPushdownWithUnmapped}, which uses {@link #FIELD_ABSENT_EVERYWHERE}. This query uses a different
+     * absent field name, so under {@code unmapped_fields="load"} it is a {@code PotentiallyUnmappedKeywordEsField} at the coordinator while
+     * {@link #searchStats()} still reports it as indexed on this data node (see that method for the naming convention). The local optimizer
+     * therefore replaces it with a plain keyword and pushes the filter down to Lucene.
+     */
+    public void testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | WHERE mapped_on_data_node == "Disconnection error"
+            """;
+        runTestsLoadOnly(query, STAGES);
+    }
+
     public void testSortPushdownNoUnmapped() {
         String query = """
             FROM sample_data
@@ -81,6 +96,20 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | LIMIT 5
             """;
         runUnmappedTests(query);
+    }
+
+    /**
+     * TopN counterpart to {@link #testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped}: sorting on a load-mode field that this data node
+     * maps (per {@link #searchStats()}) pushes the TopN down to Lucene once the potentially-unmapped marker is dropped.
+     */
+    public void testSortPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | SORT mapped_on_data_node
+            | LIMIT 5
+            """;
+        runTestsLoadOnly(query, STAGES);
     }
 
     public void testFilterConjunctionPushableAndNonPushable() {

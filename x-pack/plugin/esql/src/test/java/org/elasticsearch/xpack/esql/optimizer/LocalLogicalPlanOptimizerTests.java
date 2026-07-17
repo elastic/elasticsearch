@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -38,6 +40,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -90,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -598,6 +604,65 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
+    }
+
+    /**
+     * Under {@code unmapped_fields="load"}, a field absent from the coordinator mapping is a {@link PotentiallyUnmappedKeywordEsField},
+     * which blocks Lucene pushdown. On a data node whose shards actually map and index the field,
+     * {@code ReplacePotentiallyUnmappedFieldWithMappedField} swaps it for a plain {@link KeywordEsField} so pushdown can happen.
+     */
+    public void testPotentiallyUnmappedFieldReplacedWhenIndexedOnDataNode() {
+        var plan = planWithLoad("""
+              from test
+            | where does_not_exist == "x"
+            | keep does_not_exist
+            """);
+
+        // The coordinator can't know the field is mapped on any given data node, so it stays potentially unmapped there.
+        var coordinatorFields = fieldAttributes(plan, "does_not_exist");
+        assertThat(coordinatorFields, not(empty()));
+        for (FieldAttribute f : coordinatorFields) {
+            assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        }
+
+        // This data node maps and indexes the field on every shard, so the marker is dropped for a plain keyword.
+        var allFieldsIndexedOnLocalShards = new TestConfigurableSearchStats();
+        var localPlan = localPlan(plan, allFieldsIndexedOnLocalShards);
+
+        var pushdown = LucenePushdownPredicates.from(allFieldsIndexedOnLocalShards, new EsqlFlags(true));
+        var localFields = fieldAttributes(localPlan, "does_not_exist");
+        assertThat(localFields, not(empty()));
+        for (FieldAttribute f : localFields) {
+            assertThat(f.field().getClass(), equalTo(KeywordEsField.class));
+            assertThat(f.dataType(), equalTo(KEYWORD));
+            // The whole point of the replacement: the field is now pushable to Lucene, unlike a potentially unmapped one.
+            assertTrue(pushdown.isPushableFieldAttribute(f));
+        }
+    }
+
+    /**
+     * The replacement requires the field to be <em>indexed</em> on the data node, not merely present: a field that exists only in
+     * {@code _source} (or is mapped with {@code index:false}) can't be pushed to Lucene, so it must stay a
+     * {@link PotentiallyUnmappedKeywordEsField} and be loaded from {@code _source}.
+     */
+    public void testPotentiallyUnmappedFieldRetainedWhenNotIndexedOnDataNode() {
+        var plan = planWithLoad("""
+              from test
+            | where does_not_exist == "x"
+            | keep does_not_exist
+            """);
+
+        var fieldNotIndexedOnLocalShards = new TestConfigurableSearchStats().exclude(Config.INDEXED, "does_not_exist");
+        var localPlan = localPlan(plan, fieldNotIndexedOnLocalShards);
+
+        var pushdown = LucenePushdownPredicates.from(fieldNotIndexedOnLocalShards, new EsqlFlags(true));
+        var localFields = fieldAttributes(localPlan, "does_not_exist");
+        assertThat(localFields, not(empty()));
+        for (FieldAttribute f : localFields) {
+            assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+            // Still potentially unmapped, so it must not be pushed to Lucene (that could drop rows on shards missing the field).
+            assertFalse(pushdown.isPushableFieldAttribute(f));
+        }
     }
 
     public void testSparseDocument() throws Exception {
@@ -1772,6 +1837,28 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     private LogicalPlan planWithNullify(String query) {
         return optimize(analyzerWithNullifyMode().analyze(TEST_PARSER.parseQuery(query)));
+    }
+
+    private static Analyzer analyzerWithLoadMode() {
+        return analyzer().unmappedResolution(UnmappedResolution.LOAD).addIndex("test", "mapping-basic.json").buildAnalyzer();
+    }
+
+    private LogicalPlan planWithLoad(String query) {
+        return optimize(analyzerWithLoadMode().analyze(TEST_PARSER.parseQuery(query)));
+    }
+
+    /**
+     * Collects every {@link FieldAttribute} in the plan with the given name; a field can be referenced by several attributes (for example
+     * in the relation output and in a filter), and this rule must rewrite all of them consistently.
+     */
+    private static List<FieldAttribute> fieldAttributes(LogicalPlan plan, String name) {
+        List<FieldAttribute> matches = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, f -> {
+            if (f.name().equals(name)) {
+                matches.add(f);
+            }
+        });
+        return matches;
     }
 
     // Tests for project metadata field optimization (ReplaceFieldWithConstantOrNull)

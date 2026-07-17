@@ -43,12 +43,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Unit tests for the source-agnostic {@link FilterGraft} mechanism — the generic "install a bound {@code Filter} at any
+ * Unit tests for the source-agnostic {@link FilterRewriter} mechanism — the generic "install a bound {@code Filter} at any
  * node the target predicate selects" primitive, exercised independently of the request-filter policy (no
- * {@code HeaderWarning}, dropped clauses collected through the {@code onDropped} callback). {@link RequestFilterGraftTests}
+ * {@code HeaderWarning}, dropped clauses collected through the {@code onDropped} callback). {@link RequestFilterRewriterTests}
  * covers the policy on top of this (targeting {@code ExternalRelation}, version-gating, warning wording).
  */
-public class FilterGraftTests extends ESTestCase {
+public class FilterRewriterTests extends ESTestCase {
 
     private static final long NOW = 1_600_000_000_000L;
     private static final BiConsumer<LogicalPlan, DroppedClause> IGNORE_DROPS = (node, clause) -> {};
@@ -65,23 +65,23 @@ public class FilterGraftTests extends ESTestCase {
 
     // --- genericity: the target predicate is the API, nothing here knows about datasets/sources ---
 
-    public void testGraftsAboveAnArbitraryNonSourceNode() {
+    public void testInstallsAboveAnArbitraryNonSourceNode() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         Limit limit = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
-        LogicalPlan result = FilterGraft.graftFilterAt(limit, node -> node == limit, QueryBuilders.termQuery("a", 1), NOW, IGNORE_DROPS);
+        LogicalPlan result = FilterRewriter.rewrite(limit, node -> node == limit, QueryBuilders.termQuery("a", 1), NOW, IGNORE_DROPS);
         assertThat(result, instanceOf(Filter.class));
         Filter filter = (Filter) result;
-        assertThat("grafts above the chosen node, not the leaf", filter.child(), sameInstance(limit));
+        assertThat("installs above the chosen node, not the leaf", filter.child(), sameInstance(limit));
         assertThat(filter.condition().references().names(), contains("a"));
     }
 
-    public void testBindingIsRelativeToTheGraftNodesOutputNotTheLeafs() {
+    public void testBindingIsRelativeToTheTargetNodesOutputNotTheLeafs() {
         ReferenceAttribute a = attr("a", DataType.INTEGER);
         ReferenceAttribute x = attr("x", DataType.KEYWORD);
         ExternalRelation rel = relation("ds", a, x);
-        // Project drops x from its output; grafting above the Project must bind x to NULL (absent from THAT node).
+        // Project drops x from its output; installing above the Project must bind x to NULL (absent from THAT node).
         Project project = new Project(Source.EMPTY, rel, List.of(a));
-        LogicalPlan aboveProject = FilterGraft.graftFilterAt(
+        LogicalPlan aboveProject = FilterRewriter.rewrite(
             project,
             node -> node == project,
             QueryBuilders.termQuery("x", "v"),
@@ -94,21 +94,15 @@ public class FilterGraftTests extends ESTestCase {
             empty()
         );
 
-        // Grafting above the relation, where x is present, binds the real attribute.
-        LogicalPlan aboveRelation = FilterGraft.graftFilterAt(
-            rel,
-            node -> node == rel,
-            QueryBuilders.termQuery("x", "v"),
-            NOW,
-            IGNORE_DROPS
-        );
+        // Installing above the relation, where x is present, binds the real attribute.
+        LogicalPlan aboveRelation = FilterRewriter.rewrite(rel, node -> node == rel, QueryBuilders.termQuery("x", "v"), NOW, IGNORE_DROPS);
         assertThat(((Filter) aboveRelation).condition().references().names(), contains("x"));
     }
 
     public void testPredicateMatchingNothingReturnsThePlanUntouched() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterGraft.graftFilterAt(rel, node -> false, QueryBuilders.termQuery("a", 1), NOW, (n, c) -> drops.add(c));
+        LogicalPlan result = FilterRewriter.rewrite(rel, node -> false, QueryBuilders.termQuery("a", 1), NOW, (n, c) -> drops.add(c));
         assertThat(result, sameInstance(rel));
         assertThat(drops, empty());
     }
@@ -117,7 +111,7 @@ public class FilterGraftTests extends ESTestCase {
         ExternalRelation relA = relation("dsA", attr("id", DataType.INTEGER));
         ExternalRelation relB = relation("dsB", attr("id", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relA, relB), List.of());
-        LogicalPlan result = FilterGraft.graftFilterAt(
+        LogicalPlan result = FilterRewriter.rewrite(
             union,
             ExternalRelation.class::isInstance,
             QueryBuilders.termQuery("id", 1),
@@ -138,7 +132,7 @@ public class FilterGraftTests extends ESTestCase {
         ExternalRelation relB = relation("dsB", attr("id", DataType.INTEGER)); // no region
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relA, relB), List.of());
         List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterGraft.graftFilterAt(
+        LogicalPlan result = FilterRewriter.rewrite(
             union,
             ExternalRelation.class::isInstance,
             QueryBuilders.termQuery("region", "eu"),
@@ -154,7 +148,7 @@ public class FilterGraftTests extends ESTestCase {
             contains("region")
         );
         assertThat(
-            "dsB lacks region -> NULL-bound (runtime-false), still grafted",
+            "dsB lacks region -> NULL-bound (runtime-false), still installed",
             byDataset.get("dsB").condition().references().names(),
             empty()
         );
@@ -166,7 +160,7 @@ public class FilterGraftTests extends ESTestCase {
         ExternalRelation relInteger = relation("dsInt", attr("status", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relKeyword, relInteger), List.of());
         Map<String, List<DroppedClause>> byDataset = new HashMap<>();
-        FilterGraft.graftFilterAt(
+        FilterRewriter.rewrite(
             union,
             ExternalRelation.class::isInstance,
             QueryBuilders.termQuery("status", "active"), // valid keyword, but not an integral value
@@ -177,12 +171,12 @@ public class FilterGraftTests extends ESTestCase {
         assertThat("a non-integral value on an integer field is dropped for THAT node only", byDataset.get("dsInt"), hasSize(1));
     }
 
-    // --- fold-to-no-op vs grafted-false ---
+    // --- fold-to-no-op vs installed-false ---
 
     public void testWhollyUnsupportedFilterLeavesNodeUnwrapped() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterGraft.graftFilterAt(
+        LogicalPlan result = FilterRewriter.rewrite(
             rel,
             ExternalRelation.class::isInstance,
             QueryBuilders.wildcardQuery("a", "x*"),
@@ -196,7 +190,7 @@ public class FilterGraftTests extends ESTestCase {
     public void testMatchAllLeavesNodeUnwrapped() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterGraft.graftFilterAt(
+        LogicalPlan result = FilterRewriter.rewrite(
             rel,
             ExternalRelation.class::isInstance,
             QueryBuilders.matchAllQuery(),
@@ -207,9 +201,9 @@ public class FilterGraftTests extends ESTestCase {
         assertThat("match_all is a supported no-op, not a drop", drops, empty());
     }
 
-    public void testMatchNoneGraftsAFalseFilter() {
+    public void testMatchNoneInstallsAFalseFilter() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterGraft.graftFilterAt(
+        LogicalPlan result = FilterRewriter.rewrite(
             rel,
             ExternalRelation.class::isInstance,
             new MatchNoneQueryBuilder(),
@@ -218,7 +212,7 @@ public class FilterGraftTests extends ESTestCase {
         );
         assertThat(result, instanceOf(Filter.class));
         assertThat(
-            "match_none is an exact FALSE, grafted (not folded to a no-op)",
+            "match_none is an exact FALSE, installed (not folded to a no-op)",
             ((Filter) result).condition(),
             sameInstance(Literal.FALSE)
         );
@@ -227,7 +221,7 @@ public class FilterGraftTests extends ESTestCase {
     public void testMustNotDropIsRecordedWithNegativePolarity() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         List<DroppedClause> drops = new ArrayList<>();
-        FilterGraft.graftFilterAt(
+        FilterRewriter.rewrite(
             rel,
             ExternalRelation.class::isInstance,
             QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
@@ -243,14 +237,14 @@ public class FilterGraftTests extends ESTestCase {
     public void testNowInMillisIsThreadedIntoTheTranslation() {
         ExternalRelation rel = relation("ds", attr("ts", DataType.DATETIME));
         QueryBuilder filter = QueryBuilders.rangeQuery("ts").gte("now-15m");
-        Filter early = (Filter) FilterGraft.graftFilterAt(rel, ExternalRelation.class::isInstance, filter, NOW, IGNORE_DROPS);
-        Filter later = (Filter) FilterGraft.graftFilterAt(rel, ExternalRelation.class::isInstance, filter, NOW + 3_600_000L, IGNORE_DROPS);
+        Filter early = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, NOW, IGNORE_DROPS);
+        Filter later = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, NOW + 3_600_000L, IGNORE_DROPS);
         assertThat("different query start times resolve now-math to different bounds", early.condition(), not(equalTo(later.condition())));
     }
 
-    public void testGraftedTreeIsMarkedAnalyzed() {
+    public void testInstalledTreeIsMarkedAnalyzed() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterGraft.graftFilterAt(
+        LogicalPlan result = FilterRewriter.rewrite(
             rel,
             ExternalRelation.class::isInstance,
             QueryBuilders.termQuery("a", 1),

@@ -18,9 +18,9 @@ import java.util.List;
 /**
  * Applies the out-of-band request {@code filter} to external-source (dataset) leaves of an analyzed plan.
  *
- * <p>This is the request-filter <em>policy</em> over the source-agnostic {@link FilterGraft} mechanism: it targets
+ * <p>This is the request-filter <em>policy</em> over the source-agnostic {@link FilterRewriter} mechanism: it targets
  * {@link ExternalRelation} leaves, version-gates the rewrite (below), and turns each clause the translator could not
- * apply into a response-header warning. {@code FilterGraft} does the actual work — translating the DSL against each
+ * apply into a response-header warning. {@code FilterRewriter} does the actual work — translating the DSL against each
  * targeted node's schema and wrapping it as an ordinary {@code Filter}, so from there the existing optimizer pushes it
  * down and the engine evaluates it, indistinguishable from a user-written {@code WHERE}. Extending the request filter
  * to other source boundaries (a view, say) is a change of the target predicate here, not of the mechanism. Index leaves
@@ -33,26 +33,26 @@ import java.util.List;
  * warning names the source, the construct, and that direction. A filter with no supported clause folds to a no-op and
  * the relation is read unfiltered.
  *
- * <p>The graft is version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do not
- * have; the grafted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
+ * <p>The rewrite is version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do not
+ * have; the inserted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
  * an older node would fail to deserialize it. Below {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped
  * entirely — datasets are read unfiltered (the pre-feature behavior) with a warning — rather than shipping a plan a
  * peer cannot read. This mirrors how the analyzer and verifier gate version-sensitive rewrites on
  * {@code context.minimumVersion()}.
  */
-public final class RequestFilterGraft {
+public final class RequestFilterRewriter {
 
     static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
 
-    private RequestFilterGraft() {}
+    private RequestFilterRewriter() {}
 
     /**
      * @param nowInMillis    the query's start time, epoch millis — anchors {@code now} date math so a request filter
      *                       over an external source resolves {@code "now-15m"} to the same instant the index path would.
      * @param minimumVersion the minimum transport version across the nodes this plan targets; below
-     *                       {@link #ESQL_REQUEST_FILTER_ON_DATASET} the graft is skipped (see the class javadoc).
+     *                       {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class javadoc).
      */
-    public static LogicalPlan graft(LogicalPlan analyzed, QueryBuilder requestFilter, long nowInMillis, TransportVersion minimumVersion) {
+    public static LogicalPlan rewrite(LogicalPlan analyzed, QueryBuilder requestFilter, long nowInMillis, TransportVersion minimumVersion) {
         if (requestFilter == null) {
             return analyzed;
         }
@@ -61,7 +61,7 @@ public final class RequestFilterGraft {
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
-        return FilterGraft.graftFilterAt(
+        return FilterRewriter.rewrite(
             analyzed,
             ExternalRelation.class::isInstance,
             requestFilter,
@@ -89,7 +89,7 @@ public final class RequestFilterGraft {
         List<String> datasets = plan.collect(ExternalRelation.class::isInstance)
             .stream()
             .map(ExternalRelation.class::cast)
-            .map(RequestFilterGraft::name)
+            .map(RequestFilterRewriter::name)
             .distinct()
             .toList();
         if (datasets.isEmpty() == false) {

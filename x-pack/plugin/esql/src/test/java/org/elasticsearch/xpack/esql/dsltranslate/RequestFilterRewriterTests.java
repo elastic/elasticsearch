@@ -33,10 +33,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class RequestFilterGraftTests extends ESTestCase {
+public class RequestFilterRewriterTests extends ESTestCase {
 
     private static final long NOW = 1_600_000_000_000L;
-    private static final TransportVersion CURRENT = RequestFilterGraft.ESQL_REQUEST_FILTER_ON_DATASET;
+    private static final TransportVersion CURRENT = RequestFilterRewriter.ESQL_REQUEST_FILTER_ON_DATASET;
     private static final TransportVersion TOO_OLD = TransportVersion.minimumCompatible();
 
     private static ExternalRelation relation() {
@@ -47,19 +47,19 @@ public class RequestFilterGraftTests extends ESTestCase {
 
     public void testNullFilterLeavesPlanUnchanged() {
         ExternalRelation relation = relation();
-        assertSame(relation, RequestFilterGraft.graft(relation, null, NOW, CURRENT));
+        assertSame(relation, RequestFilterRewriter.rewrite(relation, null, NOW, CURRENT));
     }
 
-    public void testSupportedFilterIsGraftedAboveTheRelation() {
+    public void testSupportedFilterIsInstalledAboveTheRelation() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterGraft.graft(relation, QueryBuilders.termQuery("a", 1), NOW, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), NOW, CURRENT);
         assertThat(result, instanceOf(Filter.class));
         assertThat(((Filter) result).child(), sameInstance(relation));
     }
 
     public void testWhollyUnsupportedFilterLeavesTheRelationUnfiltered() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterGraft.graft(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
         assertSame(relation, result); // the filter folds to a no-op, so the relation is untouched
         assertWarnings(
             "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so more rows may be returned"
@@ -67,12 +67,12 @@ public class RequestFilterGraftTests extends ESTestCase {
     }
 
     /**
-     * Partial application: a filter mixing a supported term with an unsupported wildcard still grafts the term (the
+     * Partial application: a filter mixing a supported term with an unsupported wildcard still installs the term (the
      * source is NOT left wholly unfiltered), and warns only about the dropped wildcard.
      */
-    public void testPartialFilterGraftsTheSupportedClauseAndWarnsOnTheRest() {
+    public void testPartialFilterRewritersTheSupportedClauseAndWarnsOnTheRest() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterGraft.graft(
+        LogicalPlan result = RequestFilterRewriter.rewrite(
             relation,
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
             NOW,
@@ -85,10 +85,10 @@ public class RequestFilterGraftTests extends ESTestCase {
         );
     }
 
-    /** The critical version gate: below the feature version the graft is skipped, so no plan an old node can't read ships. */
-    public void testOldMinimumVersionSkipsTheGraftEntirely() {
+    /** The critical version gate: below the feature version the rewrite is skipped, so no plan an old node can't read ships. */
+    public void testOldMinimumVersionSkipsTheRewriteEntirely() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterGraft.graft(relation, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
         assertSame(relation, result);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
@@ -107,12 +107,12 @@ public class RequestFilterGraftTests extends ESTestCase {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }
 
-    /** Index leaves keep their pre-analysis request-filter path; the graft targets only dataset leaves. */
+    /** Index leaves keep their pre-analysis request-filter path; the rewrite targets only dataset leaves. */
     public void testOnlyExternalRelationsAreTargeted() {
         EsRelation index = EsqlTestUtils.relation();
         ExternalRelation dataset = relation("ds", attr("a", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(index, dataset), List.of());
-        LogicalPlan result = RequestFilterGraft.graft(union, QueryBuilders.termQuery("a", 1), NOW, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), NOW, CURRENT);
 
         Map<Boolean, LogicalPlan> children = new HashMap<>();
         ((UnionAll) result).children().forEach(c -> children.put(c instanceof Filter, c));
@@ -123,7 +123,7 @@ public class RequestFilterGraftTests extends ESTestCase {
     /** The complement of the existing "more rows" test: a dropped clause under must_not relaxes an exclusion. */
     public void testMustNotDroppedClauseWarnsPreviouslyExcludedRows() {
         ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
-        RequestFilterGraft.graft(relation, QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")), NOW, CURRENT);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")), NOW, CURRENT);
         assertWarnings(
             "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so "
                 + "previously-excluded rows may be returned"
@@ -137,7 +137,7 @@ public class RequestFilterGraftTests extends ESTestCase {
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        LogicalPlan result = RequestFilterGraft.graft(union, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
         assertThat(result, sameInstance(union));
         assertWarnings(
             "The request filter was not applied to external dataset(s) [dsA, dsB] because the cluster contains a node "
@@ -152,7 +152,7 @@ public class RequestFilterGraftTests extends ESTestCase {
             List.of(relation("ds", attr("a", DataType.INTEGER)), relation("ds", attr("a", DataType.INTEGER))),
             List.of()
         );
-        RequestFilterGraft.graft(union, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
                 + "too old to evaluate the translated filter; they were read unfiltered"
@@ -162,7 +162,7 @@ public class RequestFilterGraftTests extends ESTestCase {
     /** No datasets in the plan -> the version gate is silent (nothing to warn about). */
     public void testVersionGateOnPlanWithoutDatasetsStaysSilent() {
         EsRelation index = EsqlTestUtils.relation();
-        LogicalPlan result = RequestFilterGraft.graft(index, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(index, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
         assertThat(result, sameInstance(index));
         // no assertWarnings: the datasets.isEmpty() guard means nothing is emitted
     }
@@ -180,7 +180,7 @@ public class RequestFilterGraftTests extends ESTestCase {
             Map.of(),
             null
         );
-        RequestFilterGraft.graft(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
         assertWarnings(
             "The request filter on external dataset [file:///data.csv] could not apply [wildcard]; it was skipped, "
                 + "so more rows may be returned"
@@ -194,7 +194,7 @@ public class RequestFilterGraftTests extends ESTestCase {
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        RequestFilterGraft.graft(union, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
+        RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
         assertWarnings(
             "The request filter on external dataset [dsA] could not apply [wildcard]; it was skipped, so more rows may be returned",
             "The request filter on external dataset [dsB] could not apply [wildcard]; it was skipped, so more rows may be returned"
@@ -216,7 +216,7 @@ public class RequestFilterGraftTests extends ESTestCase {
         );
         ExternalRelation dsB = relation("dsB", attr("id", DataType.INTEGER), attr("status", DataType.INTEGER)); // no region
         UnionAll union = new UnionAll(Source.EMPTY, List.of(dsA, dsB), List.of());
-        LogicalPlan result = RequestFilterGraft.graft(
+        LogicalPlan result = RequestFilterRewriter.rewrite(
             union,
             QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("region", "eu"))

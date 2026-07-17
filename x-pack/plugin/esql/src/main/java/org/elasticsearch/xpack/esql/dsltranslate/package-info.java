@@ -26,7 +26,7 @@
  *     {@code match_all}, {@code match_none}. Anything else — or a supported construct carrying an option it cannot honor
  *     faithfully — raises {@link org.elasticsearch.xpack.esql.dsltranslate.TranslationUnsupportedException} rather than
  *     silently mis-translating.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterGraft} — the dataset consumer. For each
+ *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset consumer. For each
  *     external leaf it binds the filter against that leaf's own schema (present field &rarr; its attribute, missing
  *     field &rarr; {@link org.elasticsearch.xpack.esql.core.expression.Literal#NULL}) and wraps the result as a
  *     {@code Filter} above the leaf, degrading a leaf per-source (with a warning) on an unsupported clause. It is

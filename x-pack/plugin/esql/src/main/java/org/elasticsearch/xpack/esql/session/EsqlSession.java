@@ -80,7 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtracto
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
-import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterGraft;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -459,10 +459,10 @@ public class EsqlSession {
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
-                    // Graft the out-of-band request filter onto external-source (dataset) leaves, translated
+                    // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
                     // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
-                    LogicalPlan plan = RequestFilterGraft.graft(
+                    LogicalPlan plan = RequestFilterRewriter.rewrite(
                         analyzedPlan.inner(),
                         request.filter(),
                         finalConfiguration.absoluteStartedTimeInMillis(),

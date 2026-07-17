@@ -64,7 +64,7 @@ import java.util.function.Supplier;
  * are wrapped by {@link #twoValued}), plain {@code AND}/{@code OR}/{@code NOT} composition over a null-bound leaf
  * reproduces the DSL leniency rules for free, negation included.
  *
- * <p>Literals are bound to the <em>field's</em> type, not the JSON value's: the graft runs after the analyzer, so
+ * <p>Literals are bound to the <em>field's</em> type, not the JSON value's: the rewrite runs after the analyzer, so
  * nothing downstream inserts the implicit cast a user-written {@code WHERE} would get. A JSON date string against a
  * {@code date} column must become a {@code datetime} literal here or the evaluator is handed the wrong block type.
  *
@@ -678,7 +678,7 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Guards a leaf built over a PRESENT field. The graft runs after the analyzer and skips the Verifier, so a leaf
+     * Guards a leaf built over a PRESENT field. The rewrite runs after the analyzer and skips the Verifier, so a leaf
      * whose emitted function cannot type its field (a {@code range} over a boolean column, an order comparison over an
      * unorderable type) would otherwise sail through and fail in the compute engine. Rejecting it degrades the filter
      * per-source instead — and keeps this hand-written translator immune to any future drift between the types it
@@ -748,7 +748,7 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * A literal compared against a field takes the FIELD's type — the graft runs after the analyzer, so no implicit
+     * A literal compared against a field takes the FIELD's type — the rewrite runs after the analyzer, so no implicit
      * cast will fix a mismatch later; the evaluator would be handed the wrong block type. A missing field carries no
      * type, and every leaf folds it to false anyway, so fall back to the JSON value's own type there.
      */

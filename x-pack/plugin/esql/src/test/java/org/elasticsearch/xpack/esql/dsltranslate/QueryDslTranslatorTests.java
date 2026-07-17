@@ -281,7 +281,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * The graft runs after the analyzer, so no implicit cast fixes a literal typed from the JSON value. A date string
+     * The rewrite runs after the analyzer, so no implicit cast fixes a literal typed from the JSON value. A date string
      * against a date column must become a datetime literal here, or the evaluator is handed a BytesRef block.
      */
     public void testDateStringBoundsAreCoercedToTheFieldType() {
@@ -402,7 +402,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * A construct the emitted function cannot type — a range over a boolean column, which mv_in_range does not support —
-     * degrades rather than sailing past the post-analysis graft (which skips the Verifier) into a compute-engine error.
+     * degrades rather than sailing past the post-analysis rewrite (which skips the Verifier) into a compute-engine error.
      */
     public void testRangeOverUnsupportedFieldTypeDegrades() {
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("active").gte(false).lte(true)));

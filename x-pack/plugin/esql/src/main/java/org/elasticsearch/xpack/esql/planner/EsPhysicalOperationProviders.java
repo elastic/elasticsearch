@@ -100,7 +100,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -193,11 +192,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
         this.singleValueQueryWarnings = singleValueQueryWarnings;
-        for (ShardContext shardCtx : shardContexts.iterable()) {
-            if (shardCtx instanceof DefaultShardContext dsc && dsc.ctx instanceof EsqlSearchExecutionContext esqlCtx) {
-                esqlCtx.setQueryWarnings(singleValueQueryWarnings);
-            }
-        }
     }
 
     @Override

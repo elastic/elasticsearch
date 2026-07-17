@@ -1297,13 +1297,13 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
-        var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
+        QueryWarnings singleValueQueryWarnings = new QueryWarnings();
+        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
         long bytesBefore = directoryBytesRead.getAsLong();
-        QueryWarnings singleValueQueryWarnings = new QueryWarnings();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,

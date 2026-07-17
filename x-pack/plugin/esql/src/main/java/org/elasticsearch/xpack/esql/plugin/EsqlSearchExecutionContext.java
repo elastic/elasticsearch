@@ -8,20 +8,26 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
-import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 /**
  * An ESQL-specific subclass of {@link SearchExecutionContext} that carries the
  * {@link QueryWarnings} bridge.
  */
 public class EsqlSearchExecutionContext extends SearchExecutionContext {
-    private QueryWarnings queryWarnings;
+    @Nullable
+    private final QueryWarnings queryWarnings;
 
-    EsqlSearchExecutionContext(SearchExecutionContext base) {
+    /**
+     * @param queryWarnings the bridge, or {@code null} for contexts that never build warnings
+     *                      like remote-fetch detached contexts
+     */
+    EsqlSearchExecutionContext(SearchExecutionContext base, @Nullable QueryWarnings queryWarnings) {
         super(base);
+        this.queryWarnings = queryWarnings;
     }
 
     @Override
@@ -30,17 +36,9 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
     }
 
     /**
-     * Attach the {@link QueryWarnings} bridge; called by
-     * {@link EsPhysicalOperationProviders} after both the shard
-     * contexts and the bridge are known, before any query is built.
+     * Return the {@link QueryWarnings} bridge, or {@code null} if none was supplied at construction.
      */
-    public void setQueryWarnings(QueryWarnings warnings) {
-        this.queryWarnings = warnings;
-    }
-
-    /**
-     * Return the {@link QueryWarnings} bridge, or {@code null} if none has been attached yet.
-     */
+    @Nullable
     public QueryWarnings queryWarnings() {
         return queryWarnings;
     }

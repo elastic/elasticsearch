@@ -1193,12 +1193,15 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
      */
     public void testHeapUsageSimulationUsesDefaultShardHeapWhenPerShardMapMissing() {
         final long maxHeapBytes = randomLongBetween(10000, 20000);
-        final long baselineBytes = randomLongBetween(1000, 1900);
-        final long hostedSharesBaselineBytes = randomLongBetween(900, baselineBytes);
         final long defaultShardHeapBytes = randomLongBetween(50, 100);
         final long defaultIndexHeapBytes = randomLongBetween(20, 70);
         final long deltaBytes = defaultShardHeapBytes + defaultIndexHeapBytes;
         final var defaultShardAndIndexHeap = new ShardAndIndexHeapUsage(defaultShardHeapBytes, defaultIndexHeapBytes);
+        // These baselines need to be consistent, or we risk violating assertions in the NodeHeapEstimate constructor
+        // with unrealistic values
+        final int baselineNumShards = randomIntBetween(3, 10);
+        final long baselineBytes = deltaBytes * baselineNumShards;
+        final long hostedSharesBaselineBytes = defaultShardHeapBytes * baselineNumShards;
 
         // For a new shard
         {

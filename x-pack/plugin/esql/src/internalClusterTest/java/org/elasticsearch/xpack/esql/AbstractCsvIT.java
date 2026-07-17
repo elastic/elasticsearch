@@ -128,11 +128,39 @@ import static org.hamcrest.Matchers.hasSize;
  * Unlike CsvTests this does not mock esql query execution infra and relies on real components.
  * InternalTestCluster` reuses current jvm. This enables debugging all scenarios from IDE.
  * Test data is loaded lazily in order to facilitate faster startup when running/debugging individual test cases.
+ * <p>
+ * This class is abstract: it used to be the single {@code @ParametersFactory}-driven suite that ran
+ * every csv-spec file as one 40-minute JUnit class, which made CI runs slow and put the whole corpus
+ * at risk of being muted at once if a single test destabilized the suite. It is now split, one
+ * generated {@code Csv<PascalSpecName>IT} class per csv-spec file (see {@code generateCsvItTests} in
+ * {@code x-pack/plugin/esql/build.gradle} and {@code GenerateEsqlSpecTestsTask}), each calling
+ * {@link #readScriptSpec(String)} for just its own file.
+ * <p>
+ * Unlike the equivalent split for the REST-based QA modules ({@code EsqlSpecTestCase} subclasses),
+ * generated subclasses here do <b>not</b> share a single cluster: each spins up its own
+ * {@link InternalTestCluster} per class via {@link #setupCluster()}/{@link #cleanupCluster()}, same as
+ * before the split. A csv-spec file only touches a handful of indices and index loading is lazy, so
+ * there's little to gain from sharing a cluster across files &mdash; and not sharing lets generated
+ * classes run in independent Gradle test-JVM forks in parallel, rather than being serialized behind one
+ * shared cluster.
+ * <p>
+ * <b>Static state caveat:</b> {@link #cluster}, {@link #indexLoadStrategy}, {@code currentGroupName},
+ * and the {@code indices}/{@code enrich}/{@code inference}/{@code views} {@link ResourceLoader}s are all
+ * static fields declared here, not per-subclass fields, because the {@link EsqlTestPlugin} action filter
+ * that populates them runs inside the cluster's node processes and has no handle back to the JUnit test
+ * instance or a per-subclass identifier &mdash; it can only reach this state through statics shared by
+ * every generated subclass. That is safe only because Gradle runs one test class at a time per JVM fork
+ * (never two csv-spec classes concurrently in the same JVM) and because {@link #setupCluster()}
+ * unconditionally replaces every one of these fields with a fresh value rather than merely clearing them.
+ * If a future change makes {@link #setupCluster()} reuse rather than replace any of these fields (e.g. to
+ * "optimize" by clearing a collection in place instead of reassigning it), the next generated class to run
+ * in the same JVM will silently inherit the previous class's already-closed cluster's loaded-resource
+ * bookkeeping and fail with confusing "resource not found" errors instead of loading its own data.
  */
 @TimeoutSuite(millis = TimeUnits.HOUR)
-public class CsvIT extends ESTestCase {
+public abstract class AbstractCsvIT extends ESTestCase {
 
-    private static final Logger logger = LogManager.getLogger(CsvIT.class);
+    private static final Logger logger = LogManager.getLogger(AbstractCsvIT.class);
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
     private static final QueryPragmas ALL_PRAGMAS = new QueryPragmas(Settings.EMPTY);
@@ -239,7 +267,7 @@ public class CsvIT extends ESTestCase {
     private final CsvSpecReader.CsvTestCase testCase;
     private final String instructions;
 
-    public CsvIT(
+    protected AbstractCsvIT(
         String fileName,
         String groupName,
         String testName,
@@ -262,9 +290,27 @@ public class CsvIT extends ESTestCase {
         return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
+    /**
+     * Loads test cases from a single named csv-spec file, e.g. {@code "/stats.csv-spec"}. Used by the
+     * generated per-spec-file subclasses (see the class-level Javadoc) instead of {@link #readScriptSpec()},
+     * which reads every csv-spec file on the classpath.
+     */
+    protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
+        List<URL> urls = classpathResources(specFile);
+        assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+    }
+
     @BeforeClass
     public static void setupCluster() throws Exception {
+        // Every one of these fields must be *replaced* here, not mutated in place -- see the
+        // "Static state caveat" note in the class-level Javadoc for why.
         indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
+        currentGroupName = null;
+        indices = newIndicesLoader();
+        enrich = newEnrichLoader();
+        inference = newInferenceLoader();
+        views = newViewsLoader();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         var nodeDirectory = createTempDir();
@@ -533,7 +579,7 @@ public class CsvIT extends ESTestCase {
                     return CSV_DATASET.values().stream();
                 }
                 if (pattern.endsWith("*") == false) {
-                    throw new IllegalStateException("CsvIT only supports suffix patterns but got: " + pattern);
+                    throw new IllegalStateException("AbstractCsvIT only supports suffix patterns but got: " + pattern);
                 }
                 String prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
                 if (prefix.length() < 3) {
@@ -564,123 +610,146 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {
-        @Override
-        protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
-            logger.info("Loading dataset [{}]", dataset.indexName());
-            for (String inferenceId : dataset.inferenceEndpoints()) {
-                inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
-            }
-            String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
-            Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
-            assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
-            if (dataset.dataFileName() != null) {
-                var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+    /**
+     * Not final: see the "Static state caveat" note in the class-level Javadoc. {@link #setupCluster()}
+     * replaces this with a fresh instance for every generated subclass it runs for, so no dataset ever
+     * appears already-loaded against a cluster from a previous class in the same JVM fork.
+     */
+    private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices;
 
-                for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
-                    String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
-                    var indexRequestBuilder = cluster.client()
-                        .prepareIndex(dataset.indexName())
-                        .setId(document.id())
-                        .setSource(source, XContentType.JSON);
-                    if (document.slice() != null) {
-                        indexRequestBuilder.setRouting(document.slice());
-                        indexRequestBuilder.setRoutingFromSlice(true);
+    private static ResourceLoader<CsvTestsDataLoader.TestDataset> newIndicesLoader() {
+        return new ResourceLoader<>() {
+            @Override
+            protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
+                logger.info("Loading dataset [{}]", dataset.indexName());
+                for (String inferenceId : dataset.inferenceEndpoints()) {
+                    inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
+                }
+                String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
+                Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
+                assertAcked(
+                    cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings)
+                );
+                if (dataset.dataFileName() != null) {
+                    var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+                    for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
+                        String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
+                        var indexRequestBuilder = cluster.client()
+                            .prepareIndex(dataset.indexName())
+                            .setId(document.id())
+                            .setSource(source, XContentType.JSON);
+                        if (document.slice() != null) {
+                            indexRequestBuilder.setRouting(document.slice());
+                            indexRequestBuilder.setRoutingFromSlice(true);
+                        }
+
+                        bulk.add(indexRequestBuilder);
+                        if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
+                            var result = bulk.get();
+                            assertFalse(
+                                "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                                result.hasFailures()
+                            );
+                            bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                        }
                     }
-
-                    bulk.add(indexRequestBuilder);
-                    if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
+                    if (bulk.numberOfActions() > 0) {
                         var result = bulk.get();
                         assertFalse(
                             "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
                             result.hasFailures()
                         );
-                        bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     }
                 }
-                if (bulk.numberOfActions() > 0) {
-                    var result = bulk.get();
-                    assertFalse(
-                        "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
-                        result.hasFailures()
-                    );
+                indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
+            }
+        };
+    }
+
+    private static ResourceLoader<CsvTestsDataLoader.EnrichConfig> enrich;
+
+    private static ResourceLoader<CsvTestsDataLoader.EnrichConfig> newEnrichLoader() {
+        return new ResourceLoader<>() {
+            @Override
+            protected void load(CsvTestsDataLoader.EnrichConfig policy) throws IOException {
+                logger.info("Creating policy [{}]", policy.policyFileName());
+                var p = EnrichPolicy.fromXContent(
+                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
+                );
+                for (var index : p.getIndices()) {
+                    indices.maybeLoad(index, CSV_DATASET.get(index));
                 }
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            PutEnrichPolicyAction.INSTANCE,
+                            new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
+                        )
+                );
+                var response = cluster.client()
+                    .execute(
+                        ExecuteEnrichPolicyAction.INSTANCE,
+                        new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
+                    )
+                    .actionGet();
+                assertTrue(response.getStatus().isCompleted());
             }
-            indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
-        }
-    };
+        };
+    }
 
-    private static ResourceLoader<CsvTestsDataLoader.EnrichConfig> enrich = new ResourceLoader<>() {
-        @Override
-        protected void load(CsvTestsDataLoader.EnrichConfig policy) throws IOException {
-            logger.info("Creating policy [{}]", policy.policyFileName());
-            var p = EnrichPolicy.fromXContent(
-                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
-            );
-            for (var index : p.getIndices()) {
-                indices.maybeLoad(index, CSV_DATASET.get(index));
+    private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> inference;
+
+    private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> newInferenceLoader() {
+        return new ResourceLoader<>() {
+            @Override
+            protected void load(CsvTestsDataLoader.InferenceConfig inference) {
+                logger.info("Loading inference [{}]", inference.id());
+                cluster.client()
+                    .execute(
+                        PutInferenceModelAction.INSTANCE,
+                        new PutInferenceModelAction.Request(
+                            inference.type(),
+                            inference.id(),
+                            new BytesArray(inference.loadConfig()),
+                            XContentType.JSON,
+                            TEST_REQUEST_TIMEOUT
+                        )
+                    )
+                    .actionGet();
             }
-            assertAcked(
-                cluster.client()
-                    .execute(
-                        PutEnrichPolicyAction.INSTANCE,
-                        new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
-                    )
-            );
-            var response = cluster.client()
-                .execute(
-                    ExecuteEnrichPolicyAction.INSTANCE,
-                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
-                )
-                .actionGet();
-            assertTrue(response.getStatus().isCompleted());
-        }
-    };
+        };
+    }
 
-    private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> inference = new ResourceLoader<>() {
-        @Override
-        protected void load(CsvTestsDataLoader.InferenceConfig inference) {
-            logger.info("Loading inference [{}]", inference.id());
-            cluster.client()
-                .execute(
-                    PutInferenceModelAction.INSTANCE,
-                    new PutInferenceModelAction.Request(
-                        inference.type(),
-                        inference.id(),
-                        new BytesArray(inference.loadConfig()),
-                        XContentType.JSON,
-                        TEST_REQUEST_TIMEOUT
-                    )
-                )
-                .actionGet();
-        }
-    };
+    private static ResourceLoader<CsvTestsDataLoader.ViewConfig> views;
 
-    private static ResourceLoader<CsvTestsDataLoader.ViewConfig> views = new ResourceLoader<>() {
-        @Override
-        protected void load(CsvTestsDataLoader.ViewConfig view) {
-            logger.info("Loading view [{}]", view.name());
-            assertAcked(
-                cluster.client()
-                    .execute(
-                        PutViewAction.INSTANCE,
-                        new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
-                    )
-            );
-        }
+    private static ResourceLoader<CsvTestsDataLoader.ViewConfig> newViewsLoader() {
+        return new ResourceLoader<>() {
+            @Override
+            protected void load(CsvTestsDataLoader.ViewConfig view) {
+                logger.info("Loading view [{}]", view.name());
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            PutViewAction.INSTANCE,
+                            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
+                        )
+                );
+            }
 
-        @Override
-        protected void unload(String name) {
-            logger.info("Unloading view [{}]", name);
-            assertAcked(
-                cluster.client()
-                    .execute(
-                        DeleteViewAction.INSTANCE,
-                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
-                    )
-            );
-        }
-    };
+            @Override
+            protected void unload(String name) {
+                logger.info("Unloading view [{}]", name);
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            DeleteViewAction.INSTANCE,
+                            new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                        )
+                );
+            }
+        };
+    }
 
     private abstract static class ResourceLoader<T> {
         private final Set<String> loaded = new HashSet<>();
@@ -722,7 +791,7 @@ public class CsvIT extends ESTestCase {
         // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
         Path userAgentDir = configDir.resolve("user-agent");
         Files.createDirectories(userAgentDir);
-        try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
+        try (InputStream is = AbstractCsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }

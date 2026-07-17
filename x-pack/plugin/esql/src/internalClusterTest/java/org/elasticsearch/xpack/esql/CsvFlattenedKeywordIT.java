@@ -60,7 +60,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.FlattenedJunkConfig;
 
 /**
- * Integration test that runs the {@link CsvIT} csv-spec corpus against indices where every field
+ * Integration test that runs the {@link AbstractCsvIT} csv-spec corpus against indices where every field
  * declared as {@code keyword} in the dataset's mapping has been rewritten to {@code flattened},
  * each source document has its keyword field values wrapped accordingly, and every reference to
  * such a field in the query is wrapped in a call to
@@ -147,7 +147,7 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       yet implemented.</li>
  * </ul>
  */
-public class CsvFlattenedKeywordIT extends CsvIT {
+public class CsvFlattenedKeywordIT extends AbstractCsvIT {
 
     private static final Logger logger = LogManager.getLogger(CsvFlattenedKeywordIT.class);
 
@@ -202,7 +202,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      * Installs the keyword&rarr;flattened rewrite strategy, after first skipping the whole variant
      * on release builds.
      * <p>
-     * This runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass
+     * This runs after {@link AbstractCsvIT#setupCluster()} (JUnit guarantees the superclass
      * {@code @BeforeClass} runs first) and replaces the identity strategy with one that rewrites
      * keyword fields to {@code flattened}, wraps source values, and wraps every query reference in
      * {@code field_extract(<field>, "<sub-key>")}.
@@ -265,7 +265,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      *             under the policy's source index. The enrich-policy reindex into the internal
      *             {@code .enrich-*} index expects a {@code keyword} value at the match field;
      *             converting the source field to {@code flattened} causes that reindex to fail
-     *             and the failure is cached by {@link CsvIT}'s resource loader, so every later
+     *             and the failure is cached by {@link AbstractCsvIT}'s resource loader, so every later
      *             test in the same JVM fails with the same
      *             {@code RuntimeException: Resource loading failure}. Excluding the match field
      *             at the source keeps the policy load deterministic.</li>
@@ -282,7 +282,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      *   <li>{@code keywordPathsByDatasetIndexName} &mdash; the keyword paths that
      *       {@link KeywordToFlattenedTransformer} actually rewrites for each dataset (after the
      *       protected paths above are applied). Used both to wrap per-document source values when
-     *       {@link CsvIT} indexes the dataset, and as one input to the per-query scope computed
+     *       {@link AbstractCsvIT} indexes the dataset, and as one input to the per-query scope computed
      *       by {@link #resolveKeywordPathsForQuery}.</li>
      *   <li>{@code nonKeywordPathsByDatasetIndexName} &mdash; every dotted field path declared in
      *       a dataset's mapping whose type is <em>not</em> {@code keyword} (e.g. {@code long},
@@ -413,7 +413,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * </ul>
          * The transformed mapping itself is discarded here; the per-index transformation still
          * runs through {@link #transformMapping(CsvTestsDataLoader.TestDataset, String)} when
-         * {@link CsvIT} actually loads each index.
+         * {@link AbstractCsvIT} actually loads each index.
          */
         private static DatasetPathsResult computeDatasetPaths(Map<String, Set<String>> protectedByIndex) {
             Map<String, Set<String>> keywordMap = new HashMap<>();
@@ -586,7 +586,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         /**
          * Loads every csv-spec test case on the test classpath via the same machinery
-         * {@link CsvIT#readScriptSpec} uses for the parameterized factory. Used by
+         * {@link AbstractCsvIT#readScriptSpec} uses for the parameterized factory. Used by
          * {@link #computeLookupJoinFieldExclusions} to scan the corpus once at startup;
          * propagating the unchecked exceptions out of here is acceptable because the strategy
          * cannot operate without knowing which fields participate in any {@code LOOKUP JOIN}.
@@ -914,7 +914,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         public void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) {
             // Workaround for https://github.com/elastic/elasticsearch/issues/151369
             // See BucketColumnMetadataIT#waitForAllTasks for additional context
-            assertNoTimeout(client.admin().cluster().prepareHealth(CsvIT.TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+            assertNoTimeout(
+                client.admin().cluster().prepareHealth(AbstractCsvIT.TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get()
+            );
         }
 
         /**

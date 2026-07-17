@@ -6,6 +6,7 @@
  */
 
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.esql.GenerateEsqlSpecTestsTask
 
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
@@ -173,6 +174,24 @@ interface Injected {
   @Inject
   FileSystemOperations getFs()
 }
+
+// Generates one Csv<PascalSpecName>IT per csv-spec file, each extending AbstractCsvIT (see its
+// Javadoc for why this doesn't reuse the EsqlCsvSpecTestsPlugin/Extension used by the REST-based
+// QA modules: that plugin creates its own csvSpecTest source set wired to javaRestTest, none of
+// which applies here -- generated classes just need to land in the existing internalClusterTest
+// source set, which already has every dependency (geoip fixtures, hadoop/parquet, etc.) they need.
+def generateCsvItTests = tasks.register('generateCsvItTests', GenerateEsqlSpecTestsTask) {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  packageName = 'org.elasticsearch.xpack.esql'
+  variantPrefixes = ['Csv']
+  variantBaseClasses = ['AbstractCsvIT']
+  variantSpecFilePatterns = ['']
+  outputDirectory = layout.buildDirectory.dir('generated-csv-it-sources/java')
+  description = 'Generates one AbstractCsvIT subclass per csv-spec file.'
+  group = 'verification'
+}
+
+sourceSets.internalClusterTest.java.srcDir(generateCsvItTests)
 
 tasks.named('internalClusterTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.ESTestCase'

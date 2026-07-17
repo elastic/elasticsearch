@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
  *       characters plus {@code *}, {@code -}, and {@code .}.</li>
  *   <li>{@code ENRICH &lt;policy&gt;} clauses. Enrich policies reference enrich indices (not
  *       datasets in {@link CsvTestsDataLoader#CSV_DATASET}); the policy's source dataset is loaded
- *       separately by {@link CsvIT} and does not need to feed into this scoping.</li>
+ *       separately by {@link AbstractCsvIT} and does not need to feed into this scoping.</li>
  * </ul>
  *
  * String literals ({@code "..."} and {@code """..."""}) and line comments ({@code // ...}) are
@@ -133,7 +133,7 @@ public final class EsqlQueryDatasetResolver {
 
     /**
      * Minimum prefix length for a wildcard pattern such as {@code abc*} to participate in
-     * resolution. Matches the same guard {@link CsvIT} enforces &mdash; below this threshold the
+     * resolution. Matches the same guard {@link AbstractCsvIT} enforces &mdash; below this threshold the
      * pattern would match too broadly to be useful, and csv-spec authors are expected to use a
      * longer prefix.
      */
@@ -174,7 +174,7 @@ public final class EsqlQueryDatasetResolver {
 
     /**
      * Resolves a set of index patterns to the matching {@link CsvTestsDataLoader.TestDataset}
-     * entries from {@code datasetsByName}. The resolution mirrors {@code CsvIT.loadIndices}
+     * entries from {@code datasetsByName}. The resolution mirrors {@code AbstractCsvIT.loadIndices}
      * &mdash; exact match, suffix-wildcard prefix match, or universal {@code *}. Unknown exact
      * patterns are silently skipped; resolution is best-effort so that an unsupported pattern shape
      * only narrows the scoped keyword-path set, never throws.

@@ -191,6 +191,7 @@ public final class MappedColumns {
     }
 
     private static final class WindowedBinaryColumn extends BinaryColumn implements SliceableColumn {
+
         private final BytesRef[] values;
         private final int from;
         private final int count;
@@ -213,6 +214,11 @@ public final class MappedColumns {
                 }
             }
             return true;
+        }
+
+        @Override
+        public SliceableColumn slice(int from, int count) {
+            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
         }
 
         @Override

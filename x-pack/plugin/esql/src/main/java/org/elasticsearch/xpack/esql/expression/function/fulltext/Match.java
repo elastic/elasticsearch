@@ -407,7 +407,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     @Override
-    protected boolean isRuntimeSearch() {
+    public boolean isRuntimeSearch() {
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
         if (fieldAttribute == null) {
             // This *isn't* a field in the index OR a pushed block loader

@@ -496,7 +496,7 @@ public class ExternalSourceResolver {
         resolveSource(path, config, hints, hivePartitioning, declaredMapping, requiresStats, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
-            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isStrict(declaredMapping) == false
+            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
                 ? applyNonStrictOverlay(resolvedSource, declaredMapping)
                 : resolvedSource;
             resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
@@ -634,7 +634,7 @@ public class ExternalSourceResolver {
 
         // Strict declaration is the entire schema: build directly from the declaration (one bounded anchor footer read
         // for columnar coercibility), no inference. The non-strict overlay is applied by the caller after this returns.
-        if (isStrict(declaredMapping)) {
+        if (isDeclaredSchema(declaredMapping)) {
             listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
             return;
         }
@@ -699,7 +699,7 @@ public class ExternalSourceResolver {
         // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
         // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
         // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
-        if (isStrict(declaredMapping)) {
+        if (isDeclaredSchema(declaredMapping)) {
             listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, hivePartitioning, config, declaredMapping));
             return;
         }
@@ -2286,7 +2286,7 @@ public class ExternalSourceResolver {
         }
     }
 
-    private static boolean isStrict(@Nullable DatasetMapping declaredMapping) {
+    private static boolean isDeclaredSchema(@Nullable DatasetMapping declaredMapping) {
         return declaredMapping != null
             && declaredMapping.mappings() != null
             && declaredMapping.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
@@ -2318,7 +2318,12 @@ public class ExternalSourceResolver {
             }
             dateFormats = collected;
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns);
+        // The one place the reading mode is read: it selects the schema's PROVENANCE and is consumed here, never
+        // travelling. A strict schema is a DECLARED claim about the file (bind by name, report absent columns);
+        // a dynamic schema was INFERRED from the file, so position already equals physical position. Every downstream
+        // read-time decision keys on the provenance the data node receives, not on the mode.
+        SchemaProvenance provenance = isDeclaredSchema(declaredMapping) ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 
     /**

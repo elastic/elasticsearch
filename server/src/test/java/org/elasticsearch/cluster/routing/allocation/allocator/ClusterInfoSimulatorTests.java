@@ -880,8 +880,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         {
             var sourceNodeHeapBeforeRelocation = nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate().totalHeapUsage();
             var targetNodeHeapBeforeRelocation = nodeHeapUsages.get(targetNodeId).nodeHeapEstimate().totalHeapUsage();
-            var sourceHostedSharesBeforeRelocation = nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate().hostedShardsHeapUsage();
-            var targetHostedSharesBeforeRelocation = nodeHeapUsages.get(targetNodeId).nodeHeapEstimate().hostedShardsHeapUsage();
+            var sourceHostedShardsBeforeRelocation = nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate().hostedShardsHeapUsage();
+            var targetHostedShardsBeforeRelocation = nodeHeapUsages.get(targetNodeId).nodeHeapEstimate().hostedShardsHeapUsage();
 
             var relocationShards = allocation.routingNodes()
                 .relocateShard(
@@ -956,12 +956,12 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + sourceNodeId
                     + " to have decreased by only the shard's heap usage, even though the index was also removed from the node",
                 nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate().hostedShardsHeapUsage(),
-                equalTo(sourceHostedSharesBeforeRelocation - shardHeapUsage)
+                equalTo(sourceHostedShardsBeforeRelocation - shardHeapUsage)
             );
             assertThat(
                 "Expected the hosted-shards heap usage for node " + targetNodeId + " to have increased by only the shard's heap usage",
                 nodeHeapUsages.get(targetNodeId).nodeHeapEstimate().hostedShardsHeapUsage(),
-                equalTo(targetHostedSharesBeforeRelocation + shardHeapUsage)
+                equalTo(targetHostedShardsBeforeRelocation + shardHeapUsage)
             );
         }
 

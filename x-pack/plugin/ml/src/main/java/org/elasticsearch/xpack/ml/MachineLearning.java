@@ -805,13 +805,14 @@ public class MachineLearning extends Plugin
     );
 
     /**
-     * When enabled, user-initiated {@code project_routing} changes on a datafeed require the associated job to be
-     * closed and auto-retain the job's current model snapshot before the routing update is persisted.
+     * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
+     * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
+     * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
      */
     public static final Setting<Boolean> REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE = Setting.boolSetting(
         "xpack.ml.datafeed.require_rollback_snapshot_before_scope_change",
         true,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
 
@@ -1142,6 +1143,7 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
+            clusterService,
             client,
             machineLearningExtension.get(),
             anomalyDetectionAuditor

@@ -106,6 +106,15 @@ These settings are for advanced use cases; the default values are generally suff
 `xpack.ml.enable_config_migration`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Reserved. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
 
+`xpack.ml.datafeed.require_rollback_snapshot_before_scope_change`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting))
+    Reserved. When `true` (the default), a user-initiated datafeed `project_routing` change
+    requires the associated anomaly detection job to be closed and auto-retains the job's
+    current model snapshot before the routing update is persisted. When `false`, that
+    guard is skipped. Use `false` only as an operational escape hatch—for example, if
+    snapshot retain is blocking legitimate scope updates. When the {{operator-feature}}
+    is enabled, this setting can be updated only by operator users.
+
 `xpack.ml.max_anomaly_records`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum number of records that are output per bucket. Defaults to `500`.
 

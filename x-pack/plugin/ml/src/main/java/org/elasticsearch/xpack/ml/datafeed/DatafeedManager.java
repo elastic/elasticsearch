@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -101,12 +102,14 @@ public final class DatafeedManager {
     private final CredentialTransitions credentialTransitions;
     private final Supplier<CloudCredentialManager> credentialManagerSupplier;
     private final AnomalyDetectionAuditor auditor;
+    private volatile boolean requireRollbackSnapshotBeforeScopeChange;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
         JobConfigProvider jobConfigProvider,
         NamedXContentRegistry xContentRegistry,
         Settings settings,
+        ClusterService clusterService,
         Client client,
         MachineLearningExtension mlExtension,
         AnomalyDetectionAuditor auditor
@@ -129,6 +132,16 @@ public final class DatafeedManager {
             datafeedConfigProvider,
             crossProjectModeDecider
         );
+        requireRollbackSnapshotBeforeScopeChange = MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
+                this::setRequireRollbackSnapshotBeforeScopeChange
+            );
+    }
+
+    private void setRequireRollbackSnapshotBeforeScopeChange(boolean requireRollbackSnapshotBeforeScopeChange) {
+        this.requireRollbackSnapshotBeforeScopeChange = requireRollbackSnapshotBeforeScopeChange;
     }
 
     private boolean crossProjectMlEnabled() {
@@ -405,7 +418,7 @@ public final class DatafeedManager {
         DatafeedUpdate rawUpdate
     ) {
         return crossProjectMlEnabled()
-            && MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE.get(settings)
+            && requireRollbackSnapshotBeforeScopeChange
             && defaultedProjectRoutingForMigration == false
             && isEffectiveScopeChange(current, rawUpdate);
     }

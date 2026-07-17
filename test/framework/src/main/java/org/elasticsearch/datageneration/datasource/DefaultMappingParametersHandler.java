@@ -353,7 +353,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")),
                 Map.of("multi_value", false, "on_failure", "ignore"),
                 Map.of("nullability", false, "on_failure", "ignore")
-            ));
+            )
+        );
     }
 
     @Override

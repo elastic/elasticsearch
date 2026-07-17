@@ -1,4 +1,5 @@
 import type { ClassifiedTest, TestRef } from "../domain.ts";
+import type { JavaSourceReader } from "./abstract.ts";
 import { locateTest } from "./locator.ts";
 
 export interface UnresolvedSpec {
@@ -24,7 +25,8 @@ export interface ExplicitListResult {
  */
 export function classifyExplicitList(
   specs: string[],
-  repoFiles: string[]
+  repoFiles: string[],
+  readSource?: JavaSourceReader
 ): ExplicitListResult {
   const located: ClassifiedTest[] = [];
   const unlocated: UnresolvedSpec[] = [];
@@ -34,7 +36,7 @@ export function classifyExplicitList(
     if (spec === "") continue;
 
     const ref = parseSpec(spec);
-    const result = locateTest(ref, repoFiles);
+    const result = locateTest(ref, repoFiles, readSource);
     if (result === null) {
       unlocated.push({ spec });
     } else {

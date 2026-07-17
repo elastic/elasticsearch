@@ -97,4 +97,21 @@ describe("locateTest", () => {
       locateTest(ref, ["server/src/main/java/org/elasticsearch/NotATest.java"])
     ).toBeNull();
   });
+
+  test("returns null for an abstract base class when a reader is supplied", () => {
+    const ref: TestRef = { className: "org.elasticsearch.index.IndexTests" };
+    const readSource = () => "public abstract class IndexTests extends ESTestCase {}";
+    expect(locateTest(ref, repoFiles, readSource)).toBeNull();
+  });
+
+  test("still locates a concrete class when a reader is supplied", () => {
+    const ref: TestRef = { className: "org.elasticsearch.index.IndexTests" };
+    const readSource = () => "public class IndexTests extends ESTestCase {}";
+    expect(locateTest(ref, repoFiles, readSource)).toEqual({
+      gradleProject: ":server",
+      kind: "test",
+      sourceSet: "test",
+      fqcn: "org.elasticsearch.index.IndexTests",
+    });
+  });
 });

@@ -139,4 +139,30 @@ describe("classifyChangedFiles", () => {
     expect(result[0].kind).toBe("test");
     expect(result[1].kind).toBe("javaRestTest");
   });
+
+  test("skips an abstract class whose name matches the *Tests convention (with reader)", () => {
+    const abstractPath = "server/src/test/java/org/elasticsearch/index/codec/AbstractDocValuesFormatTests.java";
+    const concretePath = "server/src/test/java/org/elasticsearch/index/IndexTests.java";
+    const sources: Record<string, string> = {
+      [abstractPath]: "public abstract class AbstractDocValuesFormatTests extends ESTestCase {}",
+      [concretePath]: "public class IndexTests extends ESTestCase {}",
+    };
+
+    const result = classifyChangedFiles([abstractPath, concretePath], (p) => sources[p] ?? null);
+    expect(result).toEqual([
+      {
+        gradleProject: ":server",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.index.IndexTests",
+      },
+    ]);
+  });
+
+  test("without a reader, an abstract-named-*Tests class is still classified (back-compat)", () => {
+    const result = classifyChangedFiles([
+      "server/src/test/java/org/elasticsearch/index/codec/AbstractDocValuesFormatTests.java",
+    ]);
+    expect(result).toHaveLength(1);
+  });
 });

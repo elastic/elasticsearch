@@ -172,9 +172,11 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 | --------------- | ------------------------------------------------------------------------------ |
 | `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout markers)        |
 | `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout            |
-| `infra_fail`    | `rc == 137` short run (`oom_killed`), or any other non-zero `rc` with no real failures |
+| `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
 | `hang`          | `rc == 0` but zero recorded test cases                                          |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
+| `not_applicable`| assigned upstream (not by `deriveOutcome`) for a test that could not be re-run at all, e.g. a BWC qa project whose bare task is disabled - "nothing to re-run", excluded from the false-failure metric |
+| `build_failed`  | assigned upstream when the pre-flight compile gate fails: the PR did not compile, so the re-run batches were skipped. One record stands in for the skipped batches; excluded from the false-failure metric (the PR is already red from its main build) |
 
 `timedOut` is reported alongside `outcome` so the two timeout shapes stay
 distinguishable: a job that times out **with** a real failure is
@@ -182,11 +184,14 @@ distinguishable: a job that times out **with** a real failure is
 positive), while a job that times out with **no** failing run is `timeout`
 (`timedOut=true`) — the false positive we want to drive down.
 
-`infraSubtype` is only ever `oom_killed` (rc 137 + short run, decided without a
-log). Finer infra subtypes (disk-full, etc.) would require the job log, which CI
-cannot read, so they are left unset. Jobs that fail *before* the wrapper runs
-(e.g. a pre-command hook failure) write no status file and so produce no
-payload; the external pipeline records those as `infra_fail` from job state.
+`infraSubtype` is `oom_killed` (rc 137 + short run, the kernel OOM-killer) or
+`oom` (a JVM-heap `OutOfMemoryError`: rc != 0 with a `*/build/heapdump/*.hprof`
+file present, detected by the never-fail wrapper; the analyze step does not read
+the job log). Finer infra subtypes (disk-full, etc.) would require the job log,
+which we currently choose not to read, so they are left unset. Jobs that fail
+*before* the wrapper runs (e.g. a pre-command hook failure) write no status file
+and so produce no payload; the external pipeline records those as `infra_fail`
+from job state.
 
 ## File layout
 
@@ -198,6 +203,8 @@ flakiness-detection/
     changed-files.ts     git-diff source
     unmutes.ts           muted-tests.yml diff source
     explicit-list.ts     FQCN list source
+    bwc.ts               BWC-project detection → not_applicable partition
+    abstract.ts          skips abstract base classes (their --tests matches nothing)
   commands.ts            dedupe / collapse / batch / emit RunnableCommand[]
   runners/
     buildkite.ts         RunnableCommand[] → BK YAML + upload (wraps + writes per-job status file)

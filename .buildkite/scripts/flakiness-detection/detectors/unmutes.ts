@@ -4,6 +4,7 @@ import type {
   ClassifiedTest,
   TestRef,
 } from "../domain.ts";
+import type { JavaSourceReader } from "./abstract.ts";
 import { locateTest } from "./locator.ts";
 
 interface RawMutedTest {
@@ -58,7 +59,8 @@ export interface UnmuteDetectionResult {
 export function findUnmutedTests(
   oldYamlText: string,
   newYamlText: string,
-  repoFiles: string[]
+  repoFiles: string[],
+  readSource?: JavaSourceReader
 ): UnmuteDetectionResult {
   const before = parseMutedEntries(oldYamlText);
   const after = parseMutedEntries(newYamlText);
@@ -67,7 +69,7 @@ export function findUnmutedTests(
   const located: ClassifiedTest[] = [];
   const unlocated: TestRef[] = [];
   for (const entry of unmuted) {
-    const test = locateTest(entry, repoFiles);
+    const test = locateTest(entry, repoFiles, readSource);
     if (test === null) {
       unlocated.push(entry);
     } else {

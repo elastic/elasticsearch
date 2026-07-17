@@ -9,6 +9,8 @@ import {
   toGradleProject,
 } from "../domain.ts";
 
+import { isAbstractTestClass, type JavaSourceReader } from "./abstract.ts";
+
 const YAML_METHOD_REGEX = /^test \{yaml=.+\}$/;
 
 /**
@@ -18,12 +20,21 @@ const YAML_METHOD_REGEX = /^test \{yaml=.+\}$/;
  * explicit-list detector (resolving developer-supplied specs).
  *
  * Returns `null` when no source file matches the className — typically because
- * the class was deleted in the same PR.
+ * the class was deleted in the same PR — or, when `readSource` is supplied, when
+ * the class is an abstract base class (its `--tests` filter would match nothing
+ * and pass silently as a hang).
  */
-export function locateTest(ref: TestRef, repoFiles: string[]): ClassifiedTest | null {
+export function locateTest(ref: TestRef, repoFiles: string[], readSource?: JavaSourceReader): ClassifiedTest | null {
   const pathSuffix = ref.className.replace(/\./g, "/") + ".java";
   const candidate = repoFiles.find((f) => f === pathSuffix || f.endsWith("/" + pathSuffix));
   if (candidate === undefined) return null;
+
+  if (readSource) {
+    const source = readSource(candidate);
+    if (source && isAbstractTestClass(source, ref.className.split(".").pop()!)) {
+      return null;
+    }
+  }
 
   for (const pattern of SOURCE_SET_PATTERNS) {
     const match = candidate.match(pattern.regex);

@@ -12,10 +12,13 @@ package org.elasticsearch.gradle.internal.esql;
 import org.elasticsearch.gradle.test.JavaRestTestPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 /**
  * Sets up the {@code csvSpecTest} source set for per-csv-spec-file ES|QL test generation.
@@ -57,8 +60,8 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        var extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
-        var generateEsqlSpecTestsTaskTaskProvider = project.getTasks()
+        EsqlCsvSpecTestsExtension extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
+        TaskProvider<GenerateEsqlSpecTestsTask> generateEsqlSpecTestsTaskTaskProvider = project.getTasks()
             .register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
                 task.getSpecFilesDir().set(extension.getSpecFilesDir());
                 task.getPackageName().set(extension.getPackageName());
@@ -76,25 +79,31 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
             SourceSet csvSpecTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
             csvSpecTestSourceSet.getJava().srcDir(generateEsqlSpecTestsTaskTaskProvider);
 
-            // Wire csvSpecTest against javaRestTest whenever javaRestTest is created. Using
-            // sourceSets.all fires for both already-existing and future source sets, so this
-            // works regardless of plugin application order without resorting to afterEvaluate.
-            // csvSpecTest compiles against javaRestTest output (Clusters, abstract IT bases)
-            // and inherits all of javaRestTest's compile and runtime dependencies — the same
-            // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
-            // from javaRestTest into the csv runner is prevented by testClassesDirs being
-            // scoped to csvSpecTest output only.
-            sourceSets.forEach(ss -> {
-                if (JavaRestTestPlugin.JAVA_REST_TEST.equals(ss.getName())) {
-                    project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), ss.getOutput());
-                    project.getConfigurations()
-                        .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())
-                        .configure(c -> c.extendsFrom(project.getConfigurations().getByName(ss.getCompileClasspathConfigurationName())));
-                    project.getConfigurations()
-                        .named(csvSpecTestSourceSet.getRuntimeClasspathConfigurationName())
-                        .configure(c -> c.extendsFrom(project.getConfigurations().getByName(ss.getRuntimeClasspathConfigurationName())));
+            // Wire the csvSpecTest compile and runtime classpaths to inherit from the parent source
+            // set lazily. Using project.files() with a Provider ensures the extension property
+            // (parentSourceSet) is read only when the file collection is resolved — after all build
+            // scripts have been evaluated — so the consuming module's esqlCsvSpecTests { } block
+            // has already set the value. This avoids afterEvaluate while still being lazy.
+            Provider<String> parentName = extension.getParentSourceSet().orElse(JavaRestTestPlugin.JAVA_REST_TEST);
+            FileCollection lazyParentCompile = project.files(parentName.map(name -> {
+                SourceSet parent = sourceSets.findByName(name);
+                if (parent == null) {
+                    return project.files();
                 }
-            });
+                // Use the source-set-level classpath (not the raw configuration) so that any
+                // file-collection additions made by GradleUtils.extendSourceSet — which uses
+                // SourceSet.setCompileClasspath rather than configuration extension — are included.
+                return project.files(parent.getOutput(), parent.getCompileClasspath());
+            }));
+            FileCollection lazyParentRuntime = project.files(parentName.map(name -> {
+                SourceSet parent = sourceSets.findByName(name);
+                if (parent == null) {
+                    return project.files();
+                }
+                return project.files(parent.getOutput(), parent.getRuntimeClasspath());
+            }));
+            csvSpecTestSourceSet.setCompileClasspath(project.files(csvSpecTestSourceSet.getCompileClasspath(), lazyParentCompile));
+            csvSpecTestSourceSet.setRuntimeClasspath(project.files(csvSpecTestSourceSet.getRuntimeClasspath(), lazyParentRuntime));
         });
     }
 }

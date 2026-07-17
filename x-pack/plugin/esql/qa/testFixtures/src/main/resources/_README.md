@@ -10,8 +10,17 @@ As such, most of ESQL's integration tests are CSV-SPEC tests.
 ## Running
 
 CSV-SPEC tests run in lots of different ways. The simplest way to run a
-CSV-SPEC test is to open ESQL's `CsvIT.java` and run it right in IntelliJ using
-the unit runner. As of this writing that runs 6,123 tests in less than 2 minutes.
+CSV-SPEC test against an InternalTestCluster is the `csvInternalClusterTest`
+Gradle task. Each `*.csv-spec` file gets its own generated test class named
+`Csv<PascalCaseName>IT` in `org.elasticsearch.xpack.esql` (e.g.
+`stats_first_last.csv-spec` → `CsvStatsFirstLastIT`). Run a single file:
+
+```bash
+./gradlew ":x-pack:plugin:esql:csvInternalClusterTest" \
+  --tests "org.elasticsearch.xpack.esql.CsvStatsFirstLastIT"
+```
+
+Append `.*<test-name>*` to target a single test within the file.
 
 The second-simplest way to run the CSV-SPEC tests is to run `EsqlSpecIT` in
 `:x-pack:plugin:esql:qa:server:single-node` via the Gradle runner in IntelliJ

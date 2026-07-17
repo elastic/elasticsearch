@@ -47,6 +47,12 @@ import java.util.StringJoiner;
  *     variant 'EsqlSpec', 'AbstractEsqlSpecIT', 'external-*.csv-spec', 'parquet-*.csv-spec'  // filtered
  * }
  * }</pre>
+ *
+ * <p>By default the {@code csvSpecTest} source set inherits compile and runtime dependencies
+ * from the {@code javaRestTest} source set, which is the right choice for REST-based QA modules.
+ * For modules that use an {@code InternalTestCluster} instead of an external cluster, set
+ * {@link #getParentSourceSet()} to the name of the source set whose dependencies should be
+ * inherited (e.g. {@code "internalClusterTest"}).
  */
 public abstract class EsqlCsvSpecTestsExtension {
 
@@ -55,6 +61,14 @@ public abstract class EsqlCsvSpecTestsExtension {
 
     /** Java package for the generated test classes (e.g. {@code org.elasticsearch.xpack.esql.qa.single_node}). */
     public abstract Property<String> getPackageName();
+
+    /**
+     * Name of the source set whose compile and runtime configurations {@code csvSpecTest} should
+     * extend. Defaults to {@code "javaRestTest"} for REST-based QA modules. Set to
+     * {@code "internalClusterTest"} (or any other source set name) for modules that run against
+     * an {@code InternalTestCluster}.
+     */
+    public abstract Property<String> getParentSourceSet();
 
     private final List<String> variantPrefixes = new ArrayList<>();
     private final List<String> variantBaseClasses = new ArrayList<>();

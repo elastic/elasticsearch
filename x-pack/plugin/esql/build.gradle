@@ -6,8 +6,6 @@
  */
 
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.esql.GenerateEsqlSpecTestsTask
-
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 plugins {
@@ -17,6 +15,7 @@ plugins {
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
@@ -91,6 +90,12 @@ dependencies {
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
+
+  // AbstractCsvIT and related classes in csvSpecTest import esql-core and esql main internals
+  // directly; add the compiled main and test outputs and esql-core so they are on the compile classpath.
+  csvSpecTestImplementation(sourceSets.main.output)
+  csvSpecTestImplementation(sourceSets.test.output)
+  csvSpecTestImplementation(project(xpackModule('esql-core')))
 
   internalClusterTestImplementation(project('qa:testFixtures')) {
       transitive = false
@@ -175,23 +180,29 @@ interface Injected {
   FileSystemOperations getFs()
 }
 
-// Generates one Csv<PascalSpecName>IT per csv-spec file, each extending AbstractCsvIT (see its
-// Javadoc for why this doesn't reuse the EsqlCsvSpecTestsPlugin/Extension used by the REST-based
-// QA modules: that plugin creates its own csvSpecTest source set wired to javaRestTest, none of
-// which applies here -- generated classes just need to land in the existing internalClusterTest
-// source set, which already has every dependency (geoip fixtures, hadoop/parquet, etc.) they need.
-def generateCsvItTests = tasks.register('generateCsvItTests', GenerateEsqlSpecTestsTask) {
+esqlCsvSpecTests {
   specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
   packageName = 'org.elasticsearch.xpack.esql'
-  variantPrefixes = ['Csv']
-  variantBaseClasses = ['AbstractCsvIT']
-  variantSpecFilePatterns = ['']
-  outputDirectory = layout.buildDirectory.dir('generated-csv-it-sources/java')
-  description = 'Generates one AbstractCsvIT subclass per csv-spec file.'
-  group = 'verification'
+  parentSourceSet = 'internalClusterTest'
+  variant 'Csv', 'AbstractCsvIT'
 }
 
-sourceSets.internalClusterTest.java.srcDir(generateCsvItTests)
+tasks.register('csvInternalClusterTest', Test) {
+  group = JavaBasePlugin.VERIFICATION_GROUP
+  description = 'Runs the per-csv-spec-file CsvXxxIT tests against an InternalTestCluster.'
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  dependsOn generateEsqlSpecTests
+  mustRunAfter tasks.named('test')
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
+  // https://bugs.openjdk.org/browse/JDK-8367990
+  jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:+UseG1GC'
+  systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
+  if (OS.current() == OS.WINDOWS) {
+    systemProperty 'es.geoip.load_db_on_heap', 'true'
+  }
+}
+tasks.named('check').configure { dependsOn 'csvInternalClusterTest' }
 
 tasks.named('internalClusterTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.ESTestCase'

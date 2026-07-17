@@ -10,25 +10,21 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Grafts the out-of-band request {@code filter} onto external-source (dataset) leaves of an analyzed plan.
+ * Applies the out-of-band request {@code filter} to external-source (dataset) leaves of an analyzed plan.
  *
- * <p>For each {@link ExternalRelation}, the filter is translated against that relation's exposed schema (a present
- * field binds to its attribute, a missing field to {@link Literal#NULL}) and wrapped as an ordinary {@link Filter}
- * above the relation. From there the existing optimizer pushes it down and the engine evaluates it — the grafted
- * filter is indistinguishable from a user-written {@code WHERE}. Index leaves keep their existing path and are not
- * touched here.
+ * <p>This is the request-filter <em>policy</em> over the source-agnostic {@link FilterGraft} mechanism: it targets
+ * {@link ExternalRelation} leaves, version-gates the rewrite (below), and turns each clause the translator could not
+ * apply into a response-header warning. {@code FilterGraft} does the actual work — translating the DSL against each
+ * targeted node's schema and wrapping it as an ordinary {@code Filter}, so from there the existing optimizer pushes it
+ * down and the engine evaluates it, indistinguishable from a user-written {@code WHERE}. Extending the request filter
+ * to other source boundaries (a view, say) is a change of the target predicate here, not of the mechanism. Index leaves
+ * keep their existing (pre-analysis) request-filter path and are not touched.
  *
  * <p>A construct outside the supported subset is dropped per-clause with a superset substitution (partial application):
  * every supported clause of the filter still applies, and the unsupported clause is skipped in the direction that
@@ -38,7 +34,7 @@ import java.util.Map;
  * the relation is read unfiltered.
  *
  * <p>The graft is version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do not
- * have; the grafted {@link Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
+ * have; the grafted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
  * an older node would fail to deserialize it. Below {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped
  * entirely — datasets are read unfiltered (the pre-feature behavior) with a warning — rather than shipping a plan a
  * peer cannot read. This mirrors how the analyzer and verifier gate version-sensitive rewrites on
@@ -64,29 +60,14 @@ public final class RequestFilterGraft {
             warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
             return analyzed;
         }
-        LogicalPlan grafted = analyzed.transformUp(ExternalRelation.class, relation -> {
-            Map<String, Attribute> byName = new HashMap<>();
-            for (Attribute a : relation.output()) {
-                byName.put(a.name(), a);
-            }
-            QueryDslTranslator translator = new QueryDslTranslator(name -> {
-                Attribute a = byName.get(name);
-                return a != null ? a : Literal.NULL;
-            }, byName.keySet(), nowInMillis, true);
-            // Partial application: an unsupported clause is not fatal — the translator drops it with a superset
-            // substitution (so the result over-matches, never silently dropping rows) and records it, while every
-            // supported clause still applies. Each dropped clause is surfaced as a header warning naming its effect.
-            Expression condition = translator.translate(requestFilter);
-            for (QueryDslTranslator.DroppedClause clause : translator.droppedClauses()) {
-                warnDropped(relation, clause);
-            }
-            // A wholly-unsupported filter folds to TRUE (a no-op); leave the source unfiltered rather than graft it.
-            return condition == Literal.TRUE ? relation : new Filter(relation.source(), relation, condition);
-        });
-        // The grafted Filter and the rebuilt spine above it are fresh nodes at stage NEW; the plan was already
-        // analyzed, so mark the (idempotent for unchanged nodes) tree analyzed to satisfy the pre-optimizer.
-        grafted.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
-        return grafted;
+        // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
+        return FilterGraft.graftFilterAt(
+            analyzed,
+            ExternalRelation.class::isInstance,
+            requestFilter,
+            nowInMillis,
+            (node, clause) -> warnDropped((ExternalRelation) node, clause)
+        );
     }
 
     /**

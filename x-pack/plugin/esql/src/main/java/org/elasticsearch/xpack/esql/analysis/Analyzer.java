@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
@@ -1624,12 +1626,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            List<Attribute> outputUnion = Fork.outputUnion(fork.children());
-            List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
-            // FORK branches share one source index, so load-align across them; subqueries/views (UnionAll) read independent
+            // FORK branches share one source index, so align across them; subqueries/views (UnionAll) read independent
             // sources and are handled in ResolveUnmapped. See #142033.
-            boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
-            Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
+            boolean alignUnmappedAcrossBranches = switch (unmappedResolution) {
+                case LOAD, NULLIFY -> fork instanceof UnionAll == false;
+                case DEFAULT -> false;
+            };
+            List<Attribute> outputUnion = Fork.outputUnion(fork.children());
+            // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
+            // output, so Fork.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping branch
+            // then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null everywhere
+            // and isn't a real column.
+            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
+                addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
+            }
+            List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            Set<String> forkMaterializedUnmappedFieldNames = alignUnmappedAcrossBranches ? materializedUnmappedFieldNames(fork) : Set.of();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -1646,12 +1658,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Alias> aliases = new ArrayList<>(missing.size());
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
-                    // A keyword loaded from _source in a sibling branch is loaded here too (not null-filled), unless this branch
-                    // can't surface it. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
-                    if (loadAlignAcrossBranches
-                        && forkLoadableUnmappedKeywordNames.contains(attr.name())
+                    // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
+                    // branch can't surface it: loaded from _source under load, null-typed under nullify. This keeps the branches' source
+                    // relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
+                    if (alignUnmappedAcrossBranches
+                        && forkMaterializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
-                        toLoad.add(unmappedKeyword(attr));
+                        toLoad.add(unmappedResolution == UnmappedResolution.LOAD ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
@@ -1665,7 +1678,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
                 }
 
-                // load the unmapped keyword fields from this branch's own source relation so they surface in its output
+                // materialize the unmapped fields in this branch's own source relation so they surface in its output
                 if (toLoad.isEmpty() == false) {
                     LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
                         if (esr.indexMode() == IndexMode.LOOKUP) {
@@ -1751,10 +1764,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Names loaded as unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) by any FORK branch's {@link EsRelation}.
-         * Scans the relations, not branch outputs, so a referencing generating command (EVAL/MV_EXPAND/...) can't hide the origin.
+         * Names of unmapped fields materialized by any FORK branch's {@link EsRelation}: {@link PotentiallyUnmappedKeywordEsField} under
+         * {@code load}, {@link MissingEsField} under {@code nullify}. Scans the relations, not branch outputs, so a referencing generating
+         * command (EVAL/MV_EXPAND/...) can't hide the origin.
          */
-        private static Set<String> loadableUnmappedKeywordNames(Fork fork) {
+        private static Set<String> materializedUnmappedFieldNames(Fork fork) {
             Set<String> names = new HashSet<>();
             for (LogicalPlan branch : fork.children()) {
                 branch.forEachDown(EsRelation.class, esr -> {
@@ -1762,7 +1776,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return;
                     }
                     for (Attribute attr : esr.output()) {
-                        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                        if (attr instanceof FieldAttribute fa
+                            && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)) {
                             names.add(fa.name());
                         }
                     }
@@ -1772,8 +1787,67 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Whether a keyword loaded at this branch's source would reach the branch output: true only if walking column-preserving
-         * unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
+         * Unmapped fields a {@link Project} in a FORK branch drops outright, in the projection input but neither surfaced nor referenced
+         * (a plain {@code DROP}, not a {@code RENAME}). Detects both materialization markers: {@link PotentiallyUnmappedKeywordEsField}
+         * under {@code load} and {@link MissingEsField} under {@code nullify}. Keyed by name, first occurrence wins. A field consumed by an
+         * {@link Aggregate} (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a
+         * {@code FORK} column.
+         */
+        private static Map<String, FieldAttribute> unmappedFieldsDroppedByProjection(Fork fork) {
+            Map<String, FieldAttribute> byName = new LinkedHashMap<>();
+            for (LogicalPlan branch : fork.children()) {
+                branch.forEachDown(Project.class, project -> {
+                    Set<String> survivingNames = project.outputSet().names();
+                    Set<String> referencedNames = project.references().names();
+                    for (Attribute attr : project.child().output()) {
+                        if (attr instanceof FieldAttribute fa
+                            // We can ignore PUNKs here since they are by definition mapped in some indices (whereas
+                            // PotentiallyUnmappedKeywordEsField can be entirely unmapped).
+                            && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)
+                            && survivingNames.contains(fa.name()) == false
+                            && referencedNames.contains(fa.name()) == false) {
+                            byName.putIfAbsent(fa.name(), fa);
+                        }
+                    }
+                });
+            }
+            return byName;
+        }
+
+        /**
+         * Mutates {@code outputUnion} in place, inserting a loader for each dropped unmapped fields missing from it right before the
+         * {@code _fork} discriminator, so a {@code DROP}-mentioned field lands where a {@code WHERE}/{@code KEEP}-mentioned one would and
+         * {@code _fork} stays last.
+         */
+        private static void addDroppedUnmappedFieldsMissingFromUnion(
+            List<Attribute> outputUnion,
+            Map<String, FieldAttribute> droppedUnmappedFields
+        ) {
+            if (droppedUnmappedFields.isEmpty()) {
+                return;
+            }
+            Set<String> unionNames = new HashSet<>(Expressions.names(outputUnion));
+            List<Attribute> loaders = new ArrayList<>();
+            for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedFields.entrySet()) {
+                if (unionNames.contains(entry.getKey()) == false) {
+                    FieldAttribute dropped = entry.getValue();
+                    // Match how the field was materialized: a nullified MissingEsField under nullify, else an unmapped keyword under load.
+                    loaders.add(dropped.field() instanceof MissingEsField ? nullifyField(dropped) : unmappedKeyword(dropped));
+                }
+            }
+            if (loaders.isEmpty()) {
+                return;
+            }
+            int forkFieldIndex = Iterables.indexOf(outputUnion, a -> a.name().equals(Fork.FORK_FIELD));
+            if (forkFieldIndex < 0) {
+                forkFieldIndex = outputUnion.size();
+            }
+            outputUnion.addAll(forkFieldIndex, loaders);
+        }
+
+        /**
+         * Whether an unmapped field materialized at this branch's source would reach the branch output: true only if walking
+         * column-preserving unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
             if (plan instanceof EsRelation esRelation) {
@@ -1862,6 +1936,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attribute.qualifier(),
                 attribute.name(),
                 new PotentiallyUnmappedKeywordEsField(attribute.name())
+            );
+        }
+
+        /**
+         * A {@link FieldAttribute} backed by a {@link MissingEsField} of type {@link DataType#NULL}, i.e., the
+         * {@code unmapped_fields="nullify"} marker.
+         */
+        public static FieldAttribute nullifyField(Attribute attribute) {
+            return new FieldAttribute(
+                attribute.source(),
+                null,
+                attribute.qualifier(),
+                attribute.name(),
+                new MissingEsField(attribute.name())
             );
         }
 

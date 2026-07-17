@@ -1162,6 +1162,90 @@ _fork:keyword  | x:long
 fork1          | 12
 ;
 
+
+nullifyUnmappedFieldForkDropInOneBranchNullFillsBothBranches
+required_capability: optional_fields_fork_drop_materializes_siblings
+required_capability: fork_v9
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:null | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                  | fork1
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                  | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                  | fork1
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                  | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                  | fork1
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                  | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | null                  | fork1
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | null                  | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | null                  | fork1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | null                  | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | null                  | fork1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | null                  | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | null                  | fork1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | null                  | fork2
+;
+
+
+nullifyUnmappedFieldForkDropInEveryBranchOmitsIt
+required_capability: optional_fields_fork_drop_materializes_siblings
+required_capability: fork_v9
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (DROP unmapped_message)
+| SORT @timestamp, _fork
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2
+;
+
+
+nullifyUnmappedFieldForkDropExactAndWildcardInEveryBranchOmitsIt
+required_capability: optional_fields_fork_drop_materializes_siblings
+required_capability: fork_v9
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (DROP unmapped_m*)
+| SORT @timestamp, _fork
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2
+;
+
 // Reproducer for https://github.com/elastic/elasticsearch/issues/142616
 flattenedSubfieldNullified
 required_capability: optional_fields_fix_nullify_flattened_subfield

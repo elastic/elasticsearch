@@ -727,3 +727,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.renameDerivedGroupingPrune [ndjson.bz/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/154238
+- class: org.elasticsearch.reindex.ReindexerTests
+  method: testRemoteReindexClosesRemoteInfoOnNormalCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/154294

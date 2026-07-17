@@ -22,6 +22,7 @@ import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -287,7 +288,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         protected final int dimensions;
         protected final int bulkSize;
 
-        private byte[] scratch;
+        protected final BufferScratch scratch = new BufferScratch();
 
         /**
          * Creates a new MemorySegmentScorer. The index input must be a
@@ -331,13 +332,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                     scores[i] = 0;
                 }
             }
-        }
-
-        protected byte[] getScratch(int len) {
-            if (scratch == null || scratch.length < len) {
-                scratch = new byte[len];
-            }
-            return scratch;
         }
 
         /**

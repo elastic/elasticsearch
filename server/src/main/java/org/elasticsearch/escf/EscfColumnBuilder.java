@@ -700,7 +700,7 @@ final class EscfColumnBuilder {
             return EscfColumnData.ofUnion(
                 docCount,
                 absent,
-                Arrays.copyOf(typeVec, docCount),
+                new BytesRef(Arrays.copyOf(typeVec, docCount)),
                 Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()
             );

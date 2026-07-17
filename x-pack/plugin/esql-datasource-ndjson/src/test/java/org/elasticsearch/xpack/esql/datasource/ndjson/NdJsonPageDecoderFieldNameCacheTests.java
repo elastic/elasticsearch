@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -55,9 +56,8 @@ public class NdJsonPageDecoderFieldNameCacheTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 

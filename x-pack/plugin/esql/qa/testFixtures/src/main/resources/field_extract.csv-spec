@@ -580,6 +580,25 @@ c:long
 0
 ;
 
+// The paranoid NOT + RECHECK case: != against a multi-value extract must null out (not count) the
+// multi-valued documents, exactly like ==
+multiValuedSubkeyDoesNotMatchScalarInequality
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: field_extract_returns_multi_value
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.ip") != "10.224.0.170"
+| STATS c = count(*)
+;
+
+warning:Line 2:9: evaluation of [field_extract(resource.attributes, \"host.ip\") != \"10.224.0.170\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+2
+;
+
 
 // > on a literal flat key pushes to a single-sided RangeQuery against the keyed sub-field.
 // The keyed flattened mapper substitutes a key-prefix sentinel for the open upper bound on

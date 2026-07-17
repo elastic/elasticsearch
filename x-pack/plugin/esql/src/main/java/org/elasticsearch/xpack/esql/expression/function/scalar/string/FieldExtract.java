@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -397,9 +398,10 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      *     The produced query is a <em>candidate</em> query: it matches every document whose keyed
      *     sub-field holds the value under that key, including multi-valued documents. Exact ES|QL
      *     single-value semantics are restored by rechecking the predicate in the compute engine, so
-     *     the comparison operators report {@link org.elasticsearch.xpack.esql.capabilities.TranslationAware.Translatable#RECHECK}
-     *     rather than wrapping the query in a {@code SingleValueQuery}. The recheck reuses the keyword
-     *     column the evaluator already extracts, which is far cheaper than a doc-values single-value scan.
+     *     the comparison operators report {@link TranslationAware.Translatable#RECHECK} rather than
+     *     wrapping the query in a {@code SingleValueQuery}. A {@code SingleValueQuery} would have to
+     *     decompress the flattened field's binary doc values to count the values per document; the
+     *     recheck instead reuses the keyword column the evaluator already extracts, which is far cheaper.
      * </p>
      * <p>
      *     Pushdown requires the flattened root to be <strong>indexed</strong>. The candidate query is

@@ -29,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -83,6 +84,7 @@ public class DatasetService {
      * missing parent, unknown validator, or validation failure.
      */
     Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
+        Federation.ensureEnabled();
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());

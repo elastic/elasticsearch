@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -95,6 +96,7 @@ public class DataSourceService {
      * Validate the put-data-source request and build the domain {@link DataSource}.
      */
     public DataSource validatePutDataSource(ProjectMetadata project, PutDataSourceAction.Request request) {
+        Federation.ensureEnabled();
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {
             throw new IllegalArgumentException("unknown data source type [" + request.type() + "]");

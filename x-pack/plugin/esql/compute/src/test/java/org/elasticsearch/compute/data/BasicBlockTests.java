@@ -1479,8 +1479,8 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static void assertCannotDoubleRelease(Block block) {
-        var ex = expectThrows(AssertionError.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("invalid decRef call: already closed"));
+        var ex = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(ex.getMessage(), containsString("can't release already released object"));
     }
 
     static void assertCannotReadFromPage(Page page) {
@@ -1699,11 +1699,8 @@ public class BasicBlockTests extends ESTestCase {
         assertFalse(object.hasReferences());
         assertFalse(object.tryIncRef());
 
-        // incRef still throws unconditionally; check it first, while refCount is still cleanly 0.
-        // decRef/close only asserts on over-release, and does so via an unconditional decrement,
-        // so it leaves refCount at -1 afterward -- check it last.
+        expectThrows(IllegalStateException.class, object::close);
         expectThrows(IllegalStateException.class, object::incRef);
-        expectThrows(AssertionError.class, object::close);
     }
 
     private IntVector intVector(int positionCount) {

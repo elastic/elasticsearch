@@ -95,11 +95,15 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
         boolean closed;
         if (threadSafe) {
             synchronized (this) {
-                assert refCount > 0 : AbstractRefCounted.INVALID_DECREF_MESSAGE;
+                if (refCount <= 0) {
+                    throw new IllegalStateException("can't release already released object [" + this + "]");
+                }
                 closed = --refCount == 0;
             }
         } else {
-            assert refCount > 0 : AbstractRefCounted.INVALID_DECREF_MESSAGE;
+            if (refCount <= 0) {
+                throw new IllegalStateException("can't release already released object [" + this + "]");
+            }
             closed = --refCount == 0;
         }
         if (closed) {

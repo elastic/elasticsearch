@@ -358,9 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:highlight.highlightFieldWithNoMatch}
-  issue: https://github.com/elastic/elasticsearch/issues/152240
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
@@ -499,18 +496,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.intJoinByte}
-  issue: https://github.com/elastic/elasticsearch/issues/153571
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
   method: testShardSnapshotsStatus
   issue: https://github.com/elastic/elasticsearch/issues/153575
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testRemoteFailureInlinestats
   issue: https://github.com/elastic/elasticsearch/issues/153576
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:approximation.Lookup join after stats by}
-  issue: https://github.com/elastic/elasticsearch/issues/153593
 - class: org.elasticsearch.geometry.utils.CircleUtilsTests
   method: testCreateRegularGeoShapePolygon
   issue: https://github.com/elastic/elasticsearch/issues/153600
@@ -604,9 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringClone
   issue: https://github.com/elastic/elasticsearch/issues/153909
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:approximation.User-generated approximation column name}
-  issue: https://github.com/elastic/elasticsearch/issues/153922
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591

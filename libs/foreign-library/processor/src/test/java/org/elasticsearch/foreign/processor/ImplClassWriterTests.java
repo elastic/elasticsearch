@@ -11,7 +11,12 @@ package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.instruction.BranchInstruction;
 import java.lang.invoke.MethodHandle;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files.
@@ -325,5 +330,40 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Class<?> driver = result.loadClass("test.BufDriver");
         Object buf = driver.getMethod("create", short.class).invoke(null, (short) 42);
         assertNotNull("BufDriver.create must return a non-null Buf", buf);
+    }
+
+    /**
+     * A {@code String} parameter passed as {@code null} must not reach
+     * {@code allocateString}, which would throw {@link NullPointerException}. The generated
+     * bytecode must contain an {@code IFNONNULL} guard that routes null strings to
+     * {@code MemorySegment.NULL} instead.
+     */
+    public void testNullStringParamGeneratesNullCheck() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification
+            public interface NullableStringLib {
+                @Function("native_op")
+                int op(String name, int flags);
+            }
+            """;
+
+        CompilationResult result = compile("test.NullableStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Path classFile = result.outputDir().resolve("test/NullableStringLib$Impl.class");
+        assertTrue("Generated NullableStringLib$Impl.class not found", Files.exists(classFile));
+        byte[] bytes = Files.readAllBytes(classFile);
+
+        var cm = ClassFile.of().parse(bytes);
+        boolean hasNullCheck = cm.methods()
+            .stream()
+            .filter(m -> m.methodName().equalsString("op"))
+            .flatMap(m -> m.code().stream())
+            .flatMap(ca -> ca.elementStream())
+            .anyMatch(e -> e instanceof BranchInstruction bi && bi.opcode() == Opcode.IFNONNULL);
+        assertTrue("Generated op body must contain IFNONNULL for null-String guard", hasNullCheck);
     }
 }

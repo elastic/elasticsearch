@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomKeywordEsField;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedKeywordEsField> {
@@ -55,6 +56,14 @@ public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeT
 
         TransportVersion old = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_unmapped_keyword_leaf_name"));
         assertThat(copy(field, old).getName(), equalTo(FULL_FIELD_NAME));
+
+        PotentiallyUnmappedKeywordEsField multiField = new PotentiallyUnmappedKeywordEsField(
+            "name",
+            Map.of("raw", randomKeywordEsField(0))
+        );
+        PotentiallyUnmappedKeywordEsField oldVersionMultiField = copy(multiField, old);
+        assertThat(oldVersionMultiField.getName(), equalTo(FULL_FIELD_NAME));
+        assertThat(oldVersionMultiField.getProperties(), equalTo(multiField.getProperties()));
     }
 
     private PotentiallyUnmappedKeywordEsField copy(PotentiallyUnmappedKeywordEsField field, TransportVersion version) throws IOException {

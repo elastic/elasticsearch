@@ -58,7 +58,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -515,7 +515,7 @@ public class OperatorTests extends MapperServiceTestCase {
             false, // no scoring
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
     }
 
@@ -535,7 +535,7 @@ public class OperatorTests extends MapperServiceTestCase {
             LuceneOperator.NO_LIMIT,
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
     }
 }

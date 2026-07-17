@@ -23,8 +23,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests the {@link SingleValueQueryWarnings} bridge wired through real {@link LuceneOperator}s. A
+ * Tests the {@link QueryWarnings} bridge wired through real {@link LuceneOperator}s. A
  * {@link SingleValueMatchQuery} node is shared (by identity) across every {@link LuceneOperator} that
  * scans its shard, because {@link LuceneSliceQueue#create} builds one Lucene {@code Weight} per
  * shard/query and every {@code DOC}-partitioned slice of that shard reuses it (see
@@ -97,7 +97,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
         return fieldData;
     }
 
-    private Query pushdownQuery(SingleValueQueryWarnings bridge, String fieldName) {
+    private Query pushdownQuery(QueryWarnings bridge, String fieldName) {
         SingleValueMatchQuery singleValueMatchQuery = new SingleValueMatchQuery(
             stubFieldData(fieldName),
             bridge,
@@ -131,7 +131,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
     private LuceneSourceOperator.Factory docPartitionedFactory(
         LuceneSourceOperatorTests.MockShardContext shardContext,
         Query query,
-        SingleValueQueryWarnings warnings
+        QueryWarnings warnings
     ) {
         return new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromList<>(List.of(shardContext)),
@@ -152,7 +152,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
     private LuceneSourceOperator.Factory shardPartitionedFactory(
         List<LuceneSourceOperatorTests.MockShardContext> shardContexts,
         Query query,
-        SingleValueQueryWarnings warnings
+        QueryWarnings warnings
     ) {
         return new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromList<>(shardContexts),
@@ -176,7 +176,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
      * {@code LuceneSliceQueue.create}. Each must end up with its own {@link Warnings} for that node.
      */
     public void testTwoDriversOnOneShardGetIndependentWarnings() throws IOException {
-        SingleValueQueryWarnings warnings = new SingleValueQueryWarnings();
+        QueryWarnings warnings = new QueryWarnings();
         Query query = pushdownQuery(warnings, "mv");
         SingleValueMatchQuery matchQueryNode = findSingleValueMatchQuery(query);
 
@@ -205,8 +205,8 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
                         step(op2);
                     }
 
-                    Map<SingleValueMatchQuery, Warnings> map1 = op1.testOnlySingleValueQueryWarnings();
-                    Map<SingleValueMatchQuery, Warnings> map2 = op2.testOnlySingleValueQueryWarnings();
+                    Map<Query, Warnings> map1 = op1.singleValueQueryWarnings();
+                    Map<Query, Warnings> map2 = op2.singleValueQueryWarnings();
                     assertThat(map1.get(matchQueryNode), notNullValue());
                     assertThat(map2.get(matchQueryNode), notNullValue());
                     // Same query node (by identity, and by shared Weight), but two different drivers
@@ -233,10 +233,10 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
     /**
      * If a driver's {@link LuceneOperator#getOutput} throws, the bridge's thread-local binding must
      * still be cleared -- otherwise the next driver to use this shared bridge would hit the reentrancy
-     * guard in {@link SingleValueQueryWarnings#set} and fail for a completely unrelated reason.
+     * guard in {@link QueryWarnings#bind} and fail for a completely unrelated reason.
      */
     public void testThreadLocalClearedEvenWhenOperatorThrows() throws IOException {
-        SingleValueQueryWarnings warnings = new SingleValueQueryWarnings();
+        QueryWarnings warnings = new QueryWarnings();
         Query query = pushdownQuery(warnings, "mv");
 
         Directory dir0 = newDirectory();

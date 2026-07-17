@@ -17,7 +17,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -64,7 +63,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -240,7 +239,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false, // no scoring
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
         return luceneFactory.get(context);
     }
@@ -1562,7 +1561,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false, // no scoring
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
         try (
             Driver driver = TestDriverFactory.create(
@@ -2276,7 +2275,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 false, // no scoring
                 () -> 0L,
                 LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-                new SingleValueQueryWarnings()
+                new QueryWarnings()
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

@@ -18,7 +18,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -126,7 +126,7 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         NumberType numberType,
         int limit,
         LongSupplier directoryBytesRead,
-        SingleValueQueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(
             contexts,

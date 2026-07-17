@@ -10,6 +10,7 @@ package org.elasticsearch.compute.querydsl.query;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,26 +22,26 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for the {@link SingleValueQueryWarnings} bridge itself, independent of any real Lucene
+ * Unit tests for the {@link QueryWarnings} bridge itself, independent of any real Lucene
  * scoring. {@link SingleValueMatchQuery} instances are only used here as identity keys (equality is
  * only ever based on field name -- see {@link SingleValueMatchQuery#equals}), so a bare stub field data
  * is enough; none of these tests exercise real Lucene search.
  */
 public class SingleValueQueryWarningsTests extends ESTestCase {
 
-    private SingleValueMatchQuery newQuery(SingleValueQueryWarnings bridge, String fieldName, String message) {
+    private SingleValueMatchQuery newQuery(QueryWarnings bridge, String fieldName, String message) {
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn(fieldName);
         return new SingleValueMatchQuery(fieldData, bridge, new TestWarningsSource("test"), message);
     }
 
     public void testRegisterDelegatesToBoundWarnings() {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
-        bridge.set(Map.of(query, warnings));
-        bridge.registerException(query, IllegalArgumentException.class, "boom");
-        bridge.clear();
+        try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
+            bridge.registerException(query, IllegalArgumentException.class, "boom");
+        }
         assertWarnings(
             "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: boom"
@@ -48,45 +49,40 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
     }
 
     public void testRegisterWithoutBindingThrows() {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
         expectThrows(IllegalStateException.class, () -> bridge.registerException(query, IllegalArgumentException.class, "boom"));
     }
 
     public void testRegisterForUnknownQueryThrows() {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery known = newQuery(bridge, "known", "known");
         SingleValueMatchQuery unknown = newQuery(bridge, "unknown", "unknown");
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
-        bridge.set(Map.of(known, warnings));
-        try {
+        try (Releasable ignored = bridge.bind(Map.of(known, warnings))) {
             expectThrows(IllegalStateException.class, () -> bridge.registerException(unknown, IllegalArgumentException.class, "boom"));
-        } finally {
-            bridge.clear();
         }
     }
 
-    public void testReentrantSetThrows() {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+    public void testReentrantBindThrows() {
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
-        bridge.set(Map.of(query, warnings));
-        try {
-            expectThrows(IllegalStateException.class, () -> bridge.set(Map.of(query, warnings)));
-        } finally {
-            bridge.clear();
+        try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
+            expectThrows(IllegalStateException.class, () -> bridge.bind(Map.of(query, warnings)));
         }
     }
 
-    public void testClearAllowsRebinding() {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+    public void testCloseAllowsRebinding() {
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
-        bridge.set(Map.of(query, warnings));
-        bridge.clear();
-        // No exception: clear() unbinds, so set() can be called again on the same thread.
-        bridge.set(Map.of(query, warnings));
-        bridge.clear();
+        try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
+            // closing ignored unbinds, so bind() can be called again on the same thread
+        }
+        try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
+            // no exception
+        }
     }
 
     /**
@@ -94,7 +90,7 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
      * same shard/query concurrently would -- and only ever sees its own map, never the other thread's.
      */
     public void testPerThreadIsolation() throws Exception {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery queryA = newQuery(bridge, "a", "a");
         SingleValueMatchQuery queryB = newQuery(bridge, "b", "b");
         Warnings warningsA = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("a"));
@@ -104,8 +100,7 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
         AtomicReference<Throwable> failure = new AtomicReference<>();
 
         Runnable taskA = () -> {
-            try {
-                bridge.set(Map.of(queryA, warningsA));
+            try (Releasable ignored = bridge.bind(Map.of(queryA, warningsA))) {
                 bothBound.countDown();
                 bothBound.await();
                 // Must not see queryB's mapping -- registering it here must throw.
@@ -113,21 +108,16 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
                 bridge.registerException(queryA, IllegalArgumentException.class, "x");
             } catch (Throwable t) {
                 failure.set(t);
-            } finally {
-                bridge.clear();
             }
         };
         Runnable taskB = () -> {
-            try {
-                bridge.set(Map.of(queryB, warningsB));
+            try (Releasable ignored = bridge.bind(Map.of(queryB, warningsB))) {
                 bothBound.countDown();
                 bothBound.await();
                 expectThrows(IllegalStateException.class, () -> bridge.registerException(queryA, IllegalArgumentException.class, "x"));
                 bridge.registerException(queryB, IllegalArgumentException.class, "x");
             } catch (Throwable t) {
                 failure.set(t);
-            } finally {
-                bridge.clear();
             }
         };
 
@@ -148,8 +138,8 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
         bridge.close();
     }
 
-    public void testCloseIsIdempotentAndSafeWithoutSet() {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+    public void testCloseIsIdempotentAndSafeWithoutBind() {
+        QueryWarnings bridge = new QueryWarnings();
         bridge.close();
         bridge.close();
     }

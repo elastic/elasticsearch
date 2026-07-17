@@ -28,9 +28,10 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -110,9 +111,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = singleValueMatchQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH));
-                runCase(fieldValues, ctx.searcher().count(query));
-                setup.assertRewrite(ctx.searcher(), query);
+                withBoundQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH), query -> {
+                    runCase(fieldValues, ctx.searcher().count(query));
+                    setup.assertRewrite(ctx.searcher(), query);
+                });
             }
         }
     }
@@ -122,27 +124,40 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = singleValueMatchQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH));
-                runCase(List.of(), ctx.searcher().count(query));
+                withBoundQuery(
+                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
+                    query -> runCase(List.of(), ctx.searcher().count(query))
+                );
             }
         }
     }
 
+    @FunctionalInterface
+    interface IOConsumer<T> {
+        void accept(T t) throws IOException;
+    }
+
     /**
-     * Build a {@link SingleValueMatchQuery} bound, via a private one-off {@link SingleValueQueryWarnings}
-     * bridge, to a fresh {@link Warnings} -- mirroring how {@link org.elasticsearch.compute.operator.lookup.QueryList}
-     * binds a non-shared query to its bridge.
+     * Build a {@link SingleValueMatchQuery} bound, via a private one-off {@link QueryWarnings}
+     * bridge, to a fresh {@link Warnings}, run {@code action} with it while the binding is active,
+     * then close the binding. Mirrors how {@link org.elasticsearch.compute.operator.lookup.QueryList}
+     * binds a non-shared query to its bridge, but scopes the binding to the action's lifetime.
      */
-    private SingleValueMatchQuery singleValueMatchQuery(IndexFieldData<?> fieldData) {
-        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+    private void withBoundQuery(IndexFieldData<?> fieldData, IOConsumer<SingleValueMatchQuery> action) throws IOException {
+        QueryWarnings bridge = new QueryWarnings();
         SingleValueMatchQuery query = new SingleValueMatchQuery(
             fieldData,
             bridge,
             new TestWarningsSource("test"),
             "single-value function encountered multi-value"
         );
-        bridge.set(Map.of(query, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"))));
-        return query;
+        try (
+            Releasable ignored = bridge.bind(
+                Map.of(query, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")))
+            )
+        ) {
+            action.accept(query);
+        }
     }
 
     private void runCase(List<List<Object>> fieldValues, int count) {

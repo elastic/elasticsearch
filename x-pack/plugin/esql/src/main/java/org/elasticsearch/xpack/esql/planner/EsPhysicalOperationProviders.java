@@ -37,7 +37,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -178,7 +178,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final LongSupplier directoryBytesRead;
 
-    private final SingleValueQueryWarnings singleValueQueryWarnings;
+    private final QueryWarnings singleValueQueryWarnings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
@@ -186,7 +186,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
         LongSupplier directoryBytesRead,
-        SingleValueQueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
@@ -464,7 +464,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * rather than at {@code SingleValueQuery} construction time, since that tree may have arrived
      * pre-built over the wire (as part of the physical plan) with no bridge available yet.
      */
-    static void injectSingleValueQueryWarnings(QueryBuilder queryBuilder, SingleValueQueryWarnings warnings) {
+    static void injectSingleValueQueryWarnings(QueryBuilder queryBuilder, QueryWarnings warnings) {
         switch (queryBuilder) {
             case SingleValueQuery.AbstractBuilder svq -> {
                 svq.warnings(warnings);

@@ -36,7 +36,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrat
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -88,7 +88,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             boolean needsScore,
             LongSupplier directoryBytesRead,
             int minDocsPerSlice,
-            SingleValueQueryWarnings singleValueQueryWarnings
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 shardContexts,
@@ -273,7 +273,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         Limiter limiter,
         boolean needsScore,
         LongSupplier directoryBytesRead,
-        SingleValueQueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.minPageSize = Math.max(1, maxPageSize / 2);

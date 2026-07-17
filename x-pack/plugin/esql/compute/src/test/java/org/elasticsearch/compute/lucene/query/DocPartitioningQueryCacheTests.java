@@ -35,7 +35,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -306,7 +306,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             Limiter.NO_LIMIT,
             false,
             () -> 0L,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
         var op2 = new LuceneSourceOperator(
             shardContexts,
@@ -317,7 +317,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             Limiter.NO_LIMIT,
             false,
             () -> 0L,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
         try {
             Thread thread1 = new Thread(() -> {

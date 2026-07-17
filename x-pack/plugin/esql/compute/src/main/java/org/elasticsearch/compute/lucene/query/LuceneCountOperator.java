@@ -25,7 +25,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
@@ -57,7 +57,7 @@ public class LuceneCountOperator extends LuceneOperator {
             int limit,
             LongSupplier directoryBytesRead,
             int minDocsPerSlice,
-            SingleValueQueryWarnings singleValueQueryWarnings
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -121,7 +121,7 @@ public class LuceneCountOperator extends LuceneOperator {
         List<ElementType> tagTypes,
         int limit,
         LongSupplier directoryBytesRead,
-        SingleValueQueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(shardRefCounters, driverContext, Integer.MAX_VALUE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.tagTypes = tagTypes;

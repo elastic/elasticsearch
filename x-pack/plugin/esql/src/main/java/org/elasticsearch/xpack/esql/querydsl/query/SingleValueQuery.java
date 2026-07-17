@@ -18,8 +18,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -142,7 +142,7 @@ public class SingleValueQuery extends Query {
          * see {@code EsPhysicalOperationProviders#querySupplier} -- and carried across rewrites in
          * {@link #doRewrite}.
          */
-        private SingleValueQueryWarnings warnings;
+        private QueryWarnings warnings;
 
         AbstractBuilder(QueryBuilder next, String field, Source source) {
             this.next = next;
@@ -188,11 +188,11 @@ public class SingleValueQuery extends Query {
          * Bind the bridge used to resolve per-driver warnings for any {@link SingleValueMatchQuery}
          * built from this builder (and, transitively, any builder produced by rewriting it).
          */
-        public void warnings(SingleValueQueryWarnings warnings) {
+        public void warnings(QueryWarnings warnings) {
             this.warnings = warnings;
         }
 
-        public SingleValueQueryWarnings warnings() {
+        public QueryWarnings warnings() {
             return warnings;
         }
 

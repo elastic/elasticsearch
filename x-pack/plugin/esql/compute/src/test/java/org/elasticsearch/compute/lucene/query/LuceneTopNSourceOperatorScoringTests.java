@@ -26,7 +26,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -114,7 +114,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             estimatedPerRowSortSize,
             true, // scoring
             () -> 0L,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
     }
 

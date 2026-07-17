@@ -26,8 +26,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -138,18 +138,24 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
              * Unlike the Lucene-pushdown SingleValueQuery, this query is never shared with another
              * driver: it's built and used entirely within this single QueryList instance, on a single
              * driver's thread. So we can build a private, one-off bridge and bind it once, right here,
-             * to the already-built Warnings the caller gave us -- no need to rebuild it per driver or
-             * to clear it after each use.
+             * to the already-built Warnings the caller gave us.
+             *
+             * The Releasable returned by bind() is intentionally not closed: singleValueQuery (embedded
+             * in cachedSingleValueFilter) may call registerException() during Lucene scoring, which
+             * happens after this method returns. The binding must therefore remain active for the
+             * lifetime of singleValueQuery's use on this thread.
              */
-            SingleValueQueryWarnings warningsBridge = new SingleValueQueryWarnings();
+            QueryWarnings warningsBridge = new QueryWarnings();
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
                 warningsBridge,
                 null,
                 onlySingleValueParams.multiValueWarningMessage
             );
-            // Not emitting warnings for multivalued fields not matching
-            warningsBridge.set(Map.of(singleValueQuery, onlySingleValueParams.warnings));
+            // Not emitting warnings for multivalued fields not matching. The Releasable returned by
+            // bind() is intentionally not closed: singleValueQuery may call registerException() during
+            // Lucene scoring after this method returns, so the binding must remain active.
+            warningsBridge.bind(Map.<Query, Warnings>of(singleValueQuery, onlySingleValueParams.warnings));
             try {
                 Query rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
                 cachedSingleValueFilter = (rewrite instanceof MatchAllDocsQuery) ? null : rewrite;

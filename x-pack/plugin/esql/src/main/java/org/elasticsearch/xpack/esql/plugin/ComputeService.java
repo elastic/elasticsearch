@@ -31,7 +31,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -1303,11 +1303,7 @@ public class ComputeService {
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
         long bytesBefore = directoryBytesRead.getAsLong();
-        // One bridge per local query execution, shared by every SingleValueMatchQuery pushdown built
-        // for this execution and every LuceneOperator (driver) that ends up scanning them. See
-        // SingleValueQueryWarnings for why a CloseableThreadLocal-backed bridge is needed here instead
-        // of a plain Warnings field on the query. Released below, alongside the drivers themselves.
-        SingleValueQueryWarnings singleValueQueryWarnings = new SingleValueQueryWarnings();
+        QueryWarnings singleValueQueryWarnings = new QueryWarnings();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,

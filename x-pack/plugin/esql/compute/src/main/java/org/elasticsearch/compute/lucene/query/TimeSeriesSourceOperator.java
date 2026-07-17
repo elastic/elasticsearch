@@ -13,7 +13,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
@@ -41,7 +41,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             int maxPageSize,
             int limit,
             LongSupplier directoryBytesRead,
-            SingleValueQueryWarnings singleValueQueryWarnings
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -87,7 +87,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         int limit,
         Limiter limiter,
         LongSupplier directoryBytesRead,
-        SingleValueQueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(
             shardContextCounters,

@@ -24,7 +24,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -128,7 +128,7 @@ public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
             getNumberType(),
             limit,
             () -> 0L,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
     }
 

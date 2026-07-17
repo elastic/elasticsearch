@@ -22,7 +22,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.DocValueFormat;
@@ -371,7 +371,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             randomLongBetween(10, 20),
             needsScore,
             () -> 0L,
-            new SingleValueQueryWarnings()
+            new QueryWarnings()
         );
     }
 

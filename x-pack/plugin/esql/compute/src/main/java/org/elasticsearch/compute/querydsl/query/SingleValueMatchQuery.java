@@ -64,20 +64,20 @@ public final class SingleValueMatchQuery extends Query {
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
     private final IndexFieldData<?> fieldData;
-    private final SingleValueQueryWarnings warnings;
+    private final QueryWarnings warnings;
     private final WarningSourceLocation source;
     private final String multiValueExceptionMessage;
 
     /**
      * Build.
      * @param warnings bridge used to resolve the calling driver's {@link org.elasticsearch.compute.operator.Warnings}
-     *                 for this query node; see {@link SingleValueQueryWarnings} for why this can't just be a plain
+     *                 for this query node; see {@link QueryWarnings} for why this can't just be a plain
      *                 {@code Warnings} field
      * @param source the location that produced this query, used to build a {@code Warnings} instance per driver
      */
     public SingleValueMatchQuery(
         IndexFieldData<?> fieldData,
-        SingleValueQueryWarnings warnings,
+        QueryWarnings warnings,
         WarningSourceLocation source,
         String multiValueExceptionMessage
     ) {

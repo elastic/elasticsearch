@@ -32,7 +32,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -77,7 +77,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             long estimatedPerRowSortSize,
             boolean needsScore,
             LongSupplier directoryBytesRead,
-            SingleValueQueryWarnings singleValueQueryWarnings
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -173,7 +173,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         boolean needsScore,
         PerShardCollectorProvider perShardCollectorProvider,
         LongSupplier directoryBytesRead,
-        SingleValueQueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.driverContext = driverContext;

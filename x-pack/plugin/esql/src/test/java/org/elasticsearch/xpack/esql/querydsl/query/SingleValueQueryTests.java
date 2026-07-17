@@ -24,8 +24,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
-import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -188,21 +189,22 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+                QueryWarnings bridge = new QueryWarnings();
                 builder.warnings(bridge);
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
-                bridge.set(warningsFor(query));
-                testCase.run(fieldValues, ctx.searcher().count(query));
+                try (Releasable ignored = bridge.bind(warningsFor(query))) {
+                    testCase.run(fieldValues, ctx.searcher().count(query));
+                }
                 assertEqualsAndHashcodeStable(query, rewritten.toQuery(ctx));
             }
         }
     }
 
     /**
-     * Mirrors {@code LuceneOperator#populateSingleValueQueryWarnings}: walk {@code query} once, binding
-     * a fresh {@link Warnings} to every {@link SingleValueMatchQuery} node found, mimicking what a real
-     * driver does before running the query on its own thread.
+     * Walk {@code query} once, binding a fresh {@link Warnings} to every {@link SingleValueMatchQuery}
+     * node found. In production the bridge creates these lazily via the bound {@link DriverContext};
+     * here we pre-build them so the test uses the simpler pre-built {@link QueryWarnings#bind} overload.
      */
     private static Map<SingleValueMatchQuery, Warnings> warningsFor(Query query) {
         Map<SingleValueMatchQuery, Warnings> warnings = new IdentityHashMap<>();

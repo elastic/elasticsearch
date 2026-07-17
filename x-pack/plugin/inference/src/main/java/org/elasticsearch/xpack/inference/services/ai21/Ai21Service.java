@@ -153,7 +153,7 @@ public class Ai21Service extends SenderService<Ai21Model> {
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 
@@ -180,6 +180,11 @@ public class Ai21Service extends SenderService<Ai21Model> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
     }
 
     /**

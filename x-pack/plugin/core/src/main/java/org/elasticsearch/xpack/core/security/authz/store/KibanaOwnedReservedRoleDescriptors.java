@@ -118,6 +118,12 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Context Engine system indices defined in KibanaPlugin
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".contextengine-*")
+                    .privileges("read", "write", "manage")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("create_index", "read", "write").build(),
                 // To facilitate ML UI functionality being controlled using Kibana security
@@ -609,12 +615,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-cyera.datastore-*",
                         "logs-ironscales.incident-*",
                         "logs-axonius.adapter-*",
-                        "logs-axonius.alert_and_incident-*",
+                        "logs-axonius.alert_finding-*",
                         "logs-axonius.application-*",
                         "logs-axonius.compute-*",
                         "logs-axonius.exposure-*",
                         "logs-axonius.gateway-*",
                         "logs-axonius.identity-*",
+                        "logs-axonius.incident-*",
                         "logs-axonius.network-*",
                         "logs-axonius.storage-*",
                         "logs-axonius.ticket-*",
@@ -662,7 +669,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*")
+                    .privileges("auto_configure", "create_index", "read", "write")
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")
                     .privileges("create_index", "manage", "read", "write")
@@ -683,6 +693,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
+                // Evaluations indices
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for
                 // endpoints.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read", "create_index").build(),
@@ -703,7 +715,35 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
-                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // Context Engine's SML storage. A regular (non-system) index that Kibana
+                // creates and manages itself at startup, including its alias.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".ai-index-idx-sml-data", ".ai-index-idx-sml-data-*")
+                    .privileges("all")
+                    .build(),
+                // Significant events. Kibana system user manages index plumbing and document access.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".significant_events-*")
+                    .privileges(
+                        "auto_configure",
+                        "create_index",
+                        "read",
+                        "write",
+                        RolloverAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        "indices:admin/data_stream/lifecycle/put"
+                    )
+                    .build(),
+                // For Agent Builder OTLP telemetry. Kibana ships OpenTelemetry spans
+                // via the /_otlp/v1/traces endpoint; span events are extracted by
+                // ES as log records into the logs data stream.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("traces-agent_builder.otel-*", "logs-agent_builder.otel-*")
+                    .privileges("auto_configure", "create_doc")
+                    .build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

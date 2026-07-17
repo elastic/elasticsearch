@@ -38,7 +38,6 @@ import io.opentelemetry.context.Context;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.MetricRecorder;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -148,6 +147,13 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public boolean isEnabled() {
+            // This is goofy: LongCounter and LongUpDownCounter both offer default isEnabled methods,
+            // so we're forced to implement this, yet we're not forced to choose one.
+            return super.isEnabled();
+        }
+
+        @Override
         public void add(long value) {
             assert value >= 0;
             super.add(value);
@@ -230,6 +236,13 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public boolean isEnabled() {
+            // This is goofy: LongCounter and LongUpDownCounter both offer default isEnabled methods,
+            // so we're forced to implement this, yet we're not forced to choose one.
+            return super.isEnabled();
+        }
+
+        @Override
         public void add(double value) {
             assert value >= 0;
             super.add(value);
@@ -302,7 +315,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void add(long value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -366,7 +379,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void add(double value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -403,10 +416,10 @@ public class RecordingOtelMeter implements Meter {
 
         Map<String, Object> toMap(Attributes attributes) {
             if (attributes == null) {
-                return null;
+                return Map.of();
             }
             if (attributes.isEmpty()) {
-                return Collections.emptyMap();
+                return Map.of();
             }
             Map<String, Object> map = new HashMap<>(attributes.size());
             attributes.forEach((k, v) -> map.put(k.getKey(), v));
@@ -512,7 +525,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(double value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -583,7 +596,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(long value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -630,7 +643,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(double value) {
-            recorder.call(getInstrument(), name, value, null);
+            recorder.call(getInstrument(), name, value, Map.of());
         }
 
         @Override
@@ -677,7 +690,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(long value) {
-            recorder.call(getInstrument(), name, value, null);
+            recorder.call(getInstrument(), name, value, Map.of());
         }
 
         @Override

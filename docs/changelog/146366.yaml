@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 146354
-pr: 146366
-summary: Fix TBUCKET(n) on empty filter range
-type: bug

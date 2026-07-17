@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -48,7 +47,7 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         var validationException = new ValidationException();
 
         var modelId = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, MistralService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -63,7 +62,6 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            MistralService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

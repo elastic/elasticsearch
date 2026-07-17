@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MIN_OVER_TIME` function [esql-min_over_time]
 
-:::{include} ../../_snippets/functions/layout/min_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/min_over_time.md
 :::

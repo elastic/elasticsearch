@@ -106,6 +106,8 @@ subprojects {
           'aggregations/composite_sorted/*',
           // timeseries dimensions can't be runtime fields
           'aggregations/time_series/*',
+          // columnar index modes reject mapping-level runtime fields
+          'search/400_columnar_default_field/*',
           // The error messages are different
           'search/330_fetch_fields/error includes field name',
           'search/330_fetch_fields/error includes glob pattern',

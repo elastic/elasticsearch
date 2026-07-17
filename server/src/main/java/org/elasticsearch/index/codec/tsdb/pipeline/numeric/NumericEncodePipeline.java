@@ -17,9 +17,11 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTransformStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.SplitDeltaCodecStage;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,7 +74,7 @@ public final class NumericEncodePipeline {
         final List<StageSpec.TransformSpec> transformSpecs = config.transforms();
         final NumericCodecStage[] transforms = new NumericCodecStage[transformSpecs.size()];
         for (int i = 0; i < transformSpecs.size(); i++) {
-            transforms[i] = StageFactory.newTransformStage(transformSpecs.get(i));
+            transforms[i] = StageFactory.newTransformStage(transformSpecs.get(i), blockSize);
         }
         final PayloadCodecStage payload = StageFactory.newPayloadStage(config.payload(), blockSize);
 
@@ -104,20 +106,23 @@ public final class NumericEncodePipeline {
 
         for (int i = 0; i < transformStages.length; i++) {
             context.setCurrentPosition(i);
+            final int count = context.valueCount();
             switch (stageIds[i]) {
-                case DELTA_STAGE -> DeltaCodecStage.encodeStatic(
-                    (DeltaCodecStage) transformStages[i],
+                case DELTA_STAGE -> DeltaCodecStage.encodeStatic((DeltaCodecStage) transformStages[i], values, count, context);
+                case OFFSET_STAGE -> OffsetCodecStage.encodeStatic((OffsetCodecStage) transformStages[i], values, count, context);
+                case GCD_STAGE -> GcdCodecStage.encodeStatic((GcdCodecStage) transformStages[i], values, count, context);
+                case SPLIT_DELTA_STAGE -> SplitDeltaCodecStage.encodeStatic(
+                    (SplitDeltaCodecStage) transformStages[i],
                     values,
-                    context.valueCount(),
+                    count,
                     context
                 );
-                case OFFSET_STAGE -> OffsetCodecStage.encodeStatic(
-                    (OffsetCodecStage) transformStages[i],
+                case ALP_DOUBLE_STAGE -> AlpDoubleTransformStage.encodeStatic(
+                    (AlpDoubleTransformStage) transformStages[i],
                     values,
-                    context.valueCount(),
+                    count,
                     context
                 );
-                case GCD_STAGE -> GcdCodecStage.encodeStatic((GcdCodecStage) transformStages[i], values, context.valueCount(), context);
                 default -> throw new IllegalStateException("Unexpected encode stage: " + stageIds[i]);
             }
         }

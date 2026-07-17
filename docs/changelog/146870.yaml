@@ -1,0 +1,6 @@
+area: Analysis
+issues:
+ - 146864
+pr: 146870
+summary: Allow appending synonyms to existing rules via append=true (default false)
+type: enhancement

@@ -14,4 +14,5 @@ tasks.named("test").configure { enabled = false }
 dependencies {
   api project(':server')
   api project(':test:framework')
+  api project(':test:fixtures:tls-utils')
 }

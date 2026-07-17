@@ -18,7 +18,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -58,7 +57,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, MistralService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
@@ -80,7 +79,6 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            MistralService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

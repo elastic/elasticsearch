@@ -23,38 +23,44 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
         this.dims = dims;
     }
 
-    public void testSequential() {
+    private VectorScorerInt8BulkOperationBenchmark newBench() {
+        var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
+        var bench = new VectorScorerInt8BulkOperationBenchmark();
+        bench.function = function;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.bulkSize = 200;
+        bench.setup(vectorData);
+        return bench;
+    }
+
+    public void testBulk() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
-            var bench = new VectorScorerInt8BulkOperationBenchmark();
-            bench.function = function;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
+            var bench = newBench();
             try {
-                float[] single = bench.scoreMultipleSequential();
-                float[] bulk = bench.scoreMultipleSequentialBulk();
-                assertArrayEquals(function.toString(), single, bulk, 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreSequential(), bench.scoreBulk(), 1e-5f);
             } finally {
                 bench.teardown();
             }
         }
     }
 
-    public void testRandom() {
+    public void testBulkOffsets() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
-            var bench = new VectorScorerInt8BulkOperationBenchmark();
-            bench.function = function;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
+            var bench = newBench();
             try {
-                float[] single = bench.scoreMultipleRandom();
-                float[] bulk = bench.scoreMultipleRandomBulk();
-                assertArrayEquals(function.toString(), single, bulk, 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-5f);
+            } finally {
+                bench.teardown();
+            }
+        }
+    }
+
+    public void testBulkSparse() {
+        for (int i = 0; i < 100; i++) {
+            var bench = newBench();
+            try {
+                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkSparse(), 1e-5f);
             } finally {
                 bench.teardown();
             }

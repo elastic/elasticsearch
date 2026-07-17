@@ -19,6 +19,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -46,8 +47,10 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) length * numVectors);
-                final ES91OSQVectorsScorer defaultScorer = defaultProvider().newES91OSQVectorsScorer(slice, dimensions, bulkSize);
-                final ES91OSQVectorsScorer panamaScorer = maybePanamaProvider().newES91OSQVectorsScorer(in, dimensions, bulkSize);
+                final ES91OSQVectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES91OSQVectorsScorer(slice, dimensions, bulkSize);
+                final ES91OSQVectorsScorer panamaScorer = panamaProvider().getVectorScorerFactory()
+                    .newES91OSQVectorsScorer(in, dimensions, bulkSize);
                 for (int i = 0; i < numVectors; i++) {
                     assertEquals(defaultScorer.quantizeScore(query), panamaScorer.quantizeScore(query));
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
@@ -115,8 +118,10 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 for (int i = 0; i < numVectors; i++) {
-                    final ES91OSQVectorsScorer defaultScorer = defaultProvider().newES91OSQVectorsScorer(slice, dimensions, bulkSize);
-                    final ES91OSQVectorsScorer panamaScorer = maybePanamaProvider().newES91OSQVectorsScorer(in, dimensions, bulkSize);
+                    final ES91OSQVectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                        .newES91OSQVectorsScorer(slice, dimensions, bulkSize);
+                    final ES91OSQVectorsScorer panamaScorer = panamaProvider().getVectorScorerFactory()
+                        .newES91OSQVectorsScorer(in, dimensions, bulkSize);
                     long qDist = defaultScorer.quantizeScore(quantizeQuery);
                     slice.readFloats(floatScratch, 0, 3);
                     int quantizedComponentSum = slice.readShort();
@@ -211,8 +216,10 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     final IndexInput slice = in.slice("test", in.getFilePointer(), (long) (length + 14) * bulkSize);
-                    final ES91OSQVectorsScorer defaultScorer = defaultProvider().newES91OSQVectorsScorer(slice, dimensions, bulkSize);
-                    final ES91OSQVectorsScorer panamaScorer = maybePanamaProvider().newES91OSQVectorsScorer(in, dimensions, bulkSize);
+                    final ES91OSQVectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                        .newES91OSQVectorsScorer(slice, dimensions, bulkSize);
+                    final ES91OSQVectorsScorer panamaScorer = panamaProvider().getVectorScorerFactory()
+                        .newES91OSQVectorsScorer(in, dimensions, bulkSize);
                     float defaultMaxScore = defaultScorer.scoreBulk(
                         quantizeQuery,
                         queryCorrections.lowerInterval(),

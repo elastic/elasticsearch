@@ -18,7 +18,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -345,28 +345,6 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
             }
             scores[iter] = subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
         }
-    }
-
-    @Override
-    public boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        return false;
-    }
-
-    @Override
-    float scoreBulkOffsets(
-        byte[] q,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        int[] offsets,
-        int offsetsCount,
-        float[] scores,
-        int count
-    ) {
-        return Float.NEGATIVE_INFINITY;
     }
 
     @Override

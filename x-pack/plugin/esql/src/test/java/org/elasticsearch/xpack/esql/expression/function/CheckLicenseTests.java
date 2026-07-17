@@ -65,12 +65,7 @@ public class CheckLicenseTests extends ESTestCase {
         final FunctionDefinition def = FunctionDefinition.def(LicensedFunction.class)
             .noArgs(source -> new LicensedFunction(source, functionLicenseFeature))
             .name("license");
-        final EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def) {
-            @Override
-            public EsqlFunctionRegistry snapshotRegistry() {
-                return this;
-            }
-        };
+        final EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def);
 
         var plan = TEST_PARSER.parseQuery(esql);
         plan = plan.transformDown(

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +41,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testStringConstructor() {
         String stringValue = "a string";
         var input = new InferenceStringGroup(stringValue);
-        assertThat(input.inferenceStrings(), contains(new InferenceString(TEXT, DataFormat.TEXT, stringValue)));
+        assertThat(input.inferenceStrings(), contains(InferenceString.ofText(stringValue)));
         assertThat(input.containsNonTextEntry(), is(false));
         assertThat(input.containsMultipleInferenceStrings(), is(false));
     }
@@ -55,7 +56,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
 
     public void testInferenceStringListConstructor() {
         InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
-        InferenceString inferenceString2 = new InferenceString(TEXT, DataFormat.TEXT, "a string");
+        InferenceString inferenceString2 = InferenceString.ofText("a string");
         var input = new InferenceStringGroup(List.of(inferenceString1, inferenceString2));
         assertThat(input.inferenceStrings(), contains(inferenceString1, inferenceString2));
         assertThat(input.containsNonTextEntry(), is(true));
@@ -135,7 +136,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testToInferenceStringList_withMoreThanOneElement_throws() {
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toInferenceStringList(input));
-        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
 
     public void testToStringList() {
@@ -148,7 +149,17 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testToStringList_withMoreThanOneElement_throws() {
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
-        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
+    }
+
+    public void testToStringList_WithNonTextValue_Throws() {
+        var input = randomList(1, 5, () -> new InferenceStringGroup(randomAlphaOfLength(5)));
+        var nonTextInput = new InferenceStringGroup(
+            InferenceStringTests.createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(TEXT)))
+        );
+        input.add(randomInt(input.size()), nonTextInput);
+        var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
+        assertThat(expectedException.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
 
     public void testContainsNonTextEntry_withOnlyTextInputs() {
@@ -181,7 +192,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         // Add an InferenceStringGroup with multiple InferenceStrings at a random point in the input list
         var indexToAdd = randomIntBetween(0, inputs.size() - 1);
         var multipleInferenceStrings = new InferenceStringGroup(
-            List.of(new InferenceString(TEXT, "a_string"), new InferenceString(TEXT, "a_string"))
+            List.of(InferenceString.ofText("a_string"), InferenceString.ofText("a_string"))
         );
         inputs.add(indexToAdd, multipleInferenceStrings);
         assertThat(indexContainingMultipleInferenceStrings(inputs), is(indexToAdd));

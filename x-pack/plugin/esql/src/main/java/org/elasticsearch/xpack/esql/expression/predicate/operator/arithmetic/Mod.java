@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,7 +45,11 @@ public class Mod extends EsqlArithmeticOperation {
             ModIntsEvaluator.Factory::new,
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
-            ModDoublesEvaluator.Factory::new
+            ModDoublesEvaluator.Factory::new,
+            ModIntsByConstantEvaluator.Factory::new,
+            ModLongsByConstantEvaluator.Factory::new,
+            ModDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
     }
 
@@ -55,7 +60,11 @@ public class Mod extends EsqlArithmeticOperation {
             ModIntsEvaluator.Factory::new,
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
-            ModDoublesEvaluator.Factory::new
+            ModDoublesEvaluator.Factory::new,
+            ModIntsByConstantEvaluator.Factory::new,
+            ModLongsByConstantEvaluator.Factory::new,
+            ModDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
     }
 
@@ -100,6 +109,25 @@ public class Mod extends EsqlArithmeticOperation {
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
+        double value = lhs % rhs;
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            throw new ArithmeticException("/ by zero");
+        }
+        return value;
+    }
+
+    @Evaluator(extraName = "IntsByConstant")
+    static int processIntsByConstant(int lhs, @Fixed(jitConstant = true) int rhs) {
+        return lhs % rhs;
+    }
+
+    @Evaluator(extraName = "LongsByConstant")
+    static long processLongsByConstant(long lhs, @Fixed(jitConstant = true) long rhs) {
+        return lhs % rhs;
+    }
+
+    @Evaluator(extraName = "DoublesByConstant", warnExceptions = { ArithmeticException.class })
+    static double processDoublesByConstant(double lhs, @Fixed(jitConstant = true) double rhs) {
         double value = lhs % rhs;
         if (Double.isNaN(value) || Double.isInfinite(value)) {
             throw new ArithmeticException("/ by zero");

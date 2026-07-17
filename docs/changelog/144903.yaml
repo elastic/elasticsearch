@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 144903
-summary: Don't allow querying views with DLS or FLS
-type: enhancement

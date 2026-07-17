@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -33,9 +37,12 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -44,6 +51,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
@@ -101,11 +109,24 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     private static final List<String> COLUMNS = SCHEMA.getFields().stream().map(Type::getName).toList();
 
     private BlockFactory blockFactory;
+    private PlainCompressionCodecFactory codecFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodecAndClearFooterCache() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        codecFactory = new PlainCompressionCodecFactory();
+        // Every test in this class writes to the same in-memory path ("memory://correctness_test.parquet")
+        // with a different file body. The JVM-wide FooterByteCache is keyed by (path, length) and would
+        // otherwise serve the previous test's footer when the new file happens to land on the same byte
+        // length (which testRandomSchema's seeded combinations occasionally do). Clear it before each
+        // test so every iteration reads its own footer. Other tests in this package that reuse a single
+        // path follow the same pattern (see OptimizedReaderFileVariantTests).
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    }
+
+    @After
+    public void releaseCodecFactory() {
+        codecFactory.release();
     }
 
     // --- Explicit V1/V2 x compression matrix ---
@@ -130,6 +151,10 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4_RAW);
     }
 
+    public void testV1Lz4HadoopFramed() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4);
+    }
+
     public void testV2Uncompressed() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.UNCOMPRESSED);
     }
@@ -148,6 +173,10 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     public void testV2Lz4Raw() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4_RAW);
+    }
+
+    public void testV2Lz4HadoopFramed() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4);
     }
 
     // --- filterBlock tests ---
@@ -288,6 +317,120 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertOptimizedMatchesBaseline(data, COLUMNS);
     }
 
+    // --- readBatchSparse null-leading / interleaved run coverage (#152592) ---
+
+    private static final int SPARSE_ROWS = 20;
+    // Nullable columns: null at rows 0 and 9, values elsewhere. A survivor run starting at row 0
+    // therefore decodes to a ConstantNullBlock, which — before the concat fix — poisoned the
+    // builder when a later non-null run was appended.
+    private static final Set<Integer> SPARSE_NULL_ROWS = Set.of(0, 9);
+
+    private static final MessageType SPARSE_SCHEMA = Types.buildMessage()
+        .optional(BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("opt_str")
+        .optional(INT32)
+        .named("opt_int")
+        .named("nullable_sparse_test");
+
+    /**
+     * {@link PageColumnReader#readBatchSparse} with a null-leading run followed by a value run for a
+     * BytesRef column: survivors {0, 5} produce a ConstantNullBlock chunk then a BytesRef chunk.
+     * The three-run case {0, 5, 9} additionally trails with a null run. Reproduces #152592 (threw
+     * "can't append non-null values to a null block" pre-fix).
+     */
+    public void testReadBatchSparseNullLeadingBytesRef() throws IOException {
+        byte[] data = sparseFile();
+        try (Block b = sparseRead(data, "opt_str", DataType.KEYWORD, new int[] { 0, 5 })) {
+            assertEquals(2, b.getPositionCount());
+            assertTrue(b.isNull(0));
+            assertBytesRefAt(b, 1, "s_5");
+        }
+        try (Block b = sparseRead(data, "opt_str", DataType.KEYWORD, new int[] { 0, 5, 9 })) {
+            assertEquals(3, b.getPositionCount());
+            assertTrue(b.isNull(0));
+            assertBytesRefAt(b, 1, "s_5");
+            assertTrue(b.isNull(2));
+        }
+    }
+
+    /** Same null-leading / interleaved run shapes for a numeric (INT32) column. */
+    public void testReadBatchSparseNullLeadingInt() throws IOException {
+        byte[] data = sparseFile();
+        try (Block b = sparseRead(data, "opt_int", DataType.INTEGER, new int[] { 0, 5 })) {
+            assertEquals(2, b.getPositionCount());
+            assertTrue(b.isNull(0));
+            assertIntAt(b, 1, 5 * 7);
+        }
+        try (Block b = sparseRead(data, "opt_int", DataType.INTEGER, new int[] { 0, 5, 9 })) {
+            assertEquals(3, b.getPositionCount());
+            assertTrue(b.isNull(0));
+            assertIntAt(b, 1, 5 * 7);
+            assertTrue(b.isNull(2));
+        }
+    }
+
+    private byte[] sparseFile() throws IOException {
+        return writeTestFile(
+            ParquetProperties.WriterVersion.PARQUET_1_0,
+            CompressionCodecName.UNCOMPRESSED,
+            SPARSE_SCHEMA,
+            SPARSE_ROWS,
+            (g, r) -> {
+                if (SPARSE_NULL_ROWS.contains(r) == false) {
+                    g.append("opt_str", "s_" + r);
+                    g.append("opt_int", r * 7);
+                }
+            }
+        );
+    }
+
+    /**
+     * Opens a fresh reader over {@code data} and drives {@link PageColumnReader#readBatchSparse} for
+     * a single flat column, so each survivor set starts from a clean cursor. The caller owns and
+     * closes the returned block.
+     */
+    private Block sparseRead(byte[] data, String column, DataType dataType, int[] survivors) throws IOException {
+        try (ParquetFileReader reader = openSparseReader(data)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            ColumnDescriptor desc = schema.getColumnDescription(new String[] { column });
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                dataType,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            );
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            int rgRows = Math.toIntExact(block.getRowCount());
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
+                return pcr.readBatchSparse(rgRows, blockFactory, survivors, survivors.length);
+            }
+        }
+    }
+
+    private ParquetFileReader openSparseReader(byte[] data) throws IOException {
+        return ParquetFileReader.open(
+            new ParquetStorageObjectAdapter(storageObject(data), blockFactory.arrowAllocator()),
+            PlainParquetReadOptions.builder(codecFactory).build()
+        );
+    }
+
+    private static void assertBytesRefAt(Block block, int position, String expected) {
+        assertFalse("position " + position + " must be non-null", block.isNull(position));
+        BytesRefBlock brb = (BytesRefBlock) block;
+        assertEquals(new BytesRef(expected), brb.getBytesRef(brb.getFirstValueIndex(position), new BytesRef()));
+    }
+
+    private static void assertIntAt(Block block, int position, int expected) {
+        assertFalse("position " + position + " must be non-null", block.isNull(position));
+        IntBlock ib = (IntBlock) block;
+        assertEquals(expected, ib.getInt(ib.getFirstValueIndex(position)));
+    }
+
     // --- Randomized test ---
 
     public void testRandomSchema() throws IOException {
@@ -319,7 +462,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             CompressionCodecName.SNAPPY,
             CompressionCodecName.ZSTD,
             CompressionCodecName.GZIP,
-            CompressionCodecName.LZ4_RAW
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4
         );
 
         byte[] data = writeTestFile(version, codec, schema, numRows, (group, row) -> {
@@ -479,7 +623,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
                 .withType(schema)
                 .withWriterVersion(version)
                 .withCompressionCodec(codec)

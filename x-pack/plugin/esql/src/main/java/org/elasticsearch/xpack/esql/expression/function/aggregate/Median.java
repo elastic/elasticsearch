@@ -38,6 +38,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the median value of a numeric field.",
         description = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.",
         note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",

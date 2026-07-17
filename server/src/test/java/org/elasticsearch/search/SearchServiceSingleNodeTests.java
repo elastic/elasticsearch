@@ -340,6 +340,66 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
+    public void testContextLeak() throws Exception {
+        createIndex("test");
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .scroll(TimeValue.timeValueMinutes(1))
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1));
+
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
+
+        int contextsBefore = service.getActiveContexts();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean innerOnResponseSeen = new AtomicBoolean(false);
+        AtomicBoolean innerOnFailureSeen = new AtomicBoolean(false);
+
+        service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result) {
+                innerOnResponseSeen.set(true);
+                // Simulate NetworkPathListener.onResponse throwing on serialization failure
+                throw new RuntimeException("simulated NetworkPathListener serialization failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                innerOnFailureSeen.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("listener must complete within 30s", latch.await(30, TimeUnit.SECONDS));
+        assertTrue("inner listener.onResponse must have run", innerOnResponseSeen.get());
+        assertTrue("inner listener.onFailure must have run", innerOnFailureSeen.get());
+
+        assertBusy(
+            () -> assertEquals(
+                "ReaderContext leaked — wrapFailureListener.processFailure was not invoked.",
+                contextsBefore,
+                service.getActiveContexts()
+            )
+        );
+    }
+
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -1581,8 +1641,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 request,
                 indexService,
                 indexShard,
-                indexShard.acquireSearcherSupplier(),
-                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                null
             )
         );
         assertEquals(
@@ -1613,7 +1674,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 try {
                     latch.await();
                     for (;;) {
-                        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+                        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(
+                            SplitShardCountSummary.IRRELEVANT
+                        );
                         try {
                             final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
                             searchService.createAndPutReaderContext(
@@ -1621,7 +1684,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 indexService,
                                 indexShard,
                                 reader,
-                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                                null
                             );
                         } catch (ElasticsearchException e) {
                             assertThat(
@@ -2228,8 +2292,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         request,
                         indexService,
                         indexShard,
-                        indexShard.acquireSearcherSupplier(),
-                        SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                        indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                        SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                        null
                     );
                     assertThat(context.id().getId(), equalTo((long) (i + 1)));
                     contextIds.add(context.id());
@@ -2265,6 +2330,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         searchService.openReaderContext(
             new ShardId(resolveIndex("index"), 0),
             TimeValue.timeValueMinutes(between(1, 10)),
+            null,
             SplitShardCountSummary.IRRELEVANT,
             future
         );
@@ -2472,7 +2538,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2509,7 +2576,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2548,7 +2616,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2586,7 +2655,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2648,13 +2718,14 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null
         );
-        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
         ReaderContext context = service.createAndPutReaderContext(
             request,
             indexService,
             indexShard,
             reader,
-            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+            null
         );
         PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         service.executeQueryPhase(
@@ -2835,7 +2906,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assert String.valueOf(SEARCH_POOL_SIZE).equals(node().settings().get("thread_pool.search.size"))
             : "Unexpected thread_pool.search.size";
 
-        int numDocs = randomIntBetween(50, 100);
+        // Between 4 and 6 segments of 5 docs each.
+        int numDocs = randomIntBetween(20, 30);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
             if (i % 5 == 0) {
@@ -3094,9 +3166,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
             indexService,
             indexShard,
-            indexShard.acquireSearcherSupplier(),
+            indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
             randomNonNegativeLong(),
-            false
+            false,
+            0L
         );
     }
 

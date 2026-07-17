@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147940
-summary: Bugfix - Block Loader Pushdown + Union Types
-type: bug

@@ -21,7 +21,7 @@ public class StatelessSnapshotResiliencyWithEnabledTests extends StatelessSnapsh
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            this::assertCriticalWarnings
+            expectedWarnings -> assertWarnings(expectedWarnings)
         ) {
             @Override
             protected Settings nodeSettings(DiscoveryNode node) {

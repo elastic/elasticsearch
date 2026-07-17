@@ -111,17 +111,22 @@ public class CodecService implements CodecProvider {
 
     public static class DeduplicateFieldInfosCodec extends FilterCodec {
 
-        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
+        private final FieldInfosFormat fieldInfosFormat;
 
         @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
-            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+            // When the per-Directory FieldInfo cache is enabled, use the variant that interns whole FieldInfo instances
+            // against the FieldInfoCachingDirectory wrapping the shard's Store. Otherwise, keep the legacy behavior that
+            // only interns names and attribute maps via static caches.
+            this.fieldInfosFormat = org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
+                ? new CachingFieldInfosFormat(super.fieldInfosFormat())
+                : new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
         }
 
         @Override
         public final FieldInfosFormat fieldInfosFormat() {
-            return deduplicatingFieldInfosFormat;
+            return fieldInfosFormat;
         }
 
         public final Codec delegate() {

@@ -28,7 +28,6 @@ import static java.util.Locale.ROOT;
 public class CagraParameterTranslationTests extends ESTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

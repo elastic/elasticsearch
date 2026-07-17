@@ -721,7 +721,9 @@ public class WatchTests extends ESTestCase {
         public void stop() {}
 
         @Override
-        public void add(Watch watch) {}
+        public boolean add(Watch watch) {
+            return true;
+        }
 
         @Override
         public void pauseExecution() {}

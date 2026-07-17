@@ -16,8 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.SparseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundSparseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
@@ -31,7 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest implements SparseEmbeddingRequest {
+public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest implements OutboundSparseEmbeddingRequest {
 
     private final AlibabaCloudSearchAccount account;
     private final List<String> input;
@@ -92,7 +92,7 @@ public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest i
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

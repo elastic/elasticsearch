@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.RerankRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 
@@ -27,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class HuggingFaceRerankRequest implements RerankRequest {
+public class HuggingFaceRerankRequest implements OutboundRerankRequest {
 
     private final HuggingFaceAccount account;
     private final String query;
@@ -88,7 +88,7 @@ public class HuggingFaceRerankRequest implements RerankRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Not applicable for rerank, only used in text embedding requests
         return this;
     }

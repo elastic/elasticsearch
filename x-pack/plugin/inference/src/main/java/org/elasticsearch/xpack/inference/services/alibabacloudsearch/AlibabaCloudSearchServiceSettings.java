@@ -55,13 +55,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
         validateHttpSchema(httpSchema, validationException);
 
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AlibabaCloudSearchService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
     }
@@ -122,7 +116,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            AlibabaCloudSearchService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

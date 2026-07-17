@@ -1,6 +1,6 @@
 ### Multiply `*` [esql-mul]
 
-:::{image} ../../../images/operators/mul.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/mul.svg
 :alt: Embedded
 :class: text-center
 :::
@@ -9,5 +9,5 @@ Multiply two numbers together. If either field is [multivalued](/reference/query
 
 
 
-:::{include} ../types/mul.md
+:::{include} ../../generated/x-pack-esql/operators/types/mul.md
 :::

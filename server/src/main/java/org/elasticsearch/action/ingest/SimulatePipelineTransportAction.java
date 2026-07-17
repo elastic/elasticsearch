@@ -156,8 +156,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                                 ingestNodeTransportActionTimeout,
                                 transportService.getThreadPool(),
                                 TransportResponseHandler.TRANSPORT_WORKER,
-                                listener,
-                                () -> { /* TODO cancel the remote task? */}
+                                listener
                             ),
                             SimulatePipelineResponse::new,
                             TransportResponseHandler.TRANSPORT_WORKER

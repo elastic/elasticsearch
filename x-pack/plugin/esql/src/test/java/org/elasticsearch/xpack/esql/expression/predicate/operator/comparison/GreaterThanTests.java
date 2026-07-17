@@ -81,7 +81,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "GreaterThanKeywordsEvaluator",
+                "GreaterThanBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
@@ -95,7 +95,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "GreaterThanKeywordsEvaluator",
+                "GreaterThanBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
@@ -166,7 +166,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
-                (lhsType, rhsType) -> "GreaterThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                (lhsType, rhsType) -> "GreaterThanBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 DataType.BOOLEAN
             )

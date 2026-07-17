@@ -257,6 +257,16 @@ public class IndexVersions {
     public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_FIELD_TYPE = def(9_097_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion ES95_TSDB_CODEC_FEATURE_FLAG = def(9_098_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SHARD_OBLIVIOUS_SLICING = def(9_099_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DOC_COUNT_FIELD_USES_NUMERIC_DOC_VALUES = def(9_100_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion MAPPING_ID_MODE_DEFAULT = def(9_101_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG = def(9_102_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES = def(9_103_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_0 = def(9_104_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion DISK_BBQ_ES950_AUTO_CALIBRATE = def(9_105_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT = def(9_106_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES_NO_FF = def(9_107_0_00, Version.LUCENE_10_5_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -12,7 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          */
         copy.source().setSize(1);
 
-        BulkByScrollResponse response = copy.get();
+        BulkByPaginatedSearchResponse response = copy.get();
         assertThat(response, matcher().batches(1).failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure : response.getBulkFailures()) {
             assertThat(failure.getCause().getCause(), instanceOf(IllegalArgumentException.class));
@@ -68,7 +68,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         // CREATE will cause the conflict to prevent the write.
         copy.destination().setOpType(CREATE);
 
-        BulkByScrollResponse response = copy.get();
+        BulkByPaginatedSearchResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure : response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException: ["));
@@ -90,7 +90,7 @@ public class ReindexFailureTests extends ReindexTestCase {
             indexDocs(100);
             ReindexRequestBuilder copy = reindex().source("source").destination("dest");
             copy.source().setSize(10);
-            Future<BulkByScrollResponse> response = copy.execute();
+            Future<BulkByPaginatedSearchResponse> response = copy.execute();
             indicesAdmin().prepareDelete("source").get();
 
             try {
@@ -104,7 +104,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                  * so we *try* and wait for the delete to be fully
                  * complete here.
                  */
-                assertBusy(() -> assertFalse(indexExists("source")));
+                awaitClusterState(state -> state.metadata().getProject().hasIndex("source") == false);
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(

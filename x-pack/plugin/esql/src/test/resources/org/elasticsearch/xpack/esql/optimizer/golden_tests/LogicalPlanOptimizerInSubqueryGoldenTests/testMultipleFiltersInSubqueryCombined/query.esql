@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 50000 | WHERE languages > 2 | KEEP emp_no)

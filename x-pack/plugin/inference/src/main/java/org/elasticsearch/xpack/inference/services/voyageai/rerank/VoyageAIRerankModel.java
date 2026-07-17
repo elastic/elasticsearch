@@ -82,20 +82,12 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         super(
             new ModelConfigurations(inferenceId, TaskType.RERANK, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings(),
             uri
         );
     }
 
     public VoyageAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(
-            modelConfigurations,
-            modelSecrets,
-            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((VoyageAIRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
-            buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
-        );
+        super(modelConfigurations, modelSecrets, buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri));
     }
 
     private VoyageAIRerankModel(VoyageAIRerankModel model, VoyageAIRerankTaskSettings taskSettings) {
@@ -110,11 +102,6 @@ public class VoyageAIRerankModel extends VoyageAIModel {
     @Override
     public VoyageAIRerankTaskSettings getTaskSettings() {
         return (VoyageAIRerankTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     /**

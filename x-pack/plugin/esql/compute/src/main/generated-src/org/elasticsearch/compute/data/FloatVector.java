@@ -38,7 +38,12 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
     FloatBlock asBlock();
 
     @Override
-    FloatVector filter(boolean mayContainDuplicates, int... positions);
+    FloatVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default FloatVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     FloatBlock keepMask(BooleanVector mask);
@@ -67,6 +72,12 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
      */
     @Override
     FloatVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Float.BYTES} since all float values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

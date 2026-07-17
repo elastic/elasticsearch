@@ -52,6 +52,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.rest.MethodHandlers;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 
@@ -237,8 +238,23 @@ class Elasticsearch {
 
         var pluginData = Stream.concat(
             modulesBundles.stream()
-                .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-            pluginsBundles.stream().map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        false
+                    )
+                ),
+            pluginsBundles.stream()
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        true
+                    )
+                )
         ).toList();
 
         var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
@@ -435,6 +451,10 @@ class Elasticsearch {
 
         INSTANCE.start();
 
+        if (ReadinessService.enabled(bootstrap.environment())) {
+            waitForNodeReady(INSTANCE.node.injector().getInstance(ReadinessService.class));
+        }
+
         if (bootstrap.args().daemonize()) {
             LogConfigurator.removeConsoleAppender();
         }
@@ -521,6 +541,17 @@ class Elasticsearch {
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
             );
+        }
+    }
+
+    static void waitForNodeReady(ReadinessService readinessService) {
+        CountDownLatch ready = new CountDownLatch(1);
+        readinessService.addBoundAddressListener(address -> ready.countDown());
+        try {
+            ready.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("Interrupted while waiting for node to be ready", e);
         }
     }
 

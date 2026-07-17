@@ -1,5 +1,0 @@
-pr: 140388
-summary: Fast `codePointCount` implementation for `BytesRef`
-area: Codec
-type: enhancement
-issues: []

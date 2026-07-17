@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequest;
@@ -103,9 +103,9 @@ public class JinaAIEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         // embeddings type is not specified anywhere in the response so grab it from the request
-        JinaAIEmbeddingsRequest embeddingsRequest = (JinaAIEmbeddingsRequest) request;
+        JinaAIEmbeddingsRequest embeddingsRequest = (JinaAIEmbeddingsRequest) outboundRequest;
         var embeddingType = embeddingsRequest.getEmbeddingType().toString();
         var embeddingValueParser = EMBEDDING_PARSERS.get(embeddingType);
 

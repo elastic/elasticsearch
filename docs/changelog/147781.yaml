@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 147781
+summary: Surface implicit privileges in get-role API
+type: enhancement

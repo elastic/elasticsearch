@@ -11,7 +11,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForFailureStatusCode;
@@ -48,7 +48,7 @@ public class HttpUtilsTests extends ESTestCase {
 
         var result = new HttpResult(httpResponse, new byte[0]);
 
-        checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(Request.class), result);
+        checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(OutboundRequest.class), result);
     }
 
     public void testCheckForEmptyBody_DoesNotThrowWhenTheBodyIsNotEmpty() {
@@ -57,7 +57,7 @@ public class HttpUtilsTests extends ESTestCase {
 
         var result = new HttpResult(httpResponse, new byte[] { 'a' });
 
-        checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(Request.class), result);
+        checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(OutboundRequest.class), result);
     }
 
     public void testCheckForEmptyBody_ThrowsWhenTheBodyIsEmpty() {

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 148121
+summary: Support wildcard application names in implicit privilege SPI
+type: enhancement

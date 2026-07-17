@@ -16,8 +16,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        GoogleAiStudioRateLimitServiceSettings {
+        GoogleAiStudioServiceSettings {
 
     public static final String NAME = "google_ai_studio_completion_service_settings";
 
@@ -45,13 +44,7 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
         var validationException = new ValidationException();
 
         var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GoogleAiStudioService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -79,7 +72,6 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            GoogleAiStudioService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

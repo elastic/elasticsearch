@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149045
+summary: Tighten parsed-footer cache after review feedback
+type: enhancement

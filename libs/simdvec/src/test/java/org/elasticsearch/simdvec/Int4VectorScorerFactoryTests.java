@@ -13,8 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -26,7 +24,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,6 +43,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
 import static org.elasticsearch.nativeaccess.Int4TestUtils.unpackNibbles;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
@@ -72,11 +73,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     static final byte MIN_INT4_VALUE = 0;
     static final byte MAX_INT4_VALUE = 0x0F;
 
-    // Tests that the provider instance is present or not on expected platforms/architectures
-    public void testSupport() {
-        supported();
-    }
-
     public void testSimple() throws IOException {
         testSimpleImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
@@ -88,12 +84,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     void testSimpleImpl(long maxChunkSize) throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
             var scalarQuantizer = scalarQuantizer(similarityType.function());
-            var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+            var encoding = QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
             for (int dims : List.of(30, 32, 34)) {
                 float[] query1 = new float[dims];
                 float[] query2 = new float[dims];
@@ -148,44 +142,38 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
+            testRandomSupplier(dir, Int4VectorScorerFactoryTests::randomInt4ByteVector);
         }
     }
 
     public void testRandomNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
+            testRandomSupplier(dir, Int4VectorScorerFactoryTests::randomInt4ByteVector);
         }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
+            testRandomSupplier(dir, Int4VectorScorerFactoryTests::randomInt4ByteVector);
         }
     }
 
     public void testRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MAX_INT4_FUNC);
+            testRandomSupplier(dir, Int4VectorScorerFactoryTests::maxInt4ByteVector);
         }
     }
 
     public void testRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MIN_INT4_FUNC);
+            testRandomSupplier(dir, Int4VectorScorerFactoryTests::minInt4ByteVector);
         }
     }
 
     void testRandomSupplier(Directory dir, IntFunction<byte[]> packedByteArraySupplier) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = randomIntBetween(1, 2048) * 2;
         final int size = randomIntBetween(2, 100);
@@ -239,19 +227,19 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomScorerMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMMap"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerMax() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMax"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_MAX_FUNC);
+            testRandomScorerImpl(dir, AbstractVectorTestCase::maxFloatArray);
         }
     }
 
@@ -259,17 +247,15 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerChunkSizeSmall"), maxChunkSize)) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         var scalarQuantizer = scalarQuantizer(similarityType.function());
-        var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+        var encoding = QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
         final int dims = randomIntBetween(1, 2048) * 2;
         final int size = randomIntBetween(2, 100);
         final float[] centroid = new float[dims];
@@ -323,18 +309,16 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomSlice() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT4_FUNC);
+        testRandomSliceImpl(30, 64, 1, Int4VectorScorerFactoryTests::randomInt4ByteVector);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> packedByteArraySupplier)
         throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
                 final int size = randomIntBetween(2, 100);
-                final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+                final float[] centroid = randomFloatVector(dims);
                 final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
                 final byte[][] packedVectors = new byte[size][];
                 final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -381,13 +365,11 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     @Nightly
     public void testLarge() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
             final int dims = 8192;
             final int size = 262144;
-            final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+            final float[] centroid = randomFloatVector(dims);
             final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
             final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
 
@@ -425,13 +407,11 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
             final int size = 128;
-            final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+            final float[] centroid = randomFloatVector(dims);
             final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
             final byte[][] packedVectors = new byte[size][];
             final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -471,25 +451,22 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testBulkMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkMMap"))) {
             testBulkImpl(dir);
         }
     }
 
     public void testBulkNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
             testBulkImpl(dir);
         }
     }
 
     void testBulkImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = randomIntBetween(1, 102);
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] packedVectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -533,12 +510,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = 128;
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] packedVectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -585,7 +560,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testBulkScorerMMap() throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkScorerMMap"))) {
             testBulkScorerImpl(dir);
         }
@@ -593,18 +567,16 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testBulkScorerNIO() throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkScorerNIO"))) {
             testBulkScorerImpl(dir);
         }
     }
 
     void testBulkScorerImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = randomIntBetween(2, 100);
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] packedVectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -656,12 +628,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScorerSupplierSequentialOrdinals() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 128;
         final int size = 10;
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] packedVectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -700,12 +670,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testInvalidOrdinal() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 32;
         final int size = 2;
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         try (Directory dir = new MMapDirectory(createTempDir("testInvalidOrdinal"))) {
             String fileName = "testInvalidOrdinal-" + dims;
@@ -743,12 +711,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScoreBeforeSetOrdinal() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 32;
         final int size = 2;
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         try (Directory dir = new MMapDirectory(createTempDir("testScoreBeforeSetOrdinal"))) {
             String fileName = "testScoreBeforeSetOrdinal-" + dims;
@@ -768,12 +734,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRace() throws Exception {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final long maxChunkSize = 32;
         final int dims = 34;
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         byte[] unpacked1 = new byte[dims];
         byte[] unpacked2 = new byte[dims];
@@ -955,21 +919,19 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         return packNibbles(unpacked);
     }
 
-    static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT4_FUNC = dims -> {
+    private static byte[] randomInt4ByteVector(int dims) {
         byte[] unpacked = new byte[dims];
-        for (int i = 0; i < dims; i++) {
-            unpacked[i] = (byte) randomIntBetween(MIN_INT4_VALUE, MAX_INT4_VALUE);
-        }
+        randomBytesBetween(unpacked, MIN_INT4_VALUE, MAX_INT4_VALUE);
         return packNibbles(unpacked);
-    };
+    }
 
-    static IntFunction<byte[]> BYTE_ARRAY_MAX_INT4_FUNC = dims -> {
+    private static byte[] maxInt4ByteVector(int dims) {
         byte[] unpacked = new byte[dims];
         Arrays.fill(unpacked, MAX_INT4_VALUE);
         return packNibbles(unpacked);
     };
 
-    static IntFunction<byte[]> BYTE_ARRAY_MIN_INT4_FUNC = dims -> {
+    private static byte[] minInt4ByteVector(int dims) {
         byte[] unpacked = new byte[dims];
         Arrays.fill(unpacked, MIN_INT4_VALUE);
         return packNibbles(unpacked);

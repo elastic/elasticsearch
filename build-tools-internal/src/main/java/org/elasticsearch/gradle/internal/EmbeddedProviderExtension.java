@@ -18,6 +18,8 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.util.Map;
+
 import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
 import static org.elasticsearch.gradle.util.GradleUtils.getJavaSourceSets;
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
@@ -37,7 +39,8 @@ public class EmbeddedProviderExtension {
         String projectName = implProject.getName();
         String capitalName = capitalize(projectName);
 
-        Configuration implConfig = project.getConfigurations().detachedConfiguration(project.getDependencies().create(implProject));
+        Configuration implConfig = project.getConfigurations()
+            .detachedConfiguration(project.getDependencies().project(Map.of("path", implProject.getPath())));
 
         String manifestTaskName = "generate" + capitalName + "ProviderManifest";
         Provider<Directory> generatedResourcesRoot = project.getLayout().getBuildDirectory().dir("generated-resources");

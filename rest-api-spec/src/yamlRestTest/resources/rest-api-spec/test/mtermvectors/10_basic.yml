@@ -19,6 +19,14 @@ setup:
   - do:
       indices.refresh: {}
 
+  # In mixed-cluster BWC tests, the rebalancer may relocate shards after node
+  # upgrades. A request hitting a recovering shard copy returns empty term
+  # vectors. Wait for no relocating shards before proceeding.
+  - do:
+      cluster.health:
+        index: testidx
+        wait_for_no_relocating_shards: true
+
 ---
 "Basic tests for multi termvector get":
 
@@ -92,6 +100,14 @@ setup:
       indices.put_alias:
         index: testidx2
         name: test_alias
+
+  # Creating testidx2 can trigger shard rebalancing in mixed-cluster BWC tests.
+  # Wait for relocations to finish so the mtermvectors request hits a fully
+  # recovered shard copy of testidx.
+  - do:
+      cluster.health:
+        index: testidx
+        wait_for_no_relocating_shards: true
 
   - do:
         mtermvectors:

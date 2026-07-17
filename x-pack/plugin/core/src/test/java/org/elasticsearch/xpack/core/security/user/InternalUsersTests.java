@@ -13,6 +13,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -250,12 +253,23 @@ public class InternalUsersTests extends ESTestCase {
 
         final SimpleRole role = getLocalClusterRole(InternalUsers.DATA_STREAM_LIFECYCLE_USER);
 
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
-        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*", ".workflows*");
+        final List<String> sampleClusterActions = List.of(
+            TransportCreateSnapshotAction.TYPE.name(),
+            TransportDeleteSnapshotAction.TYPE.name(),
+            TransportRestoreSnapshotAction.TYPE.name()
+        );
+        checkClusterAccess(InternalUsers.DATA_STREAM_LIFECYCLE_USER, role, randomFrom(sampleClusterActions), true);
+
+        final List<String> allowedSystemDataStreams = Arrays.asList(
+            ".fleet-actions-results",
+            ".fleet-fileds*",
+            ".workflows*",
+            ".kibana_change_history*"
+        );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
                 assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));
@@ -396,7 +410,8 @@ public class InternalUsersTests extends ESTestCase {
             TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
             TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
             "cluster:internal:data/read/esql/open_exchange",
-            "cluster:internal:data/read/esql/exchange"
+            "cluster:internal:data/read/esql/exchange",
+            XPackInfoAction.NAME
         );
 
         for (String clusterAction : allowedClusterActions) {
@@ -406,7 +421,7 @@ public class InternalUsersTests extends ESTestCase {
         checkClusterAccess(
             crossProjectSearchUser,
             role,
-            randomFrom(ClusterStateAction.NAME, XPackInfoAction.NAME, TransportService.HANDSHAKE_ACTION_NAME),
+            randomFrom(ClusterStateAction.NAME, TransportService.HANDSHAKE_ACTION_NAME),
             false
         );
 

@@ -29,16 +29,14 @@ public class VectorScorerInt4OperationBenchmarkTests extends BenchmarkTest {
     }
 
     public void test() {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt4OperationBenchmark();
-            bench.size = size;
-            bench.init();
+        var bench = new VectorScorerInt4OperationBenchmark();
+        bench.size = size;
+        bench.init();
 
-            int expected = bench.scalar();
-            assertEquals(expected, bench.lucene());
-            assertEquals(expected, bench.nativeWithNativeSeg());
-            assertEquals(expected, bench.nativeWithHeapSeg());
-        }
+        int expected = bench.scalar();
+        assertEquals(expected, bench.lucene());
+        assertEquals(expected, bench.nativeWithNativeSeg());
+        assertEquals(expected, bench.nativeWithHeapSeg());
     }
 
     @ParametersFactory

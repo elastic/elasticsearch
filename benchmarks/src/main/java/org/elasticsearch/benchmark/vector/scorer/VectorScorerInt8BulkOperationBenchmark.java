@@ -30,18 +30,22 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
-
 /**
  * Bare-bones bulk operation benchmark for int8 vector similarity functions.
- * Calls the native bulk_offsets operation directly via VectorSimilarityFunctions,
- * bypassing Lucene scorer infrastructure.
+ * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
+ * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer infrastructure
+ * so the inner SIMD kernel cost is the dominant signal:
+ * <ul>
+ *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
+ *   <li>{@code scoreBulkOffsets} — scattered access via int32 offsets array</li>
+ *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array</li>
+ * </ul>
+ * {@code scoreSequential} and {@code scoreRandom} are single-pair controls.
  * <p>
  * Run with: {@code ./gradlew -p benchmarks run --args 'VectorScorerInt8BulkOperationBenchmark'}
  */
@@ -85,14 +89,13 @@ public class VectorScorerInt8BulkOperationBenchmark {
     private int[] ids;
     private int[] ordinals;
     private int numVectorsToScore;
+    private long datasetAddress;
     // Scratch buffers in native memory for bulk calls.
     private MemorySegment ordinalsSeg;
+    private MemorySegment addressesSeg;
     private MemorySegment resultsSeg;
     // Java-side results array, returned from benchmarks to prevent dead-code elimination.
     private float[] scores;
-
-    private MethodHandle singleImpl;
-    private MethodHandle bulkOffsetsImpl;
 
     // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
@@ -129,6 +132,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
         for (int v = 0; v < numVectors; v++) {
             MemorySegment.copy(vectorData.vectors[v], 0, dataset, ValueLayout.JAVA_BYTE, (long) v * dims, dims);
         }
+        datasetAddress = dataset.address();
 
         // Query vector: use the target ordinal's vector
         query = arena.allocate(dims);
@@ -140,26 +144,10 @@ public class VectorScorerInt8BulkOperationBenchmark {
 
         // Native scratch buffers for bulk calls
         ordinalsSeg = arena.allocate((long) bulkSize * Integer.BYTES);
+        addressesSeg = arena.allocate((long) bulkSize * Long.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
 
-        // Get bulk_offsets method handle
-        VectorSimilarityFunctions.Function nativeFunc = switch (function) {
-            case COSINE -> VectorSimilarityFunctions.Function.COSINE;
-            case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
-            case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
-            default -> throw new IllegalArgumentException(function.toString());
-        };
-        singleImpl = vectorSimilarityFunctions.getHandle(
-            nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
-            VectorSimilarityFunctions.Operation.SINGLE
-        );
-        bulkOffsetsImpl = vectorSimilarityFunctions.getHandle(
-            nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
-            VectorSimilarityFunctions.Operation.BULK_OFFSETS
-        );
     }
 
     @TearDown
@@ -167,64 +155,110 @@ public class VectorScorerInt8BulkOperationBenchmark {
         arena.close();
     }
 
+    private float callSingleScore(MemorySegment vec, MemorySegment query, int dims) {
+        return switch (function) {
+            case COSINE -> vectorSimilarityFunctions.cosineI8(vec, query, dims);
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8(vec, query, dims);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8(vec, query, dims);
+            default -> throw new UnsupportedOperationException(function.toString());
+        };
+    }
+
+    private void callBulkScore(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment results) {
+        switch (function) {
+            case COSINE -> vectorSimilarityFunctions.cosineI8Bulk(a, b, dims, count, results);
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8Bulk(a, b, dims, count, results);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8Bulk(a, b, dims, count, results);
+            default -> throw new UnsupportedOperationException(function.toString());
+        }
+    }
+
+    private void callBulkOffsetsScore(
+        MemorySegment a,
+        MemorySegment b,
+        int dims,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment results
+    ) {
+        switch (function) {
+            case COSINE -> vectorSimilarityFunctions.cosineI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            default -> throw new UnsupportedOperationException(function.toString());
+        }
+    }
+
+    private void callBulkSparseScore(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment results) {
+        switch (function) {
+            case COSINE -> vectorSimilarityFunctions.cosineI8BulkSparse(addresses, b, dims, count, results);
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8BulkSparse(addresses, b, dims, count, results);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8BulkSparse(addresses, b, dims, count, results);
+            default -> throw new UnsupportedOperationException(function.toString());
+        }
+    }
+
+    /** Single-pair scoring, sequential ids (control). */
     @Benchmark
-    public float[] scoreMultipleSequential() {
+    public float[] scoreSequential() {
         int v = 0;
-        try {
-            while (v < numVectorsToScore) {
-                for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                    MemorySegment vec = dataset.asSlice((long) ids[v] * dims, dims);
-                    scores[i] = (float) singleImpl.invokeExact(vec, query, dims);
-                }
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                MemorySegment vec = dataset.asSlice((long) ids[v] * dims, dims);
+                scores[i] = callSingleScore(vec, query, dims);
             }
-        } catch (Throwable t) {
-            throw rethrow(t);
         }
         return scores;
     }
 
+    /** Single-pair scoring, shuffled ordinals (control). */
     @Benchmark
-    public float[] scoreMultipleRandom() {
+    public float[] scoreRandom() {
         int v = 0;
-        try {
-            while (v < numVectorsToScore) {
-                for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                    MemorySegment vec = dataset.asSlice((long) ordinals[v] * dims, dims);
-                    scores[i] = (float) singleImpl.invokeExact(vec, query, dims);
-                }
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                MemorySegment vec = dataset.asSlice((long) ordinals[v] * dims, dims);
+                scores[i] = callSingleScore(vec, query, dims);
             }
-        } catch (Throwable t) {
-            throw rethrow(t);
         }
         return scores;
     }
 
+    /** BULK: contiguous slice — sequential by construction. */
     @Benchmark
-    public float[] scoreMultipleSequentialBulk() {
-        try {
-            for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-                int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment.copy(ids, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-                bulkOffsetsImpl.invokeExact(dataset, query, dims, dims, ordinalsSeg, count, resultsSeg);
-            }
-        } catch (Throwable t) {
-            throw rethrow(t);
+    public float[] scoreBulk() {
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            MemorySegment slice = dataset.asSlice((long) i * dims, (long) count * dims);
+            callBulkScore(slice, query, dims, count, resultsSeg);
         }
-        // Copy last batch to return array for dead-code elimination prevention
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
     }
 
+    /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
     @Benchmark
-    public float[] scoreMultipleRandomBulk() {
-        try {
-            for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-                int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-                bulkOffsetsImpl.invokeExact(dataset, query, dims, dims, ordinalsSeg, count, resultsSeg);
+    public float[] scoreBulkOffsets() {
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
+            callBulkOffsetsScore(dataset, query, dims, dims, ordinalsSeg, count, resultsSeg);
+        }
+        MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
+        return scores;
+    }
+
+    /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */
+    @Benchmark
+    public float[] scoreBulkSparse() {
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            for (int j = 0; j < count; j++) {
+                long addr = datasetAddress + (long) ordinals[i + j] * dims;
+                addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
             }
-        } catch (Throwable t) {
-            throw rethrow(t);
+            callBulkSparseScore(addressesSeg, query, dims, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;

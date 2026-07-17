@@ -11,25 +11,29 @@ import org.apache.http.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 
 public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceDiagnosticsAction.NodeResponse> {
 
     private static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = TransportVersion.fromName("ml_inference_endpoint_cache");
     private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
+    private static final TransportVersion INFERENCE_OAUTH2_TOKEN_CACHE_DIAGNOSTICS = TransportVersion.fromName(
+        "inference_api_oauth2_token_cache_diagnostics"
+    );
 
     public static GetInferenceDiagnosticsAction.NodeResponse createRandom() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
-        var randomExternalPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
-        var randomEisPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
-
-        return new GetInferenceDiagnosticsAction.NodeResponse(node, randomExternalPoolStats, randomEisPoolStats, randomCacheStats());
+        return new GetInferenceDiagnosticsAction.NodeResponse(
+            node,
+            randomPoolStats(),
+            randomPoolStats(),
+            randomNullableCacheStats(),
+            randomNullableCacheStats()
+        );
     }
 
     @Override
@@ -45,46 +49,55 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse mutateInstance(GetInferenceDiagnosticsAction.NodeResponse instance)
         throws IOException {
-        if (randomBoolean()) {
-            PoolStats mutatedConnPoolStats = mutatePoolStats(instance.getExternalConnectionPoolStats());
-            PoolStats eisPoolStats = copyPoolStats(instance.getEisMtlsConnectionPoolStats());
-            return new GetInferenceDiagnosticsAction.NodeResponse(
-                instance.getNode(),
-                mutatedConnPoolStats,
+        var externalPoolStats = instance.getExternalConnectionPoolStats();
+        var eisPoolStats = instance.getEisMtlsConnectionPoolStats();
+        var registryStats = instance.getInferenceEndpointRegistryStats();
+        var oAuth2Stats = instance.getOauth2TokenCacheStats();
+
+        switch (randomInt(3)) {
+            case 0 -> externalPoolStats = randomValueOtherThan(
+                externalPoolStats,
+                () -> GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(randomPoolStats())
+            );
+            case 1 -> eisPoolStats = randomValueOtherThan(
                 eisPoolStats,
-                randomCacheStats()
+                () -> GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(randomPoolStats())
             );
-        } else {
-            PoolStats connPoolStats = copyPoolStats(instance.getExternalConnectionPoolStats());
-            PoolStats mutatedEisPoolStats = mutatePoolStats(instance.getEisMtlsConnectionPoolStats());
-            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), connPoolStats, mutatedEisPoolStats, null);
+            case 2 -> registryStats = randomValueOtherThan(
+                registryStats,
+                GetInferenceDiagnosticsActionNodeResponseTests::randomNullableCacheStats
+            );
+            case 3 -> oAuth2Stats = randomValueOtherThan(
+                oAuth2Stats,
+                GetInferenceDiagnosticsActionNodeResponseTests::randomNullableCacheStats
+            );
+            default -> throw new AssertionError("Illegal randomization branch");
         }
+
+        return new GetInferenceDiagnosticsAction.NodeResponse(
+            instance.getNode(),
+            toPoolStats(externalPoolStats),
+            toPoolStats(eisPoolStats),
+            registryStats,
+            oAuth2Stats
+        );
     }
 
-    private PoolStats mutatePoolStats(GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats stats)
-        throws UnsupportedEncodingException {
-        var select = randomIntBetween(0, 3);
-        return switch (select) {
-            case 0 -> new PoolStats(randomInt(), stats.getPendingConnections(), stats.getAvailableConnections(), stats.getMaxConnections());
-            case 1 -> new PoolStats(stats.getLeasedConnections(), randomInt(), stats.getAvailableConnections(), stats.getMaxConnections());
-            case 2 -> new PoolStats(stats.getLeasedConnections(), stats.getPendingConnections(), randomInt(), stats.getMaxConnections());
-            case 3 -> new PoolStats(
-                stats.getLeasedConnections(),
-                stats.getPendingConnections(),
-                stats.getAvailableConnections(),
-                randomInt()
-            );
-            default -> throw new UnsupportedEncodingException(Strings.format("Encountered unsupported case %s", select));
-        };
+    private static PoolStats randomPoolStats() {
+        return new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
     }
 
-    private PoolStats copyPoolStats(GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats stats) {
+    private static PoolStats toPoolStats(GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats stats) {
         return new PoolStats(
             stats.getLeasedConnections(),
             stats.getPendingConnections(),
             stats.getAvailableConnections(),
             stats.getMaxConnections()
         );
+    }
+
+    private static GetInferenceDiagnosticsAction.NodeResponse.Stats randomNullableCacheStats() {
+        return randomBoolean() ? null : randomCacheStats();
     }
 
     private static GetInferenceDiagnosticsAction.NodeResponse.Stats randomCacheStats() {
@@ -108,11 +121,11 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         GetInferenceDiagnosticsAction.NodeResponse instance,
         TransportVersion version
     ) {
-        if (version.supports(ML_INFERENCE_ENDPOINT_CACHE)) {
+        if (version.supports(INFERENCE_OAUTH2_TOKEN_CACHE_DIAGNOSTICS)) {
             return instance;
         }
 
-        var eisMltsConnectionPoolStats = version.supports(INFERENCE_API_EIS_DIAGNOSTICS)
+        var eisMtlsConnectionPoolStats = version.supports(INFERENCE_API_EIS_DIAGNOSTICS)
             ? new PoolStats(
                 instance.getEisMtlsConnectionPoolStats().getLeasedConnections(),
                 instance.getEisMtlsConnectionPoolStats().getPendingConnections(),
@@ -120,6 +133,10 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
                 instance.getEisMtlsConnectionPoolStats().getMaxConnections()
             )
             : new PoolStats(0, 0, 0, 0);
+
+        var inferenceEndpointRegistryStats = version.supports(ML_INFERENCE_ENDPOINT_CACHE)
+            ? instance.getInferenceEndpointRegistryStats()
+            : null;
 
         return new GetInferenceDiagnosticsAction.NodeResponse(
             instance.getNode(),
@@ -129,7 +146,8 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
                 instance.getExternalConnectionPoolStats().getAvailableConnections(),
                 instance.getExternalConnectionPoolStats().getMaxConnections()
             ),
-            eisMltsConnectionPoolStats,
+            eisMtlsConnectionPoolStats,
+            inferenceEndpointRegistryStats,
             null
         );
     }

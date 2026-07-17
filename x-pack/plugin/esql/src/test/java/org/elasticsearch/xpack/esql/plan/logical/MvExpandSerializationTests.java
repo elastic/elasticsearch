@@ -10,18 +10,19 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class MvExpandSerializationTests extends AbstractLogicalPlanSerializationTests<MvExpand> {
     @Override
     protected MvExpand createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        NamedExpression target = FieldAttributeTests.createFieldAttribute(0, false);
-        Attribute expanded = ReferenceAttributeTests.randomReferenceAttribute(false);
+        NamedExpression target = createFieldAttribute(0, false);
+        Attribute expanded = randomReferenceAttribute(false);
         return new MvExpand(source, child, target, expanded);
     }
 
@@ -32,8 +33,8 @@ public class MvExpandSerializationTests extends AbstractLogicalPlanSerialization
         Attribute expanded = instance.expanded();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> target = randomValueOtherThan(target, () -> FieldAttributeTests.createFieldAttribute(0, false));
-            case 2 -> expanded = randomValueOtherThan(expanded, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
+            case 1 -> target = randomValueOtherThan(target, () -> createFieldAttribute(0, false));
+            case 2 -> expanded = randomValueOtherThan(expanded, () -> randomReferenceAttribute(false));
         }
         return new MvExpand(instance.source(), child, target, expanded);
     }

@@ -50,7 +50,7 @@ public class SnapshotIndexCommitTests extends ESTestCase {
         assertTrue(isClosed.get());
         assertFalse(indexCommitRef.tryIncRef());
 
-        indexCommitRef.onAbort();
+        indexCommitRef.releaseInitialReference();
         assertFalse(indexCommitRef.tryIncRef());
     }
 
@@ -61,7 +61,7 @@ public class SnapshotIndexCommitTests extends ESTestCase {
         assertFalse(isClosed.get());
         assertTrue(indexCommitRef.tryIncRef());
 
-        indexCommitRef.onAbort();
+        indexCommitRef.releaseInitialReference();
         assertFalse(isClosed.get());
 
         assertTrue(indexCommitRef.tryIncRef());

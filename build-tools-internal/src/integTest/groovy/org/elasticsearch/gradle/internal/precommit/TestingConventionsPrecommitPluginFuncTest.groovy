@@ -105,7 +105,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task ':testTestingConventions'.
+            Execution failed for task ':testTestingConventions' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not extend any supported base class:
                  \torg.acme.InvalidTests""".stripIndent()
@@ -148,7 +148,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(":testTestingConventions").outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task ':testTestingConventions'.
+            Execution failed for task ':testTestingConventions' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
@@ -214,7 +214,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(":yamlRestTestTestingConventions").outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task ':yamlRestTestTestingConventions'.
+            Execution failed for task ':yamlRestTestTestingConventions' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not extend any supported base class:
                  \torg.acme.valid.SomeOtherMatchingIT""".stripIndent()
@@ -259,7 +259,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(taskName).outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task '${taskName}'.
+            Execution failed for task '${taskName}' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not match naming convention to use suffix 'IT' or 'Tests':
                  \torg.acme.valid.SomeNonMatchingTest""".stripIndent()

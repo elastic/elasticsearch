@@ -9,23 +9,20 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.util.Optional;
-
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkSparse;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * Int4 packed-nibble query-time scorer. The float query is quantized externally
@@ -34,6 +31,10 @@ import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPO
  * followed by corrective terms (3 floats + 1 int).
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     private final ScorerImpl scorerImpl;
     private final QueryContext query;
@@ -104,16 +105,13 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             Int4Corrections.singleCorrectionFor(similarityType),
             Int4Corrections.bulkCorrectionFor(similarityType)
         );
-
-        final MemorySegment unpackedQuerySegment;
-        if (SUPPORTS_HEAP_SEGMENTS) {
-            unpackedQuerySegment = MemorySegment.ofArray(unpackedQuery);
-        } else {
-            unpackedQuerySegment = Arena.ofAuto().allocate(unpackedQuery.length, 32);
-            MemorySegment.copy(unpackedQuery, 0, unpackedQuerySegment, ValueLayout.JAVA_BYTE, 0, unpackedQuery.length);
-        }
-
-        this.query = new QueryContext(lowerInterval, upperInterval, additionalCorrection, quantizedComponentSum, unpackedQuerySegment);
+        this.query = new QueryContext(
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum,
+            MemorySegment.ofArray(unpackedQuery)
+        );
     }
 
     @Override
@@ -141,6 +139,8 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final Int4Corrections.SingleCorrection correction;
         private final Int4Corrections.BulkCorrection bulkCorrection;
         private byte[] scratch;
+        private final AddressesScratch addrsScratch = new AddressesScratch();
+        private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
         ScorerImpl(
             IndexInput input,
@@ -206,7 +206,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
             return IndexInputUtils.withSlice(input, packedDims, this::getScratch, packedTarget -> {
-                int rawScore = dotProductI4(query.unpackedQuery(), packedTarget, packedDims);
+                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), packedTarget, packedDims);
                 return applyCorrections(rawScore, node, query);
             });
         }
@@ -215,17 +215,21 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             if (numNodes == 0) {
                 return Float.NEGATIVE_INFINITY;
             }
-            if (SUPPORTS_HEAP_SEGMENTS) {
-                long[] offsets = new long[numNodes];
-                for (int i = 0; i < numNodes; i++) {
-                    offsets[i] = (long) ordinals[i] * vectorPitch;
-                }
-                boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrs -> {
-                    dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
-                });
-                if (resolved) {
-                    return applyCorrectionsBulk(MemorySegment.ofArray(scores), MemorySegment.ofArray(ordinals), numNodes, query);
-                }
+            long[] offsets = offsetsScratch.get(numNodes);
+            for (int i = 0; i < numNodes; i++) {
+                offsets[i] = (long) ordinals[i] * vectorPitch;
+            }
+            MemorySegment scoresSeg = MemorySegment.ofArray(scores);
+            boolean resolved = IndexInputUtils.withSliceAddresses(
+                input,
+                offsets,
+                packedDims,
+                numNodes,
+                addrsScratch::get,
+                addrs -> DISTANCE_FUNCS.dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
+            );
+            if (resolved) {
+                return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
             }
 
             // fallback to sequential scoring

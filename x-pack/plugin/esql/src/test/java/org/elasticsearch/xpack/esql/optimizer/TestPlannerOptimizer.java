@@ -86,9 +86,8 @@ public class TestPlannerOptimizer {
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
-        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, esqlFlags, config, FoldContext.small(), searchStats),
-            true
+        var physicalTestOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, esqlFlags, config, FoldContext.small(), searchStats)
         );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer, null);
 

@@ -29,7 +29,6 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
@@ -92,6 +91,11 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     @Override
     public void testMismatchedFields() {
+        // No bytes support
+    }
+
+    @Override
+    public void testWriterByteVectorRamEstimate() {
         // No bytes support
     }
 

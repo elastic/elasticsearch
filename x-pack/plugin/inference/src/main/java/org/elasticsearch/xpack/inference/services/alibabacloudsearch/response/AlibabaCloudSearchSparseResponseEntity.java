@@ -12,7 +12,7 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -120,8 +120,8 @@ public class AlibabaCloudSearchSparseResponseEntity extends AlibabaCloudSearchRe
      * </code>
      * </pre>
      */
-    public static SparseEmbeddingResults fromResponse(Request request, HttpResult response) throws IOException {
-        return fromResponse(request, response, jsonParser -> {
+    public static SparseEmbeddingResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+        return fromResponse(outboundRequest, response, jsonParser -> {
             positionParserAtTokenAfterField(jsonParser, "sparse_embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             List<SparseEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(

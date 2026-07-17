@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147225
+summary: "Align bfloat16 vector data to minimize page crossings"
+type: enhancement

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo> {
@@ -301,7 +302,68 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
         }
     }
 
-    static TaskInfo randomTaskInfo() {
+    public void testWithOriginalRelocationIdentity_relocated() {
+        String nodeB = randomAlphaOfLength(8);
+        String nodeA = randomValueOtherThan(nodeB, () -> randomAlphaOfLength(8));
+        TaskId originalId = new TaskId(nodeA, randomNonNegativeLong());
+        TaskId currentId = new TaskId(nodeB, randomNonNegativeLong());
+        long originalStart = between(0, 1_000);
+        long currentStart = originalStart + between(1, 1_000);
+        long runningNanos = randomLongBetween(0, TimeUnit.SECONDS.toNanos(between(1, 5)));
+        final boolean cancellable = randomBoolean();
+        TaskInfo relocated = new TaskInfo(
+            currentId,
+            randomAlphaOfLength(5),
+            nodeB,
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            null,
+            currentStart,
+            runningNanos,
+            cancellable,
+            cancellable && randomBoolean(),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            originalId,
+            originalStart
+        );
+        TaskInfo adjusted = relocated.withOriginalRelocationIdentity();
+        assertSame(originalId, adjusted.taskId());
+        assertEquals(originalId.getNodeId(), adjusted.node());
+        assertEquals(originalStart, adjusted.startTime());
+        assertEquals(runningNanos + TimeUnit.MILLISECONDS.toNanos(currentStart - originalStart), adjusted.runningTimeNanos());
+        assertSame(originalId, adjusted.originalTaskId());
+        assertEquals(originalStart, adjusted.originalStartTimeMillis());
+    }
+
+    public void testWithOriginalRelocationIdentity_notRelocated() {
+        TaskInfo info = randomTaskInfo();
+        if (info.originalTaskId().equals(info.taskId()) == false) {
+            info = new TaskInfo(
+                info.taskId(),
+                info.type(),
+                info.node(),
+                info.action(),
+                info.description(),
+                info.status(),
+                info.startTime(),
+                info.runningTimeNanos(),
+                info.cancellable(),
+                info.cancelled(),
+                info.parentTaskId(),
+                info.headers()
+            );
+        }
+        TaskInfo same = info.withOriginalRelocationIdentity();
+        assertEquals(info.taskId(), same.taskId());
+        assertEquals(info.node(), same.node());
+        assertEquals(info.startTime(), same.startTime());
+        assertEquals(info.runningTimeNanos(), same.runningTimeNanos());
+        assertEquals(info.originalTaskId(), same.originalTaskId());
+        assertEquals(info.originalStartTimeMillis(), same.originalStartTimeMillis());
+    }
+
+    public static TaskInfo randomTaskInfo() {
         String nodeId = randomAlphaOfLength(5);
         TaskId taskId = randomTaskId(nodeId);
         String type = randomAlphaOfLength(5);

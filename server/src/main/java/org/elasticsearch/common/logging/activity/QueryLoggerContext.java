@@ -9,13 +9,20 @@
 
 package org.elasticsearch.common.logging.activity;
 
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -26,6 +33,8 @@ import java.util.stream.Collectors;
 public abstract class QueryLoggerContext extends ActivityLoggerContext {
     // Cached "isSystem" flag
     private Boolean isSystemSearch = null;
+
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     protected QueryLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         super(task, type, tookInNanos, error);
@@ -78,5 +87,24 @@ public abstract class QueryLoggerContext extends ActivityLoggerContext {
     public Map<String, Long> getCountsByStatus(Map<String, String> clusters) {
         // Group by status and count how many statuses of each kind there are
         return clusters.values().stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+    }
+
+    protected QueryBuilder queryFilter() {
+        return null;
+    }
+
+    public Optional<String> getFilter() {
+        return filterToLogString(queryFilter());
+    }
+
+    public static Optional<String> filterToLogString(QueryBuilder filter) {
+        if (filter == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(XContentHelper.toXContent(filter, XContentType.JSON, FORMAT_PARAMS, true).utf8ToString());
+        } catch (IOException e) {
+            return Optional.empty();
+        }
     }
 }

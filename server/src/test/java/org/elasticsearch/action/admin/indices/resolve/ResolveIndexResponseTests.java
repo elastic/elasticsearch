@@ -78,7 +78,7 @@ public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCa
         String[] aliases = randomStringArray(0, 5);
         String[] attributes = randomSubsetOf(List.of("open", "hidden", "frozen")).toArray(Strings.EMPTY_ARRAY);
         String dataStream = randomBoolean() ? randomAlphaOfLength(6) : null;
-        IndexMode mode = randomFrom(IndexMode.values());
+        IndexMode mode = randomFrom(IndexMode.availableModes());
 
         return new ResolvedIndex(name, aliases, attributes, dataStream, mode);
     }

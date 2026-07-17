@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,24 +36,31 @@ import java.util.concurrent.Executor;
 public class DriverTaskRunner {
     public static final String ACTION_NAME = "indices:data/read/esql/compute";
     private final TransportService transportService;
+    private final Executor searchExecutor;
 
-    public DriverTaskRunner(TransportService transportService, Executor executor) {
+    public DriverTaskRunner(TransportService transportService, Executor searchExecutor) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler(transportService));
+        this.searchExecutor = searchExecutor;
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            searchExecutor,
+            DriverRequest::new,
+            new DriverRequestHandler(transportService)
+        );
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor workerExecutor, ActionListener<Void> listener) {
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 transportService.sendChildRequest(
                     transportService.getLocalNode(),
                     ACTION_NAME,
-                    new DriverRequest(driver, executor),
+                    new DriverRequest(driver, workerExecutor),
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     TransportResponseHandler.empty(
-                        executor,
+                        searchExecutor,
                         // The TransportResponseHandler can be notified while the Driver is still running during node shutdown
                         // or the Driver hasn't started when the parent task is canceled. In such cases, we should abort
                         // the Driver and wait for it to finish.
@@ -65,7 +72,7 @@ public class DriverTaskRunner {
         runner.runToCompletion(drivers, listener);
     }
 
-    private static class DriverRequest extends LegacyActionRequest implements CompositeIndicesRequest {
+    private static class DriverRequest extends UntypedActionRequest implements CompositeIndicesRequest {
         private final Driver driver;
         private final Executor executor;
 

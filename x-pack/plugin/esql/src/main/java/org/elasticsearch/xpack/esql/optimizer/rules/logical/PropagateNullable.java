@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -29,6 +31,8 @@ import java.util.function.BiFunction;
 // (a IS NOT NULL OR p) AND a IS NULL -> OR(false, p) AND a IS NULL (BooleanSimplification then yields p AND a IS NULL)
 // (a IS NULL OR p) AND a IS NOT NULL -> OR(false, p) AND a IS NOT NULL (BooleanSimplification then yields p AND a IS NOT NULL)
 public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
+
+    private static final Logger logger = LogManager.getLogger(PropagateNullable.class);
 
     public PropagateNullable() {
         super(OptimizerRules.TransformDirection.DOWN);
@@ -64,8 +68,41 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
 
         // first against all nullable expressions
         // followed by all not-nullable expressions
-        boolean modified = replace(nullExpressions, others, splits, this::nullify);
-        modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+        // Workaround for https://github.com/elastic/elasticsearch/issues/141579: when both sets are empty
+        // (the common case, e.g. queries without IS [NOT] NULL predicates), JDK 26 EA C2 was observed
+        // miscompiling the two sequential replace() calls and nullifying the local notNullExpressions
+        // reference between them. Skipping the calls when there is nothing to do both side-steps the
+        // miscompilation and is a small perf win. The guards inside rule() and replace() below are kept
+        // as a safety net in case the bug surfaces in a different shape.
+        boolean modified = false;
+        if (nullExpressions.isEmpty() == false) {
+            modified = replace(nullExpressions, others, splits, this::nullify);
+        }
+        if (notNullExpressions == null) {
+            // Observed in production (#148944, follow-up to #141579): the JVM has nullified this local even though Java
+            // source semantics guarantee it is non-null — it was allocated with `new LinkedHashSet<>()` a few lines above
+            // and is never reassigned. The original empty-set short-circuit added in #148277 turned out not to cover this
+            // shape (the guard fires even when the first replace() call is skipped). Re-derive notNullExpressions from
+            // splits — which is a deterministic function of the splits already populated — and continue, so callers
+            // see a successful optimization instead of an IllegalStateException.
+            logger.warn(
+                "PropagateNullable [#141579]: notNullExpressions local was nullified by the JVM; "
+                    + "rebuilding from splits. nullExpressions={}, others={}, splits={}, and={}",
+                nullExpressions,
+                others,
+                splits,
+                and
+            );
+            notNullExpressions = new LinkedHashSet<>();
+            for (Expression ex : splits) {
+                if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
+                }
+            }
+        }
+        if (notNullExpressions.isEmpty() == false) {
+            modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+        }
         if (modified) {
             // reconstruct the expression
             return Predicates.combineAnd(splits);
@@ -84,6 +121,14 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         List<Expression> originalExpressions,
         BiFunction<Expression, Expression, Expression> replacer
     ) {
+        // Diagnostic for https://github.com/elastic/elasticsearch/issues/141579
+        // CI reports NPE at the foreach below with "pattern is null", which should be impossible since callers pass
+        // freshly allocated LinkedHashSets. If both this guard AND the foreach still NPE, C2 is miscompiling.
+        if (pattern == null) {
+            throw new IllegalStateException(
+                "PropagateNullable.replace: pattern is null [#141579]. target=" + target + ", origExprs=" + originalExpressions
+            );
+        }
         boolean modified = false;
         for (Expression s : pattern) {
             for (int i = 0; i < target.size(); i++) {

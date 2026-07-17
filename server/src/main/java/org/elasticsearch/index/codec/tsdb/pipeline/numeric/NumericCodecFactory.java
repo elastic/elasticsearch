@@ -38,7 +38,9 @@ public interface NumericCodecFactory {
     };
 
     /**
-     * Creates an encoder from the given pipeline configuration.
+     * Creates an encoder bound to the given pipeline configuration. Callers
+     * that need per-field pipeline selection should resolve the config per
+     * field and call this once per field.
      *
      * @param config the pipeline configuration specifying which stages to apply
      * @return the encoder for the configured pipeline

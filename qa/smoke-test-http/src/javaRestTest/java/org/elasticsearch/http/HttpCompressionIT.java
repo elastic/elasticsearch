@@ -14,10 +14,14 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -51,7 +55,8 @@ public class HttpCompressionIT extends AbstractHttpSmokeTestIT {
         assertThat(response.getEntity(), instanceOf(GzipDecompressingEntity.class));
 
         String body = EntityUtils.toString(response.getEntity());
-        assertThat(body, containsString(SAMPLE_DOCUMENT));
+        Map<String, Object> getResponse = XContentHelper.convertToMap(new BytesArray(body), false, XContentType.JSON).v2();
+        assertThat(getResponse.get("_source"), equalTo(Map.of("name", Map.of("first name", "Steve", "last name", "Jobs"))));
     }
 
     public void testUncompressedResponseByDefault() throws IOException {

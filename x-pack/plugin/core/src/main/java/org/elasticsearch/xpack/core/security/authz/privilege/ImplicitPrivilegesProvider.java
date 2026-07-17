@@ -15,29 +15,31 @@ import java.util.Collection;
  * Provides additional {@link RoleDescriptor.IndicesPrivileges} that should be implicitly
  * granted based on a user's application privileges.
  * <p>
- * During role building, after application privileges are resolved from the privilege store,
- * each registered provider is invoked with each of the user's role descriptors and the stored
- * application privilege definitions. Any returned {@link RoleDescriptor.IndicesPrivileges}
- * entries are merged into the built role as if they had been declared explicitly.
+ * Each registered provider is invoked with the resolved {@link ResolvedApplicationPrivilege}s to consider, and any
+ * returned {@link RoleDescriptor.IndicesPrivileges} are merged in as if they had been declared explicitly. A provider is
+ * not invoked when there are no application privileges to consider, so it cannot contribute privileges independent of
+ * them.
  * <p>
- * Implementations are expected to be side-effect-free and fast; they run on the hot path of
- * role resolution. An exception thrown by a provider propagates out of role building and fails
- * authorization for the affected user.
+ * Implementations are expected to be side-effect-free and fast; they run on the hot path of role resolution. An
+ * exception thrown by a provider propagates out of role building and fails authorization for the affected user.
  */
 public interface ImplicitPrivilegesProvider {
 
     /**
-     * Returns additional index privileges that should be implicitly added to the role
-     * based on the given role descriptor and its stored application privilege definitions.
+     * Returns additional index privileges that should be implicitly added to the role based on the
+     * given resolved application privileges.
+     * <p>
+     * Each {@link ResolvedApplicationPrivilege} bundles a resolved {@link ApplicationPrivilege}
+     * (whose {@link ApplicationPrivilege#predicate() predicate} already matches every action the
+     * grant authorizes — resolved stored-privilege actions as well as raw action patterns written
+     * directly under {@code privileges[]}) with the resources it applies to. Providers should test
+     * for the action(s) they care about via {@code privilege().predicate().test(action)} rather than
+     * rebuilding a matcher, and read the granted resources from {@link ResolvedApplicationPrivilege#resources()}.
      *
-     * @param roleDescriptor a single resolved role descriptor
-     * @param storedApplicationPrivileges the stored application privilege definitions
-     *        referenced by this role descriptor (filtered to only the (application, privilege-name)
-     *        pairs declared in the role descriptor's application privileges)
+     * @param applicationPrivileges the resolved application-privilege grants to consider; never {@code null}
      * @return additional index privileges to merge into the role, or an empty collection if none
      */
     Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
-        RoleDescriptor roleDescriptor,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
+        Collection<ResolvedApplicationPrivilege> applicationPrivileges
     );
 }

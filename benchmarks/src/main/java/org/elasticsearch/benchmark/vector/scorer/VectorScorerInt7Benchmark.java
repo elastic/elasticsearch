@@ -18,7 +18,7 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -109,7 +109,7 @@ public class VectorScorerInt7Benchmark {
         }
 
         scratch = new byte[dims];
-        scorer = ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(in, dims, bulkSize);
+        scorer = ESVectorizationProvider.getInstance().getVectorScorerFactory().newES92Int7VectorsScorer(in, dims, bulkSize);
     }
 
     @TearDown

@@ -39,15 +39,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.test.ESIntegTestCase.assertBusy;
-import static org.elasticsearch.test.ESTestCase.assertTrue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Search-only shard recovery with a 4kb shared-cache region so the compound commit spans many regions. Concurrent searches run while
@@ -87,11 +83,18 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+        Settings.Builder builder = super.nodeSettings().put(
+            ObjectStoreService.TYPE_SETTING.getKey(),
+            ObjectStoreService.ObjectStoreType.MOCK
+        )
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // only set if set by super, to verify default is on.
+        if (builder.keys().contains(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey())) {
+            builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true);
+        }
+        return builder;
     }
 
     /** Applied only on search nodes (master nodes cannot set shared cache size). */
@@ -142,10 +145,10 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
             indexName
         );
 
-        assertBusy(() -> {
-            assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodes.searchNodeA)));
-            assertThat(internalCluster().nodesInclude(indexName), hasItem(nodes.searchNodeB));
-        });
+        internalCluster().awaitNodesInclude(
+            indexName,
+            includedNodes -> includedNodes.contains(nodes.searchNodeA) == false && includedNodes.contains(nodes.searchNodeB)
+        );
 
         ensureGreen(indexName);
 
@@ -187,7 +190,7 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
             indexName
         );
 
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), hasItem(nodes.searchNodeB)));
+        internalCluster().awaitNodesInclude(indexName, includedNodes -> includedNodes.contains(nodes.searchNodeB));
 
         ensureGreen(indexName);
 

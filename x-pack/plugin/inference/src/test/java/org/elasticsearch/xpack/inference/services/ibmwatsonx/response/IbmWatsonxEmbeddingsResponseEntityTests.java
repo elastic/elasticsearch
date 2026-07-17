@@ -11,7 +11,7 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,7 +37,7 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingFloatResults parsedResults = IbmWatsonxEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -67,7 +67,7 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingFloatResults parsedResults = IbmWatsonxEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -107,7 +107,7 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> IbmWatsonxEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );

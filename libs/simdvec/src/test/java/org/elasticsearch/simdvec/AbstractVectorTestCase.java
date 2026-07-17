@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayOutputStream;
@@ -17,15 +18,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.Optional;
-import java.util.function.IntFunction;
-
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
-import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static Optional<org.elasticsearch.simdvec.VectorScorerFactory> factory;
+    static VectorScorerFactory factory;
 
     protected static final float DELTA = 1e-6f;
 
@@ -37,34 +33,34 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
 
     @BeforeClass
     public static void getVectorScorerFactory() {
-        factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();
+        factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+
+        // check the factory is resolved as expected on the arches we expect
+        var arch = System.getProperty("os.arch");
+        var osName = System.getProperty("os.name");
+
+        if ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
+            || arch.equals("amd64") && osName.equals("Linux"))) {
+            assertTrue(factory.usesNative());
+        } else {
+            // not an arch with native support, so shouldn't be native
+            assertFalse(factory.usesNative());
+
+            // there's only native implementations of these scorers at the moment,
+            // if this changes, the tests will need to check the Optionals returned themselves
+            throw new AssumptionViolatedException(notSupportedMsg());
+        }
     }
 
     protected AbstractVectorTestCase() {
         logger.info(platformMsg());
     }
 
-    public static boolean supported() {
-        var jdkVersion = Runtime.version().feature();
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-
-        if (jdkVersion >= 21
-            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-                || arch.equals("amd64") && osName.equals("Linux"))) {
-            assertThat(factory, isPresent());
-            return true;
-        } else {
-            assertThat(factory, not(isPresent()));
-            return false;
-        }
-    }
-
-    public static String notSupportedMsg() {
+    private static String notSupportedMsg() {
         return "Not supported on [" + platformMsg() + "]";
     }
 
-    public static String platformMsg() {
+    private static String platformMsg() {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
@@ -86,17 +82,31 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         }
     }
 
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
-    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
+    public static float[] maxFloatArray(int size) {
         float[] fa = new float[size];
         Arrays.fill(fa, Float.MAX_VALUE);
         return fa;
-    };
+    }
+
+    // bounds of the range of values that can be seen by int7 scalar quantized vectors
+    public static final byte MIN_INT7_VALUE = 0;
+    public static final byte MAX_INT7_VALUE = 127;
+
+    public static byte[] randomInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
+        return ba;
+    }
+
+    public static byte[] maxInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MAX_INT7_VALUE);
+        return ba;
+    }
+
+    public static byte[] minInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MIN_INT7_VALUE);
+        return ba;
+    }
 }

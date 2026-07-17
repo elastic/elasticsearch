@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
@@ -18,6 +19,11 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  * unsupported data types fields values (which should always be "null" by convention) using value extractors.
  */
 class UnsupportedTypesTopNEncoder extends SortableAscTopNEncoder {
+    @Override
+    protected int maxBytesRefValueSize(Block b) {
+        throw new UnsupportedOperationException("Encountered a bug; trying to size an unsupported data type value for TopN");
+    }
+
     @Override
     public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new UnsupportedOperationException("Encountered a bug; trying to encode an unsupported data type value for TopN");

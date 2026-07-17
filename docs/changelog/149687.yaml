@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 149687
+summary: Add TO_COUNTER() function and ::counter cast operator
+type: enhancement

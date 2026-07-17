@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -68,6 +71,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         FormatReader formatReader = Mockito.mock(FormatReader.class);
         Mockito.when(formatReader.formatName()).thenReturn("csv");
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         @SuppressWarnings("unchecked")
         CloseableIterator<org.elasticsearch.compute.data.Page> emptyIterator = Mockito.mock(CloseableIterator.class);
         Mockito.when(emptyIterator.hasNext()).thenReturn(false);
@@ -119,6 +123,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testFactoryValidation() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         StoragePath path = StoragePath.of("file:///tmp/test.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -324,6 +329,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testDescribe() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         Mockito.when(formatReader.formatName()).thenReturn("csv");
         StoragePath path = StoragePath.of("file:///tmp/data.csv");
         List<Attribute> attributes = List.of(
@@ -343,6 +349,69 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("500"));
     }
 
+    /**
+     * Regression: {@code COUNT(*)} projects zero data columns (empty {@code queryDataSchema}) while
+     * the per-file mapping is carried at the file's full, non-identity width. The factory must skip
+     * the schema adapter and pass the reader's page through untouched, rather than tripping
+     * {@code SchemaAdaptingIterator}'s "output schema size [0] does not match mapping width [3]" guard.
+     */
+    public void testEmptyDataProjectionWithNonIdentityMappingPassesThrough() throws Exception {
+        // Reorder mapping: width 3, non-identity (so the identity short-circuit does NOT apply).
+        ColumnMapping nonIdentityMapping = new ColumnMapping(new int[] { 2, 1, 0 }, null);
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/headerless.csv"),
+            0,
+            100,
+            "csv",
+            Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"),
+            Map.of(),
+            nonIdentityMapping
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(new ArrayList<>(), new ArrayList<>());
+        StubStorageProvider storageProvider = new StubStorageProvider();
+
+        // Empty attributes: COUNT(*) wants no data columns, so queryDataSchema is empty.
+        List<Attribute> attributes = List.of();
+
+        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
+        DriverContext driverContext = Mockito.mock(DriverContext.class);
+        Mockito.when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/headerless.csv"),
+            attributes,
+            100,
+            FormatReader.NO_LIMIT,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        // No exception from the schema-adapter width guard; the reader's page flows through.
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals("reader's single page must survive the empty-projection path", 1, pages.size());
+        assertEquals("row count is preserved", 1, pages.get(0).getPositionCount());
+        // Passed through untouched: the reader's block count is preserved, NOT reshaped to the
+        // mapping's width 3 (which is what routing through SchemaAdaptingIterator would have done).
+        assertEquals("page is not reshaped by the schema adapter", 1, pages.get(0).getBlockCount());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
     // ===== Helpers =====
 
     private static Page createTestPage() {
@@ -350,7 +419,12 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class SplitCapturingFormatReader implements FormatReader {
+    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
 

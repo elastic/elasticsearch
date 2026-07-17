@@ -8,49 +8,58 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.RerankRequest;
 
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InferenceString.textValue;
+import static org.elasticsearch.inference.InferenceString.toStringList;
+
 public class QueryAndDocsInputs extends InferenceInputs {
 
-    public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
-        if (inferenceInputs instanceof QueryAndDocsInputs == false) {
-            throw createUnsupportedTypeException(inferenceInputs, QueryAndDocsInputs.class);
-        }
-
-        return (QueryAndDocsInputs) inferenceInputs;
+    public static QueryAndDocsInputs fromRerankRequest(RerankRequest request) {
+        return new QueryAndDocsInputs(request.query(), request.inputs(), request.returnDocuments(), request.topN(), false);
     }
 
-    private final String query;
-    private final List<String> chunks;
+    private final InferenceString query;
+    private final List<InferenceString> docs;
     private final Boolean returnDocuments;
     private final Integer topN;
 
     public QueryAndDocsInputs(
-        String query,
-        List<String> chunks,
+        InferenceString query,
+        List<InferenceString> docs,
         @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
         boolean stream
     ) {
         super(stream);
         this.query = Objects.requireNonNull(query);
-        this.chunks = Objects.requireNonNull(chunks);
+        this.docs = Objects.requireNonNull(docs);
         this.returnDocuments = returnDocuments;
         this.topN = topN;
     }
 
-    public QueryAndDocsInputs(String query, List<String> chunks) {
-        this(query, chunks, null, null, false);
+    public QueryAndDocsInputs(InferenceString query, List<InferenceString> docs) {
+        this(query, docs, null, null, false);
     }
 
-    public String getQuery() {
+    public InferenceString getQuery() {
         return query;
     }
 
-    public List<String> getChunks() {
-        return chunks;
+    public String getQueryAsString() {
+        return textValue(query);
+    }
+
+    public List<InferenceString> getDocs() {
+        return docs;
+    }
+
+    public List<String> getDocsAsStrings() {
+        return toStringList(docs);
     }
 
     public Boolean getReturnDocuments() {
@@ -63,6 +72,6 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     @Override
     public boolean isSingleInput() {
-        return chunks.size() == 1;
+        return docs.size() == 1;
     }
 }

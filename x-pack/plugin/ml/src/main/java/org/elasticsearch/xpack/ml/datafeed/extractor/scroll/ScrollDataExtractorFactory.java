@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DatafeedFieldConflictDiagnostics;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -202,7 +203,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
             job.getId(),
             extractedFields,
-            datafeedConfig.getIndices(),
+            effectiveIndices(),
             queryBuilder,
             datafeedConfig.getScriptFields(),
             datafeedConfig.getScrollSize(),
@@ -211,24 +212,20 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
             datafeedConfig.getRuntimeMappings(),
-            effectiveProjectRouting()
+            datafeedConfig.getProjectRouting()
         );
         return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, this);
     }
 
-    String effectiveProjectRouting() {
+    List<String> effectiveIndices() {
         if (excludedProjects.isEmpty()) {
-            return datafeedConfig.getProjectRouting();
+            return datafeedConfig.getIndices();
         }
-        String baseRouting = datafeedConfig.getProjectRouting();
-        StringBuilder routing = new StringBuilder(baseRouting == null ? "" : baseRouting);
+        List<String> indices = new ArrayList<>(datafeedConfig.getIndices());
         for (String excludedProject : excludedProjects) {
-            if (routing.length() > 0) {
-                routing.append(',');
-            }
-            routing.append('-').append(excludedProject).append(":*");
+            indices.add("-" + excludedProject + ":*");
         }
-        return routing.toString();
+        return indices;
     }
 
     public static void create(
@@ -322,12 +319,14 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         return fieldCapabilitiesRequest;
     }
 
-    public void requestFieldCapabilities(ActionListener<FieldCapabilitiesResponse> listener) {
+    public FieldCapabilitiesResponse fetchFieldCapabilities() {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = buildFieldCapabilitiesRequest(datafeedConfig, job);
-        ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeedConfig.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
-            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, listener);
-            return null;
-        });
+        return ClientHelper.executeWithHeaders(
+            datafeedConfig.getHeaders(),
+            ClientHelper.ML_ORIGIN,
+            client,
+            () -> client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest).actionGet()
+        );
     }
 
     private static Optional<DatafeedFieldConflictDiagnostics.FieldTypeConflict> findIncompatibleTimeFieldConflict(

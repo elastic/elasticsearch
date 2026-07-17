@@ -14,20 +14,20 @@ import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 /**
  * Actionable user-facing messages when {@code project_routing} fails to resolve linked projects.
  */
-final class DatafeedProjectRoutingDiagnostics {
+public final class DatafeedProjectRoutingDiagnostics {
 
-    enum Phase {
+    public enum Phase {
         VALIDATE_BEFORE_MINT,
         RUNTIME
     }
 
     private DatafeedProjectRoutingDiagnostics() {}
 
-    static Exception enrichIfNoMatchingProject(String datafeedId, @Nullable String projectRouting, Exception failure) {
+    public static Exception enrichIfNoMatchingProject(String datafeedId, @Nullable String projectRouting, Exception failure) {
         return enrichIfNoMatchingProject(datafeedId, projectRouting, failure, Phase.RUNTIME);
     }
 
-    static Exception enrichIfNoMatchingProject(String datafeedId, @Nullable String projectRouting, Exception failure, Phase phase) {
+    public static Exception enrichIfNoMatchingProject(String datafeedId, @Nullable String projectRouting, Exception failure, Phase phase) {
         Throwable unwrapped = ExceptionsHelper.unwrap(failure, NoMatchingProjectException.class);
         if (unwrapped instanceof NoMatchingProjectException noMatchingProject) {
             NoMatchingProjectException enriched = new NoMatchingProjectException(

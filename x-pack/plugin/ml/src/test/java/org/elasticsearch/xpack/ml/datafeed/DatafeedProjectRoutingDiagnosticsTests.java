@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DatafeedProjectRoutingDiagnosticsTests extends ESTestCase {
@@ -31,7 +32,7 @@ public class DatafeedProjectRoutingDiagnosticsTests extends ESTestCase {
             cause,
             DatafeedProjectRoutingDiagnostics.Phase.RUNTIME
         );
-        assertThat(enriched, equalTo(cause.getClass().cast(enriched)));
+        assertThat(enriched, instanceOf(NoMatchingProjectException.class));
         assertThat(enriched.getMessage(), containsString("my-datafeed"));
         assertThat(enriched.getMessage(), containsString("_alias:missing-*"));
         assertThat(enriched.getMessage(), containsString("matched no linked project"));

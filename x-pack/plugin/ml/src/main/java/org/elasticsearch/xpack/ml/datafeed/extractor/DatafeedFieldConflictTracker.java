@@ -36,7 +36,7 @@ public final class DatafeedFieldConflictTracker {
     }
 
     private final Map<String, DatafeedFieldConflictDiagnostics.FieldTypeConflict> activeConflicts = new HashMap<>();
-    private final Set<String> b2ExcludedProjects = new HashSet<>();
+    private final Set<String> timeFieldExcludedProjects = new HashSet<>();
 
     public TrackerDelta applyRecheck(FieldCapabilitiesResponse response, Collection<String> fields, String timeField) {
         Objects.requireNonNull(response);
@@ -73,20 +73,20 @@ public final class DatafeedFieldConflictTracker {
                 updated.put(entry.getKey(), remaining);
             }
         }
-        unlinkedProjects.forEach(b2ExcludedProjects::remove);
+        unlinkedProjects.forEach(timeFieldExcludedProjects::remove);
         return diffAgainstActive(updated);
     }
 
-    public Set<String> b2ExcludedProjects() {
-        return Set.copyOf(b2ExcludedProjects);
+    public Set<String> timeFieldExcludedProjects() {
+        return Set.copyOf(timeFieldExcludedProjects);
     }
 
-    public void markProjectExcludedForB2(String projectAlias) {
-        b2ExcludedProjects.add(projectAlias);
+    public void markProjectExcludedForTimeFieldConflict(String projectAlias) {
+        timeFieldExcludedProjects.add(projectAlias);
     }
 
-    public void markProjectIncludedForB2(String projectAlias) {
-        b2ExcludedProjects.remove(projectAlias);
+    public void markProjectIncludedForTimeFieldConflict(String projectAlias) {
+        timeFieldExcludedProjects.remove(projectAlias);
     }
 
     private TrackerDelta diffAgainstActive(Map<String, DatafeedFieldConflictDiagnostics.FieldTypeConflict> detected) {

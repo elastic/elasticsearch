@@ -11,6 +11,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.extractor.GeoPointField;
+import org.elasticsearch.xpack.ml.extractor.GeoShapeField;
+import org.elasticsearch.xpack.ml.extractor.TimeField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,7 +32,6 @@ import java.util.TreeSet;
 public final class DatafeedFieldConflictDiagnostics {
 
     private static final String ORIGIN_PROJECT = "_origin";
-    private static final Set<String> TIME_FIELD_TYPES = Set.of("date", "date_nanos");
 
     private static final Set<String> INTEGRAL_TYPES = Set.of("long", "integer", "short", "byte");
     private static final Set<String> FLOATING_TYPES = Set.of("double", "float", "half_float", "scaled_float");
@@ -37,8 +39,8 @@ public final class DatafeedFieldConflictDiagnostics {
     private static final Set<String> TEXT_TYPES = Set.of("text", "match_only_text");
     private static final Set<String> BOOLEAN_TYPES = Set.of("boolean");
     private static final Set<String> IP_TYPES = Set.of("ip");
-    private static final Set<String> GEO_POINT_TYPES = Set.of("geo_point");
-    private static final Set<String> GEO_SHAPE_TYPES = Set.of("geo_shape");
+    private static final Set<String> GEO_POINT_TYPES = Set.of(GeoPointField.TYPE);
+    private static final Set<String> GEO_SHAPE_TYPES = Set.of(GeoShapeField.TYPE);
     private static final Set<String> OBJECT_TYPES = Set.of("object", "nested");
 
     public record FieldTypeConflict(String field, SortedMap<String, SortedSet<String>> typeToProjects) {}
@@ -48,7 +50,7 @@ public final class DatafeedFieldConflictDiagnostics {
     private static final List<Set<String>> OPTIONAL_FIELD_COMPATIBILITY_GROUPS = List.of(
         INTEGRAL_TYPES,
         FLOATING_TYPES,
-        TIME_FIELD_TYPES,
+        TimeField.TYPES,
         KEYWORD_TYPES,
         TEXT_TYPES,
         BOOLEAN_TYPES,
@@ -59,15 +61,45 @@ public final class DatafeedFieldConflictDiagnostics {
     );
 
     /**
-     * Returns {@code true} when the union of Elasticsearch types across projects can be consumed via a single
-     * {@link org.elasticsearch.xpack.ml.extractor.ExtractedFields.ExtractionMethodDetector} path for optional fields.
+     * Returns the analytical type-family groups used to judge optional-field compatibility across projects.
+     * Exposed for drift-guard unit tests.
+     */
+    static List<Set<String>> optionalFieldCompatibilityGroups() {
+        return OPTIONAL_FIELD_COMPATIBILITY_GROUPS;
+    }
+
+    /**
+     * Returns {@code true} when the union of Elasticsearch types across projects is analytically compatible
+     * for optional fields. This is a report-only judgement: some multi-type unions (for example {@code keyword}
+     * and {@code text}) still collapse to a single extraction path via
+     * {@link org.elasticsearch.xpack.ml.extractor.ExtractedFields.ExtractionMethodDetector},
+     * but we warn when types span distinct analytical families.
      */
     public static boolean areOptionalFieldTypesCompatible(Set<String> types) {
         if (types.size() <= 1) {
             return true;
         }
+        boolean allTypesKnown = true;
+        for (String type : types) {
+            if (isKnownOptionalFieldType(type) == false) {
+                allTypesKnown = false;
+                break;
+            }
+        }
+        if (allTypesKnown == false) {
+            return true;
+        }
         for (Set<String> group : OPTIONAL_FIELD_COMPATIBILITY_GROUPS) {
             if (group.containsAll(types)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isKnownOptionalFieldType(String type) {
+        for (Set<String> group : OPTIONAL_FIELD_COMPATIBILITY_GROUPS) {
+            if (group.contains(type)) {
                 return true;
             }
         }
@@ -121,7 +153,7 @@ public final class DatafeedFieldConflictDiagnostics {
     }
 
     public static boolean isIncompatibleTimeField(FieldTypeConflict conflict) {
-        return TIME_FIELD_TYPES.containsAll(conflict.typeToProjects().keySet()) == false;
+        return TimeField.TYPES.containsAll(conflict.typeToProjects().keySet()) == false;
     }
 
     public static boolean isIncompatibleOptionalField(FieldTypeConflict conflict) {

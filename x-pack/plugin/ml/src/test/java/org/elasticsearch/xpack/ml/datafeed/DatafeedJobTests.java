@@ -13,6 +13,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -50,6 +53,7 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterServiceTests;
@@ -67,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -643,6 +648,44 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(bucketsRequest.getAnomalyScore(), equalTo(75.0));
     }
 
+    public void testScopeChangeWithTimeFieldConflictExcludesProjectBeforeRunLookBackReturns() throws Exception {
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        List<LinkedClusterState> baseline = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
+        List<LinkedClusterState> withNewProject = List.of(
+            new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10),
+            new LinkedClusterState("new_project", LinkedClusterState.Status.AVAILABLE, null, 20)
+        );
+
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(withNewProject);
+        }
+        currentTime += 30_000;
+
+        dataDescription.setTimeField("@timestamp");
+        ScrollDataExtractorFactory scrollFactory = mock(ScrollDataExtractorFactory.class);
+        Job scrollJob = mock(Job.class);
+        when(scrollJob.allInputFields()).thenReturn(List.of("@timestamp"));
+        when(scrollFactory.job()).thenReturn(scrollJob);
+        when(scrollFactory.fetchFieldCapabilities()).thenReturn(timeFieldConflictResponse());
+        dataExtractorFactory = scrollFactory;
+        resetExtractorForCcsTest(withNewProject);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        GetBucketsAction.Response emptyResponse = new GetBucketsAction.Response(new QueryPage<>(List.of(), 0, Bucket.RESULTS_FIELD));
+        when(getBucketsFuture.actionGet()).thenReturn(emptyResponse);
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(scrollFactory).excludeProject("new_project");
+        verify(auditor).error(eq(jobId), argThat(msg -> msg.contains("excluded project [new_project]")));
+    }
+
     public void testScopeChangeNoAnomaliesEmitsOnlyOneWarning() throws Exception {
         CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
@@ -960,6 +1003,36 @@ public class DatafeedJobTests extends ESTestCase {
         // No scope change warnings on baseline
         verify(auditor, never()).warning(eq(jobId), argThat(msg -> msg.contains("scope changed")));
         verify(client, never()).execute(same(GetBucketsAction.INSTANCE), any());
+    }
+
+    private static FieldCapabilitiesResponse timeFieldConflictResponse() {
+        return new FieldCapabilitiesResponse(
+            new String[] { "logs-*" },
+            Map.of(
+                "@timestamp",
+                Map.of("date", fieldCaps("@timestamp", "date", "logs-*"), "long", fieldCaps("@timestamp", "long", "new_project:logs-*"))
+            )
+        );
+    }
+
+    private static FieldCapabilities fieldCaps(String field, String type, String index) {
+        return new FieldCapabilities(
+            field,
+            type,
+            false,
+            true,
+            true,
+            null,
+            false,
+            null,
+            new String[] { index },
+            null,
+            null,
+            null,
+            null,
+            null,
+            Map.of()
+        );
     }
 
     @SuppressWarnings("unchecked")

@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -395,8 +396,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     listener
                 ),
                 e -> {
-                    auditor.error(job.getId(), e.getMessage());
-                    listener.onFailure(e);
+                    Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                        effectiveDatafeed.getId(),
+                        effectiveDatafeed.getProjectRouting(),
+                        e,
+                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
+                    );
+                    auditor.error(job.getId(), enriched.getMessage());
+                    listener.onFailure(enriched);
                 }
             )
         );

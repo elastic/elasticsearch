@@ -116,6 +116,50 @@ public class DatafeedFieldConflictDiagnosticsTests extends ESTestCase {
         assertThat(message, containsString("@timestamp"));
     }
 
+    public void testUnlistedOptionalFieldTypeIsCompatible() {
+        assertThat(DatafeedFieldConflictDiagnostics.areOptionalFieldTypesCompatible(Set.of("long", "unsigned_long")), is(true));
+    }
+
+    public void testOptionalFieldCompatibilityGroupsHaveNoOverlappingTypes() {
+        Set<String> seen = new java.util.HashSet<>();
+        for (Set<String> group : DatafeedFieldConflictDiagnostics.optionalFieldCompatibilityGroups()) {
+            for (String type : group) {
+                assertThat("type [" + type + "] appears in more than one compatibility group", seen.add(type), is(true));
+            }
+        }
+    }
+
+    public void testOptionalFieldCompatibilityGroupsCoverMlRelevantTypes() {
+        Set<String> expected = Set.of(
+            "long",
+            "integer",
+            "short",
+            "byte",
+            "double",
+            "float",
+            "half_float",
+            "scaled_float",
+            "date",
+            "date_nanos",
+            "keyword",
+            "constant_keyword",
+            "wildcard",
+            "text",
+            "match_only_text",
+            "boolean",
+            "ip",
+            "geo_point",
+            "geo_shape",
+            "object",
+            "nested"
+        );
+        Set<String> covered = new java.util.HashSet<>();
+        for (Set<String> group : DatafeedFieldConflictDiagnostics.optionalFieldCompatibilityGroups()) {
+            covered.addAll(group);
+        }
+        assertThat(covered, equalTo(expected));
+    }
+
     public void testRemoveProjectsClearsConflictWhenOnlyOneTypeRemains() {
         DatafeedFieldConflictDiagnostics.FieldTypeConflict conflict = conflict("status", "keyword", "prod-us", "long", "prod-eu");
         assertThat(DatafeedFieldConflictDiagnostics.removeProjects(conflict, Set.of("prod-eu")), equalTo(null));

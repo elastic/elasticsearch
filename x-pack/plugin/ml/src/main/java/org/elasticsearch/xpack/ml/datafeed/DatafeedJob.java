@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -549,15 +549,18 @@ class DatafeedJob {
             return;
         }
 
-        scrollFactory.requestFieldCapabilities(
-            ActionListener.wrap(
-                response -> processFieldConflictDelta(
-                    fieldConflictTracker.applyRecheck(response, scrollFactory.job().allInputFields(), dataDescription.getTimeField()),
-                    scopeChange
-                ),
-                e -> LOGGER.warn(() -> "[" + jobId + "] field conflict recheck after scope change failed", e)
-            )
-        );
+        // Re-scan the full configured scope (not the post-exclusion effective indices) so a fixed mapping
+        // in a currently-excluded project can be detected and the project re-included. Report-only optional
+        // warnings for an excluded project are acceptable.
+        try {
+            FieldCapabilitiesResponse response = scrollFactory.fetchFieldCapabilities();
+            processFieldConflictDelta(
+                fieldConflictTracker.applyRecheck(response, scrollFactory.job().allInputFields(), dataDescription.getTimeField()),
+                scopeChange
+            );
+        } catch (Exception e) {
+            LOGGER.warn(() -> "[" + jobId + "] field conflict recheck after scope change failed", e);
+        }
     }
 
     private void processFieldConflictDelta(
@@ -590,7 +593,7 @@ class DatafeedJob {
         projectsToExclude.retainAll(newlyLinkedProjects);
         for (String excludedProject : projectsToExclude) {
             dataExtractorFactory.excludeProject(excludedProject);
-            fieldConflictTracker.markProjectExcludedForB2(excludedProject);
+            fieldConflictTracker.markProjectExcludedForTimeFieldConflict(excludedProject);
             String message = DatafeedFieldConflictDiagnostics.timeFieldProjectExcludedError(
                 datafeedId,
                 timeField,
@@ -612,17 +615,17 @@ class DatafeedJob {
         if (resolvedFields.contains(timeField) == false) {
             return;
         }
-        for (String excludedProject : fieldConflictTracker.b2ExcludedProjects()) {
+        for (String excludedProject : fieldConflictTracker.timeFieldExcludedProjects()) {
             dataExtractorFactory.includeProject(excludedProject);
-            fieldConflictTracker.markProjectIncludedForB2(excludedProject);
+            fieldConflictTracker.markProjectIncludedForTimeFieldConflict(excludedProject);
         }
     }
 
     private void includeProjectsAfterUnlink(Set<String> unlinkedProjects) {
         for (String unlinkedProject : unlinkedProjects) {
-            if (fieldConflictTracker.b2ExcludedProjects().contains(unlinkedProject)) {
+            if (fieldConflictTracker.timeFieldExcludedProjects().contains(unlinkedProject)) {
                 dataExtractorFactory.includeProject(unlinkedProject);
-                fieldConflictTracker.markProjectIncludedForB2(unlinkedProject);
+                fieldConflictTracker.markProjectIncludedForTimeFieldConflict(unlinkedProject);
             }
         }
     }

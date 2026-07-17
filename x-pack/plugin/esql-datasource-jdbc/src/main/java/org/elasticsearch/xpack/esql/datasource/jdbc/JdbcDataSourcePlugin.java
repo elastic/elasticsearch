@@ -186,7 +186,8 @@ public class JdbcDataSourcePlugin extends Plugin implements DataSourcePlugin, Re
                 runtimeConfig::enabled,
                 runtimeConfig::pushdownEnabled,
                 hikariPool(driverRegistry),
-                runtimeConfig::credentialEpoch
+                runtimeConfig::credentialEpoch,
+                runtimeConfig::allowPlaintext
             )
         );
     }

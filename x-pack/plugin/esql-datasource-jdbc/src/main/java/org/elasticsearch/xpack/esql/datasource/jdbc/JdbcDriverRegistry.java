@@ -163,7 +163,9 @@ public final class JdbcDriverRegistry implements Closeable {
                 return connection;
             }
         }
-        throw new SQLException("no registered JDBC driver accepts URL [" + jdbcUrl + "]");
+        // Sanitize the URL: a user-supplied jdbc:...//user:pwd@host/db (or ?password=...) would otherwise embed the
+        // raw credentials verbatim in this message, which propagates unredacted to callers/logs.
+        throw new SQLException("no registered JDBC driver accepts URL [" + JdbcUrlSanitizer.sanitize(jdbcUrl) + "]");
     }
 
     /** For diagnostics only. */

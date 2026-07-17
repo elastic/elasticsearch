@@ -94,14 +94,14 @@ public final class JdbcRuntimeConfig {
     /**
      * Comma-separated allowlist of JDBC subprotocol prefixes. Empty / missing means the
      * {@link SsrfGuard#DEFAULT_ALLOWED_SUBPROTOCOLS production default}; otherwise we use exactly what's set (so
-     * an operator who flips this on can also remove {@code jdbc:h2:mem:} for hardening). Dynamic so an operator can
-     * tighten the allowlist in response to an incident without bouncing nodes.
+     * an operator who flips this on can also remove {@code jdbc:h2:mem:} for hardening). Read once at node start
+     * (the {@link org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin} SPI has no dynamic cluster-settings
+     * hook, so there is no update consumer); changing it requires a rolling restart.
      */
     public static final Setting<List<String>> ALLOWED_SUBPROTOCOLS = Setting.listSetting(
         "esql.jdbc.ssrf.allowed_subprotocols",
         List.of(),
         s -> s,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -109,55 +109,58 @@ public final class JdbcRuntimeConfig {
      * Allow JDBC URLs whose host parses to a loopback address (127.0.0.0/8, ::1, localhost). Default {@code false}
      * because the legitimate target audience -- production DBs -- never lives on loopback. Tests that exercise a
      * TCP-mode H2 on localhost need to flip this to {@code true} (or use {@code jdbc:h2:mem:} which has no host
-     * and so is unaffected).
+     * and so is unaffected). Read once at node start (no update consumer); changing it requires a rolling restart.
      */
     public static final Setting<Boolean> ALLOW_LOOPBACK = Setting.boolSetting(
         "esql.jdbc.ssrf.allow_loopback",
         false,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
      * Maximum pooled connections per JDBC endpoint (normalized URL). Default 10. Because JDBC producers run on
      * {@code esql_worker} threads, a single endpoint can never borrow more than the esql_worker pool size at once;
-     * {@link #warnIfPoolOvercommit} logs a WARN when this exceeds that size (wasted DB connection budget).
+     * {@link #warnIfPoolOvercommit} logs a WARN when this exceeds that size (wasted DB connection budget). Read once
+     * at node start (no update consumer); changing it requires a rolling restart.
      */
     public static final Setting<Integer> POOL_MAX_PER_URL = Setting.intSetting(
         "esql.jdbc.pool.max_per_url",
         10,
         1,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
      * HikariCP {@code connectionTimeout}. Default 5000ms (short by design): a producer that cannot obtain a
-     * connection fails fast rather than parking an esql_worker thread indefinitely. HikariCP's floor is 250ms.
+     * connection fails fast rather than parking an esql_worker thread indefinitely. HikariCP's floor is 250ms. Read
+     * once at node start (no update consumer); changing it requires a rolling restart.
      */
     public static final Setting<Long> POOL_CONNECTION_TIMEOUT_MS = Setting.longSetting(
         "esql.jdbc.pool.connection_timeout_ms",
         5000L,
         250L,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    /** HikariCP {@code idleTimeout}. Default 30000ms; idle connections beyond {@code minimumIdle}=0 are retired. */
+    /**
+     * HikariCP {@code idleTimeout}. Default 30000ms; idle connections beyond {@code minimumIdle}=0 are retired. Read
+     * once at node start (no update consumer); changing it requires a rolling restart.
+     */
     public static final Setting<Long> POOL_IDLE_TIMEOUT_MS = Setting.longSetting(
         "esql.jdbc.pool.idle_timeout_ms",
         30000L,
         0L,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    /** HikariCP {@code maxLifetime}. Default 900000ms (15m); a physical connection is retired after this age. */
+    /**
+     * HikariCP {@code maxLifetime}. Default 900000ms (15m); a physical connection is retired after this age. Read
+     * once at node start (no update consumer); changing it requires a rolling restart.
+     */
     public static final Setting<Long> POOL_MAX_LIFETIME_MS = Setting.longSetting(
         "esql.jdbc.pool.max_lifetime_ms",
         900000L,
         0L,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -174,12 +177,12 @@ public final class JdbcRuntimeConfig {
      * {@code 30000 <= keepalive < idle_timeout < max_lifetime}. {@link JdbcHikariPool} validates this at pool-creation
      * time and <em>disables</em> a mis-ordered keepalive with an actionable WARN rather than letting HikariCP reset it
      * silently. Default {@code 0} trivially satisfies the invariant (disabled), so no operator action is required.
+     * Read once at node start (no update consumer); changing it requires a rolling restart.
      */
     public static final Setting<Long> POOL_KEEPALIVE_MS = Setting.longSetting(
         "esql.jdbc.pool.keepalive_ms",
         0L,
         0L,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -192,13 +195,37 @@ public final class JdbcRuntimeConfig {
      * <b>Ordering invariant.</b> {@code validationTimeout <= connectionTimeout}: the per-borrow validation budget must
      * never exceed the overall connection-acquisition budget. {@link JdbcHikariPool} clamps a larger value down to
      * {@code connectionTimeout} with a WARN. The default (5000ms) equals the default {@code connectionTimeout}
-     * (5000ms), so the invariant holds out of the box.
+     * (5000ms), so the invariant holds out of the box. Read once at node start (no update consumer); changing it
+     * requires a rolling restart.
      */
     public static final Setting<Long> POOL_VALIDATION_TIMEOUT_MS = Setting.longSetting(
         "esql.jdbc.pool.validation_timeout_ms",
         5000L,
         250L,
-        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Maximum number of distinct {@link com.zaxxer.hikari.HikariDataSource} pools the {@link JdbcHikariPool} cache may
+     * hold at once. Default 64. A pool is keyed per {@code (endpoint × credential × connection_properties)}, so a
+     * query-privileged caller could otherwise mint an unbounded number of keys and pin HikariCP threads + DB
+     * connections until node close. On overflow the cache evicts and closes the least-recently-used <em>idle</em>
+     * pool (zero active connections); if every pool is busy the cache logs a WARN and temporarily exceeds the cap
+     * (busy pools are themselves bounded by the esql_worker thread count). Read once at node start (no update
+     * consumer); changing it requires a rolling restart.
+     */
+    public static final Setting<Integer> POOL_MAX_POOLS = Setting.intSetting("esql.jdbc.pool.max_pools", 64, 1, Setting.Property.NodeScope);
+
+    /**
+     * Whether to permit JDBC connections that explicitly DISABLE TLS ({@code sslmode=disable} or {@code ssl=false} in
+     * {@code connection_properties}). Default {@code false}: disabling TLS puts credentials on the wire in cleartext,
+     * so it must be an explicit operator opt-in. Opportunistic modes ({@code sslmode=prefer}/{@code allow}) are NOT
+     * affected -- only an explicit disable is rejected. Read once at node start (no update consumer); changing it
+     * requires a rolling restart.
+     */
+    public static final Setting<Boolean> ALLOW_PLAINTEXT = Setting.boolSetting(
+        "esql.jdbc.allow_plaintext",
+        false,
         Setting.Property.NodeScope
     );
 
@@ -213,6 +240,8 @@ public final class JdbcRuntimeConfig {
     private final AtomicLong poolMaxLifetimeMs;
     private final AtomicLong poolKeepaliveMs;
     private final AtomicLong poolValidationTimeoutMs;
+    private final AtomicInteger poolMaxPools;
+    private final AtomicBoolean allowPlaintext;
 
     /**
      * Monotonic credential epoch. Bumped by {@link JdbcDataSourcePlugin#reload} (the
@@ -242,6 +271,8 @@ public final class JdbcRuntimeConfig {
         this.poolMaxLifetimeMs = new AtomicLong(POOL_MAX_LIFETIME_MS.getDefault(Settings.EMPTY));
         this.poolKeepaliveMs = new AtomicLong(POOL_KEEPALIVE_MS.getDefault(Settings.EMPTY));
         this.poolValidationTimeoutMs = new AtomicLong(POOL_VALIDATION_TIMEOUT_MS.getDefault(Settings.EMPTY));
+        this.poolMaxPools = new AtomicInteger(POOL_MAX_POOLS.getDefault(Settings.EMPTY));
+        this.allowPlaintext = new AtomicBoolean(ALLOW_PLAINTEXT.getDefault(Settings.EMPTY));
     }
 
     /**
@@ -264,6 +295,8 @@ public final class JdbcRuntimeConfig {
         this.poolMaxLifetimeMs.set(POOL_MAX_LIFETIME_MS.get(nodeSettings));
         this.poolKeepaliveMs.set(POOL_KEEPALIVE_MS.get(nodeSettings));
         this.poolValidationTimeoutMs.set(POOL_VALIDATION_TIMEOUT_MS.get(nodeSettings));
+        this.poolMaxPools.set(POOL_MAX_POOLS.get(nodeSettings));
+        this.allowPlaintext.set(ALLOW_PLAINTEXT.get(nodeSettings));
         // Snapshot the REAL concurrency knobs (esql_worker pool size + external max_concurrent_requests) so the
         // overcommit WARN reflects this node's configuration. These are the knobs that actually bound JDBC producer
         // concurrency (there is no dedicated external-I/O thread pool).
@@ -322,6 +355,19 @@ public final class JdbcRuntimeConfig {
     /** Current HikariCP {@code validationTimeout} in ms (the on-borrow {@code isValid()} budget). */
     public long poolValidationTimeoutMs() {
         return poolValidationTimeoutMs.get();
+    }
+
+    /** Current maximum number of distinct {@link JdbcHikariPool} pools cached at once. Read when a pool is created. */
+    public int poolMaxPools() {
+        return poolMaxPools.get();
+    }
+
+    /**
+     * Whether explicitly disabling TLS ({@code sslmode=disable} / {@code ssl=false}) is permitted in
+     * {@code connection_properties}. Read when connection properties are parsed. Default {@code false}.
+     */
+    public boolean allowPlaintext() {
+        return allowPlaintext.get();
     }
 
     /**
@@ -442,7 +488,9 @@ public final class JdbcRuntimeConfig {
             POOL_IDLE_TIMEOUT_MS,
             POOL_MAX_LIFETIME_MS,
             POOL_KEEPALIVE_MS,
-            POOL_VALIDATION_TIMEOUT_MS
+            POOL_VALIDATION_TIMEOUT_MS,
+            POOL_MAX_POOLS,
+            ALLOW_PLAINTEXT
         );
     }
 }

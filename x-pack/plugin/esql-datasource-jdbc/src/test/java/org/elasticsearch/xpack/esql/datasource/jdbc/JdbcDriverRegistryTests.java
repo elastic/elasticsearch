@@ -168,6 +168,18 @@ public class JdbcDriverRegistryTests extends ESTestCase {
         }
     }
 
+    public void testConnectNoMatchingDriverThrowsSanitizesUrl() throws IOException {
+        // The "no registered JDBC driver accepts URL [...]" message must never embed a credential-bearing URL raw:
+        // both the userinfo (user:pass@) and a ?password=... query param must be redacted before it reaches callers.
+        try (JdbcDriverRegistry empty = JdbcDriverRegistry.fromDirectory(null, getClass().getClassLoader())) {
+            String url = "jdbc:nodriver://alice:s3cretpw@host:5432/db?password=anotherSecret";
+            SQLException e = expectThrows(SQLException.class, () -> empty.connect(url, null));
+            assertTrue("message must still identify the failure", e.getMessage().contains("no registered JDBC driver accepts URL"));
+            assertFalse("must not leak URL-embedded password (basic-auth form)", e.getMessage().contains("s3cretpw"));
+            assertFalse("must not leak URL-embedded password (query-param form)", e.getMessage().contains("anotherSecret"));
+        }
+    }
+
     public void testFromDirectoryNullReturnsEmptyRegistry() throws IOException {
         try (JdbcDriverRegistry empty = JdbcDriverRegistry.fromDirectory(null, getClass().getClassLoader())) {
             assertEquals(0, empty.driverCount());

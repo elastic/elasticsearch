@@ -107,7 +107,7 @@ public class JdbcRuntimeConfigTests extends ESTestCase {
 
     public void testSettingsListContainsAllOwnedSettings() {
         var settings = JdbcRuntimeConfig.settings();
-        assertEquals(10, settings.size());
+        assertEquals(12, settings.size());
         assertTrue(settings.contains(JdbcRuntimeConfig.ENABLED));
         assertTrue(settings.contains(JdbcRuntimeConfig.PUSHDOWN_ENABLED));
         assertTrue(settings.contains(JdbcRuntimeConfig.ALLOWED_SUBPROTOCOLS));
@@ -118,6 +118,46 @@ public class JdbcRuntimeConfigTests extends ESTestCase {
         assertTrue(settings.contains(JdbcRuntimeConfig.POOL_MAX_LIFETIME_MS));
         assertTrue(settings.contains(JdbcRuntimeConfig.POOL_KEEPALIVE_MS));
         assertTrue(settings.contains(JdbcRuntimeConfig.POOL_VALIDATION_TIMEOUT_MS));
+        assertTrue(settings.contains(JdbcRuntimeConfig.POOL_MAX_POOLS));
+        assertTrue(settings.contains(JdbcRuntimeConfig.ALLOW_PLAINTEXT));
+    }
+
+    public void testNonDynamicSettingsCarryNoDynamicProperty() {
+        // These settings have no addSettingsUpdateConsumer on the DataSourcePlugin SPI, so they must NOT be Dynamic
+        // (a dynamic setting with no consumer would silently accept an update that never takes effect).
+        for (var setting : List.of(
+            JdbcRuntimeConfig.ENABLED,
+            JdbcRuntimeConfig.ALLOWED_SUBPROTOCOLS,
+            JdbcRuntimeConfig.ALLOW_LOOPBACK,
+            JdbcRuntimeConfig.POOL_MAX_PER_URL,
+            JdbcRuntimeConfig.POOL_CONNECTION_TIMEOUT_MS,
+            JdbcRuntimeConfig.POOL_IDLE_TIMEOUT_MS,
+            JdbcRuntimeConfig.POOL_MAX_LIFETIME_MS,
+            JdbcRuntimeConfig.POOL_KEEPALIVE_MS,
+            JdbcRuntimeConfig.POOL_VALIDATION_TIMEOUT_MS,
+            JdbcRuntimeConfig.POOL_MAX_POOLS,
+            JdbcRuntimeConfig.ALLOW_PLAINTEXT
+        )) {
+            assertFalse("[" + setting.getKey() + "] must not be Dynamic", setting.isDynamic());
+            assertTrue("[" + setting.getKey() + "] must be NodeScope", setting.hasNodeScope());
+        }
+    }
+
+    public void testNewSettingDefaults() {
+        JdbcRuntimeConfig config = new JdbcRuntimeConfig();
+        assertEquals(64, config.poolMaxPools());
+        assertFalse(config.allowPlaintext());
+    }
+
+    public void testInitializeReadsNewSettings() {
+        Settings s = Settings.builder()
+            .put(JdbcRuntimeConfig.POOL_MAX_POOLS.getKey(), 8)
+            .put(JdbcRuntimeConfig.ALLOW_PLAINTEXT.getKey(), true)
+            .build();
+        JdbcRuntimeConfig config = new JdbcRuntimeConfig();
+        config.initialize(s);
+        assertEquals(8, config.poolMaxPools());
+        assertTrue(config.allowPlaintext());
     }
 
     public void testPoolDefaults() {

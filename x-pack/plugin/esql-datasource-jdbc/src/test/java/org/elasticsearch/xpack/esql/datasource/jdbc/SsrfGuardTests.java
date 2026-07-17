@@ -84,6 +84,50 @@ public class SsrfGuardTests extends ESTestCase {
         assertThat(d.reason(), org.hamcrest.Matchers.containsString("could not parse a host"));
     }
 
+    // -- multi-host failover authorities (pgjdbc / MySQL: host:port,host:port,...) --
+
+    public void testMultiHostAllPublicAllowed() {
+        // pgjdbc/MySQL accept a comma-separated failover authority; when every host is public the URL is allowed.
+        assertAllowed("jdbc:postgresql://db1.corp.internal:5432,db2.corp.internal:5432/orders");
+        assertAllowed("jdbc:mysql://8.8.8.8:3306,9.9.9.9:3306/orders");
+    }
+
+    public void testMultiHostWithLinkLocalSecondHostDenied() {
+        // The primary defense: a public first host must not smuggle a link-local (cloud-metadata) failover target
+        // past the guard. Every host in the authority is validated; deny if ANY is disallowed.
+        SsrfGuard.Decision d = guard.evaluate("jdbc:postgresql://8.8.8.8:5432,169.254.169.254:5432/db");
+        assertFalse("link-local second failover host must be denied", d.allowed());
+        assertThat(d.reason(), org.hamcrest.Matchers.containsString("link-local"));
+    }
+
+    public void testMultiHostWithLoopbackSecondHostDenied() {
+        SsrfGuard.Decision d = guard.evaluate("jdbc:postgresql://8.8.8.8:5432,127.0.0.1:5432/db");
+        assertFalse("loopback second failover host must be denied", d.allowed());
+        assertThat(d.reason(), org.hamcrest.Matchers.containsString("loopback"));
+    }
+
+    public void testMultiHostWithLocalhostNameSecondHostDenied() {
+        SsrfGuard.Decision d = guard.evaluate("jdbc:mysql://8.8.8.8:3306,localhost:3306/db");
+        assertFalse("localhost-by-name second failover host must be denied", d.allowed());
+    }
+
+    public void testMultiHostFirstHostDeniedShortCircuits() {
+        // A link-local FIRST host is denied regardless of the (public) second host.
+        SsrfGuard.Decision d = guard.evaluate("jdbc:postgresql://169.254.169.254:5432,8.8.8.8:5432/db");
+        assertFalse(d.allowed());
+    }
+
+    public void testMultiHostWithUserInfoStripsThenValidatesEveryHost() {
+        // Userinfo precedes the whole multi-host authority; after stripping it, both hosts must still be validated.
+        assertAllowed("jdbc:postgresql://alice:secret@db1.corp.internal:5432,db2.corp.internal:5432/orders");
+        assertFalse(guard.evaluate("jdbc:postgresql://alice:secret@8.8.8.8:5432,169.254.169.254:5432/db").allowed());
+    }
+
+    public void testMultiHostIPv6LiteralSegmentsValidated() {
+        // IPv6 bracket literals inside a failover list are parsed per-segment; a link-local IPv6 second host denies.
+        assertFalse(guard.evaluate("jdbc:postgresql://[2001:db8::1]:5432,[fe80::1]:5432/db").allowed());
+    }
+
     public void testAllowsOracleThinAtForm() {
         assertAllowed("jdbc:oracle:thin:@db.corp.internal:1521:ORCL");
     }

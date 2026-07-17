@@ -144,6 +144,13 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
      * this factory decoupled from the config's storage. Defaults to always-on in the test-convenience constructors.
      */
     private final java.util.function.BooleanSupplier pushdownEnabledSupplier;
+    /**
+     * Supplies the current {@code esql.jdbc.allow_plaintext} flag from the plugin's instance-owned
+     * {@link JdbcRuntimeConfig}. Read when {@code connection_properties} are parsed so an explicit
+     * {@code sslmode=disable}/{@code ssl=false} is rejected unless the operator opted in. Defaults to a constant
+     * {@code false} in the test-convenience constructors.
+     */
+    private final java.util.function.BooleanSupplier allowPlaintextSupplier;
     private final JdbcHikariPool hikariPool;
     /**
      * Supplies the current credential epoch from the plugin's instance-owned {@link JdbcRuntimeConfig}. The
@@ -198,6 +205,7 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
             pushdownEnabledSupplier,
             new JdbcHikariPool(driverRegistry, new JdbcRuntimeConfig()),
             () -> 0L,
+            () -> false,
             true
         );
     }
@@ -209,7 +217,8 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         java.util.function.BooleanSupplier enabledSupplier,
         java.util.function.BooleanSupplier pushdownEnabledSupplier,
         JdbcHikariPool hikariPool,
-        java.util.function.LongSupplier credentialEpochSupplier
+        java.util.function.LongSupplier credentialEpochSupplier,
+        java.util.function.BooleanSupplier allowPlaintextSupplier
     ) {
         this(
             driverRegistry,
@@ -219,6 +228,7 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
             pushdownEnabledSupplier,
             hikariPool,
             credentialEpochSupplier,
+            allowPlaintextSupplier,
             false
         );
     }
@@ -231,6 +241,7 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         java.util.function.BooleanSupplier pushdownEnabledSupplier,
         JdbcHikariPool hikariPool,
         java.util.function.LongSupplier credentialEpochSupplier,
+        java.util.function.BooleanSupplier allowPlaintextSupplier,
         boolean ownsPool
     ) {
         if (driverRegistry == null) {
@@ -254,11 +265,15 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         if (credentialEpochSupplier == null) {
             throw new IllegalArgumentException("credentialEpochSupplier must not be null");
         }
+        if (allowPlaintextSupplier == null) {
+            throw new IllegalArgumentException("allowPlaintextSupplier must not be null");
+        }
         this.driverRegistry = driverRegistry;
         this.dialectRegistry = dialectRegistry;
         this.ssrfGuardSupplier = ssrfGuardSupplier;
         this.enabledSupplier = enabledSupplier;
         this.pushdownEnabledSupplier = pushdownEnabledSupplier;
+        this.allowPlaintextSupplier = allowPlaintextSupplier;
         this.hikariPool = hikariPool;
         this.credentialEpochSupplier = credentialEpochSupplier;
         this.ownsPool = ownsPool;
@@ -266,6 +281,11 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         // quoting are identical across GenericDialect and its subclasses (PostgresDialect inherits both). It also has
         // no URL to resolve a per-vendor dialect against, so build it once from the generic dialect and reuse it,
         // avoiding an allocation on every EsRelation rewrite.
+        // Building this from GenericDialect (rather than the URL-resolved vendor dialect) is intentional: rendering
+        // and quoting are identical for the vendors we support today, and the generic dialect deliberately keeps
+        // keyword comparisons conservative (it does not assume a vendor-specific collation), so it never pushes down
+        // a comparison whose semantics could diverge from the engine. Switching to the URL-resolved vendor dialect
+        // here is a documented follow-up, to be taken once per-vendor collation behaviour has been proven out.
         this.pushdownSupport = new JdbcFilterPushdownSupport(GenericDialect.INSTANCE);
     }
 
@@ -349,9 +369,13 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
         ConfigKeyValidator.check(config, List.of(CLAIMED_KEYS));
-        // Fail fast at validation time on a bad connection_properties key (blocked/secret/not-allowlisted) rather than
-        // deferring to the first connect in resolveMetadata. parse() enforces the allowlist; the result is discarded.
-        JdbcConnectionProperties.parse(stringConfig(config, CONFIG_CONNECTION_PROPERTIES));
+        // Fail fast at validation time on a bad connection_properties key (blocked/secret/not-allowlisted, or an
+        // explicit TLS-disable when allow_plaintext is off) rather than deferring to the first connect in
+        // resolveMetadata. parse() enforces the allowlist; the result is discarded.
+        JdbcConnectionProperties.parse(stringConfig(config, CONFIG_CONNECTION_PROPERTIES), allowPlaintextSupplier.getAsBoolean());
+        // A BLOCKED footgun can also ride the JDBC URL itself (?socketFactory=..., ;Plugin_Name=...) straight into
+        // Driver.connect, bypassing the connection_properties allowlist. Reject those here too, same BLOCKED set.
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties(location);
     }
 
     @Override
@@ -363,6 +387,9 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         // on a scheme-prefix match alone without consulting our canHandle(). Re-apply the kill switch + SSRF
         // guard here so a hostile URL cannot slip through to driverRegistry.connect().
         assertAllowed(location);
+        // The lazy connector wrapper can reach resolveMetadata without validateConfig, so re-check the URL for
+        // BLOCKED driver properties (?socketFactory=..., ;Plugin_Name=...) before we hand it to Driver.connect.
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties(location);
         String table = stringConfig(config, CONFIG_TABLE);
         if (table == null) {
             throw new IllegalArgumentException("JDBC source requires WITH (table=\"<name>\")");
@@ -376,7 +403,10 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         // options=endpoint=..., timeouts). parse() rejects blocked footguns, credentials, and anything not on the
         // allowlist. Keep the raw string to forward through resolvedConfig so open() re-derives the identical map.
         String rawConnectionProperties = stringConfig(config, CONFIG_CONNECTION_PROPERTIES);
-        Map<String, String> connectionProperties = JdbcConnectionProperties.parse(rawConnectionProperties);
+        Map<String, String> connectionProperties = JdbcConnectionProperties.parse(
+            rawConnectionProperties,
+            allowPlaintextSupplier.getAsBoolean()
+        );
 
         // Probe the schema synchronously. resolveMetadata runs at planning time on the coordinator -- the connection
         // must not leak past this method, hence try-with-resources around everything.
@@ -455,6 +485,9 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         // is forwarded here verbatim, so without this re-check a query in flight would still complete after
         // an operator hit the kill switch.
         assertAllowed(jdbcUrl);
+        // Re-check the resolved URL for BLOCKED driver properties at execution time too (a config assembled outside
+        // resolveMetadata must not smuggle a ?socketFactory=... into Driver.connect).
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties(jdbcUrl);
         SecureString user = secureStringConfig(config, CONFIG_USER);
         SecureString password = secureStringConfig(config, CONFIG_PASSWORD);
         // Typed AWS credentials for Redshift IAM explicit-creds mode. Null when unset (ambient-chain mode).
@@ -462,8 +495,12 @@ public final class JdbcConnectorFactory implements ConnectorFactory, java.io.Clo
         SecureString secretAccessKey = secureStringConfig(config, CONFIG_SECRET_ACCESS_KEY);
         SecureString sessionToken = secureStringConfig(config, CONFIG_SESSION_TOKEN);
         // Re-derive the allowlisted tuning props from the forwarded scalar string (re-parsing re-enforces the
-        // allowlist, so a config assembled outside resolveMetadata cannot smuggle a blocked key past open()).
-        Map<String, String> connectionProperties = JdbcConnectionProperties.parse(stringConfig(config, CONFIG_CONNECTION_PROPERTIES));
+        // allowlist and the TLS-disable policy, so a config assembled outside resolveMetadata cannot smuggle a
+        // blocked key or an explicit plaintext-disable past open()).
+        Map<String, String> connectionProperties = JdbcConnectionProperties.parse(
+            stringConfig(config, CONFIG_CONNECTION_PROPERTIES),
+            allowPlaintextSupplier.getAsBoolean()
+        );
         JdbcDialect dialect = dialectRegistry.resolve(jdbcUrl);
         return new JdbcConnector(
             hikariPool,

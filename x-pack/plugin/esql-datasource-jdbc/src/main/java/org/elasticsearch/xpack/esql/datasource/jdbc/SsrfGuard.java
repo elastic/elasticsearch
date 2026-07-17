@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasource.jdbc;
 import org.elasticsearch.common.network.InetAddresses;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -62,7 +64,7 @@ final class SsrfGuard {
      * it is a SEPARATE allowlist entry because after {@code jdbc:redshift:} the IAM form has
      * {@code iam://...}, not {@code //...}, so it does NOT prefix-match the {@code jdbc:redshift://} entry above and
      * would otherwise be blocked. The IAM auth exchange itself is done by the driver via the AWS SDK credential chain
-     * (see {@link JdbcConnectorFactory}); the guard only vets the scheme + host (see {@link #extractHost}). We use a
+     * (see {@link JdbcConnectorFactory}); the guard only vets the scheme + host (see {@link #extractHosts}). We use a
      * {@link LinkedHashSet} so error messages report the allowlist in a stable, documentation-friendly order.
      */
     static final Set<String> DEFAULT_ALLOWED_SUBPROTOCOLS;
@@ -136,13 +138,21 @@ final class SsrfGuard {
         if (matched.equals("jdbc:h2:mem:")) {
             return Decision.ALLOWED;
         }
-        String host = extractHost(jdbcUrl, matched);
-        if (host == null || host.isEmpty()) {
+        List<String> hosts = extractHosts(jdbcUrl, matched);
+        if (hosts.isEmpty()) {
             // Subprotocol said it carries TCP; no host means the driver will either throw or open something we
             // can't reason about. Conservative refusal -- never the common case in production.
             return Decision.denied("could not parse a host out of [" + JdbcUrlSanitizer.sanitize(jdbcUrl) + "]");
         }
-        return evaluateHost(host);
+        // A multi-host failover authority (pgjdbc / MySQL: host:port,host:port,...) reaches whichever host the driver
+        // fails over to, so EVERY host must pass the filter. Deny as soon as any one is disallowed.
+        for (String host : hosts) {
+            Decision decision = evaluateHost(host);
+            if (decision.allowed() == false) {
+                return decision;
+            }
+        }
+        return Decision.ALLOWED;
     }
 
     private String matchSubprotocol(String lowerUrl) {
@@ -155,10 +165,15 @@ final class SsrfGuard {
     }
 
     /**
-     * Extracts the host portion immediately after the matched subprotocol. Handles two well-known shapes:
+     * Extracts EVERY host in the authority immediately after the matched subprotocol, so a multi-host failover
+     * authority can be validated host-by-host. Handles these well-known shapes:
      * <ul>
-     *   <li>Authority-based ({@code jdbc:vendor://host:port/db}): host runs from end-of-prefix to the first of
-     *       {@code :}, {@code /}, {@code ?}, {@code ;}, or end-of-string.</li>
+     *   <li>Authority-based ({@code jdbc:vendor://host:port/db}): the authority runs from end-of-prefix (after any
+     *       userinfo) to the first of {@code /}, {@code ?}, {@code ;}, or end-of-string.</li>
+     *   <li>Multi-host failover ({@code jdbc:postgresql://h1:p1,h2:p2/db}, likewise MySQL): pgjdbc and the MySQL
+     *       driver accept a comma-separated list of {@code host[:port]} endpoints and may connect to ANY of them, so
+     *       the authority is split on {@code ,} and every segment yields a host. A single public first host must not
+     *       let a link-local/loopback second host slip past the guard.</li>
      *   <li>Oracle-thin ({@code jdbc:oracle:thin:@host:port:sid}): the {@code @} precedes the host. We accept
      *       either form because Oracle accepts both.</li>
      *   <li>Redshift IAM ({@code jdbc:redshift:iam://<host-or-clusterid>:<port-or-region>/db}): the allowlist entry
@@ -174,12 +189,13 @@ final class SsrfGuard {
      * The leading-{@code //} strip is scoped to opaque/{@code :}-terminated prefixes (the two forms above). For an
      * authority-form prefix that already ends in {@code //} (e.g. {@code jdbc:postgresql://}), a leftover leading
      * {@code //} is a MALFORMED authority (e.g. {@code jdbc:postgresql:////host}) and is deliberately NOT repaired, so
-     * such URLs stay fail-closed. For other shapes we return {@code null} to let the caller deny conservatively.
+     * such URLs stay fail-closed. Returns an EMPTY list whenever the authority (or any segment of it) cannot be parsed
+     * into a host, so the caller denies conservatively.
      */
-    private static String extractHost(String jdbcUrl, String matchedPrefix) {
+    private static List<String> extractHosts(String jdbcUrl, String matchedPrefix) {
         String rest = jdbcUrl.substring(matchedPrefix.length());
         if (rest.isEmpty()) {
-            return null;
+            return List.of();
         }
         // Oracle thin: jdbc:oracle:thin:@host:port:sid -- strip the leading '@' if present.
         if (rest.charAt(0) == '@') {
@@ -190,34 +206,58 @@ final class SsrfGuard {
         // '//' (jdbc:redshift:iam://host, or Oracle EZConnect jdbc:oracle:thin:@//host:port/service). Strip it there
         // so host extraction sees the authority directly. Crucially, this strip is scoped to prefixes that did NOT
         // already end in '//': for an authority-form prefix (e.g. jdbc:postgresql://) a leftover leading '//' means a
-        // MALFORMED authority such as jdbc:postgresql:////host, which stays fail-closed (extractHost returns null =>
+        // MALFORMED authority such as jdbc:postgresql:////host, which stays fail-closed (extractHosts returns empty =>
         // conservative deny) rather than being silently repaired into a checkable host.
         if (matchedPrefix.endsWith("//") == false && rest.startsWith("//")) {
             rest = rest.substring(2);
         }
         if (rest.isEmpty()) {
-            return null;
+            return List.of();
         }
-        // Strip any userinfo: "user:pass@host". Last '@' before the first '/' is the userinfo terminator.
+        // Strip any userinfo: "user:pass@host1,host2". Last '@' before the first '/','?',';' is the userinfo
+        // terminator; userinfo precedes the WHOLE (possibly multi-host) authority.
         int slash = firstIndexOfAny(rest, "/?;");
-        int lookupEnd = slash < 0 ? rest.length() : slash;
-        int at = rest.lastIndexOf('@', lookupEnd - 1);
-        if (at >= 0 && at < lookupEnd) {
+        int authorityEnd = slash < 0 ? rest.length() : slash;
+        int at = rest.lastIndexOf('@', authorityEnd - 1);
+        if (at >= 0 && at < authorityEnd) {
             rest = rest.substring(at + 1);
             slash = firstIndexOfAny(rest, "/?;");
-            lookupEnd = slash < 0 ? rest.length() : slash;
+            authorityEnd = slash < 0 ? rest.length() : slash;
         }
-        // Host runs to the first of ':' (port), '/', '?', ';'.
-        int colon = rest.indexOf(':');
-        int hostEnd = colon < 0 ? lookupEnd : Math.min(colon, lookupEnd);
-        // IPv6 literal in brackets [::1]: take everything to ']'.
-        if (rest.startsWith("[")) {
-            int close = rest.indexOf(']');
-            if (close > 0) {
-                return rest.substring(1, close);
+        String authority = rest.substring(0, authorityEnd);
+        if (authority.isEmpty()) {
+            return List.of();
+        }
+        // Split the failover authority on ',' and extract each host[:port] segment. If any segment is unparseable,
+        // return empty so the whole URL is denied (fail-closed) rather than silently trusting the parseable ones.
+        List<String> hosts = new ArrayList<>();
+        for (String segment : authority.split(",")) {
+            String host = extractHostFromSegment(segment);
+            if (host == null || host.isEmpty()) {
+                return List.of();
             }
+            hosts.add(host);
         }
-        return hostEnd == 0 ? null : rest.substring(0, hostEnd);
+        return hosts;
+    }
+
+    /**
+     * Extracts the host from a single {@code host[:port]} authority segment: an IPv6 literal in brackets
+     * ({@code [::1]:5432}) yields the text between {@code [} and {@code ]}; otherwise the host runs up to the first
+     * {@code :} (port) or end of segment. Returns {@code null} for an empty or unparseable segment.
+     */
+    private static String extractHostFromSegment(String segment) {
+        if (segment.isEmpty()) {
+            return null;
+        }
+        // IPv6 literal in brackets [::1]: take everything to ']'.
+        if (segment.startsWith("[")) {
+            int close = segment.indexOf(']');
+            return close > 0 ? segment.substring(1, close) : null;
+        }
+        int colon = segment.indexOf(':');
+        int hostEnd = colon < 0 ? segment.length() : colon;
+        return hostEnd == 0 ? null : segment.substring(0, hostEnd);
     }
 
     private static int firstIndexOfAny(String s, String chars) {

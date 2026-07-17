@@ -167,6 +167,21 @@ public class JdbcConnectorFactoryTests extends ESTestCase {
         assertFalse("must not echo the secret value", e.getMessage().contains("hunter2"));
     }
 
+    public void testValidateConfigRejectsBlockedPropertyInUrl() {
+        // A BLOCKED footgun riding the JDBC URL itself (?socketFactory=...) is rejected at validation time, before
+        // any connect -- closing the gap where the URL bypasses the connection_properties allowlist.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.validateConfig(
+                "jdbc:postgresql://host:5432/db?socketFactory=com.evil.Factory",
+                Map.of(JdbcConnectorFactory.CONFIG_TABLE, "EMPLOYEES")
+            )
+        );
+        assertTrue(e.getMessage().contains("socketFactory"));
+        assertTrue(e.getMessage().contains("blocked"));
+        assertFalse("must not echo the value", e.getMessage().contains("com.evil.Factory"));
+    }
+
     public void testCanHandleRejectsNull() {
         assertFalse(factory.canHandle(null));
     }

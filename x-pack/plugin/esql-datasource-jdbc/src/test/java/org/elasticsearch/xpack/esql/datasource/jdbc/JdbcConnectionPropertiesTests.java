@@ -175,6 +175,104 @@ public class JdbcConnectionPropertiesTests extends ESTestCase {
         assertFalse("must not echo the trailing value fragment", e.getMessage().contains("extra"));
     }
 
+    // -- assertUrlHasNoBlockedProperties: BLOCKED footguns riding the JDBC URL --------------
+
+    public void testUrlBlockedPropertyQueryParamRejected() {
+        // A BLOCKED footgun can ride the URL query string straight into Driver.connect, bypassing the
+        // connection_properties allowlist. It must be rejected, naming the KEY but never the value.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> JdbcConnectionProperties.assertUrlHasNoBlockedProperties("jdbc:postgresql://h/db?socketFactory=com.evil.Factory")
+        );
+        assertTrue("message must name the key: " + e.getMessage(), e.getMessage().contains("socketFactory"));
+        assertTrue("message must say blocked: " + e.getMessage(), e.getMessage().contains("blocked"));
+        assertFalse("message must not echo the value", e.getMessage().contains("com.evil.Factory"));
+    }
+
+    public void testUrlBlockedPropertySemicolonRejected() {
+        // SQL Server / Sybase property-list form: ;key=value. Plugin_Name loads an arbitrary class (RCE).
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> JdbcConnectionProperties.assertUrlHasNoBlockedProperties("jdbc:sqlserver://h;Plugin_Name=com.evil.Plugin")
+        );
+        assertTrue("message must name the key: " + e.getMessage(), e.getMessage().contains("Plugin_Name"));
+        assertTrue("message must say blocked: " + e.getMessage(), e.getMessage().contains("blocked"));
+        assertFalse("message must not echo the value", e.getMessage().contains("com.evil.Plugin"));
+    }
+
+    public void testUrlBlockedPropertyAfterAmpersandRejected() {
+        // A blocked key as a non-first query parameter (preceded by '&') is still caught.
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> JdbcConnectionProperties.assertUrlHasNoBlockedProperties(
+                "jdbc:postgresql://h/db?ApplicationName=es&sslfactory=com.evil.Ssl"
+            )
+        );
+    }
+
+    public void testUrlBlockedPropertyCaseInsensitive() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> JdbcConnectionProperties.assertUrlHasNoBlockedProperties("jdbc:postgresql://h/db?SOCKETFACTORY=x")
+        );
+    }
+
+    public void testUrlWithoutBlockedPropertyAccepted() {
+        // A clean URL and an allowlisted tuning property (sslmode=require) must NOT be rejected.
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties("jdbc:postgresql://h/db");
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties("jdbc:postgresql://h/db?sslmode=require");
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties(null);
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties("");
+    }
+
+    public void testUrlBlockedTokenAsSuffixOfHarmlessKeyNotRejected() {
+        // A blocked token that is merely a SUFFIX of a longer, harmless property name (preceded by a letter, not a
+        // property delimiter) must not be flagged.
+        JdbcConnectionProperties.assertUrlHasNoBlockedProperties("jdbc:postgresql://h/db?mysocketFactory=fine");
+    }
+
+    // -- TLS-disable policy (esql.jdbc.allow_plaintext) --------------------------------------
+
+    public void testParseRejectsSslModeDisableByDefault() {
+        // sslmode=disable puts credentials on the wire in cleartext; rejected unless allow_plaintext is set.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> JdbcConnectionProperties.parse("sslmode=disable"));
+        assertTrue("message must name the key: " + e.getMessage(), e.getMessage().contains("sslmode"));
+        assertTrue("message must point at the opt-in: " + e.getMessage(), e.getMessage().contains("allow_plaintext"));
+    }
+
+    public void testParseRejectsSslModeDisableCaseInsensitive() {
+        expectThrows(IllegalArgumentException.class, () -> JdbcConnectionProperties.parse("SSLMODE=DISABLE"));
+    }
+
+    public void testParseAllowsSslModeDisableWhenAllowPlaintext() {
+        Map<String, String> parsed = JdbcConnectionProperties.parse("sslmode=disable", true);
+        assertEquals("disable", parsed.get("sslmode"));
+    }
+
+    public void testParseRejectsSslFalseByDefault() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> JdbcConnectionProperties.parse("ssl=false"));
+        assertTrue("message must name the key: " + e.getMessage(), e.getMessage().contains("ssl"));
+        assertTrue("message must point at the opt-in: " + e.getMessage(), e.getMessage().contains("allow_plaintext"));
+    }
+
+    public void testParseAllowsSslFalseWhenAllowPlaintext() {
+        Map<String, String> parsed = JdbcConnectionProperties.parse("ssl=false", true);
+        assertEquals("false", parsed.get("ssl"));
+    }
+
+    public void testParseAllowsSslModeRequireAlways() {
+        // The safe, common case must always be accepted regardless of allow_plaintext.
+        assertEquals("require", JdbcConnectionProperties.parse("sslmode=require").get("sslmode"));
+        assertEquals("require", JdbcConnectionProperties.parse("sslmode=require", false).get("sslmode"));
+        assertEquals("verify-full", JdbcConnectionProperties.parse("sslmode=verify-full").get("sslmode"));
+    }
+
+    public void testParseAllowsOpportunisticSslModes() {
+        // prefer/allow are opportunistic defaults, not an explicit disable -- they must NOT be rejected.
+        assertEquals("prefer", JdbcConnectionProperties.parse("sslmode=prefer").get("sslmode"));
+        assertEquals("allow", JdbcConnectionProperties.parse("sslmode=allow").get("sslmode"));
+    }
+
     // -- applyTo: precedence (typed credentials always win) ----------------------------------
 
     public void testApplyToNeverOverwritesTypedCredentials() {

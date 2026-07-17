@@ -113,6 +113,22 @@ public class JdbcHikariPoolTests extends ESTestCase {
         return config;
     }
 
+    /** As {@link #config(int, long, long, long)} but also caps the pool cache at {@code maxPools}. */
+    private static JdbcRuntimeConfig configWithMaxPools(int maxPools, int maxPerUrl, long connTimeoutMs) {
+        JdbcRuntimeConfig config = new JdbcRuntimeConfig();
+        config.initialize(
+            Settings.builder()
+                .put(JdbcRuntimeConfig.POOL_MAX_POOLS.getKey(), maxPools)
+                .put(JdbcRuntimeConfig.POOL_MAX_PER_URL.getKey(), maxPerUrl)
+                .put(JdbcRuntimeConfig.POOL_CONNECTION_TIMEOUT_MS.getKey(), connTimeoutMs)
+                .put(JdbcRuntimeConfig.POOL_IDLE_TIMEOUT_MS.getKey(), 30000L)
+                .put(JdbcRuntimeConfig.POOL_MAX_LIFETIME_MS.getKey(), 900000L)
+                .put(JdbcRuntimeConfig.ALLOW_LOOPBACK.getKey(), true)
+                .build()
+        );
+        return config;
+    }
+
     // -- URL normalization / keying ------------------------------------------------------------
 
     public void testNormalizeKeyStripsUserinfo() {
@@ -544,6 +560,64 @@ public class JdbcHikariPoolTests extends ESTestCase {
         int count() {
             return count.get();
         }
+    }
+
+    // -- bounded cache: LRU idle eviction on cap overflow -------------------------------------
+
+    public void testPoolCacheEvictsIdleLruWhenOverCap() throws Exception {
+        // Cap the cache at 2 pools. Creating a THIRD distinct-endpoint pool must evict and CLOSE the
+        // least-recently-used IDLE pool, keeping the live count bounded at the cap.
+        JdbcHikariPool pool = newPool(configWithMaxPools(2, 4, 5000L));
+        String urlA = h2Url();
+        String urlB = h2Url();
+        String urlC = h2Url();
+        pool.getConnection(urlA, new Properties()).close(); // A created + idle (oldest access)
+        pool.getConnection(urlB, new Properties()).close(); // B created + idle
+        HikariDataSource dsA = pool.poolFor(urlA);
+        assertNotNull(dsA);
+        assertEquals(2, pool.poolCount());
+        // Touch B again so A is now the least-recently-used pool.
+        pool.getConnection(urlB, new Properties()).close();
+        // Creating C pushes the cache over the cap; the LRU idle pool (A) must be evicted + closed.
+        pool.getConnection(urlC, new Properties()).close();
+        assertEquals("cache must be bounded at the cap after eviction", 2, pool.poolCount());
+        assertNull("LRU idle pool A must be evicted from the cache", pool.poolFor(urlA));
+        assertTrue("evicted pool A must be closed", dsA.isClosed());
+        assertNotNull("recently-used pool B must survive", pool.poolFor(urlB));
+        assertNotNull("just-created pool C must survive", pool.poolFor(urlC));
+    }
+
+    public void testPoolCacheDoesNotEvictBusyPool() throws Exception {
+        // Cap the cache at 1. Hold an ACTIVE connection on pool A, then create pool B. A cannot be evicted (it is in
+        // use), so the cache temporarily exceeds the cap rather than closing an in-use pool.
+        JdbcHikariPool pool = newPool(configWithMaxPools(1, 4, 5000L));
+        String urlA = h2Url();
+        String urlB = h2Url();
+        Connection heldA = pool.getConnection(urlA, new Properties()); // A busy (active=1), intentionally NOT closed
+        HikariDataSource dsA = pool.poolFor(urlA);
+        assertNotNull(dsA);
+        try {
+            try (Connection connB = pool.getConnection(urlB, new Properties())) {
+                assertNotNull(connB);
+            }
+            assertNotNull("busy pool A must NOT be evicted", pool.poolFor(urlA));
+            assertFalse("busy pool A must remain open", dsA.isClosed());
+            assertEquals("cache is allowed to temporarily exceed the cap when all candidates are busy", 2, pool.poolCount());
+        } finally {
+            heldA.close();
+        }
+    }
+
+    public void testPoolCacheCapHonoredAcrossManyEndpoints() throws Exception {
+        // Create many distinct-endpoint pools with a small cap; the live count must never exceed the cap because each
+        // borrowed connection is closed immediately (every prior pool is idle and evictable).
+        int cap = 3;
+        JdbcHikariPool pool = newPool(configWithMaxPools(cap, 4, 5000L));
+        for (int i = 0; i < 10; i++) {
+            pool.getConnection(h2Url(), new Properties()).close();
+            assertTrue("pool count must stay within the cap, was " + pool.poolCount(), pool.poolCount() <= cap);
+        }
+        assertEquals(cap, pool.poolCount());
     }
 
     // -- lifecycle: instance-owned, close tears down ------------------------------------------

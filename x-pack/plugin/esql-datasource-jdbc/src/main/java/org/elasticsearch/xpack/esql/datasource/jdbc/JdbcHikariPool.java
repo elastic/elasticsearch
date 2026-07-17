@@ -63,6 +63,12 @@ import javax.sql.DataSource;
  * (default 5s) is the key lever: a producer that cannot obtain a connection fails fast with a translated
  * {@link IllegalStateException} instead of parking a worker thread indefinitely.
  * <p>
+ * <b>Bounded cache.</b> Because a pool is keyed per {@code (endpoint × credential × connection_properties)}, a
+ * query-privileged caller could otherwise mint an unbounded number of keys and pin HikariCP threads + DB connections.
+ * The cache is capped at {@link JdbcRuntimeConfig#poolMaxPools()} (default 64); on overflow the least-recently-used
+ * <em>idle</em> pool (zero active connections) is evicted and closed. An in-use pool is never evicted; if all pools
+ * are busy the cache temporarily exceeds the cap (busy pools are bounded by the {@code esql_worker} thread count).
+ * <p>
  * <b>Config immutability at pool creation.</b> The sizing/timeout knobs (all {@code esql.jdbc.pool.*} settings) are
  * read from {@link JdbcRuntimeConfig} once, when an endpoint's pool is CREATED (see {@link #applyPoolSizingAndTimeouts}).
  * A later dynamic settings update does NOT re-tune live pools; it takes effect only on pools created afterwards
@@ -76,6 +82,12 @@ final class JdbcHikariPool implements Closeable {
     private final JdbcDriverRegistry driverRegistry;
     private final JdbcRuntimeConfig config;
     private final ConcurrentHashMap<String, HikariDataSource> pools = new ConcurrentHashMap<>();
+    /**
+     * Last-access timestamp ({@link System#nanoTime()}) per pool key, updated on every borrow. Used to pick the
+     * least-recently-used pool for eviction when the cache exceeds {@link JdbcRuntimeConfig#poolMaxPools()}. Keyed
+     * identically to {@link #pools}.
+     */
+    private final ConcurrentHashMap<String, Long> lastAccessNanos = new ConcurrentHashMap<>();
     private volatile boolean closed = false;
 
     /**
@@ -111,8 +123,12 @@ final class JdbcHikariPool implements Closeable {
         }
         String key = poolKey(jdbcUrl, props);
         HikariDataSource dataSource;
+        boolean[] created = { false };
         try {
-            dataSource = pools.computeIfAbsent(key, k -> createDataSource(jdbcUrl, props));
+            dataSource = pools.computeIfAbsent(key, k -> {
+                created[0] = true;
+                return createDataSource(jdbcUrl, props);
+            });
         } catch (HikariPool.PoolInitializationException e) {
             // Pool fail-fast case: HikariCP validates a single physical connection
             // at pool-creation time (initializationFailTimeout). A FIRST-borrow AUTHENTICATION failure (bad Redshift
@@ -129,8 +145,16 @@ final class JdbcHikariPool implements Closeable {
         }
         // Lost race with close(): a pool created after close() must not linger. Evict + close it and refuse.
         if (closed && pools.remove(key, dataSource)) {
+            lastAccessNanos.remove(key);
             closeQuietly(dataSource);
             throw new IllegalStateException("JDBC connection pool is closed");
+        }
+        // Mark this pool most-recently-used, then (if we just created a pool) enforce the cache cap by evicting the
+        // least-recently-used IDLE pool. Eviction runs OUTSIDE computeIfAbsent (ConcurrentHashMap forbids mutating the
+        // same map from its mapping function) and never touches the pool the caller is about to borrow from.
+        lastAccessNanos.put(key, System.nanoTime());
+        if (created[0]) {
+            evictWhileOverCap(key);
         }
         try {
             return dataSource.getConnection();
@@ -148,6 +172,63 @@ final class JdbcHikariPool implements Closeable {
                 throw JdbcUrlSanitizer.sanitizeException(authCause);
             }
             throw translateTimeout(e, jdbcUrl, dataSource);
+        }
+    }
+
+    /**
+     * Enforces the {@link JdbcRuntimeConfig#poolMaxPools()} cap by evicting and closing the least-recently-used
+     * <em>idle</em> pool while the cache is over the cap. A pool is evictable only when it has ZERO active (in-use)
+     * connections ({@link HikariPoolMXBean#getActiveConnections()}), so an in-flight query never has its pool closed
+     * out from under it. The just-created pool ({@code protectedKey}) is excluded so the borrow that triggered this
+     * eviction always succeeds.
+     * <p>
+     * When every over-cap pool is busy (no idle pool to evict), the cache is left temporarily over the cap and a WARN
+     * is logged: busy pools are themselves bounded by the {@code esql_worker} thread count (a producer holding a
+     * connection occupies a worker thread), so this cannot grow without bound.
+     * <p>
+     * <b>Residual race.</b> The idle check is a point-in-time snapshot: a pool observed idle here could receive a
+     * concurrent borrow before {@link #closeQuietly} runs. That window is small and HikariCP fails such an in-flight
+     * borrow cleanly (the connector translates it like any other acquisition failure); the credential-fingerprint
+     * keying and {@link #close()} semantics are unchanged.
+     */
+    private void evictWhileOverCap(String protectedKey) {
+        int cap = config.poolMaxPools();
+        while (pools.size() > cap) {
+            String lruKey = null;
+            long lruAccess = Long.MAX_VALUE;
+            for (Map.Entry<String, HikariDataSource> entry : pools.entrySet()) {
+                String candidate = entry.getKey();
+                if (candidate.equals(protectedKey)) {
+                    continue;
+                }
+                HikariPoolMXBean mx = entry.getValue().getHikariPoolMXBean();
+                // A pool with no MXBean yet has opened no connections, so it is idle. Only evict idle pools.
+                if (mx != null && mx.getActiveConnections() > 0) {
+                    continue;
+                }
+                long access = lastAccessNanos.getOrDefault(candidate, 0L);
+                if (access < lruAccess) {
+                    lruAccess = access;
+                    lruKey = candidate;
+                }
+            }
+            if (lruKey == null) {
+                // Every over-cap pool is busy; do not close an in-use pool. Allow the cache to temporarily exceed the
+                // cap (busy pools are bounded by the esql_worker thread count) and surface the condition.
+                logger.warn(
+                    "JDBC connection pool cache is over its esql.jdbc.pool.max_pools cap [{}] with [{}] pools, but every "
+                        + "evictable pool is in use; leaving the cache temporarily over the cap",
+                    cap,
+                    pools.size()
+                );
+                return;
+            }
+            HikariDataSource evicted = pools.remove(lruKey);
+            lastAccessNanos.remove(lruKey);
+            if (evicted != null) {
+                logger.debug("evicting idle JDBC connection pool [{}] to honor max_pools cap [{}]", evicted.getPoolName(), cap);
+                closeQuietly(evicted);
+            }
         }
     }
 
@@ -497,6 +578,7 @@ final class JdbcHikariPool implements Closeable {
         // then skip closing (the getConnection path re-checks `closed` after computeIfAbsent and evicts its own).
         for (Map.Entry<String, HikariDataSource> entry : pools.entrySet()) {
             if (pools.remove(entry.getKey(), entry.getValue())) {
+                lastAccessNanos.remove(entry.getKey());
                 closeQuietly(entry.getValue());
             }
         }

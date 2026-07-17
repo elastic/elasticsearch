@@ -154,12 +154,82 @@ final class JdbcConnectionProperties {
     private JdbcConnectionProperties() {}
 
     /**
+     * Rejects a JDBC URL that carries any {@link #BLOCKED} driver property in the URL itself (e.g.
+     * {@code ?socketFactory=...}, {@code ;Plugin_Name=...}, {@code &sslfactory=...}). The {@code connection_properties}
+     * passthrough already blocks these keys, but the same footguns can ride the URL query string / property list
+     * straight into {@link java.sql.Driver#connect}, so this guard closes that gap using the SAME {@link #BLOCKED}
+     * set (single source of truth).
+     * <p>
+     * A key is treated as a property assignment when a {@link #BLOCKED} token (case-insensitive) is immediately
+     * followed by optional spaces and an {@code =}, AND is preceded (skipping optional spaces) by one of the property
+     * delimiters {@code ?}, {@code &}, or {@code ;}. The delimiter requirement avoids matching a blocked token that is
+     * merely a suffix of a longer, harmless property name. On a match this throws {@link IllegalArgumentException}
+     * naming only the offending KEY (never the value), in the same style as the {@code connection_properties} path.
+     */
+    static void assertUrlHasNoBlockedProperties(String jdbcUrl) {
+        if (jdbcUrl == null || jdbcUrl.isEmpty()) {
+            return;
+        }
+        String lower = jdbcUrl.toLowerCase(Locale.ROOT);
+        for (String blocked : BLOCKED) {
+            int from = 0;
+            int idx;
+            while ((idx = lower.indexOf(blocked, from)) >= 0) {
+                from = idx + blocked.length();
+                // The token must be a property assignment: optional spaces then '=' immediately after the key.
+                int after = idx + blocked.length();
+                while (after < lower.length() && (lower.charAt(after) == ' ' || lower.charAt(after) == '\t')) {
+                    after++;
+                }
+                if (after >= lower.length() || lower.charAt(after) != '=') {
+                    continue;
+                }
+                // The token must be preceded (skipping optional spaces) by a property delimiter, so a blocked key
+                // that is only a SUFFIX of a longer harmless property name (e.g. mysocketFactory) is not flagged.
+                int before = idx - 1;
+                while (before >= 0 && (lower.charAt(before) == ' ' || lower.charAt(before) == '\t')) {
+                    before--;
+                }
+                if (before < 0) {
+                    continue;
+                }
+                char delimiter = lower.charAt(before);
+                if (delimiter == '?' || delimiter == '&' || delimiter == ';') {
+                    // Report the KEY using the URL's original casing; never echo the value.
+                    String key = jdbcUrl.substring(idx, idx + blocked.length());
+                    throw new IllegalArgumentException(
+                        "JDBC URL property ["
+                            + key
+                            + "] is blocked: it can load classes, access the filesystem, or re-point/relax the connection "
+                            + "and is never permitted"
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Parses and allowlist-filters the raw {@code connection_properties} string, rejecting an explicit TLS-disable
+     * (see {@link #parse(String, boolean)} with {@code allowPlaintext=false}). Used by tests and the pool-key
+     * derivation, where the node-level {@code allow_plaintext} flag is not threaded and the safe default applies.
+     */
+    static Map<String, String> parse(String raw) {
+        return parse(raw, false);
+    }
+
+    /**
      * Parses and allowlist-filters the raw {@code connection_properties} string into an ordered map of
      * {@code canonical-key → value}. Returns an empty map for {@code null}/blank input. Throws
      * {@link IllegalArgumentException} — naming only the offending KEY — when a pair is malformed, or a key is a
      * credential, is blocked, or is not on the allowlist.
+     * <p>
+     * <b>TLS-disable policy.</b> {@code sslmode} and {@code ssl} stay allowlisted (TLS modes like
+     * {@code require}/{@code verify-full} are the common, safe case), but an EXPLICIT disable —
+     * {@code sslmode=disable} or {@code ssl=false} (case-insensitive) — puts credentials on the wire in cleartext
+     * and is rejected unless {@code allowPlaintext} is {@code true} (the {@code esql.jdbc.allow_plaintext} node
+     * setting). Opportunistic modes ({@code sslmode=prefer}/{@code allow}) are NOT rejected.
      */
-    static Map<String, String> parse(String raw) {
+    static Map<String, String> parse(String raw, boolean allowPlaintext) {
         Map<String, String> result = new LinkedHashMap<>();
         if (raw == null) {
             return result;
@@ -209,7 +279,33 @@ final class JdbcConnectionProperties {
             }
             result.put(canonical, value);
         }
+        if (allowPlaintext == false) {
+            rejectExplicitTlsDisable(result);
+        }
         return result;
+    }
+
+    /**
+     * Rejects an explicit TLS-disable in the already-parsed map: {@code sslmode=disable} or {@code ssl=false}
+     * (case-insensitive). These put credentials on the wire in cleartext and are only permitted when the operator
+     * has set {@code esql.jdbc.allow_plaintext=true}. Opportunistic modes ({@code prefer}/{@code allow}) are left
+     * alone. The message names only the KEY and the rejected mode keyword (neither is a secret).
+     */
+    private static void rejectExplicitTlsDisable(Map<String, String> parsed) {
+        String sslmode = parsed.get("sslmode");
+        if (sslmode != null && sslmode.equalsIgnoreCase("disable")) {
+            throw new IllegalArgumentException(
+                "connection property [sslmode]=disable turns off TLS and would send credentials in cleartext; "
+                    + "set esql.jdbc.allow_plaintext=true to permit it"
+            );
+        }
+        String ssl = parsed.get("ssl");
+        if (ssl != null && ssl.equalsIgnoreCase("false")) {
+            throw new IllegalArgumentException(
+                "connection property [ssl]=false turns off TLS and would send credentials in cleartext; "
+                    + "set esql.jdbc.allow_plaintext=true to permit it"
+            );
+        }
     }
 
     /**

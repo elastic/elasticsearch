@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
@@ -45,6 +47,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
 public class Percentile extends NumericAggregate implements SurrogateExpression {
+    private static final TransportVersion PERCENTILE_COMPRESSION = TransportVersion.fromName("esql_percentile_compression");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Percentile",
@@ -140,13 +144,20 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             in.readNamedWriteable(Expression.class),
             readWindow(in),
             in.readNamedWriteableCollectionAsList(Expression.class).getFirst(),
-            QuantileStates.DEFAULT_COMPRESSION
+            in.getTransportVersion().supports(PERCENTILE_COMPRESSION) ? in.readDouble() : QuantileStates.DEFAULT_COMPRESSION
         );
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    protected void writeAdditionalTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(PERCENTILE_COMPRESSION)) {
+            out.writeDouble(compression);
+        }
     }
 
     @Override

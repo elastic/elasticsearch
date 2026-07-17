@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
@@ -18,11 +22,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -149,6 +155,12 @@ public final class RemoteFetchOperator implements Operator {
     private final Deque<PendingInput> pendingInputs = new ArrayDeque<>();
     private boolean finishing;
     private Exception failure;
+    private int pagesReceived;
+    private int pagesEmitted;
+    private long rowsReceived;
+    private long rowsEmitted;
+    private long batchesSent;
+    private int exchangesOpened;
 
     RemoteFetchOperator(
         DriverContext driverContext,
@@ -185,6 +197,8 @@ public final class RemoteFetchOperator implements Operator {
 
     @Override
     public void addInput(Page inputPage) {
+        pagesReceived++;
+        rowsReceived += inputPage.getPositionCount();
         if (inputPage.getPositionCount() == 0) {
             pendingInputs.addLast(PendingInput.passthrough(inputPage));
             return;
@@ -203,22 +217,25 @@ public final class RemoteFetchOperator implements Operator {
             pendingInput = new PendingInput(inputPage, groupedHandles.groupByPosition(), groupedHandles.offsetByPosition(), pendingGroups);
             pendingInputs.addLast(pendingInput);
             for (Group group : groupedHandles.groups()) {
-                RemoteFetchService.TargetExchange exchange = exchanges.computeIfAbsent(
-                    group.target,
-                    target -> client.openTargetExchange(
-                        target.nodeId(),
-                        target.retainedSessionId(),
+                RemoteFetchService.TargetExchange exchange = exchanges.get(group.target);
+                if (exchange == null) {
+                    exchange = client.openTargetExchange(
+                        group.target.nodeId(),
+                        group.target.retainedSessionId(),
                         requestFields,
                         pushdownPlan,
                         configuration
-                    )
-                );
+                    );
+                    exchanges.put(group.target, exchange);
+                    exchangesOpened++;
+                }
                 long batchId = batchIds.incrementAndGet();
                 PendingGroup pendingGroup = new PendingGroup(group, exchange, batchId);
                 pendingGroups.add(pendingGroup);
                 pendingByBatch.put(batchId, pendingGroup);
                 exchange.sendBatch(batchId, group.handles);
                 pendingGroup.batchSent = true;
+                batchesSent++;
             }
             success = true;
         } catch (Exception e) {
@@ -276,7 +293,7 @@ public final class RemoteFetchOperator implements Operator {
         }
         if (pendingInput.isPassthrough()) {
             pendingInputs.removeFirst();
-            return pendingInput.inputPage;
+            return emit(pendingInput.inputPage);
         }
         if (pendingInput.isComplete() == false) {
             return null;
@@ -287,12 +304,20 @@ public final class RemoteFetchOperator implements Operator {
          * coordinator emits only when every group for the input page is complete. A future evolution can relax this
          * to prefix output once the position-mapping column and last-page markers prove which rows survived.
          */
-        return mergeFetchedPage(
-            pendingInput.inputPage,
-            pendingInput.groupByPosition,
-            pendingInput.offsetByPosition,
-            pendingInput.pagesByGroup()
+        return emit(
+            mergeFetchedPage(
+                pendingInput.inputPage,
+                pendingInput.groupByPosition,
+                pendingInput.offsetByPosition,
+                pendingInput.pagesByGroup()
+            )
         );
+    }
+
+    private Page emit(Page page) {
+        pagesEmitted++;
+        rowsEmitted += page.getPositionCount();
+        return page;
     }
 
     @Override
@@ -435,6 +460,67 @@ public final class RemoteFetchOperator implements Operator {
     @Override
     public String toString() {
         return "RemoteFetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, batchesSent, exchangesOpened);
+    }
+
+    /**
+     * Profile status for the coordinator-side remote fetch phase.
+     * <p>
+     * Because pushdown filtering happens on the data node, {@code rowsReceived - rowsEmitted} is the number of rows
+     * the pushdown pruned before they crossed the wire, and {@code batchesSent}/{@code exchangesOpened} show how the
+     * fetch fanned out across target sessions.
+     */
+    public record Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted, long batchesSent, int exchangesOpened)
+        implements
+            Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "remote_fetch",
+            Status::new
+        );
+        private static final TransportVersion ESQL_REMOTE_FETCH_OPERATOR_STATUS = TransportVersion.fromName(
+            "esql_remote_fetch_operator_status"
+        );
+
+        Status(StreamInput in) throws IOException {
+            this(in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(pagesReceived);
+            out.writeVInt(pagesEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+            out.writeVLong(batchesSent);
+            out.writeVInt(exchangesOpened);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return ESQL_REMOTE_FETCH_OPERATOR_STATUS;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_emitted", pagesEmitted);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            builder.field("batches_sent", batchesSent);
+            builder.field("exchanges_opened", exchangesOpened);
+            return builder.endObject();
+        }
     }
 
     private GroupedHandles decodeHandles(Page inputPage) {

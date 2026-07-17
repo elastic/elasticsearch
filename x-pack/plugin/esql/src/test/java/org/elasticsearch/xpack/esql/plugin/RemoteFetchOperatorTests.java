@@ -24,7 +24,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -112,11 +111,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
                 assertThat(fetched.getInt(fetched.getFirstValueIndex(position)), equalTo(echoValue(handle)));
             }
         }
-    }
-
-    @Override
-    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
-        assertNull("RemoteFetchOperator does not report a status yet", map);
     }
 
     private static int echoValue(RemoteFetchHandle handle) {
@@ -277,6 +271,9 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             assertEquals("a", utf8(fetchedStrings, 0));
             assertEquals("b", utf8(fetchedStrings, 1));
             assertEquals("c", utf8(fetchedStrings, 2));
+
+            RemoteFetchOperator.Status status = (RemoteFetchOperator.Status) operator.status();
+            assertThat(status, equalTo(new RemoteFetchOperator.Status(1, 1, 3, 3, 2, 2)));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -352,6 +349,10 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             BytesRefBlock fetchedStrings = output.getBlock(3);
             assertEquals("b", utf8(fetchedStrings, 0));
             assertEquals("c", utf8(fetchedStrings, 1));
+
+            // The rows_received/rows_emitted gap is the number of rows the pushdown pruned on the data nodes.
+            RemoteFetchOperator.Status status = (RemoteFetchOperator.Status) operator.status();
+            assertThat(status, equalTo(new RemoteFetchOperator.Status(1, 1, 3, 2, 2, 2)));
         } finally {
             if (input != null) {
                 input.releaseBlocks();

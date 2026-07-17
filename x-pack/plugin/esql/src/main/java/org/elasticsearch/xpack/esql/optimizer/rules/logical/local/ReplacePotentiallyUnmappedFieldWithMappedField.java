@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  * indices of a pattern but not others, or because {@code unmapped_fields="load"} loads a field that isn't in the mapping). It is loaded
  * from {@code _source} and, crucially, is never pushed down to Lucene.
  * <p>
- * On a given data node, however, the field may actually be mapped, so we replace the marker with a regular {@link KeywordEsField} when that
- * is the case.
+ * On a given data node, however, the field may actually be mapped on every local shard, so we replace the marker with a regular
+ * {@link KeywordEsField} when that is the case.
  */
 public class ReplacePotentiallyUnmappedFieldWithMappedField extends ParameterizedRule<
     LogicalPlan,
@@ -32,10 +32,17 @@ public class ReplacePotentiallyUnmappedFieldWithMappedField extends Parameterize
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         SearchStats searchStats = localLogicalOptimizerContext.searchStats();
         return plan.transformExpressionsDown(FieldAttribute.class, fieldAttribute -> {
-            if (fieldAttribute.field() instanceof PotentiallyUnmappedKeywordEsField potentiallyUnmapped
-                && searchStats.isIndexed(fieldAttribute.fieldName())) {
-                boolean hasDocValues = searchStats.hasDocValues(fieldAttribute.fieldName());
-                return fieldAttribute.withField(asMappedKeyword(potentiallyUnmapped, hasDocValues));
+            if (fieldAttribute.field() instanceof PotentiallyUnmappedKeywordEsField potentiallyUnmapped) {
+                var fieldName = fieldAttribute.fieldName();
+                boolean hasDocValues = searchStats.hasDocValues(fieldName);
+                // Replace only when the field is mapped on every shard on this node. A plain keyword is read from each shard's mapping
+                // instead of from _source, so on a shard where the field is absent we would read null rather than its _source value.
+                // isIndexed and hasDocValues are AND-ed across shards (see SearchContextStats), so either being true proves the field is
+                // mapped everywhere here. We deliberately do not use exists(), which is OR-ed across shards and so is true even when the
+                // field is mapped on only some of them.
+                if (searchStats.isIndexed(fieldName) || hasDocValues) {
+                    return fieldAttribute.withField(asMappedKeyword(potentiallyUnmapped, hasDocValues));
+                }
             }
             return fieldAttribute;
         });

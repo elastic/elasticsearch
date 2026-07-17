@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 /**
  * Shared cluster base for CSV/TSV csv-spec tests.
@@ -25,8 +26,10 @@ import org.junit.ClassRule;
  */
 abstract class AbstractCsvExternalSpecTestCase extends AbstractExternalSourceSpecTestCase {
 
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    @ClassRule
+    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
 
     protected AbstractCsvExternalSpecTestCase(
         String fileName,

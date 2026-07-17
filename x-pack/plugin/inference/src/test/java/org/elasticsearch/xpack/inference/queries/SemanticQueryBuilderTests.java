@@ -34,7 +34,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
+import org.elasticsearch.xpack.inference.InferenceIndexMappingManager;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -104,6 +104,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
@@ -152,7 +153,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     public static void startModelRegistry() {
         threadPool = new TestThreadPool(SemanticQueryBuilderTests.class.getName());
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of()));
+        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), mock(InferenceIndexMappingManager.class));
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {

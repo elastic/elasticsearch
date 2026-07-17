@@ -33,10 +33,10 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Exercises {@link BlockHash.Router}, the bucket-sort-routing capability added for partitioned
  * hash aggregation (see scratch/partitioned-hash-aggregation-design.md, Phase 2 build order step
- * 2), which only {@link LongBlockHash} implements. Confirms {@code partitionHashOfKey} agrees with
- * {@link LongSwissHash#hash}, that {@code addKey} dedups/numbers groups exactly like the normal
- * {@link BlockHash#add} path (including reserving group {@code 0} for null), and that inserting
- * through the router is visible to and consistent with the normal add path on the same table.
+ * 2). Confirms {@code partitionHashOfRow} agrees with {@link LongSwissHash#hash}, that
+ * {@code addRow} dedups/numbers groups exactly like the normal {@link BlockHash#add} path
+ * (including reserving group {@code 0} for null), and that inserting through the router is
+ * visible to and consistent with the normal add path on the same table.
  */
 public class LongBlockHashRouterTests extends BlockHashTestCase {
 
@@ -57,23 +57,25 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
         try (BlockHash hash = longBlockHash(); LongBlock keys = blockFactory.newLongArrayVector(values, values.length).asBlock()) {
             BlockHash.Router router = hash.router();
             assertThat(router, notNullValue());
+            Page page = new Page(keys);
             for (int i = 0; i < values.length; i++) {
-                assertThat(router.partitionHashOfKey(keys, i), equalTo(LongSwissHash.hash(values[i])));
+                assertThat(router.partitionHashOfRow(page, i), equalTo(LongSwissHash.hash(values[i])));
             }
         }
     }
 
-    public void testAddKeyDedupsAndReservesZeroForNull() {
+    public void testAddRowDedupsAndReservesZeroForNull() {
         assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
         long[] values = { 5, -3, 5, 0, -3, 100, 0 };
         try (BlockHash hash = longBlockHash(); LongBlock keys = blockFactory.newLongArrayVector(values, values.length).asBlock()) {
             BlockHash.Router router = hash.router();
             assertThat(router, notNullValue());
 
+            Page page = new Page(keys);
             Map<Long, Integer> groupOf = new HashMap<>();
             for (int i = 0; i < values.length; i++) {
-                int partitionHash = router.partitionHashOfKey(keys, i);
-                int groupId = router.addKey(keys, i, partitionHash);
+                int partitionHash = router.partitionHashOfRow(page, i);
+                int groupId = router.addRow(page, i, partitionHash);
                 assertThat("group id reserved for null must never be assigned to a real key", groupId, greaterThan(0));
                 Integer existing = groupOf.putIfAbsent(values[i], groupId);
                 if (existing != null) {
@@ -99,10 +101,10 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
         }
     }
 
-    public void testAddKeyOnNullPinsToZeroAndMarksSeenNull() {
+    public void testAddRowOnNullPinsToZeroAndMarksSeenNull() {
         assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
         // A null key isn't hashed (there's nothing to hash), so the hash argument is a dummy value
-        // here: addKey must detect the null itself and route it to the reserved group regardless.
+        // here: addRow must detect the null itself and route it to the reserved group regardless.
         try (BlockHash hash = longBlockHash()) {
             LongBlock keys;
             try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
@@ -111,12 +113,13 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
                 keys = builder.build();
             }
             try (keys) {
+                Page page = new Page(keys);
                 BlockHash.Router router = hash.router();
                 assertThat(router, notNullValue());
-                assertThat(router.addKey(keys, 0, 0), equalTo(0));
-                assertThat(router.addKey(keys, 0, 0), equalTo(0));
+                assertThat(router.addRow(page, 0, 0), equalTo(0));
+                assertThat(router.addRow(page, 0, 0), equalTo(0));
 
-                int nonNullGroup = router.addKey(keys, 1, router.partitionHashOfKey(keys, 1));
+                int nonNullGroup = router.addRow(page, 1, router.partitionHashOfRow(page, 1));
                 assertThat("a real key must never land on the reserved null group", nonNullGroup, greaterThan(0));
             }
 
@@ -134,7 +137,7 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
         }
     }
 
-    public void testAddKeyConsistentWithNormalAdd() {
+    public void testAddRowConsistentWithNormalAdd() {
         assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
         // Insert some keys through the normal add(Page, AddInput) path first, then confirm the
         // router dedups against those existing group ids rather than assigning fresh ones -
@@ -146,9 +149,10 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
             BlockHash.Router router = hash.router();
             assertThat(router, notNullValue());
             try (LongBlock probe = blockFactory.newLongArrayVector(seedValues, seedValues.length).asBlock()) {
+                Page page = new Page(probe);
                 for (int i = 0; i < seedValues.length; i++) {
-                    int partitionHash = router.partitionHashOfKey(probe, i);
-                    int groupId = router.addKey(probe, i, partitionHash);
+                    int partitionHash = router.partitionHashOfRow(page, i);
+                    int groupId = router.addRow(page, i, partitionHash);
                     assertThat("router must see the same group id add() already assigned", groupId, equalTo(viaAdd.get(seedValues[i])));
                 }
             }
@@ -157,8 +161,9 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
             // normal add() path as the same group id.
             long[] newValue = { 40 };
             try (LongBlock probe = blockFactory.newLongArrayVector(newValue, 1).asBlock()) {
-                int partitionHash = router.partitionHashOfKey(probe, 0);
-                int routedGroupId = router.addKey(probe, 0, partitionHash);
+                Page page = new Page(probe);
+                int partitionHash = router.partitionHashOfRow(page, 0);
+                int routedGroupId = router.addRow(page, 0, partitionHash);
                 Map<Long, Integer> viaAddAfter = addThroughNormalPath(hash, newValue);
                 assertThat(viaAddAfter.get(newValue[0]), equalTo(routedGroupId));
             }

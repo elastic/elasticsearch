@@ -11,10 +11,12 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestWarningsSource;
@@ -52,7 +54,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> input = randomInput(50, 5, oracle, false);
 
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupChannel(0)
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(1_000) // never crossed by 5 distinct keys
@@ -74,7 +78,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> input = randomInput(5_000, 200, oracle, false);
 
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupChannel(0)
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(50)
@@ -94,7 +100,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> input = randomInput(8_000, 300, oracle, false);
 
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupChannel(0)
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(4)
             .partitionConversionThreshold(30)
@@ -111,7 +119,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> input = randomInput(4_000, 200, oracle, true);
 
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupChannel(0)
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(30)
@@ -153,7 +163,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         // More ordinary rows afterward, to confirm the operator keeps working post-fallback.
         input.addAll(randomInput(2_000, 200, oracle, false));
 
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupChannel(0)
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(30)

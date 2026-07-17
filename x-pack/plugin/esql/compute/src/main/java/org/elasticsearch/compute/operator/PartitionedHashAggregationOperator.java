@@ -15,7 +15,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -44,8 +43,8 @@ import static java.util.stream.Collectors.joining;
  *     Starts as a single ordinary table (the "legacy" table) and converts, non-destructively,
  *     into {@code N} partitions once that table's key count crosses
  *     {@code partitionConversionThreshold}. Steady-state routing uses a bucket-sort pass over
- *     each input page's grouping column: {@link BlockHash.Router#partitionHashOfKey} picks a
- *     partition per row, {@link BlockHash.Router#addKey} inserts into that partition's own table,
+ *     each input page's grouping columns: {@link BlockHash.Router#partitionHashOfRow} picks a
+ *     partition per row, {@link BlockHash.Router#addRow} inserts into that partition's own table,
  *     and the resulting (groupId, position) pairs are fed to each partition's aggregators via
  *     {@link GroupingAggregatorFunction.AddInput#addGather}, reading values directly off the
  *     original, unfiltered page — no per-partition row copies.
@@ -92,7 +91,7 @@ public class PartitionedHashAggregationOperator implements Operator {
     public record AggregatorSpec(AggregatorFunctionSupplier supplier, List<Integer> rawChannels) {}
 
     public static class Builder {
-        private int groupChannel = -1;
+        private List<BlockHash.GroupSpec> groupSpecs;
         private List<AggregatorSpec> aggregators;
         private int partitionCount = DEFAULT_PARTITION_COUNT;
         private int partitionConversionThreshold = DEFAULT_PARTITION_CONVERSION_THRESHOLD;
@@ -101,8 +100,8 @@ public class PartitionedHashAggregationOperator implements Operator {
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
 
-        public Builder groupChannel(int groupChannel) {
-            this.groupChannel = groupChannel;
+        public Builder groupSpecs(List<BlockHash.GroupSpec> groupSpecs) {
+            this.groupSpecs = List.copyOf(groupSpecs);
             return this;
         }
 
@@ -143,7 +142,8 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     public static class Factory implements OperatorFactory {
-        private final int groupChannel;
+        private final List<Integer> groupChannels;
+        private final List<BlockHash.GroupSpec> internalGroupSpecs;
         private final List<AggregatorSpec> aggregatorSpecs;
         private final List<GroupingAggregator.Factory> aggregatorFactories;
         private final List<List<Integer>> aggregatorRawChannels;
@@ -157,16 +157,24 @@ public class PartitionedHashAggregationOperator implements Operator {
         private final int aggregationBatchSize;
 
         private Factory(Builder builder) {
-            if (builder.groupChannel < 0) {
-                throw new IllegalArgumentException("groupChannel must be set");
+            List<BlockHash.GroupSpec> externalSpecs = requireNonNull(builder.groupSpecs, "groupSpecs");
+            if (externalSpecs.isEmpty()) {
+                throw new IllegalArgumentException("groupSpecs must not be empty");
             }
-            this.groupChannel = builder.groupChannel;
+            List<Integer> channels = new ArrayList<>(externalSpecs.size());
+            List<BlockHash.GroupSpec> internalSpecs = new ArrayList<>(externalSpecs.size());
+            for (int k = 0; k < externalSpecs.size(); k++) {
+                channels.add(externalSpecs.get(k).channel());
+                internalSpecs.add(new BlockHash.GroupSpec(k, externalSpecs.get(k).elementType()));
+            }
+            this.groupChannels = List.copyOf(channels);
+            this.internalGroupSpecs = List.copyOf(internalSpecs);
             this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> factories = new ArrayList<>(aggregatorSpecs.size());
             List<List<Integer>> rawChannelsList = new ArrayList<>(aggregatorSpecs.size());
             int[] combinedStart = new int[aggregatorSpecs.size()];
-            int nextChannel = 1; // channel 0 is reserved for the grouping key
+            int nextChannel = groupChannels.size(); // channels 0..groupChannels.size()-1 reserved for grouping keys
             for (int i = 0; i < aggregatorSpecs.size(); i++) {
                 AggregatorSpec spec = aggregatorSpecs.get(i);
                 AggregatorFunctionSupplier supplier = spec.supplier();
@@ -218,7 +226,8 @@ public class PartitionedHashAggregationOperator implements Operator {
         @Override
         public PartitionedHashAggregationOperator get(DriverContext driverContext) {
             return new PartitionedHashAggregationOperator(
-                groupChannel,
+                groupChannels,
+                internalGroupSpecs,
                 aggregatorFactories,
                 aggregatorRawChannels,
                 combinedChannelStart,
@@ -243,7 +252,8 @@ public class PartitionedHashAggregationOperator implements Operator {
         }
     }
 
-    private final int groupChannel;
+    private final List<Integer> groupChannels;
+    private final List<BlockHash.GroupSpec> internalGroupSpecs;
     private final List<GroupingAggregator.Factory> aggregatorFactories;
     private final List<List<Integer>> aggregatorRawChannels;
     private final int[] combinedChannelStart;
@@ -269,7 +279,8 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
-        int groupChannel,
+        List<Integer> groupChannels,
+        List<BlockHash.GroupSpec> internalGroupSpecs,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<List<Integer>> aggregatorRawChannels,
         int[] combinedChannelStart,
@@ -288,7 +299,8 @@ public class PartitionedHashAggregationOperator implements Operator {
         if (partitionConversionThreshold <= 0) {
             throw new IllegalArgumentException("partitionConversionThreshold must be greater than 0; got " + partitionConversionThreshold);
         }
-        this.groupChannel = groupChannel;
+        this.groupChannels = groupChannels;
+        this.internalGroupSpecs = internalGroupSpecs;
         this.aggregatorFactories = aggregatorFactories;
         this.aggregatorRawChannels = aggregatorRawChannels;
         this.combinedChannelStart = combinedChannelStart;
@@ -364,13 +376,15 @@ public class PartitionedHashAggregationOperator implements Operator {
      * </p>
      */
     private Page toInternalLayout(Page page) {
-        Block keyBlock = page.getBlock(groupChannel);
         Block[] blocks = new Block[internalPageWidth];
         // Page's constructor asserts every block's position count, so slots beyond an
         // aggregator's raw channel count (only meaningful for intermediate consumption, never
-        // read during raw processing) still need *some* valid block; the key block is as good as
-        // any other already-at-hand, always-correct-position-count placeholder.
-        Arrays.fill(blocks, keyBlock);
+        // read during raw processing) still need *some* valid block; the first key block is as
+        // good as any other already-at-hand, always-correct-position-count placeholder.
+        Arrays.fill(blocks, page.getBlock(groupChannels.get(0)));
+        for (int k = 0; k < groupChannels.size(); k++) {
+            blocks[k] = page.getBlock(groupChannels.get(k));
+        }
         for (int a = 0; a < aggregatorRawChannels.size(); a++) {
             List<Integer> rawChannels = aggregatorRawChannels.get(a);
             int base = combinedChannelStart[a];
@@ -485,13 +499,18 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     private void distributeIntermediatePage(Page intermediatePage, Table[] targets) {
         int positions = intermediatePage.getPositionCount();
-        Block keyBlock = intermediatePage.getBlock(0);
+        int keyCount = groupChannels.size();
         BlockHash.Router probeRouter = targets[0].blockHash.router();
         int[] partitionOf = new int[positions];
         for (int i = 0; i < positions; i++) {
-            partitionOf[i] = keyBlock.isNull(i)
-                ? NULL_PARTITION
-                : Math.floorMod(probeRouter.partitionHashOfKey(keyBlock, i), targets.length);
+            boolean anyNull = false;
+            for (int k = 0; k < keyCount; k++) {
+                if (intermediatePage.getBlock(k).isNull(i)) {
+                    anyNull = true;
+                    break;
+                }
+            }
+            partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(intermediatePage, i), targets.length);
         }
         for (int p = 0; p < targets.length; p++) {
             int count = 0;
@@ -544,17 +563,24 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     private void addToPartitions(Page page) {
         int positions = page.getPositionCount();
-        Block keyBlock = page.getBlock(0);
+        int keyCount = groupChannels.size();
 
         int[] partitionOf = new int[positions];
         int[] rawHash = new int[positions];
         int[] counts = new int[partitionCount];
         BlockHash.Router probeRouter = partitions[0].blockHash.router();
         for (int i = 0; i < positions; i++) {
-            if (keyBlock.isNull(i)) {
+            boolean anyNull = false;
+            for (int k = 0; k < keyCount; k++) {
+                if (page.getBlock(k).isNull(i)) {
+                    anyNull = true;
+                    break;
+                }
+            }
+            if (anyNull) {
                 partitionOf[i] = NULL_PARTITION;
             } else {
-                int hash = probeRouter.partitionHashOfKey(keyBlock, i);
+                int hash = probeRouter.partitionHashOfRow(page, i);
                 rawHash[i] = hash;
                 partitionOf[i] = Math.floorMod(hash, partitionCount);
             }
@@ -570,7 +596,7 @@ public class PartitionedHashAggregationOperator implements Operator {
         int[] sortedGroupIds = new int[positions];
         for (int i = 0; i < positions; i++) {
             int p = partitionOf[i];
-            int groupId = partitions[p].blockHash.router().addKey(keyBlock, i, rawHash[i]);
+            int groupId = partitions[p].blockHash.router().addRow(page, i, rawHash[i]);
             int dest = cursor[p]++;
             sortedPositions[dest] = i;
             sortedGroupIds[dest] = groupId;
@@ -608,14 +634,15 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     private boolean hasMultiValuedKeys(Page page) {
-        Block keyBlock = page.getBlock(groupChannel);
-        if (keyBlock.asVector() != null) {
-            return false;
-        }
-        int positions = keyBlock.getPositionCount();
-        for (int i = 0; i < positions; i++) {
-            if (keyBlock.getValueCount(i) > 1) {
-                return true;
+        for (int k = 0; k < groupChannels.size(); k++) {
+            Block keyBlock = page.getBlock(groupChannels.get(k));
+            if (keyBlock.asVector() == null) {
+                int positions = keyBlock.getPositionCount();
+                for (int i = 0; i < positions; i++) {
+                    if (keyBlock.getValueCount(i) > 1) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -772,13 +799,8 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     private Table newTable(int emitBatchSize) {
         // Every page these tables ever see (raw or intermediate) is in this operator's internal
-        // layout, which always places the grouping key at channel 0 - see toInternalLayout.
-        BlockHash blockHash = BlockHash.build(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-            driverContext.blockFactory(),
-            emitBatchSize,
-            false
-        );
+        // layout, which places grouping keys at channels 0..groupChannels.size()-1 - see toInternalLayout.
+        BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), emitBatchSize, false);
         boolean success = false;
         try {
             Table table = new Table(blockHash, buildAggregators());

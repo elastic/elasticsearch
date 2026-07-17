@@ -517,6 +517,57 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     @Override
+    public Router router() {
+        if (batchWork instanceof FixedWidthBatchWork fw) {
+            return new Router() {
+                private final byte[] scratch = new byte[fw.keyLength];
+                private final BytesRef scratchRef = new BytesRef(scratch, 0, fw.keyLength);
+
+                @Override
+                public int partitionHashOfRow(Page page, int position) {
+                    Arrays.fill(scratch, 0, fw.keyLength, (byte) 0);
+                    for (int g = 0; g < fw.specs.size(); g++) {
+                        int offset = fw.offsets[g];
+                        Block block = page.getBlock(fw.specs.get(g).channel());
+                        switch (fw.specs.get(g).elementType()) {
+                            case LONG -> LONG_HANDLE.set(scratch, offset, ((LongBlock) block).getLong(position));
+                            case INT -> INT_HANDLE.set(scratch, offset, ((IntBlock) block).getInt(position));
+                            case DOUBLE -> DOUBLE_HANDLE.set(scratch, offset, ((DoubleBlock) block).getDouble(position));
+                            case BOOLEAN -> scratch[offset] = ((BooleanBlock) block).getBoolean(position) ? (byte) 1 : (byte) 0;
+                            default -> throw new IllegalStateException("unsupported type: " + fw.specs.get(g).elementType());
+                        }
+                    }
+                    return (int) BytesRefSwissHash.hash64(scratch, 0, fw.keyLength);
+                }
+
+                @Override
+                public int addRow(Page page, int position, int hash) {
+                    Arrays.fill(scratch, 0, fw.keyLength, (byte) 0);
+                    for (int g = 0; g < fw.specs.size(); g++) {
+                        Block block = page.getBlock(fw.specs.get(g).channel());
+                        if (block.isNull(position)) {
+                            seenNull = true;
+                            scratch[g / 8] |= (byte) (1 << (g % 8));
+                        } else {
+                            int offset = fw.offsets[g];
+                            switch (fw.specs.get(g).elementType()) {
+                                case LONG -> LONG_HANDLE.set(scratch, offset, ((LongBlock) block).getLong(position));
+                                case INT -> INT_HANDLE.set(scratch, offset, ((IntBlock) block).getInt(position));
+                                case DOUBLE -> DOUBLE_HANDLE.set(scratch, offset, ((DoubleBlock) block).getDouble(position));
+                                case BOOLEAN -> scratch[offset] = ((BooleanBlock) block).getBoolean(position) ? (byte) 1 : (byte) 0;
+                                default -> throw new IllegalStateException("unsupported type: " + fw.specs.get(g).elementType());
+                            }
+                        }
+                    }
+                    long hash64 = BytesRefSwissHash.hash64(scratch, 0, fw.keyLength);
+                    return Math.toIntExact(hashOrdToGroup(fw.swiss.addWithHash(scratchRef, hash64)));
+                }
+            };
+        }
+        return null;
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
     }

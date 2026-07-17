@@ -131,28 +131,27 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public interface Router {
         /**
-         * Compute the partition hash for the single, non-null key value at {@code position} in
-         * {@code keyBlock}, without inserting it. Never call this for a null key — a null key
-         * has no partition hash; callers are expected to route null keys to one fixed, agreed-upon
-         * partition instead of hashing them (mirroring the {@code 0}-for-null convention below),
-         * then call {@link #addKey} directly for that key.
+         * Compute the partition hash for the row at {@code position} in {@code page}, without
+         * inserting it. Only call this when no grouping-key column for that row is null — null
+         * rows have no partition hash; callers route them to a fixed agreed-upon partition and
+         * call {@link #addRow} directly.
          */
-        int partitionHashOfKey(Block keyBlock, int position);
+        int partitionHashOfRow(Page page, int position);
 
         /**
-         * Insert (or look up) the key value at {@code position} in {@code keyBlock}, reusing a
-         * {@code hash} already computed by {@link #partitionHashOfKey} for that same value (for
-         * a null key, any {@code hash} value is accepted and ignored), and return its group id —
-         * numbered the same way {@link #add} numbers groups, reserving {@code 0} for null.
+         * Insert (or look up) the grouping-key columns at {@code position} in {@code page},
+         * reusing a {@code hash} already computed by {@link #partitionHashOfRow} for that same
+         * row (for null-containing rows, any {@code hash} value is accepted and ignored), and
+         * return the group id — numbered the same way {@link #add} numbers groups.
          */
-        int addKey(Block keyBlock, int position, int hash);
+        int addRow(Page page, int position, int hash);
     }
 
     /**
      * This {@link BlockHash}'s {@link Router} capability, or {@code null} if this
      * implementation doesn't support it. See {@link Router} for what "supports" means.
-     * Only {@link LongBlockHash}, and only when SwissHash is available on this JVM, returns
-     * non-{@code null} today.
+     * Returns {@code null} when SwissHash is unavailable on this JVM or when the grouping
+     * schema isn't supported (e.g. variable-width multi-column, or adaptive-hash types).
      */
     public Router router() {
         return null;

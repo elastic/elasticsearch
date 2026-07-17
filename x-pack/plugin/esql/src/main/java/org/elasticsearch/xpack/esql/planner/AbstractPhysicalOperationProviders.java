@@ -208,8 +208,7 @@ public abstract class AbstractPhysicalOperationProviders {
                 PlannerSettings plannerSettings = context.plannerSettings();
                 int partitionCount = pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount());
                 if (aggregatorMode == AggregatorMode.INITIAL
-                    && groupSpecs.size() == 1
-                    && groupSpecs.get(0).channel() != null
+                    && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
                     && partitionCount > 1
                     && context.nodeLevelReductionActive() == false) {
                     List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();
@@ -222,7 +221,9 @@ public abstract class AbstractPhysicalOperationProviders {
                         s -> aggSpecs.add(new PartitionedHashAggregationOperator.AggregatorSpec(s.supplier, s.channels)),
                         context
                     );
-                    operatorFactory = new PartitionedHashAggregationOperator.Builder().groupChannel(groupSpecs.get(0).channel())
+                    operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+                        groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
+                    )
                         .aggregators(aggSpecs)
                         .partitionCount(partitionCount)
                         .partitionConversionThreshold(

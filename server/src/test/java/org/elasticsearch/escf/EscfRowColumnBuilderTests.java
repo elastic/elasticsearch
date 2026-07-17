@@ -22,10 +22,6 @@ import java.nio.charset.StandardCharsets;
  */
 public class EscfRowColumnBuilderTests extends ESTestCase {
 
-    // --------------------------------------------------------------------------------------------
-    // Helper: produce an EscfArrayColumn via EscfRowColumnBuilder
-    // --------------------------------------------------------------------------------------------
-
     private static EscfColumnData buildArrayOfString(int docCount, int[] rows, String[] values) {
         EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         for (int i = 0; i < rows.length; i++) {
@@ -46,10 +42,6 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
     private static int elemCount(EscfArrayColumn col, int row) {
         return col.rowElemTo(row) - col.rowElemFrom(row);
     }
-
-    // --------------------------------------------------------------------------------------------
-    // Core tests
-    // --------------------------------------------------------------------------------------------
 
     /** An empty builder (no elements) produces an all-absent array. */
     public void testEmptyBuilderAllAbsent() {

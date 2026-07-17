@@ -29,8 +29,6 @@ import java.util.Map;
  */
 public class DeduplicatingStringColumnAccumulatorTests extends ESTestCase {
 
-    // --- helpers ---
-
     private static BytesRef br(String s) {
         return new BytesRef(s);
     }
@@ -64,8 +62,6 @@ public class DeduplicatingStringColumnAccumulatorTests extends ESTestCase {
         }
         return result;
     }
-
-    // --- tests ---
 
     /** An accumulator with no recorded entries reports isEmpty and produces all-absent rows. */
     public void testEmptyAllAbsent() {

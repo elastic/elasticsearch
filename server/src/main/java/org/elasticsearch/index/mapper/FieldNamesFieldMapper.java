@@ -199,9 +199,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
      * Records that {@code field} should appear in {@code _field_names} for document {@code doc}
      * within this batch. The entry is accumulated in {@link BatchMappingContext} and the column is
      * assembled and attached in {@link #postColumnarParse}.
-     *
-     * <p>Multiple distinct field names for the same {@code doc} are supported (multi-value).
-     * Duplicate values for the same document are silently deduplicated.
      */
     void addFieldNamesColumnar(BatchMappingContext ctx, int doc, String field) {
         if (enabled.value() == false) {
@@ -210,13 +207,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         ctx.recordFieldName(doc, new BytesRef(field));
     }
 
-    /**
-     * Drains the {@code _field_names} accumulator and attaches an array-of-string
-     * {@link EscfStringArrayColumn} to the batch context. The accumulator iterates documents in
-     * ascending order, so no explicit sort is required.
-     *
-     * <p>If no contributor registered any field name during this batch, no column is added.
-     */
     @Override
     public void postColumnarParse(BatchMappingContext ctx) {
         final DeduplicatingStringColumnAccumulator acc = ctx.fieldNamesAccumulator();

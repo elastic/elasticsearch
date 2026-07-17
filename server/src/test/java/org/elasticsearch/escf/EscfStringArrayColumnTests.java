@@ -31,10 +31,6 @@ import java.util.Map;
  */
 public class EscfStringArrayColumnTests extends ESTestCase {
 
-    // --------------------------------------------------------------------------------------------
-    // Builder helpers
-    // --------------------------------------------------------------------------------------------
-
     /** Build an EscfStringArrayColumn directly from (doc,value) pairs (non-decreasing docs). */
     private static EscfStringArrayColumn buildColumn(int docCount, int[] docs, String[] values) {
         EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
@@ -76,10 +72,6 @@ public class EscfStringArrayColumnTests extends ESTestCase {
         }
         return result;
     }
-
-    // --------------------------------------------------------------------------------------------
-    // Row cursor tests
-    // --------------------------------------------------------------------------------------------
 
     /** Empty column yields NO_MORE_DOCS immediately. */
     public void testRowCursorEmpty() {
@@ -161,10 +153,6 @@ public class EscfStringArrayColumnTests extends ESTestCase {
         assertEquals(List.of("p", "q"), result.get(2));
         assertNull("doc 1 is absent", result.get(1));
     }
-
-    // --------------------------------------------------------------------------------------------
-    // slice() tests
-    // --------------------------------------------------------------------------------------------
 
     /**
      * {@link EscfStringArrayColumn#slice} returns a view over the requested document sub-range;

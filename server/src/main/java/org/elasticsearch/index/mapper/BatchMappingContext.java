@@ -50,11 +50,7 @@ public final class BatchMappingContext {
 
     private boolean routingsInitialized;
     private boolean frozen;
-    /**
-     * Accumulates {@code (doc, name)} pairs for {@code _field_names}. Multiple contributors may
-     * call {@link #addFieldNamesColumnar} for any doc in any order; {@link FieldNamesFieldMapper}
-     * drains this in {@code postColumnarParse}. Lazily allocated on first write.
-     */
+    /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
     private DeduplicatingStringColumnAccumulator fieldNames;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {

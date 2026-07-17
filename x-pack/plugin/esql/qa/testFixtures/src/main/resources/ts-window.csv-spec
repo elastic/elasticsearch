@@ -63,6 +63,33 @@ mx:long | dim:keyword | time_bucket:datetime
 300    | b           | 2024-01-01T00:25:00.000Z
 ;
 
+# Nested field expression + window < bucket: ClassCastException on main without WindowFilter skip
+# in ReplaceAggregateNestedExpressionWithEval (Bucket replaced by Eval ReferenceAttribute).
+max_over_time_nested_expression_window_smaller_than_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+
+TS ts_window
+| STATS mx = sum(max_over_time(val + 1, 2m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+mx:long | dim:keyword | time_bucket:datetime
+6       | a           | 2024-01-01T00:00:00.000Z
+51      | b           | 2024-01-01T00:00:00.000Z
+11      | a           | 2024-01-01T00:05:00.000Z
+101     | b           | 2024-01-01T00:05:00.000Z
+16      | a           | 2024-01-01T00:10:00.000Z
+151     | b           | 2024-01-01T00:10:00.000Z
+21      | a           | 2024-01-01T00:15:00.000Z
+201     | b           | 2024-01-01T00:15:00.000Z
+26      | a           | 2024-01-01T00:20:00.000Z
+251     | b           | 2024-01-01T00:20:00.000Z
+31      | a           | 2024-01-01T00:25:00.000Z
+301     | b           | 2024-01-01T00:25:00.000Z
+;
+
 ###############################################
 # Non-multiple window/bucket combos (GCD-based sub-bucketing)
 ###############################################

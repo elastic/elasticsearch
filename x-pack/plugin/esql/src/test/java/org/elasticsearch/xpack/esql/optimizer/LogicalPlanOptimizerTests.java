@@ -8233,6 +8233,28 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
+    /**
+     * Nested expression on the over_time field forces {@code ReplaceAggregateNestedExpressionWithEval} to walk the
+     * aggregate ({@code skipOptimisingAgg} only short-circuits bare attributes). Without skipping {@link WindowFilter}'s
+     * subtree, that walk replaces the grouping {@link Bucket} inside {@link WindowFilter} with an Eval attribute and
+     * {@link WindowFilter#toEvaluator} ClassCastExceptions. Bare fields never hit this path.
+     */
+    public void testWindowFilterBucketSurvivesNestedExpressionEval() {
+        var plan = planMetrics("""
+            TS k8s
+            | STATS sum(max_over_time(network.bytes_in + 1, 2 minute)) BY TBUCKET(5 minute)
+            | LIMIT 10
+            """);
+        Holder<WindowFilter> holder = new Holder<>();
+        plan.forEachExpressionDown(WindowFilter.class, holder::set);
+        assertNotNull(holder.get());
+        assertThat(
+            "WindowFilter.bucket must remain a Bucket (not an Eval attribute)",
+            holder.get().children().get(1),
+            instanceOf(Bucket.class)
+        );
+    }
+
     public void testTranslateOverTimeWithNonMultipleWindow() {
         // 7m window with 5m bucket -> GCD=1m internal bucket, 5m output bucket
         {

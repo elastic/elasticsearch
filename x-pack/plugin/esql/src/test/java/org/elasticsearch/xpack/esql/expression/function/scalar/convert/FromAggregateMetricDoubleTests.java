@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.AggregateMetricDoubleArrayBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -94,6 +91,57 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
             );
         }));
 
+        // DEFAULT metric with count == 0: result is null and a warning is logged.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(-1000, 1000, true),
+                0
+            );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: [aggregate_metric_double] fields has a non-positive count"
+                        + " [value_count=0], so it cannot fallback to a single average value, treating result as null"
+                );
+        }));
+
+        // DEFAULT metric with count < 0: result is null and a warning is logged.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+            int count = randomIntBetween(-100, -1);
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(-1000, 1000, true),
+                count
+            );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: [aggregate_metric_double] fields has a non-positive count"
+                        + " [value_count="
+                        + count
+                        + "], so it cannot fallback to a single average value, treating result as null"
+                );
+        }));
+
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,
@@ -101,38 +149,6 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                 (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
             )
         );
-    }
-
-    /**
-     * When count is 0, sum / count follows IEEE 754: positive sum gives +Infinity, negative sum gives -Infinity,
-     * zero sum gives NaN. This matches the behavior of {@code AvgBlockLoader} and is intentional.
-     * The parameterized test harness forbids these special values, so this case is verified directly.
-     */
-    public void testDefaultMetricZeroCountYieldsIeee754SpecialValue() {
-        var factory = TestBlockFactory.getNonBreakingInstance();
-        for (double[] sumAndExpected : new double[][] {
-            { 1.0, Double.POSITIVE_INFINITY },
-            { -1.0, Double.NEGATIVE_INFINITY },
-            { 0, Double.NaN } }) {
-            double sum = sumAndExpected[0];
-            double expected = sumAndExpected[1];
-            try (
-                var block = new AggregateMetricDoubleArrayBlock(
-                    factory.newConstantDoubleBlockWith(0.0, 1),
-                    factory.newConstantDoubleBlockWith(0.0, 1),
-                    factory.newConstantDoubleBlockWith(sum, 1),
-                    factory.newConstantIntBlockWith(0, 1)
-                )
-            ) {
-                DoubleBlock defaultBlock = (DoubleBlock) block.getMetricBlock(AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex());
-                assertFalse(defaultBlock.isNull(0));
-                if (Double.isNaN(expected)) {
-                    assertTrue(Double.isNaN(defaultBlock.getDouble(defaultBlock.getFirstValueIndex(0))));
-                } else {
-                    assertThat(defaultBlock.getDouble(defaultBlock.getFirstValueIndex(0)), Matchers.equalTo(expected));
-                }
-            }
-        }
     }
 
     @Override

@@ -365,8 +365,6 @@ public final class Case extends EsqlScalarFunction {
 
     private Expression finishPartialFold(List<Expression> newChildren) {
         Expression result = innerFinishPartialFold(newChildren);
-        // A surviving TEXT arm is allowed here even though dataType() is KEYWORD; PartiallyFoldCase re-types it
-        // so the plan output matches what resolveValueType declared (#154278).
         if (result.dataType().noText().equals(dataType()) == false) {
             throw new IllegalStateException("partiallyFold produced type [" + result.dataType() + "] but expected [" + dataType() + "]");
         }

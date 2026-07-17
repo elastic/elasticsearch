@@ -49,6 +49,7 @@ public final class BatchMappingContext {
     private BytesRef[] routings;
 
     private boolean routingsInitialized;
+    private boolean frozen;
     /**
      * Accumulates {@code (doc, name)} pairs for {@code _field_names}. Multiple contributors may
      * call {@link #addFieldNamesColumnar} for any doc in any order; {@link FieldNamesFieldMapper}
@@ -79,6 +80,7 @@ public final class BatchMappingContext {
 
     /** Attaches a fully-assembled {@link SliceableColumn} covering all {@code docCount} documents. */
     public void addColumn(SliceableColumn column) {
+        assert frozen == false;
         columns.add(column);
     }
 
@@ -163,6 +165,7 @@ public final class BatchMappingContext {
             for (int d = 0; d < docCount; d++) {
                 final String id = requests[d].id();
                 if (id == null) {
+                    // TODO: We do not support synthetic id yet. This will change once we do.
                     throw new IllegalStateException("_id should have been set on the coordinating node");
                 }
                 uids[d] = Uid.encodeId(id);
@@ -177,6 +180,7 @@ public final class BatchMappingContext {
      * column assembly. No-op when {@code _field_names} is absent or disabled for the index.
      */
     public void addFieldNamesColumnar(int doc, String field) {
+        assert frozen == false;
         if (fieldNamesFieldMapper != null) {
             fieldNamesFieldMapper.addFieldNamesColumnar(this, doc, field);
         }
@@ -206,6 +210,7 @@ public final class BatchMappingContext {
      * {@link MappedColumns#toColumnBatch()}.
      */
     public MappedColumns columns() {
+        frozen = true;
         return new MappedColumns(0, docCount, seqNo, primaryTerm, version, columns);
     }
 }

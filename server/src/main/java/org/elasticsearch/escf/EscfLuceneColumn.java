@@ -33,6 +33,8 @@ import java.util.List;
  * no deferred construction is needed.
  *
  * <p>Use the static factory {@link #longColumn} to create instances; the constructor is private.
+ *
+ * <p>Currently this column implementation is always dense.
  */
 public final class EscfLuceneColumn implements SliceableColumn {
 
@@ -46,12 +48,15 @@ public final class EscfLuceneColumn implements SliceableColumn {
         this.name = name;
         this.fieldType = fieldType;
         this.kind = kind;
+        // Currently always dense. Will eventually support sparse.
+        assert this.values.absent == null;
     }
 
     public static EscfLuceneColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
+        assert values.length % 8 == 0;
         BytesArray data = new BytesArray(values);
         int docCount = values.length / 8;
-        // Dense: no absent set (metadata columns always have a value for every document).
+        // Dense: no absent set.
         EscfLongColumn column = new EscfLongColumn(docCount, null, data);
         return new EscfLuceneColumn(column, name, fieldType, kind);
     }

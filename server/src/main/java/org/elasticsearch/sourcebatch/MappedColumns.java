@@ -26,10 +26,11 @@ import org.elasticsearch.escf.EscfLuceneColumn;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class MappedColumns {
 
-    private final int from;
+    private final int offset;
     private final int count;
 
     @Nullable
@@ -48,14 +49,14 @@ public final class MappedColumns {
      * given backing arrays and columns.
      */
     public MappedColumns(
-        int from,
+        int offset,
         int count,
         @Nullable byte[] seqNos,
         @Nullable byte[] primaryTerms,
         @Nullable byte[] versions,
         List<SliceableColumn> columns
     ) {
-        this.from = from;
+        this.offset = offset;
         this.count = count;
         this.seqNos = seqNos;
         this.primaryTerms = primaryTerms;
@@ -68,35 +69,35 @@ public final class MappedColumns {
     }
 
     public void setSeqNo(int doc, long value) {
+        assert doc >= 0 && doc < count;
         if (seqNos != null) {
-            ByteUtils.writeLongLE(value, seqNos, (from + doc) * 8);
+            ByteUtils.writeLongLE(value, seqNos, (offset + doc) * 8);
         }
     }
 
     public void fillPrimaryTerm(long value) {
         if (primaryTerms != null) {
             for (int i = 0; i < count; i++) {
-                ByteUtils.writeLongLE(value, primaryTerms, (from + i) * 8);
+                ByteUtils.writeLongLE(value, primaryTerms, (offset + i) * 8);
             }
         }
     }
 
     public void setVersion(int doc, long value) {
+        assert doc >= 0 && doc < count;
         if (versions != null) {
-            ByteUtils.writeLongLE(value, versions, (from + doc) * 8);
+            ByteUtils.writeLongLE(value, versions, (offset + doc) * 8);
         }
     }
 
     public MappedColumns slice(int from, int to) {
-        if (from < 0 || to > this.count || from > to) {
-            throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + this.count + ")");
-        }
+        Objects.checkFromIndexSize(from, to - from, this.count);
         int newCount = to - from;
         List<SliceableColumn> slicedColumns = new ArrayList<>(columns.size());
         for (SliceableColumn c : columns) {
             slicedColumns.add(c.slice(from, newCount));
         }
-        return new MappedColumns(this.from + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
+        return new MappedColumns(this.offset + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
     }
 
     public ColumnBatch toColumnBatch() {
@@ -191,10 +192,10 @@ public final class MappedColumns {
     }
 
     private static final class WindowedBinaryColumn extends BinaryColumn implements SliceableColumn {
+
         private final BytesRef[] values;
         private final int from;
         private final int count;
-        private final boolean dense;
         private final IndexableFieldType fieldType;
 
         WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count) {
@@ -202,7 +203,6 @@ public final class MappedColumns {
             this.values = values;
             this.from = from;
             this.count = count;
-            this.dense = allPresent(values, from, count);
             this.fieldType = fieldType;
         }
 
@@ -217,6 +217,7 @@ public final class MappedColumns {
 
         @Override
         public SliceableColumn slice(int from, int count) {
+            Objects.checkFromIndexSize(from, count, this.count);
             return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
         }
 
@@ -261,7 +262,6 @@ public final class MappedColumns {
         public ObjectTupleCursor<BytesRef> tuples() {
             // srcIdx tracks position in the full backing array; doc is the batch-local id.
             return new ObjectTupleCursor<>() {
-                private int doc = -1;
                 private int srcIdx = from - 1;
 
                 @Override
@@ -271,6 +271,7 @@ public final class MappedColumns {
                     while (srcIdx < end && values[srcIdx] == null) {
                         srcIdx++;
                     }
+                    int doc;
                     if (srcIdx >= end) {
                         doc = DocIdSetIterator.NO_MORE_DOCS;
                     } else {
@@ -288,7 +289,7 @@ public final class MappedColumns {
 
         @Override
         public BytesRefValuesCursor values() {
-            if (dense == false) {
+            if (density() == Density.SPARSE) {
                 return super.values(); // throws; never consulted for SPARSE columns
             }
             return new BytesRefValuesCursor(count) {

@@ -47,10 +47,10 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> b.startObject(RoutingFieldMapper.NAME).field("doc_values", true).endObject()),
             syntheticSourceSettings(),
-            scenario("no routing - single doc", 1L, doc("doc1", 100L, "{}")),
-            scenario("with routing - single doc", 1L, doc("doc2", "my-route", 200L, "{}")),
+            batch("no routing - single doc", 1L, doc("doc1", 100L, "{}")),
+            batch("with routing - single doc", 1L, doc("doc2", "my-route", 200L, "{}")),
             // Mixed batch: doc 0 has no routing (SPARSE column null entry), docs 1-2 have routing.
-            scenario(
+            batch(
                 "mixed routing batch",
                 2L,
                 doc("batch-1", null, 300L, 1L, "{}"),
@@ -68,7 +68,14 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> b.startObject(RoutingFieldMapper.NAME).field("doc_values", false).endObject()),
             syntheticSourceSettings(),
-            scenario("with routing - doc_values=false", 1L, doc("doc1", "my-route", 100L, "{}"))
+            batch("with routing - doc_values=false", 1L, doc("doc1", "my-route", 100L, "{}")),
+            batch(
+                "mixed routing batch - doc_values=false",
+                2L,
+                doc("batch-1", null, 300L, 1L, "{}"),
+                doc("batch-2", "route-a", 301L, 2L, "{}"),
+                doc("batch-3", "route-b", 302L, 3L, "{}")
+            )
         );
     }
 
@@ -86,10 +93,10 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> {}),
             settings,
-            scenario("empty source - single doc", 1L, doc("doc1", 100L, "{}")),
+            batch("empty source - single doc", 1L, doc("doc1", 100L, "{}")),
             // TODO: use realistic non-empty source once a user data mapper supports the columnar
             // path — empty source avoids content fields that only x-content produces today.
-            scenario("empty source batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"), doc("batch-3", 103L, "{}"))
+            batch("empty source batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"), doc("batch-3", 103L, "{}"))
         );
     }
 
@@ -98,8 +105,8 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> b.startObject(IdFieldMapper.NAME).field("mode", "document").endObject()),
             syntheticSourceSettings(),
-            scenario("document mode - single doc", 1L, doc("doc1", 100L, "{}")),
-            scenario("document mode - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"), doc("batch-3", 103L, "{}"))
+            batch("document mode - single doc", 1L, doc("doc1", 100L, "{}")),
+            batch("document mode - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"), doc("batch-3", 103L, "{}"))
         );
     }
 
@@ -108,8 +115,8 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> b.startObject(IdFieldMapper.NAME).field("mode", "columnar").endObject()),
             syntheticSourceSettings(),
-            scenario("columnar id - single doc", 1L, doc("doc1", 100L, "{}")),
-            scenario("columnar id - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
+            batch("columnar id - single doc", 1L, doc("doc1", 100L, "{}")),
+            batch("columnar id - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
         );
     }
 
@@ -122,8 +129,8 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> {}),
             settings,
-            scenario("doc_values_only - single doc", 1L, doc("doc1", 100L, "{}")),
-            scenario("doc_values_only - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
+            batch("doc_values_only - single doc", 1L, doc("doc1", 100L, "{}")),
+            batch("doc_values_only - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
         );
     }
 
@@ -141,8 +148,8 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> {}),
             settings,
-            scenario("seq_no_disabled - single doc", 1L, doc("doc1", 100L, "{}")),
-            scenario("seq_no_disabled - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
+            batch("seq_no_disabled - single doc", 1L, doc("doc1", 100L, "{}")),
+            batch("seq_no_disabled - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
         );
     }
 }

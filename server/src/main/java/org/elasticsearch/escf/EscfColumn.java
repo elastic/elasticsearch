@@ -146,33 +146,28 @@ abstract class EscfColumn implements SliceableColumn {
     }
 
     /**
-     * Not supported directly on raw {@link EscfColumn} instances. Use a dedicated wrapper such as
-     * {@link EscfLuceneColumn} (for long columns) or {@link EscfStringArrayColumn} (for
-     * array-of-string columns) to obtain a {@link SliceableColumn} with a functioning row cursor.
-     *
-     * @throws UnsupportedOperationException always
+     * Throws {@link UnsupportedOperationException} — direct ESCF→Lucene column conversion is not
+     * yet implemented. Use {@link EscfLuceneColumn} for engine-metadata long columns.
      */
     @Override
-    public final RowFieldCursor rowFieldCursor() {
+    public Column toLuceneColumn() {
         throw new UnsupportedOperationException(
-            "rowFieldCursor() is not supported directly on EscfColumn kind="
+            "Direct ESCF-to-Lucene column conversion is not yet implemented for kind "
                 + EscfColumnKind.name(kind())
-                + "; use a SliceableColumn wrapper such as EscfLuceneColumn"
+                + "; wrap with EscfLuceneColumn for engine-metadata columns"
         );
     }
 
     /**
-     * Not supported directly on raw {@link EscfColumn} instances. Use a dedicated wrapper such as
-     * {@link EscfLuceneColumn} or {@link EscfStringArrayColumn} to obtain a Lucene column.
-     *
-     * @throws UnsupportedOperationException always
+     * Throws {@link UnsupportedOperationException} — ESCF user-data column → per-doc Lucene field
+     * conversion is not yet implemented. Use {@link EscfLuceneColumn} for engine-metadata longs.
      */
     @Override
-    public final Column toLuceneColumn() {
+    public RowFieldCursor rowFieldCursor() {
         throw new UnsupportedOperationException(
-            "toLuceneColumn() is not supported directly on EscfColumn kind="
+            "ESCF user-data column to row-field cursor is not yet implemented for kind "
                 + EscfColumnKind.name(kind())
-                + "; use a SliceableColumn wrapper such as EscfLuceneColumn"
+                + "; use EscfLuceneColumn for engine-metadata columns"
         );
     }
 

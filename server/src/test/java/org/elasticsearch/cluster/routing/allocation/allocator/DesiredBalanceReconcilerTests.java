@@ -96,6 +96,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -109,6 +110,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.junit.Assert.assertTrue;
 
 public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
@@ -1592,6 +1594,212 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 shardInUndesiredAllocationMessage
             )
         );
+    }
+
+    public void testUnassignInitializingReplicaOnUndesiredNode() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+            .addShard(newShardRouting(shardId, "node-2", false, INITIALIZING))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)));
+
+        final var settings = Settings.builder()
+            .put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true)
+            .build();
+        final var reconciler = new DesiredBalanceReconciler(
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new AdvancingTimeProvider(),
+            new ShardRelocationOrder.DefaultOrder()
+        );
+
+        final var forbidRemain = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals("node-2") ? Decision.NO : Decision.YES;
+            }
+        };
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        reconciler.reconcile(desiredBalance, allocation);
+
+        assertThat(allocation.routingNodes().node("node-2").getByShardId(shardId), nullValue());
+
+        final var shardRouting = allocation.routingNodes().node("node-1").getByShardId(shardId);
+        assertThat(shardRouting, notNullValue());
+        assertTrue(shardRouting.initializing());
+    }
+
+    public void testDoNotUnassignInitializingReplicaWhenFeatureDisabled() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+            .addShard(newShardRouting(shardId, "node-2", false, INITIALIZING))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)));
+
+        final var forbidRemain = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals("node-2") ? Decision.NO : Decision.YES;
+            }
+        };
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        reconcile(allocation, desiredBalance);
+
+        final var shardRouting = allocation.routingNodes().node("node-2").getByShardId(shardId);
+        assertThat(shardRouting, notNullValue());
+        assertTrue(shardRouting.initializing());
+
+        assertThat(allocation.routingNodes().node("node-1").getByShardId(shardId), nullValue());
+    }
+
+    public void testDoNotUnassignInitializingReplicaWhenDeciderAllowsCurrentNode() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+            .addShard(newShardRouting(shardId, "node-2", false, INITIALIZING))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)));
+
+        final var settings = Settings.builder()
+            .put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true)
+            .build();
+        final var reconciler = new DesiredBalanceReconciler(
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new AdvancingTimeProvider(),
+            new ShardRelocationOrder.DefaultOrder()
+        );
+
+        final var notPreferred = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return Decision.NOT_PREFERRED;
+            }
+        };
+        final var allocation = createRoutingAllocationFrom(clusterState, notPreferred);
+        reconciler.reconcile(desiredBalance, allocation);
+
+        final var shardRouting = allocation.routingNodes().node("node-2").getByShardId(shardId);
+        assertThat(shardRouting, notNullValue());
+        assertTrue(shardRouting.initializing());
+    }
+
+    public void testDoNotUnassignInitializingSearchOnlyReplicaWithNoStartedCopy() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+            .addShard(newShardRouting(shardId, "node-2", false, INITIALIZING, ShardRouting.Role.SEARCH_ONLY))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)));
+
+        final var settings = Settings.builder()
+            .put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true)
+            .build();
+        final var reconciler = new DesiredBalanceReconciler(
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new AdvancingTimeProvider(),
+            new ShardRelocationOrder.DefaultOrder()
+        );
+
+        final var forbidRemain = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals("node-2") ? Decision.NO : Decision.YES;
+            }
+        };
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        reconciler.reconcile(desiredBalance, allocation);
+
+        final var shardRouting = allocation.routingNodes().node("node-2").getByShardId(shardId);
+        assertThat(shardRouting, notNullValue());
+        assertTrue(shardRouting.initializing());
+        assertThat(shardRouting.role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
+    }
+
+    public void testUnassignInitializingSearchOnlyReplicaWhenStartedCopyExists() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 2)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var indexRouting = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+            .addShard(newShardRouting(shardId, "node-1", false, STARTED, ShardRouting.Role.SEARCH_ONLY))
+            .addShard(newShardRouting(shardId, "node-3", false, INITIALIZING, ShardRouting.Role.SEARCH_ONLY))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(4))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRouting))
+            .build();
+
+        final var desiredBalance = new DesiredBalance(
+            1,
+            Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-1", "node-2"), 3, 0, 0))
+        );
+
+        final var settings = Settings.builder()
+            .put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true)
+            .build();
+        final var reconciler = new DesiredBalanceReconciler(
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new AdvancingTimeProvider(),
+            new ShardRelocationOrder.DefaultOrder()
+        );
+
+        final var forbidRemain = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals("node-3") ? Decision.NO : Decision.YES;
+            }
+        };
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        reconciler.reconcile(desiredBalance, allocation);
+
+        assertThat(allocation.routingNodes().node("node-3").getByShardId(shardId), nullValue());
+        final var node2ShardRouting = allocation.routingNodes().node("node-2").getByShardId(shardId);
+        assertThat(node2ShardRouting, notNullValue());
+        assertTrue(node2ShardRouting.initializing());
+        assertThat(node2ShardRouting.role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
+
+        final var node1ShardRouting = allocation.routingNodes().node("node-1").getByShardId(shardId);
+        assertThat(node1ShardRouting, notNullValue());
+        assertTrue(node1ShardRouting.started());
     }
 
     /**

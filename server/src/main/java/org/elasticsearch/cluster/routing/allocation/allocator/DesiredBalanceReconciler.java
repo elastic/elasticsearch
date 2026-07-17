@@ -37,8 +37,10 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -79,8 +81,19 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    /// When enabled, the reconciler will directly unassign initializing replica shards that are no longer on a desired node, so they
+    /// can be immediately re-assigned to the correct node in the same reconciliation round rather than waiting for a data-node
+    /// acknowledgement of the cancellation.
+    public static final Setting<Boolean> ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.desired_balance.enable_initializing_shard_cancellation",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final FrequencyCappedAction undesiredAllocationLogInterval;
     private double undesiredAllocationsLogThreshold;
+    private volatile boolean enableInitializingShardCancellation;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final UndesiredAllocationsTracker undesiredAllocationsTracker;
@@ -92,6 +105,10 @@ public class DesiredBalanceReconciler {
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
+        );
+        clusterSettings.initializeAndWatch(
+            ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING,
+            value -> this.enableInitializingShardCancellation = value
         );
         this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider);
         this.shardRelocationOrder = shardRelocationOrder;
@@ -161,16 +178,22 @@ public class DesiredBalanceReconciler {
 
                 // compute next moves towards current desired balance:
 
-                // 1. allocate unassigned shards first
+                // 1. unassign initializing replicas that are no longer on desired nodes so they can be immediately re-assigned
+                if (enableInitializingShardCancellation) {
+                    logger.trace("Reconciler#unassignInterruptableInitializingShards");
+                    unassignInterruptableInitializingShards();
+                }
+
+                // 2. allocate unassigned shards first
                 logger.trace("Reconciler#allocateUnassigned");
                 allocateUnassigned();
                 assert allocateUnassignedInvariant();
 
-                // 2. move any shards that cannot remain where they are
-                logger.trace("Reconciler#moveShards");
-                moveShards();
+                // 3. move any shards that cannot remain where they are
+                logger.trace("Reconciler#moveStartedShards");
+                moveStartedShards();
 
-                // 3. move any other shards that are desired elsewhere
+                // 4. move any other shards that are desired elsewhere
                 // This is the rebalancing work. The previous calls were necessary, to assign unassigned shard copies, and move shards that
                 // violate resource thresholds. Now we run moves to improve the relative node resource loads.
                 logger.trace("Reconciler#balance");
@@ -246,6 +269,75 @@ public class DesiredBalanceReconciler {
                     );
                 }
             }
+        }
+
+        private void unassignInterruptableInitializingShards() {
+            // Collect before failing, failShard modifies the RoutingNode's shard map
+            final List<ShardRouting> candidates = new ArrayList<>();
+            for (final var routingNode : routingNodes) {
+                for (final var shardRouting : routingNode) {
+                    if (shardRouting.initializing() == false) {
+                        continue;
+                    }
+                    final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                    if (assignment != null && assignment.nodeIds().contains(shardRouting.currentNodeId())) {
+                        continue;
+                    }
+                    // Only interrupt if the decider says NO for the current node. If the shard is merely on a non-preferred
+                    // node but the decider still allows it there, let the recovery finish and rely on moveStartedShards() to move it once
+                    // it is started.
+                    if (allocation.deciders().canAllocate(shardRouting, routingNode, allocation).type() != Decision.Type.NO) {
+                        continue;
+                    }
+                    if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
+                        candidates.add(shardRouting);
+                    }
+                }
+            }
+
+            for (final var candidate : candidates) {
+                // Re-resolve in case a prior failShard call already removed this routing entry.
+                final var current = routingNodes.getByAllocationId(candidate.shardId(), candidate.allocationId().getId());
+                if (current == null || current.initializing() == false) {
+                    continue;
+                }
+                assert current.primary() == false;
+                logger.debug(
+                    "Unassigning initializing replica [{}] on [{}]: no longer on a desired node",
+                    candidate.shardId(),
+                    candidate.currentNodeId()
+                );
+                final UnassignedInfo currentInfo = current.unassignedInfo();
+                assert currentInfo != null : "shard is initializing, unassigned info should be non-null";
+                routingNodes.failShard(
+                    current,
+                    new UnassignedInfo(
+                        UnassignedInfo.Reason.RECOVERY_CANCELLED,
+                        "cancelling in-flight recovery, no longer allocated on a desired node",
+                        null,
+                        currentInfo.failedAllocations(), // should we reset to 0? Here + when processing RecoveryCancelledException
+                        allocation.getCurrentNanoTime(),
+                        System.currentTimeMillis(),
+                        false,
+                        AllocationStatus.NO_ATTEMPT,
+                        currentInfo.failedNodeIds(),
+                        candidate.currentNodeId()
+                    ),
+                    allocation.changes()
+                );
+            }
+        }
+
+        private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+            if (shardRouting.primary()) {
+                return false;
+            }
+            if (shardRouting.role() == ShardRouting.Role.SEARCH_ONLY) {
+                return routingNodes.assignedShards(shardRouting.shardId())
+                    .stream()
+                    .anyMatch(s -> s.started() && s.role() == ShardRouting.Role.SEARCH_ONLY);
+            }
+            return true;
         }
 
         private void allocateUnassigned() {
@@ -484,7 +576,7 @@ public class DesiredBalanceReconciler {
             return assignment.total() - assignment.ignored() <= assigned;
         }
 
-        private void moveShards() {
+        private void moveStartedShards() {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
             for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(

@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadToken;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -898,7 +899,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         AnalysisRegistry registry,
         @Nullable String resource,
         boolean preview,
-        @Nullable Object reloadToken
+        @Nullable ReloadToken reloadToken
     ) throws IOException {
         logger.debug("reloading search analyzers for index [{}]", indexSettings.getIndex().getName());
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722

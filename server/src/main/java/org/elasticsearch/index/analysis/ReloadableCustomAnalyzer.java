@@ -146,7 +146,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     // arrive attempts the rebuild and the rest observe its outcome. Written only under the monitor in
     // reload(); volatile so the unsynchronized shouldReload() hint can read it without blocking behind an
     // in-flight (slow) reload.
-    private volatile Object lastReloadToken;
+    private volatile ReloadToken lastReloadToken;
 
     // The failure thrown by the attempt recorded in lastReloadToken, or null if that attempt succeeded (or
     // none has run). A non-null value is REPLAYED to later sharers carrying the same token: they re-throw
@@ -183,7 +183,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
      * is only a hint — it does not mutate dedup state, so under concurrency it may return {@code true} for
      * more than one caller; {@link #reload} makes the authoritative, atomic decision under the lock.
      */
-    public boolean shouldReload(Object token) {
+    public boolean shouldReload(ReloadToken token) {
         if (closed) {
             return false;
         }
@@ -220,7 +220,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
      * this monitor (it only flips the volatile {@link #closed} flag), so it never blocks behind a build.
      */
     public synchronized void reload(
-        Object reloadToken,
+        ReloadToken reloadToken,
         String name,
         Settings settings,
         final Map<String, TokenizerFactory> tokenizers,

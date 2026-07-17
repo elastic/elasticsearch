@@ -17,6 +17,7 @@ import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadToken;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -81,7 +82,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         // models an explicit _reload_search_analyzers request (TransportReloadAnalyzersAction passes a
         // per-request token), which always rebuilds — unlike the null-token initial load fired by shard
         // recovery, which only runs once per node.
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false, new Object());
+        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false, new ReloadToken());
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
         assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());

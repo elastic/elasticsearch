@@ -105,7 +105,7 @@ public interface IndexAnalyzers extends Closeable {
         IndexSettings indexSettings,
         String resource,
         boolean preview,
-        Object reloadToken
+        ReloadToken reloadToken
     ) throws IOException {
         return List.of();
     }
@@ -188,7 +188,7 @@ public interface IndexAnalyzers extends Closeable {
                 IndexSettings indexSettings,
                 String resource,
                 boolean preview,
-                Object reloadToken
+                ReloadToken reloadToken
             ) throws IOException {
 
                 // Keep the local analyzer name (the map key): a shared ReloadableCustomAnalyzer keeps

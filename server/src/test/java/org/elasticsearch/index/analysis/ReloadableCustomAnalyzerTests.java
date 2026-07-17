@@ -155,8 +155,8 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             assertSame("a recovery reload after the initial load must not rebuild", afterInitialLoad, analyzer.getComponents());
 
             // An explicit request (non-null token) always rebuilds.
-            assertTrue("an explicit reload request must rebuild", analyzer.shouldReload(new Object()));
-            analyzer.reload(new Object(), "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, noOp());
+            assertTrue("an explicit reload request must rebuild", analyzer.shouldReload(new ReloadToken()));
+            analyzer.reload(new ReloadToken(), "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, noOp());
             assertNotSame("an explicit reload must rebuild", afterInitialLoad, analyzer.getComponents());
         }
     }
@@ -223,7 +223,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         assertEquals("the initial build is the first rebuild attempt", 1, rebuildAttempts.get());
 
         try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
-            Object failedToken = new Object();
+            ReloadToken failedToken = new ReloadToken();
             IllegalStateException failure = expectThrows(
                 IllegalStateException.class,
                 () -> analyzer.reload(
@@ -255,7 +255,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             assertEquals("a same-token sharer must NOT rebuild after a failure (no circuit-breaker storm)", 2, rebuildAttempts.get());
 
             // A fresh request (new token) rebuilds; this attempt succeeds and clears the remembered failure.
-            Object freshToken = new Object();
+            ReloadToken freshToken = new ReloadToken();
             assertTrue("a new request must rebuild", analyzer.shouldReload(freshToken));
             analyzer.reload(freshToken, "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, tokenFilters);
             assertEquals("a fresh request rebuilds", 3, rebuildAttempts.get());
@@ -291,7 +291,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         // A reload arriving after close() must be a no-op (the components stay as they were) and must
         // not throw, and a closed instance must report that no reload is needed.
         analyzer.reload(
-            new Object(),
+            new ReloadToken(),
             "my_analyzer",
             analyzerSettings,
             testAnalysis.tokenizer,
@@ -299,7 +299,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER)
         );
         assertSame("a reload after close must not swap in new components", before, analyzer.getComponents());
-        assertFalse("a closed instance must report no reload is needed", analyzer.shouldReload(new Object()));
+        assertFalse("a closed instance must report no reload is needed", analyzer.shouldReload(new ReloadToken()));
     }
 
     /**
@@ -361,7 +361,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         Thread builder = new Thread(() -> {
             try {
                 analyzer.reload(
-                    new Object(),
+                    new ReloadToken(),
                     "my_analyzer",
                     analyzerSettings,
                     testAnalysis.tokenizer,
@@ -452,7 +452,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                     // Distinct token per call so both reloads are genuine rebuilds (no dedup), exercising
                     // serialization.
                     analyzer.reload(
-                        new Object(),
+                        new ReloadToken(),
                         "my_analyzer",
                         analyzerSettings,
                         testAnalysis.tokenizer,
@@ -598,7 +598,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             // pipeline that was materialised at stream-creation time (Tokenizer + TokenFilter chain)
             // has no back-pointer to the volatile field.
             analyzer.reload(
-                new Object(),
+                new ReloadToken(),
                 "my_analyzer",
                 analyzerSettings,
                 testAnalysis.tokenizer,
@@ -656,7 +656,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                     try {
                         go.await();
                         analyzer.reload(
-                            new Object(),
+                            new ReloadToken(),
                             "my_analyzer",
                             analyzerSettings,
                             testAnalysis.tokenizer,
@@ -741,7 +741,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
             int nThreads = randomIntBetween(4, 12);
             for (int round = 1; round <= 3; round++) {
-                Object token = new Object();
+                ReloadToken token = new ReloadToken();
                 int buildsBefore = builds.get();
                 CountDownLatch ready = new CountDownLatch(nThreads);
                 CountDownLatch go = new CountDownLatch(1);
@@ -826,7 +826,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             assertTrue(firstCheckpoint.await(5, TimeUnit.SECONDS));
 
             analyzer.reload(
-                new Object(),
+                new ReloadToken(),
                 "my_analyzer",
                 analyzerSettings,
                 testAnalysis.tokenizer,

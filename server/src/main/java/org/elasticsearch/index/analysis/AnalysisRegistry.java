@@ -1299,7 +1299,7 @@ public final class AnalysisRegistry implements Closeable {
      * token always rebuilds (internal / direct callers). A subsequent reload request carries a new
      * token and rebuilds once again, so an explicit reload still re-reads the resource.
      */
-    public void reloadAnalyzerInPlace(IndexSettings indexSettings, String name, NamedAnalyzer currentReference, Object reloadToken)
+    public void reloadAnalyzerInPlace(IndexSettings indexSettings, String name, NamedAnalyzer currentReference, ReloadToken reloadToken)
         throws IOException {
         ReloadableCustomAnalyzer reloadable = (ReloadableCustomAnalyzer) currentReference.analyzer();
         // Look up the recipe under {@code name} — the requesting index's LOCAL analyzer name — rather

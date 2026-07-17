@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.ReloadToken;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -54,14 +55,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     // The node context is a per-node, per-request token: created once per request on each node and
     // passed to every shard operation, it lets the registry rebuild an analyzer shared by several
     // indices once per request rather than once per index.
-    TransportReloadAnalyzersAction.ReloadToken> {
-
-    /**
-     * Opaque per-node, per-request marker used to deduplicate reloads of shared analyzers. It is
-     * compared by identity (each request gets a fresh instance), so it is deliberately a plain class
-     * — not a record, whose no-field instances would all be {@code equals}.
-     */
-    static final class ReloadToken {}
+    ReloadToken> {
 
     public static final ActionType<ReloadAnalyzersResponse> TYPE = new ActionType<>("indices:admin/reload_analyzers");
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);

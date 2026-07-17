@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,7 +20,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +28,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -62,7 +58,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,7 +99,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternary(Match::new)
-        .capabilities("runtime_filter")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -147,7 +142,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
-    private static final String CONTENT_FIELD = "content_field";
 
     @FunctionInfo(
         returnType = "boolean",
@@ -413,11 +407,17 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     @Override
-    protected boolean isRuntimeSearch() {
-        if (fieldAsFieldAttribute() == null) {
+    public boolean isRuntimeSearch() {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
             // This *isn't* a field in the index OR a pushed block loader
             return true;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return true;
+        }
+
         if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
             // This is a pushed block loader.
             // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
@@ -428,9 +428,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (fieldAsFieldAttribute() == null) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
             return Translatable.NO;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
         return super.translatable(pushdownPredicates);
     }
 
@@ -489,20 +496,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
         if (field.dataType() == TEXT) {
-            // TODO: use the analyzer specified in the options, for now we use the standard analyzer.
-            Analyzer analyzer = new StandardAnalyzer();
-            Set<BytesRef> queryTerms;
-            try {
-                queryTerms = queryTerms(analyzer);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
-            }
-            // TODO: use the `zero_terms_query` option, for now we use `none`.
-            if (queryTerms.isEmpty()) {
-                return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
-            }
-
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryTerms, analyzer, context -> new BytesRef());
+            return runtimeTextEvaluator(toEvaluator, terms -> new RuntimeSearch.AnyTermMatcher(Set.copyOf(terms)));
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
@@ -578,59 +572,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         };
     }
 
-    private Set<BytesRef> queryTerms(Analyzer analyzer) throws IOException {
-        Set<BytesRef> queryTerms = new HashSet<>();
-
-        try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, queryAsObject().toString())) {
-            stream.reset();
-            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            while (stream.incrementToken()) {
-                queryTerms.add(BytesRef.deepCopyOf(term.getBytesRef()));
-            }
-            stream.end();
-        }
-        return queryTerms;
-    }
-
-    @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
-    static boolean processText(
-        @Position int position,
-        BytesRefBlock fieldBlock,
-        @Fixed Set<BytesRef> queryTerms,
-        @Fixed Analyzer analyzer,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
-    ) throws IOException {
-        if (fieldBlock == null) {
-            return false;
-        }
-
-        final var valueCount = fieldBlock.getValueCount(position);
-        final var startIndex = fieldBlock.getFirstValueIndex(position);
-
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            boolean foundMatch = false;
-            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            // Because we use the standard analyzer and options cannot be specified, we can look for matches in the analyzed token stream.
-            // Once we accept options, we might need to take a different execution path and use a Lucene MemoryIndex.
-            try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
-                stream.reset();
-                TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-                // TODO: Use the operator specified in the query options. For now, we use OR, meaning we stop as soon as we find a match.
-                while (stream.incrementToken()) {
-                    if (queryTerms.contains(term.getBytesRef())) {
-                        foundMatch = true;
-                        break;
-                    }
-                }
-                stream.end();
-            }
-            if (foundMatch) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
     static boolean processBytesRef(
         @Position int position,
@@ -676,14 +617,5 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return false;
         }
         return fieldBlock.hasValue(position, query);
-    }
-
-    @Override
-    public boolean contributesToScore() {
-        if (isRuntimeSearch()) {
-            return false;
-        }
-
-        return super.contributesToScore();
     }
 }

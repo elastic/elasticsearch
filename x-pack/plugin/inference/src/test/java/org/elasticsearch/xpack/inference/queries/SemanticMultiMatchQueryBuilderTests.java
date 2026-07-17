@@ -71,14 +71,15 @@ public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
         return List.of(new InferencePluginWithModelRegistry(Settings.EMPTY));
     }
 
-    public void testResolveSemanticTextFieldFromWildcard() throws Exception {
+    public void testResolveSemanticFieldsFromWildcard() throws Exception {
         MapperService mapperService = createMapperService("""
             {
               "_doc" : {
                 "properties": {
                   "text_field": { "type": "text" },
                   "keyword_field": { "type": "keyword" },
-                  "inference_field": { "type": "semantic_text", "inference_id": "test_service" }
+                  "semantic_text_field": { "type": "semantic_text", "inference_id": "test_service" },
+                  "semantic_field": { "type": "semantic", "inference_id": "test_service" }
                 }
               }
             }
@@ -88,22 +89,47 @@ public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
             {
               "text_field" : "foo",
               "keyword_field" : "foo",
-              "inference_field" : "foo",
+              "semantic_text_field" : "foo",
+              "semantic_field" : "foo",
               "_inference_fields": {
-                "inference_field": {
+                "semantic_text_field": {
                   "inference": {
                     "inference_id": "test_service",
                     "model_settings": {
                       "task_type": "sparse_embedding"
                     },
                     "chunks": {
-                      "inference_field": [
+                      "semantic_text_field": [
                         {
                           "start_offset": 0,
                           "end_offset": 3,
                           "embeddings": {
                             "foo": 1.0
                           }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "semantic_field": {
+                  "inference": {
+                    "inference_id": "test_service",
+                    "model_settings": {
+                      "task_type": "embedding",
+                      "dimensions": 3,
+                      "similarity": "cosine",
+                      "element_type": "float"
+                    },
+                    "chunks": {
+                      "semantic_field": [
+                        {
+                          "start_offset": 0,
+                          "end_offset": 3,
+                          "embeddings": [
+                            0.1,
+                            0.2,
+                            0.3
+                          ]
                         }
                       ]
                     }

@@ -1018,7 +1018,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
                 case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
-                case INSIST_BODY -> "INSIST_🐔 grammar slot accepts only attributes, not expressions";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
         }
@@ -1330,7 +1329,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
-        "LIKE:pattern is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
@@ -1345,13 +1343,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_LIKE:pattern is missing",
-        "NOT_LIKE:str is missing",
-        "NOT_RLIKE:pattern is missing",
-        "NOT_RLIKE:str is missing",
         "PRESENT_OVER_TIME:field is missing",
         "QSTR:query is missing",
-        "RLIKE:pattern is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
         "TEXT_EMBEDDING:text is missing",
@@ -1414,10 +1407,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
                         /*
                          * The parser just refuses to build these real looking functions, instead building something
-                         * like NOT(IN()). So we skip tracking them here - though we do actually test them.
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them. NOT_LIKE
+                         * and NOT_RLIKE fall into the same bucket: they parse to Not(WildcardLike(...))/Not(RLike(...)),
+                         * so there is no distinct AST node to track coverage against.
                          */
                         boolean rewrittenAwayAtParseTime = switch (name) {
-                            case "NOT_EQUALS", "NOT_IN" -> true;
+                            case "NOT_EQUALS", "NOT_IN", "NOT_LIKE", "NOT_RLIKE" -> true;
                             default -> false;
                         };
                         if (rewrittenAwayAtParseTime) {

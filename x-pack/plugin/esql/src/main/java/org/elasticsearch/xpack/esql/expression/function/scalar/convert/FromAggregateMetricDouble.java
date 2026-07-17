@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -60,6 +62,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     private final Expression subfieldIndex;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "long", "double" },
         briefSummary = "Converts an aggregate double metric to a single subfield block.",
         description = "Convert aggregate double metric to a block of a single subfield."
@@ -112,6 +115,12 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
             return INTEGER;
         }
         return DOUBLE;
+    }
+
+    @Override
+    public boolean isNoop() {
+        // Extracts a single subfield, so it never passes its input through unchanged.
+        return false;
     }
 
     @Override

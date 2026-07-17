@@ -240,6 +240,31 @@ emp_no:integer | _index:keyword        | gender_text:text
 10003          | employees_gender_text | M
 ;
 
+multiIndexKeywordTextToTextAndMatch
+required_capability: fn_to_text
+required_capability: union_types
+required_capability: index_metadata_field
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+FROM employees, employees_gender_text METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| WHERE gender_text:"a b c d e f"
+| KEEP emp_no, _index, gender_text
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | _index:keyword        | gender_text:text
+10002          | employees             | F
+10002          | employees_gender_text | F
+10006          | employees             | F
+10006          | employees_gender_text | F
+10007          | employees             | F
+10007          | employees_gender_text | F
+;
+
+
 // client_ip is ip in sample_data and keyword in sample_data_str. TO_TEXT only accepts
 // keyword/text, so applying it directly to this union fails to resolve (see
 // AnalyzerTests#testToTextOnNonStringUnionTypeFails for the resulting error); an explicit inner

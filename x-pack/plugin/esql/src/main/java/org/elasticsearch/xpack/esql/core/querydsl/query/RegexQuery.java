@@ -44,12 +44,16 @@ public class RegexQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), field, regex, caseInsensitive);
+        return Objects.hash(field, regex, caseInsensitive);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
 

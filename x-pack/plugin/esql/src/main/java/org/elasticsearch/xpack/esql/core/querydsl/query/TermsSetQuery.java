@@ -41,14 +41,19 @@ public class TermsSetQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), field, values);
+        return Objects.hash(field, values);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
+
         TermsSetQuery other = (TermsSetQuery) obj;
         return field.equals(other.field) && values.equals(other.values);
     }

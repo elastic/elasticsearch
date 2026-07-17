@@ -328,21 +328,29 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         assertThat(lifeCycleService.getState().get(), is(WatcherState.STOPPED));
 
         // Step 2: same routing, validate() now returns true → STOPPED→STARTING, start(CS_S).
-        // The success callback is intentionally not invoked, simulating an in-flight reloadInner.
+        // Capture the success callback so we can fire it later to simulate reloadInner completing.
+        ArgumentCaptor<Runnable> successCaptor = ArgumentCaptor.forClass(Runnable.class);
         when(watcherService.validate(csWithPrimary)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithPrimary, emptyState));
         assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTING));
-        verify(watcherService, times(1)).start(eq(csWithPrimary), any(), any());
+        verify(watcherService, times(1)).start(eq(csWithPrimary), successCaptor.capture(), any());
 
-        // Step 3: replica becomes STARTED while reloadInner(CS_S) is still in flight.
-        // localAffectedShardRoutings changes from [primary] to [primary, replica], so the routing
-        // differs. The fix must call reload(CS_3) to bump processedClusterStateVersion so the
-        // stale reloadInner exits early and a new one uses the correct shardCount=2.
+        // Step 3: replica becomes STARTED while start() is still in flight.
+        // The fix must NOT submit a concurrent reload task (at most one lifecycle task in flight).
+        // Instead it records the new cluster state as a pending reload to be drained by the
+        // start() success callback. State must remain STARTING.
         reset(watcherService);
         when(watcherService.validate(csWithReplica)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithReplica, csWithPrimary));
-        verify(watcherService, times(1)).reload(eq(csWithReplica), any(), any(), any());
+        verify(watcherService, never()).reload(any(), any(), any());
         assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTING));
+
+        // Step 4: start()'s success callback fires (reloadInner completes). It must advance state
+        // to STARTED and immediately submit a reload for the pending cluster state, so the routing
+        // change is acted on without waiting for the next cluster state event.
+        successCaptor.getValue().run();
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTED));
+        verify(watcherService, times(1)).reload(eq(csWithReplica), anyString(), any());
     }
 
     public void testReloadWithIdenticalRoutingTable() {

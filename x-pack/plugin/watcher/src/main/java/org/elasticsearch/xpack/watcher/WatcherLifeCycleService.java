@@ -46,6 +46,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
+    private final AtomicReference<ClusterState> pendingReloadState = new AtomicReference<>(null);
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private final WatcherService watcherService;
     private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
@@ -67,6 +68,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
+        pendingReloadState.set(null);
         watcherService.shutDown(() -> {
             this.state.set(WatcherState.STOPPED);
             logger.info("watcher has stopped and shutdown");
@@ -169,28 +171,45 @@ public class WatcherLifeCycleService implements ClusterStateListener {
 
         if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
-                previousShardRoutings.set(localAffectedShardRoutings);
                 switch (state.get()) {
-                    case STARTED -> watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
-                        clearAllocationIds(); // will cause reload again
-                    });
-                    // If we get a new version while we're starting, we need to queue a refresh, but we may interrupt the
-                    // ongoing start, so we should move the state to STARTED if it's still in STARTING when we complete.
-                    // If a failure occurs we should move the state to STOPPED if the ongoing start never completed,
-                    // otherwise we leave it in STARTED state and another refresh will be triggered
-                    case STARTING -> watcherService.reload(
-                        event.state(),
-                        "new local watcher shard allocation ids",
-                        () -> this.state.compareAndSet(WatcherState.STARTING, WatcherState.STARTED),
-                        (exception) -> {
-                            clearAllocationIds();
-                            this.state.compareAndSet(WatcherState.STARTING, WatcherState.STOPPED);
+                    case STARTED -> {
+                        previousShardRoutings.set(localAffectedShardRoutings);
+                        watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                            clearAllocationIds(); // will cause reload again
+                        });
+                    }
+                    case STARTING -> {
+                        // A start task is already on the single-threaded lifecycle executor — do not enqueue a second
+                        // task. Instead record the new cluster state so start()'s success callback can reload
+                        // immediately once it completes, without waiting for the next cluster state event.
+                        previousShardRoutings.set(localAffectedShardRoutings);
+                        pendingReloadState.set(event.state());
+                        // Double-check: if start()'s success callback ran between the switch evaluation above and the
+                        // pendingReloadState.set() (setting state=STARTED and reading a null pendingReloadState),
+                        // pick up the pending reload now so it is not lost.
+                        // Use == STARTED, not != STARTING: a failure callback sets STOPPED, and we must not
+                        // call reload() against a service that never started successfully.
+                        if (state.get() == WatcherState.STARTED) {
+                            ClusterState pending = pendingReloadState.getAndSet(null);
+                            if (pending != null) {
+                                watcherService.reload(pending, "routing changed during start", (e) -> clearAllocationIds());
+                            }
                         }
-                    );
+                    }
                     case STOPPED, STOPPING -> {
+                        previousShardRoutings.set(localAffectedShardRoutings);
+                        pendingReloadState.set(null); // discard any stale pending from a previous cycle
                         this.state.set(WatcherState.STARTING);
-                        watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
+                        watcherService.start(event.state(), () -> {
+                            this.state.set(WatcherState.STARTED);
+                            // Pick up any routing change that arrived while we were STARTING.
+                            ClusterState pending = pendingReloadState.getAndSet(null);
+                            if (pending != null) {
+                                watcherService.reload(pending, "routing changed during start", (e) -> clearAllocationIds());
+                            }
+                        }, (exception) -> {
                             clearAllocationIds();
+                            pendingReloadState.set(null);
                             this.state.set(WatcherState.STOPPED);
                         });
                     }
@@ -206,6 +225,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (clearAllocationIds()) {
             watcherService.pauseExecution(reason);
         }
+        pendingReloadState.set(null);
         this.state.set(WatcherState.STARTED);
     }
 

@@ -82,8 +82,6 @@ public class WatcherService implements WatcherEventConsumer {
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
     private final Map<String, Watch> pendingWatches = new HashMap<>();
-    // This should only ever get updated by the lifecycle thread
-    private boolean executeTriggeredPending = false;
 
     WatcherService(
         Settings settings,
@@ -207,13 +205,6 @@ public class WatcherService implements WatcherEventConsumer {
      * @param state cluster state, which is needed to find out about local shards
      */
     void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
-        reload(state, reason, () -> {}, exceptionConsumer);
-    }
-
-    /**
-     * Reload the watcher service, with the option to respond to a successful reload
-     */
-    void reload(ClusterState state, String reason, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
         if (hasValidWatcherTemplates == false) {
             logger.warn("missing watcher index templates");
@@ -233,11 +224,7 @@ public class WatcherService implements WatcherEventConsumer {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> {
-            if (reloadInner(state, reason, false)) {
-                postWatchesLoadedCallback.run();
-            }
-        }, e -> {
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
             logger.error("error reloading watcher", e);
             exceptionConsumer.accept(e);
         }));
@@ -273,10 +260,6 @@ public class WatcherService implements WatcherEventConsumer {
     private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
         assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
             : "reloadInner must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
-        // If loadTriggeredWatches is true, record that fact because we may not get to it before a new cluster state arrives
-        // don't overwrite it if it's already true
-        executeTriggeredPending = executeTriggeredPending || loadTriggeredWatches;
-
         // exit early if another thread has come in between
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug(
@@ -289,7 +272,7 @@ public class WatcherService implements WatcherEventConsumer {
 
         Collection<Watch> watches = loadWatches(state);
         Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
-        if (executeTriggeredPending) {
+        if (loadTriggeredWatches) {
             triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
         }
 
@@ -303,8 +286,6 @@ public class WatcherService implements WatcherEventConsumer {
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
-            // If we got this far we've executed the triggered watches, we don't need to do it again until the next start
-            executeTriggeredPending = false;
             logger.debug("watch service has been reloaded, reason [{}]", reason);
             return true;
         } else {

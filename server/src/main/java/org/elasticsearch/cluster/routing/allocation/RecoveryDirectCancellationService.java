@@ -165,7 +165,7 @@ public class RecoveryDirectCancellationService {
                 indexMetadata.primaryTerm(shardId.id()),
                 "recovery direct cancelled while still queued on the data node",
                 new RecoveryCancelledException(shardId, null, node),
-                true
+                false
             );
             failedShardTaskQueue.submitTask(
                 "recovery-direct-cancelled-shard-failed " + failedShardEntry.toStringNoFailureStackTrace(),

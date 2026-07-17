@@ -87,7 +87,7 @@ dependencies {
   // spotless-lib (the core spotless library) is an implementation dependency of
   // spotless-plugin-gradle and is therefore not exposed on our compile classpath.
   // We need it explicitly so FormattingPrecommitPlugin can reference LineEnding directly.
-  compileOnly "com.diffplug.spotless:spotless-lib:2.45.0"
+  compileOnly buildLibs.spotless.lib
 }
 
 project.getPlugins().withType(JavaBasePlugin.class) {

@@ -119,7 +119,11 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         } catch (Exception e) {
             log = "failed to read elasticsearch.log: " + e;
         }
-        return "captured startup stdout:\n" + result.stdout() + "\n--- stderr ---\n" + result.stderr() + "\n--- elasticsearch.log ---\n"
+        return "captured startup stdout:\n"
+            + result.stdout()
+            + "\n--- stderr ---\n"
+            + result.stderr()
+            + "\n--- elasticsearch.log ---\n"
             + log;
     }
 

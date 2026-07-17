@@ -44,9 +44,7 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
         // Console detection runs in bootstrap phase 1, before logging is configured, so we stash the deciding
         // values in a system property and log them later (from the started node) where they reach elasticsearch.log.
         try {
-            final String diag = out == null
-                ? "type=null width=null"
-                : ("type=" + out.getType() + " width=" + out.getTerminalWidth());
+            final String diag = out == null ? "type=null width=null" : ("type=" + out.getType() + " width=" + out.getTerminalWidth());
             System.setProperty("es.diag.console", diag + " ansiEnabled=" + Ansi.isEnabled());
         } catch (Throwable t) {
             System.setProperty("es.diag.console", "diagnostic failed: " + t);

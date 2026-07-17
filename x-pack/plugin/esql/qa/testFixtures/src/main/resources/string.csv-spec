@@ -2752,6 +2752,15 @@ a:keyword | repeated:keyword
 cheese | ""
 ;
 
+// Large empty REPEAT used to loop needlessly
+repeatEmptyMaxInt
+required_capability: fn_repeat_fix_empty_string_loop
+ROW repeated = REPEAT("", 2147483647);
+
+repeated:keyword
+""
+;
+
 repeatNegative
 skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: repeat 

@@ -62,6 +62,10 @@ public class RepeatStaticTests extends ESTestCase {
         );
     }
 
+    public void testEmptyStringLargeCount() {
+        assertThat(process("", Integer.MAX_VALUE), equalTo(""));
+    }
+
     public String process(String str, int number) {
         try (
             var eval = AbstractScalarFunctionTestCase.evaluator(

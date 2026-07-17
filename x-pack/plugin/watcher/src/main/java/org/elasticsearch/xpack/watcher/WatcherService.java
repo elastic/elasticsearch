@@ -207,6 +207,13 @@ public class WatcherService implements WatcherEventConsumer {
      * @param state cluster state, which is needed to find out about local shards
      */
     void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
+        reload(state, reason, () -> {}, exceptionConsumer);
+    }
+
+    /**
+     * Reload the watcher service, with the option to respond to a successful reload
+     */
+    void reload(ClusterState state, String reason, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
         if (hasValidWatcherTemplates == false) {
             logger.warn("missing watcher index templates");
@@ -226,7 +233,11 @@ public class WatcherService implements WatcherEventConsumer {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
+        executor.execute(wrapWatcherService(() -> {
+            if (reloadInner(state, reason, false)) {
+                postWatchesLoadedCallback.run();
+            }
+        }, e -> {
             logger.error("error reloading watcher", e);
             exceptionConsumer.accept(e);
         }));

@@ -170,16 +170,30 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
-                if (state.get() == WatcherState.STARTED || state.get() == WatcherState.STARTING) {
-                    watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                switch (state.get()) {
+                    case STARTED -> watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
                         clearAllocationIds(); // will cause reload again
                     });
-                } else if (isStoppedOrStopping) {
-                    this.state.set(WatcherState.STARTING);
-                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
-                        clearAllocationIds();
-                        this.state.set(WatcherState.STOPPED);
-                    });
+                    // If we get a new version while we're starting, we need to queue a refresh, but we may interrupt the
+                    // ongoing start, so we should move the state to STARTED if it's still in STARTING when we complete.
+                    // If a failure occurs we should move the state to STOPPED if the ongoing start never completed,
+                    // otherwise we leave it in STARTED state and another refresh will be triggered
+                    case STARTING -> watcherService.reload(
+                        event.state(),
+                        "new local watcher shard allocation ids",
+                        () -> this.state.compareAndSet(WatcherState.STARTING, WatcherState.STARTED),
+                        (exception) -> {
+                            clearAllocationIds();
+                            this.state.compareAndSet(WatcherState.STARTING, WatcherState.STOPPED);
+                        }
+                    );
+                    case STOPPED, STOPPING -> {
+                        this.state.set(WatcherState.STARTING);
+                        watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
+                            clearAllocationIds();
+                            this.state.set(WatcherState.STOPPED);
+                        });
+                    }
                 }
             } else {
                 clearAllocationIds();

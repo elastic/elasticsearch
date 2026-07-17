@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
@@ -71,10 +70,10 @@ class ComputeSearchContext implements Releasable {
      * being finalized. Expect it to be replaced or folded into a unified context ownership scheme in a follow-up.
      */
     ShardContext newDetachedShardContext() {
-        return createShardContext(() -> {}, null);
+        return createShardContext(() -> {}, QueryWarnings.NOOP);
     }
 
-    private ShardContext createShardContext(Releasable releasable, @Nullable QueryWarnings queryWarnings) {
+    private ShardContext createShardContext(Releasable releasable, QueryWarnings queryWarnings) {
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
             queryWarnings

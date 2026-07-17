@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -31,7 +32,30 @@ import java.util.Map;
  *     {@link CloseableThreadLocal}.
  * </p>
  */
-public final class QueryWarnings implements Releasable {
+public class QueryWarnings implements Releasable {
+    /**
+     * A no-op instance that silently discards all warnings. Use this when a
+     * {@link SearchExecutionContext} must carry a {@link QueryWarnings} but
+     * the caller intentionally does not want warnings emitted - for example,
+     * the lookup-join and detached remote-fetch paths.
+     */
+    public static final QueryWarnings NOOP = new QueryWarnings() {
+        @Override
+        public Releasable bind(DriverContext dc, IdentityHashMap<Query, Warnings> map) {
+            return () -> {};
+        }
+
+        @Override
+        public Releasable bind(Map<? extends Query, Warnings> prebuilt) {
+            return () -> {};
+        }
+
+        @Override
+        void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {}
+
+        @Override
+        public void close() {}
+    };
 
     /**
      * Per-thread binding: the {@link DriverContext} (for lazy {@link Warnings} creation) and the

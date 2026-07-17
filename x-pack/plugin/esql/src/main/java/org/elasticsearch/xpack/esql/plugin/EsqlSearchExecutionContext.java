@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
@@ -18,14 +17,9 @@ import org.elasticsearch.search.lookup.SourceProvider;
  * {@link QueryWarnings} bridge.
  */
 public class EsqlSearchExecutionContext extends SearchExecutionContext {
-    @Nullable
     private final QueryWarnings queryWarnings;
 
-    /**
-     * @param queryWarnings the bridge, or {@code null} for contexts that never build warnings
-     *                      like remote-fetch detached contexts
-     */
-    public EsqlSearchExecutionContext(SearchExecutionContext base, @Nullable QueryWarnings queryWarnings) {
+    public EsqlSearchExecutionContext(SearchExecutionContext base, QueryWarnings queryWarnings) {
         super(base);
         this.queryWarnings = queryWarnings;
     }
@@ -36,9 +30,8 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
     }
 
     /**
-     * Return the {@link QueryWarnings} bridge, or {@code null} if none was supplied at construction.
+     * Return the {@link QueryWarnings} bridge for this context.
      */
-    @Nullable
     public QueryWarnings queryWarnings() {
         return queryWarnings;
     }

@@ -117,10 +117,6 @@ public class BlockValueAsserter {
             assertThat(block.maxBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.max())));
             assertThat(block.sumBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.sum())));
             assertThat(block.countBlock().getInt(firstValueIndex + valueIndex), is(equalTo(expectedValue.count())));
-            assertThat(
-                block.defaultBlock().getDouble(firstValueIndex + valueIndex),
-                is(equalTo(expectedValue.sum() / expectedValue.count()))
-            );
         }
     }
 

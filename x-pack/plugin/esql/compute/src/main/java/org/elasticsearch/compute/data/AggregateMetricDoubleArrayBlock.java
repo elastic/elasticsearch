@@ -16,7 +16,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,9 +27,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     private final DoubleBlock maxBlock;
     private final DoubleBlock sumBlock;
     private final IntBlock countBlock;
-    // Default block is lazily computed when requested
-    private final AtomicReference<DoubleBlock> defaultBlockRef = new AtomicReference<>();
-    private volatile boolean allowPassingToDifferentDriver = false;
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
@@ -126,11 +122,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public void allowPassingToDifferentDriver() {
-        allowPassingToDifferentDriver = true;
         getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
-        if (defaultBlockRef.get() != null) {
-            defaultBlockRef.get().allowPassingToDifferentDriver();
-        }
     }
 
     @Override
@@ -139,16 +131,12 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         for (Block b : getSubBlocks()) {
             bytes += b.ramBytesUsed();
         }
-        if (defaultBlockRef.get() != null) {
-            bytes += defaultBlockRef.get().ramBytesUsed();
-        }
         return bytes;
     }
 
     @Override
     protected void closeInternal() {
         Releasables.close(getSubBlocks());
-        Releasables.close(defaultBlockRef.get());
     }
 
     @Override
@@ -340,50 +328,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         return countBlock;
     }
 
-    public DoubleBlock defaultBlock() {
-        DoubleBlock result = defaultBlockRef.get();
-        if (result != null) {
-            return result;
-        }
-        DoubleBlock computed = computeDefaultBlock();
-        if (defaultBlockRef.compareAndSet(null, computed)) {
-            if (allowPassingToDifferentDriver) {
-                computed.allowPassingToDifferentDriver();
-            }
-            return computed;
-        }
-        // Another thread won the CAS — discard our copy and return the winner's.
-        computed.close();
-        return defaultBlockRef.get();
-    }
-
-    /**
-     * Computes the DEFAULT metric block lazily as {@code sum / count} for each value.
-     * Multi-value positions are handled by emitting one average per input value.
-     * Values whose count is zero are omitted; if all values at a position are zero-count
-     * the position is null. It needs to be consistent with AvgBlockLoader.
-     */
-    private DoubleBlock computeDefaultBlock() {
-        int positionCount = getPositionCount();
-        if (sumBlock.areAllValuesNull() || countBlock.areAllValuesNull()) {
-            return (DoubleBlock) blockFactory().newConstantNullBlock(positionCount);
-        }
-        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                if (sumBlock.isNull(p) || countBlock.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int sumFirstValueIndex = sumBlock.getFirstValueIndex(p);
-                int countFirstValueIndex = countBlock.getFirstValueIndex(p);
-                int count = countBlock.getInt(countFirstValueIndex);
-                double sum = sumBlock.getDouble(sumFirstValueIndex);
-                builder.appendDouble(sum / count);
-            }
-            return builder.build();
-        }
-    }
-
     public Block getMetricBlock(int index) {
         if (index == AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()) {
             return minBlock;
@@ -396,9 +340,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         }
         if (index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()) {
             return countBlock;
-        }
-        if (index == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex()) {
-            return defaultBlock();
         }
         throw new UnsupportedOperationException("Received an index (" + index + ") outside of range for AggregateMetricDoubleBlock.");
     }

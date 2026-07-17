@@ -109,14 +109,5 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
 
     IntBlock countBlock();
 
-    /**
-     * Returns a block with the calculated average for this AMD block. Note: we always default to average
-     * because at this point, we do not have access to the mapping, and we cannot know if this was a single
-     * metric AMD or not.
-     * @return the lazily evaluated block with the average using the sum and count block when available.
-     *         Otherwise, a {@link ConstantNullBlock}.
-     */
-    DoubleBlock defaultBlock();
-
     Block getMetricBlock(int index);
 }

@@ -1670,9 +1670,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         RLike rlike = (RLike) filter.condition();
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
-        expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
-
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
             "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
@@ -1690,6 +1687,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
 
         cmd = processingCommand("where foo rlike concat(\"pre\", \".*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+
+        // Integer literals on the RHS also produce UnresolvedRegexExpression at parse time;
+        // the type mismatch (integer vs. string) is reported by the analyzer, not the parser.
+        cmd = processingCommand("where foo like 12");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+
+        cmd = processingCommand("where foo rlike 12");
         assertEquals(Filter.class, cmd.getClass());
         assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
         assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());

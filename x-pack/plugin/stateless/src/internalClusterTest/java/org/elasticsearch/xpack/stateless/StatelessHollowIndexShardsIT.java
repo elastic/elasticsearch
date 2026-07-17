@@ -2442,19 +2442,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         // Ingest to node B directly so it initiates unhollowing to flush a new unhollow generation to object store.
         // But do not let the unhollow commit be uploaded until node B is isolated.
         // The bulk request will not be acknowledged since the translog upload will be stalled as the node is isolated.
-        // The latch is counted down once node B actually attempts the (blocked) unhollow gen N+1 upload, so that we can
-        // isolate node B strictly after unhollowing has started rather than racing it. If isolation wins that race, node
-        // B's local primary rejects the write with a "no master" block before unhollowing begins, so the shard never
-        // reaches 2N
-        final var unhollowUploadBlocked = new CountDownLatch(1);
         setNodeRepositoryFailureStrategy(
             indexNodeB,
             false,
             true,
-            Map.of(OperationPurpose.INDICES, ".*stateless_commit_" + (termGenHollow.generation() + 1) + ".*"),
-            Long.MAX_VALUE,
-            Set.of(),
-            unhollowUploadBlocked
+            Map.of(OperationPurpose.INDICES, ".*stateless_commit_" + (termGenHollow.generation() + 1) + ".*")
         );
         var bulkRequest = client(indexNodeB).prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numDocs; i++) {
@@ -2462,8 +2454,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
         var bulkFuture = bulkRequest.execute();
 
-        // Wait until node B has started unhollowing and attempted the (blocked) gen N+1 upload before isolating it.
-        safeAwait(unhollowUploadBlocked);
+        // Wait until node B has queued the (blocked) unhollow gen N+1 upload before isolating it, so isolation
+        // cannot win the race and reject the write with a "no master" block before unhollowing starts.
+        assertBusy(() -> assertTrue(commitServiceB.hasPendingBccUploads(indexShardB.shardId())));
 
         // Isolate node B
         Set<String> isolatedSide = Collections.singleton(indexNodeB);

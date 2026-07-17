@@ -568,41 +568,12 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         long maxNumberOfFailures,
         Set<String> excludedExecutorNamesList
     ) {
-        setNodeRepositoryFailureStrategy(
-            node,
-            failReads,
-            failWrites,
-            filePatternPerPurposeToFail,
-            maxNumberOfFailures,
-            excludedExecutorNamesList,
-            null
-        );
-    }
-
-    /// Same as the six-argument variant, but additionally accepts an `onFirstBlockedWrite` latch that is counted down the
-    /// first time a blob operation on this node matches one of the configured failure patterns (i.e. when the first
-    /// blocked operation is attempted, regardless of whether it is ultimately failed). This is a synchronization hook for
-    /// tests that must observe that a specific blocked blob operation has actually been reached before proceeding - for
-    /// example to deterministically order a subsequent network partition strictly after the blocked upload attempt rather
-    /// than racing it. Pass `null` when no such synchronization is required.
-    protected void setNodeRepositoryFailureStrategy(
-        String node,
-        boolean failReads,
-        boolean failWrites,
-        Map<OperationPurpose, String> filePatternPerPurposeToFail,
-        long maxNumberOfFailures,
-        Set<String> excludedExecutorNamesList,
-        @Nullable CountDownLatch onFirstBlockedWrite
-    ) {
         setNodeRepositoryStrategy(node, new StatelessMockRepositoryStrategy() {
             private final AtomicLong failureCounter = new AtomicLong();
 
             private void failIfNeeded(OperationPurpose purpose, String blobName) throws IOException {
                 String filePattern = filePatternPerPurposeToFail.get(purpose);
                 if (filePattern != null && blobName.matches(filePattern)) {
-                    if (onFirstBlockedWrite != null) {
-                        onFirstBlockedWrite.countDown();
-                    }
                     if (excludedExecutorNamesList.contains(EsExecutors.executorName(Thread.currentThread())) == false) {
                         if (failureCounter.incrementAndGet() <= maxNumberOfFailures) {
                             throw new IOException("Random IOException");

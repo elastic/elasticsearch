@@ -310,8 +310,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
-                // Only a bare field can be pushed into Lucene range queries; a function arg (round_to(byte_length(x), ...))
-                // is still a raw expression at this stage
                 if (roundTo.field() instanceof FieldAttribute == false) {
                     return evalExec;
                 }

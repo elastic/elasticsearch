@@ -4835,6 +4835,23 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("index*", esRelation.indexPattern());
     }
 
+    /**
+     * Reproducer for #150375.
+     */
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
+        IndexResolution index = indexWithDateDateNanosUnionType();
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::double",
+                containsString("One or more mapped types of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
+            );
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::ip",
+                containsString("One or more mapped types of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]")
+            );
+    }
+
     public void testGroupingOverridesInStats() {
         defaultMapping().error("""
             from test

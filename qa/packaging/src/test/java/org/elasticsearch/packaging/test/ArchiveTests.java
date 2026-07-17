@@ -164,6 +164,7 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> {
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
+            createKeystoreIfMissing();
             // prevent modifications to the config directory
             sh.run(
                 String.format(
@@ -178,7 +179,10 @@ public class ArchiveTests extends PackagingTestCase {
                 )
             );
         });
-        Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
+        Platforms.onLinux(() -> {
+            createKeystoreIfMissing();
+            sh.run("chmod u-w " + installation.config);
+        });
         try {
             startElasticsearch();
             verifySecurityNotAutoConfigured(installation);
@@ -203,6 +207,13 @@ public class ArchiveTests extends PackagingTestCase {
             });
             Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
             FileUtils.rm(installation.data);
+        }
+    }
+
+    private void createKeystoreIfMissing() {
+        if (Files.exists(installation.config("elasticsearch.keystore")) == false) {
+            final Installation.Executables bin = installation.executables();
+            bin.keystoreTool.run("create");
         }
     }
 

@@ -141,6 +141,12 @@ public class JdbcTestQuerySetTests extends ESTestCase {
 
     public void testEveryFixtureIsExercised() {
         for (Fixture fixture : Fixture.values()) {
+            if (fixture == Fixture.PUSHDOWN_PARITY) {
+                // PUSHDOWN_PARITY carries adversarial data exercised end-to-end by AbstractJdbcPushdownParityIT
+                // (pushdown on-vs-off equivalence), not by the shared JdbcTestQuerySet scenario matrix, so it
+                // deliberately has no scenariosFor(...) entry.
+                continue;
+            }
             assertThat(
                 "fixture " + fixture + " has no scenario exercising it",
                 JdbcTestQuerySet.scenariosFor(fixture).isEmpty(),

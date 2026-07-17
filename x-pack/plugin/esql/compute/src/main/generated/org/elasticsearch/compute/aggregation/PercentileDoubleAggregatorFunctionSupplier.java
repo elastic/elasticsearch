@@ -17,8 +17,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class PercentileDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final double percentile;
 
-  public PercentileDoubleAggregatorFunctionSupplier(double percentile) {
+  private final double compression;
+
+  public PercentileDoubleAggregatorFunctionSupplier(double percentile, double compression) {
     this.percentile = percentile;
+    this.compression = compression;
   }
 
   @Override
@@ -34,13 +37,13 @@ public final class PercentileDoubleAggregatorFunctionSupplier implements Aggrega
   @Override
   public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new PercentileDoubleAggregatorFunction(driverContext, channels, percentile);
+    return new PercentileDoubleAggregatorFunction(driverContext, channels, percentile, compression);
   }
 
   @Override
   public PercentileDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, driverContext, percentile);
+    return new PercentileDoubleGroupingAggregatorFunction(channels, driverContext, percentile, compression);
   }
 
   @Override

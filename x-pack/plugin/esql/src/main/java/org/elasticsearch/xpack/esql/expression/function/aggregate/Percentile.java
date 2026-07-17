@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -68,6 +69,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         .name("quantile");
 
     private final Expression percentile;
+    private final double compression;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -122,8 +124,13 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     public Percentile(Source source, Expression field, Expression filter, Expression window, Expression percentile) {
+        this(source, field, filter, window, percentile, QuantileStates.DEFAULT_COMPRESSION);
+    }
+
+    public Percentile(Source source, Expression field, Expression filter, Expression window, Expression percentile, double compression) {
         super(source, field, filter, window, singletonList(percentile));
         this.percentile = percentile;
+        this.compression = compression;
     }
 
     private Percentile(StreamInput in) throws IOException {
@@ -132,7 +139,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst(),
+            QuantileStates.DEFAULT_COMPRESSION
         );
     }
 
@@ -143,17 +151,25 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile);
+        double comp = compression;
+        return NodeInfo.create(
+            this,
+            (src, f, fil, w, p) -> new Percentile(src, f, fil, w, p, comp),
+            field(),
+            filter(),
+            window(),
+            percentile
+        );
     }
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), compression);
     }
 
     @Override
     public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, window(), percentile);
+        return new Percentile(source(), field(), filter, window(), percentile, compression);
     }
 
     public Expression percentile() {
@@ -188,17 +204,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        return new PercentileLongAggregatorFunctionSupplier(percentileValue());
+        return new PercentileLongAggregatorFunctionSupplier(percentileValue(), compression);
     }
 
     @Override
     protected AggregatorFunctionSupplier intSupplier() {
-        return new PercentileIntAggregatorFunctionSupplier(percentileValue());
+        return new PercentileIntAggregatorFunctionSupplier(percentileValue(), compression);
     }
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier() {
-        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue());
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), compression);
     }
 
     private double percentileValue() {

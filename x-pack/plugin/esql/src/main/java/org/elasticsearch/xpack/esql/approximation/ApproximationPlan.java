@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
@@ -142,6 +145,13 @@ public class ApproximationPlan {
         }
         return null;
     }
+
+    /**
+     * Reduced t-digest compression used for internal approximation bucket columns.
+     * Bucket columns only need rough quantile estimates for BCa bootstrap CI computation,
+     * so full compression is unnecessary and wastes significant memory.
+     */
+    static final double BUCKET_COMPRESSION = 100.0;
 
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
@@ -493,6 +503,27 @@ public class ApproximationPlan {
                 // For the supported single-valued aggregations, add buckets with sampled
                 // values, that will be used to compute a confidence interval.
                 // For multivalued aggregations, confidence intervals do not make sense.
+
+                // For PERCENTILE and MEDIAN bucket columns, use reduced compression. The
+                // buckets only need rough quantile estimates for BCa bootstrap CI computation,
+                // so full DEFAULT_COMPRESSION (1000) is unnecessary and creates excessive
+                // memory pressure when there are many groups.
+                AggregateFunction bucketAggFn;
+                if (aggFn instanceof Percentile p) {
+                    bucketAggFn = new Percentile(p.source(), p.field(), p.filter(), p.window(), p.percentile(), BUCKET_COMPRESSION);
+                } else if (aggFn instanceof Median m) {
+                    bucketAggFn = new Percentile(
+                        m.source(),
+                        m.field(),
+                        m.filter(),
+                        m.window(),
+                        Literal.integer(Source.EMPTY, (int) QuantileStates.MEDIAN),
+                        BUCKET_COMPRESSION
+                    );
+                } else {
+                    bucketAggFn = aggFn;
+                }
+
                 List<Attribute> buckets = new ArrayList<>();
                 for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                     for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
@@ -509,8 +540,10 @@ public class ApproximationPlan {
                         Alias bucket = new Alias(
                             Source.EMPTY,
                             Attribute.rawTemporaryName(agg.name(), BUCKET_NAME_PART, Integer.toString(trialId * BUCKET_COUNT + bucketId)),
-                            aggFn.withFilter(
-                                aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
+                            bucketAggFn.withFilter(
+                                bucketAggFn.hasFilter() == false
+                                    ? bucketIdFilter
+                                    : new And(Source.EMPTY, bucketAggFn.filter(), bucketIdFilter)
                             ),
                             null,
                             true

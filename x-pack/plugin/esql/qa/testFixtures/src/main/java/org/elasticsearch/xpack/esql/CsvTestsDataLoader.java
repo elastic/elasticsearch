@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -77,8 +79,6 @@ public class CsvTestsDataLoader {
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final String VIEW_SUPPORT_PROBE_NAME = "esql-view-support-probe";
-    private static final String VIEW_SUPPORT_PROBE_QUERY = "{\"query\":\"ROW x = 1\"}";
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
@@ -93,23 +93,18 @@ public class CsvTestsDataLoader {
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
-            .withTypeMapping(removeFields("first_name", "last_name"))
-            .withDynamic("false")
+        new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(
+            removeFields("first_name", "last_name")
+        ).withDynamic("false").noSubfields(),
+        new TestDataset("employees_gender_text", "mapping-default.json", "employees.csv").withTypeMapping(Map.of("gender", "text"))
             .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
-            .withTypeMapping(Map.of("gender", "text"))
-            .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
-            .withTypeMapping(removeFields("gender"))
+        new TestDataset("employees_no_gender", "mapping-default.json", "employees.csv").withTypeMapping(removeFields("gender"))
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
-            .withTypeMapping(removeFields("short"))
+        new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
-            .withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -137,6 +132,13 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
+        new TestDataset(
+            "partial_mapping_mv_no_source_sample_data",
+            "mapping-partial_mapping_no_source_sample_data.json",
+            "partial_mapping_mv_sample_data.csv"
+        ),
         new TestDataset(
             "partial_message_types_lookup",
             "mapping-partial_message_types_lookup.json",
@@ -177,6 +179,7 @@ public class CsvTestsDataLoader {
         new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
         new TestDataset("message_types"),
         new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("hash_algorithms"),
         new TestDataset("firewall_logs").noData(),
         new TestDataset("threat_list").withSetting("lookup-settings.json").noData(),
         new TestDataset("app_logs").noData(),
@@ -206,6 +209,9 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
         new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
@@ -256,11 +262,21 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("text_state_mapped"),
+        new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
+        new TestDataset("text_state_nonexistent", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
+            .withDynamic("false")
+            .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
@@ -268,6 +284,10 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
+        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
+        new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
+            .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
         new TestDataset("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),
@@ -311,7 +331,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -353,6 +374,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
+        new ViewConfig("partial_mapping_view"),
+        new ViewConfig("partial_mapping_view_message_wildcard"),
+        new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
@@ -835,48 +859,38 @@ public class CsvTestsDataLoader {
     }
 
     public static boolean clusterSupportsViews(RestClient client) throws IOException {
-        final Set<Integer> unsupportedViewCrudStatusCodes = Set.of(400, 405, 410, 500);
-        final Set<Integer> ignoredProbeDeleteStatusCodes = Set.of(400, 404, 405, 410, 500);
+        // Step 1: check whether ALL nodes have basic views support (allMatch semantics).
+        if (checkCapability(client, "POST", "/_query", "views_crud_as_index_actions") == false) {
+            return false;
+        }
 
-        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        // Step 2: check whether ALL nodes support PUT /_query/view in the current cluster mode.
+        // RestPutViewAction declares VIEWS_PUT_SERVERLESS_SCOPE in supportedCapabilities() only when
+        // @ServerlessScope(Scope.PUBLIC) is present. Old serverless nodes lack this annotation and
+        // therefore do not report this capability. /_capabilities with allMatch semantics returns
+        // supported=false for any mixed cluster that contains such a node, correctly preventing view
+        // loading from being attempted when it would fail on some nodes.
+        //
+        // In stateful mixed-cluster BWC tests where the old node has views but predates the
+        // views_put_serverless_scope capability (introduced 2026-06-19), this check also returns
+        // false and views tests are skipped rather than run. That is a conservative but safe
+        // outcome: tests skip instead of failing with "index not found".
+        return checkCapability(client, "PUT", "/_query/view/test", RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE);
+    }
+
+    private static boolean checkCapability(RestClient client, String method, String path, String capability) throws IOException {
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "POST");
-        capRequest.addParameter("path", "/_query");
-        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
+        capRequest.addParameter("method", method);
+        capRequest.addParameter("path", path);
+        capRequest.addParameter("capabilities", capability);
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
             JsonNode supported = json.get("supported");
-            if (supported == null || supported.asBoolean() == false) {
-                return false;
-            }
+            return supported != null && supported.asBoolean();
         } catch (ResponseException e) {
             return false;
-        }
-
-        // Step 2: probe the API path used by loadView (PUT /_query/view/{name}). In serverless mode
-        // an old node can still pass generic checks and read probes, but reject PUT with 410 because
-        // RestPutViewAction lacks the required @ServerlessScope.
-        try {
-            Request createProbeView = new Request("PUT", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME);
-            createProbeView.setJsonEntity(VIEW_SUPPORT_PROBE_QUERY);
-            client.performRequest(createProbeView);
-            try {
-                client.performRequest(new Request("DELETE", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME));
-            } catch (ResponseException e) {
-                if (ignoredProbeDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
-                    throw e;
-                }
-            }
-            return true;
-        } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            // Serverless restriction (410) or old servers not supporting this view API path.
-            if (unsupportedViewCrudStatusCodes.contains(code)) {
-                return false;
-            }
-            throw e;
         }
     }
 
@@ -997,7 +1011,7 @@ public class CsvTestsDataLoader {
 
     record Column(String name, String type) {}
 
-    public record Document(String id, StringBuilder json) {}
+    public record Document(String id, String slice, StringBuilder json) {}
 
     public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
         try (BufferedReader reader = reader(resource)) {
@@ -1062,6 +1076,7 @@ public class CsvTestsDataLoader {
             int lineNumber = 1;
             Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
@@ -1088,11 +1103,13 @@ public class CsvTestsDataLoader {
                     }
                     // id, document
                     var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
+
                     builder.append(
                         "{\"index\": {\"_index\":\""
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
+                            + (document.slice() != null ? ", \"_slice\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1138,6 +1155,7 @@ public class CsvTestsDataLoader {
     private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
         StringBuilder row = new StringBuilder("{");
         String id = null;
+        String slice = null;
         for (int i = 0; i < entries.length; i++) {
             // ignore values that belong to subfields and don't add them to the bulk request
             if (subFieldsIndices.contains(i) == false) {
@@ -1150,6 +1168,11 @@ public class CsvTestsDataLoader {
                     id = entries[i];
                     continue;
                 }
+                if (columns[i] != null && SliceIndexing.PARAM_NAME.equals(columns[i].name)) {
+                    slice = entries[i];
+                    continue;
+                }
+
                 try {
                     // add a comma after the previous value, only when there was actually a value before
                     if (i > 0 && row.length() > 1) {
@@ -1180,7 +1203,7 @@ public class CsvTestsDataLoader {
             }
         }
         row.append("}\n");
-        return new Document(id, row);
+        return new Document(id, slice, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");

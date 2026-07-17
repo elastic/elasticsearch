@@ -108,6 +108,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testTermQueryWithSingleValueDocValues() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
@@ -140,7 +141,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new ScanningBinaryDocValuesTermQuery("field", new BytesRef("foo")), ft.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesTermQuery("field", new BytesRef("foo"), false), ft.termQuery("foo", MOCK_CONTEXT));
     }
 
     public void testTermQueryWithNormalizer() {
@@ -234,8 +235,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new ScanningBinaryDocValuesPrefixQuery("field", "foo", false), ft.prefixQuery("foo", null, false, MOCK_CONTEXT));
-        assertEquals(new ScanningBinaryDocValuesPrefixQuery("field", "foo", true), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
+        assertEquals(
+            new ScanningBinaryDocValuesPrefixQuery("field", "foo", false, false),
+            ft.prefixQuery("foo", null, false, MOCK_CONTEXT)
+        );
+        assertEquals(new ScanningBinaryDocValuesPrefixQuery("field", "foo", true, false), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
     }
 
     public void testWildcardQueryHighCardinality() {
@@ -249,7 +253,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new ScanningBinaryDocValuesWildcardQuery("field", "foo*", false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesWildcardQuery("field", "foo*", false, false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
     }
 
     public void testRegexpQueryHighCardinality() {
@@ -264,7 +268,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10),
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
             ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
     }
@@ -291,7 +295,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         // The normalizer must lowercase the pattern before building the regexp query
         assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10),
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
             ft.regexpQuery("FOO.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
     }
@@ -324,7 +328,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10), q);
+        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, false), q);
     }
 
     public void testFuzzyQuery() {
@@ -595,7 +599,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefaultForColumnarLogsdbIndices() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

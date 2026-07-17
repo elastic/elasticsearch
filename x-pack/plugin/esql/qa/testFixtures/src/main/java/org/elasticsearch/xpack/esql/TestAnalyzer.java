@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -61,6 +63,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.groupingBy;
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_IP_LOCATION_RESOLUTION;
@@ -83,10 +86,19 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+    private AnalysisRegistry analysisRegistry = EsqlTestUtils.TEST_ANALYSIS_REGISTRY;
+
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
+    // EnrichResolution is keyed by the Source of the specific ENRICH occurrence it resolves, but addEnrichPolicy/addEnrichError
+    // are called before the query is parsed (builder pattern), so a Source isn't available yet. Registrations are queued here
+    // by policy name + mode and matched against the actual Enrich occurrences once the plan is known, see resolveEnrichResolution.
+    private final List<PendingEnrich> pendingEnrichResolutions = new ArrayList<>();
+
+    private record PendingEnrich(String policyName, Enrich.Mode mode, ResolvedEnrichPolicy resolved, String error) {}
+
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
@@ -114,6 +126,15 @@ public class TestAnalyzer {
      */
     public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
+        return this;
+    }
+
+    /**
+     * Set the {@link AnalysisRegistry} used to resolve analyzer names during verification.
+     * Defaults to {@link EsqlTestUtils#TEST_ANALYSIS_REGISTRY} (prebuilt analyzers only).
+     */
+    public TestAnalyzer analysisRegistry(AnalysisRegistry analysisRegistry) {
+        this.analysisRegistry = analysisRegistry;
         return this;
     }
 
@@ -265,6 +286,13 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the multi_column_joinable_lookup lookup index.
+     */
+    public TestAnalyzer addMultiColumnJoinableLookup() {
+        return addLookupIndex("multi_column_joinable_lookup", "mapping-multi_column_joinable_lookup.json");
+    }
+
+    /**
      * Adds the test index with mapping-default.json.
      */
     public TestAnalyzer addDefaultIndex() {
@@ -367,7 +395,7 @@ public class TestAnalyzer {
      * Add an error resolving enrich indices.
      */
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
-        enrichResolution.addError(policyName, mode, reason);
+        pendingEnrichResolutions.add(new PendingEnrich(policyName, mode, null, reason));
         return this;
     }
 
@@ -439,8 +467,29 @@ public class TestAnalyzer {
      * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
      */
     public TestAnalyzer addEnrichPolicy(Enrich.Mode mode, String policy, ResolvedEnrichPolicy resolved) {
-        enrichResolution.addResolvedPolicy(policy, mode, resolved);
+        pendingEnrichResolutions.add(new PendingEnrich(policy, mode, resolved, null));
         return this;
+    }
+
+    /**
+     * Matches pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations (queued by policy name + mode before the
+     * query was known) against the actual {@link Enrich} occurrences in the now-parsed plan, and registers each match into the
+     * real {@link #enrichResolution} keyed by that occurrence's {@code Source} - mirroring how {@code EnrichPolicyResolver}
+     * keys production resolutions. If several occurrences share the same policy name and mode, every one of them is
+     * registered with the same resolution.
+     */
+    private void resolveEnrichResolution(LogicalPlan plan) {
+        plan.forEachUp(Enrich.class, enrich -> {
+            for (PendingEnrich pending : pendingEnrichResolutions) {
+                if (pending.policyName().equals(enrich.resolvedPolicyName()) && pending.mode() == enrich.mode()) {
+                    if (pending.resolved() != null) {
+                        enrichResolution.addResolvedPolicy(enrich.source(), pending.resolved());
+                    } else {
+                        enrichResolution.addError(enrich.source(), pending.error());
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -862,9 +911,20 @@ public class TestAnalyzer {
     /**
      * Build an {@link Analyzer} for advanced usage.
      * Prefer {@link #query} or {@link #error} if possible.
+     * <p>
+     * The returned {@link Analyzer} resolves pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations against
+     * whatever plan it's asked to analyze, right before analyzing it - see {@link #resolveEnrichResolution}. This covers both
+     * {@link #query}/{@link #error} (which call this internally) and advanced usage where callers hold onto the returned
+     * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier);
+        return new Analyzer(buildContext(), verifier) {
+            @Override
+            public LogicalPlan analyze(LogicalPlan plan) {
+                resolveEnrichResolution(plan);
+                return super.analyze(plan);
+            }
+        };
     }
 
     /**
@@ -876,6 +936,7 @@ public class TestAnalyzer {
             configuration,
             functionRegistry,
             PromqlFunctionRegistry.INSTANCE,
+            analysisRegistry,
             null,
             indexResolutions,
             lookupResolution,
@@ -894,8 +955,10 @@ public class TestAnalyzer {
      * Load a mapping file.
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
+        var grouped = Arrays.stream(indexName.split(","))
+            .collect(groupingBy(index -> RemoteClusterAware.splitIndexName(index).getClusterGroupingKey()));
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), grouped, grouped)
         );
     }
 

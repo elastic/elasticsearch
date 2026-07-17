@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -26,6 +27,15 @@ import java.util.Set;
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
+ *
+ * <p>There are two ways to declare an ES|QL capability:
+ * <ol>
+ *   <li><strong>Global ({@link Cap} enum, this file)</strong>: use when a capability applies
+ *       across ES|QL generally, or when it touches many functions at once.</li>
+ *   <li><strong>Per-function ({@link FunctionDefinition.Builder#capabilities})</strong>:
+ *       use when a capability is specific to one function or a small number of functions.
+ *       These are auto-registered with the prefix {@code fn_<funcname>_<sub>}.</li>
+ * </ol>
  */
 public class EsqlCapabilities {
     /**
@@ -80,6 +90,12 @@ public class EsqlCapabilities {
         }
     }
 
+    /**
+     * Global ES|QL capabilities. Use this for capabilities that apply across ES|QL generally,
+     * or that touch many functions at once. For capabilities specific to one function or a small
+     * number of functions, use {@link FunctionDefinition.Builder#capabilities}
+     * instead.
+     */
     public enum Cap {
         /**
          * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -274,6 +290,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_CONVERT_FUNCTION,
 
         /**
+         * Fix for {@code <no-fields>} leaking into plans when {@code unmapped_fields="load"} loads fields from an empty mapping.
+         * See https://github.com/elastic/elasticsearch/issues/141990.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_EMPTY_MAPPING_NO_FIELDS,
+
+        /**
          * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
          * See https://github.com/elastic/elasticsearch/issues/141827
          */
@@ -308,10 +330,24 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fixes a bug when using an EVAL on the grouped by columns after a STATS.
+         *
+         * See https://github.com/elastic/elasticsearch/issues/152496.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_EVAL_AFTER_STATS_FIX,
+
+        /**
          * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
          * See https://github.com/elastic/elasticsearch/issues/151525.
          */
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
+
+        /**
+         * Null-fallback under {@code unmapped_fields="load"}: full-text search functions are supported, and single-type partially
+         * unmapped non-keyword fields (PUNKs) fall back to their mapped type, nullifying the unmapped rows -- matching the default
+         * (no-load) behavior -- instead of being rejected. This also lets such fields be renamed and used in expressions.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_LOAD_NULL_FALLBACK,
 
         /**
          * Bugfix: {@code IndexResolver.mergedMappings} crashed with {@code UnsupportedOperationException} when a keyword
@@ -320,6 +356,32 @@ public class EsqlCapabilities {
          * an immutable empty properties map, preventing child fields from being inserted.
          */
         OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
+
+        /**
+         * Don't implicitly cast a partially unmapped {@code dense_vector} field under {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/152184.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
+
+        /**
+         * Warn when a partially unmapped field with a single non-KEYWORD mapped type is referenced explicitly, but its type has no
+         * KEYWORD converter and so cannot be loaded from _source: it falls back to null in the indices where it is unmapped.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
+
+        /**
+         * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
+         * instead of failing with "No matches found for pattern".
+         * See https://github.com/elastic/elasticsearch/issues/143226
+         */
+        OPTIONAL_FIELDS_DROP_NON_MATCHING_PATTERN_NOOP,
+
+        /**
+         * Fixes count on an unmapped field. Previously, it tried to push down a query filter on the unmapped field, leading to a 0-count
+         * since the field isn't mapped.
+         * See https://github.com/elastic/elasticsearch/issues/152884.
+         */
+        OPTIONAL_FIELDS_FIX_COUNT_ON_UNMAPPED,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -438,23 +500,23 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
          */
-        FLATTENED_DATATYPE(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE,
 
         /**
          * Flattened field keys are returned in alphabetical order.
          */
-        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE_SORTED_KEYS,
 
         /**
          * Flattened fields apply {@code null_value} replacement when loading from {@code _source},
          * matching the doc-values behaviour applied at index time.
          */
-        FLATTENED_DATATYPE_NULL_VALUE(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE_NULL_VALUE,
 
         /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
-        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
+        FIELD_EXTRACT_FUNCTION,
 
         /**
          * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
@@ -468,7 +530,7 @@ public class EsqlCapabilities {
          * must require this capability so they skip on mixed clusters where any data node still
          * runs the per-row evaluator.
          */
-        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN,
 
         /**
          * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
@@ -492,7 +554,7 @@ public class EsqlCapabilities {
          * Lucene, must require this capability so they skip on mixed clusters where any data node still fuses
          * mapped sub-keys and returns {@code null}.
          */
-        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE,
 
         /**
          * A {@code flattened} root that declares mapped sub-fields (e.g. {@code KEEP attributes}) is always loaded
@@ -504,7 +566,7 @@ public class EsqlCapabilities {
          * shape must require this capability so they skip on mixed clusters where an older data node still builds the
          * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
          */
-        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
+        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -548,11 +610,6 @@ public class EsqlCapabilities {
          * Support multiple field mappings if appropriate conversion function is used (union types)
          */
         UNION_TYPES,
-
-        /**
-         * Support unmapped using the INSIST keyword.
-         */
-        UNMAPPED_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
@@ -914,9 +971,10 @@ public class EsqlCapabilities {
         BUCKET_WHOLE_NUMBER_AS_SPAN,
 
         /**
-         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
+         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns, gated behind the
+         * {@code SET column_metadata=true} setting. Without the setting, non-approximation metadata is omitted.
          */
-        COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
+        COLUMN_METADATA_BUCKET_V2,
 
         /**
          * Allow mixed numeric types in coalesce
@@ -1386,40 +1444,37 @@ public class EsqlCapabilities {
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
-         * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
-         * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
-         * once the InSubquery feature graduates from snapshot-only to production.
          */
-        WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY,
 
         /**
          * Support IN non-correlated subqueries in WHERE command without View. When a view is referenced by an IN subquery, or there is an
          * IN subquery inside the view definition(especially nested views), it is out of the scope of this capability.
          * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
          */
-        WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY_WITHOUT_VIEW,
 
         /**
          * Support IN non-correlated subqueries in WHERE command with View. The views can be referenced by IN subqueries, and the view
          * definition can contain IN subqueries.
          */
-        WHERE_IN_SUBQUERY_WITH_VIEW(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY_WITH_VIEW,
 
         /**
          * Support ROW as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+        SUBQUERY_WITH_ROW,
 
         /**
          * Support TS as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+        SUBQUERY_WITH_TS,
 
         /**
          * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the
          * correct time-series index when a join presents.
          */
-        WHERE_IN_SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY_WITH_TS,
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -1433,6 +1488,13 @@ public class EsqlCapabilities {
          * Views crud actions as index actions
          */
         VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
+        /**
+         * Signals that {@code PUT /_query/view/{name}} is exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        VIEWS_PUT_SERVERLESS_SCOPE(VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */
@@ -1843,6 +1905,13 @@ public class EsqlCapabilities {
         FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
 
         /**
+         * Fix windowed over-time/rate aggregations whose window is smaller than the time bucket when the bucket is
+         * end-labeled (right-closed), as produced by {@code TSTEP} and PromQL range queries. Previously such queries
+         * returned empty results because the per-sample window filter looked one bucket past the correct boundary.
+         */
+        FIX_TSTEP_WINDOW_FILTER_ROUNDING(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -2006,7 +2075,7 @@ public class EsqlCapabilities {
          * {@code RECHECK} so the row-level evaluator rechecks each candidate and returns {@code null}
          * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
-        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6,
 
         /**
          * Network direction function.
@@ -2066,6 +2135,11 @@ public class EsqlCapabilities {
          * </p>
          */
         GLOBAL_TIMEZONE_PARAMETER_WITH_OUTPUT(Build.current().isSnapshot()),
+
+        /**
+         * Top-level {@code settings} object on the {@code _query} request body, mirroring in-query SET keys.
+         */
+        QUERY_SETTINGS_REQUEST_BODY,
 
         /**
          * Optional options argument for DATE_PARSE
@@ -2322,6 +2396,12 @@ public class EsqlCapabilities {
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */
         PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
+         * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
+         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         */
+        PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
@@ -2601,27 +2681,36 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access).
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
+         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
+         * grammar surface, rather than this capability mirroring a separate build-type check.
          */
-        EXTERNAL_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_IP_SUPPORT,
 
         /**
          * Support for the {@code header_row} (and the related {@code column_prefix}) CSV options
          * on the {@code EXTERNAL} command, used to read headerless CSV files.
          */
-        EXTERNAL_CSV_HEADER_ROW_OPTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_HEADER_ROW_OPTION,
+
+        /**
+         * The CSV/TSV file-level {@code datetime_format} option compiles to an Elasticsearch
+         * {@code DateFormatter} rather than a raw JDK {@code DateTimeFormatter}: zone offsets are honored,
+         * date-only patterns parse, and named formats and {@code a||b} composites are accepted.
+         */
+        EXTERNAL_CSV_DATETIME_FORMAT_ES_DATE_FORMATTER,
 
         /**
          * Per-file planner-resolved read schema is threaded down to runtime readers via
          * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
          * preventing reader self-inference that drifts across files in a multi-file glob.
          */
-        EXTERNAL_SOURCE_READ_SCHEMA(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_READ_SCHEMA,
 
         /**
          * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
@@ -2630,7 +2719,7 @@ public class EsqlCapabilities {
          * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
          * this capability rather than on {@link #EXTERNAL_COMMAND}.
          */
-        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS,
 
         /**
          * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
@@ -2638,7 +2727,7 @@ public class EsqlCapabilities {
          * coordinators reject the names with {@code Unknown column}; tests exercising these columns
          * gate on this capability.
          */
-        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS,
 
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
@@ -2649,7 +2738,19 @@ public class EsqlCapabilities {
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
-        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION,
+
+        /**
+         * Correct decoding of a {@code LIST} leaf reached through a {@code STRUCT}
+         * (e.g. {@code answers.text} where {@code answers} is {@code struct<text: list<string>>}).
+         * Such leaves previously bound to no column descriptor and read as all-null on the Parquet
+         * (Java) reader; this capability gates the csv-spec tests that assert the multivalues now
+         * round-trip. Separate from {@link #EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION} so nodes that
+         * predate the fix (and other format readers) skip the tests instead of failing them.
+         *
+         * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
+         */
+        EXTERNAL_SOURCE_LIST_UNDER_STRUCT,
 
         /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
@@ -2658,13 +2759,12 @@ public class EsqlCapabilities {
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
          * See esql-planning#794.
          */
-        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
-         * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
-        DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        DATASET_IN_FROM_COMMAND,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -2672,7 +2772,15 @@ public class EsqlCapabilities {
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
          * verification failure that old coordinators in a mixed cluster still hit.
          */
-        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING,
+
+        /**
+         * A present-but-empty field on a string (KEYWORD/TEXT) column in an external CSV/TSV datasource reads as the empty
+         * string {@code ""} instead of {@code null}. Genuinely missing fields (a row shorter than the schema) and empty
+         * fields on non-string columns still read as {@code null}. Used to gate the affected external csv-spec tests so they
+         * are skipped on mixed clusters where a pre-change node still maps empty string cells to {@code null}.
+         */
+        EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
@@ -3028,9 +3136,10 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
-         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
+         * Requires the grammar change introduced in the same release.
          */
-        MATCH_RUNTIME_SEARCH(Build.current().isSnapshot()),
+        MATCH_OPERATOR_LHS_EXPRESSION(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.
@@ -3059,20 +3168,32 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
 
         /**
+         * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
+
+        /**
+         * Under {@code unmapped_fields="load"} or {@code "nullify"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts
+         * as a mention, so the field is surfaced across the branches (materialized from {@code _source} under {@code load}, null-filled
+         * under {@code nullify}) and null-filled in the dropping one. Dropping it in every branch surfaces nothing.
+         */
+        OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
-        FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
+        FN_EQUALS_FLATTENED,
 
         /**
          * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
          */
-        FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+        FN_NOT_EQUALS_FLATTENED,
 
         /**
          * Support for using a {@code flattened} field as a grouping key in
          * {@code STATS … BY} and {@code LIMIT N BY}.
          */
-        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
+        GROUP_BY_FLATTENED,
 
         /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
@@ -3155,6 +3276,11 @@ public class EsqlCapabilities {
         MV_FIRST_LAST_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Support for COUNT, COUNT_APPROXIMATE, PRESENT, ABSENT, MV_COUNT with date_range type.
+         */
+        AGG_BASIC_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for ESQL parameters in PromQL label matchers:
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */
@@ -3209,10 +3335,9 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
-         * generated {@code highlight_*} columns. Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V1(Build.current().isSnapshot()),
+        HIGHLIGHT_V4(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3231,6 +3356,17 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         /**
+         * Support for PromQL {@code histogram_quantile()} over exponential (native) histograms.
+         */
+        PROMQL_HISTOGRAM_QUANTILE_EXPONENTIAL,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
+         * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
+         */
+        FIX_GROUP_BY_ALL_AGGREGATION_FILTERS,
+
+        /**
          * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
          * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
          * {@code _timeseries} block loader so excluded labels are actually removed from the series key.
@@ -3239,12 +3375,49 @@ public class EsqlCapabilities {
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
 
         /**
+         * Support for the {@code _slice} metadata field in ES|QL, available on indices with
+         * {@code index.slice.enabled: true}. Backed by the {@code _routing} sorted doc values field.
+         * Enables {@code FROM index METADATA _slice}, {@code KEEP _slice}, and pushable
+         * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
+         */
+        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
+
+        /**
+         * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
+         * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
+         * flattened).
+         */
+        LAST_AGG_EXTENDED_TYPES,
+
+        /**
          * An empty list passed as a query parameter (named or positional) is treated as null
          * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
          * position produces a clean parsing error instead of silently yielding an empty column name.
          * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
          */
         EMPTY_LIST_PARAM_AS_NULL,
+
+        /**
+         * Invalid BBOX envelopes (e.g. maxY &lt; minY, or maxX &lt; minX for cartesian coordinates) are now
+         * consistently handled as a null result with a registered warning, both at fold time and at
+         * runtime, instead of either being silently accepted (cartesian x-ordering was never validated) or
+         * causing an uncaught exception in downstream consumers (ST_GEOHASH/ST_GEOTILE/ST_GEOHEX bounds,
+         * ST_DISTANCE, ST_INTERSECTS/ST_DISJOINT/etc. pushdown to Lucene).
+         * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
+         */
+        SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
+         */
+        FIX_MATCH_FUZZINESS_ON_VERSION_FIELD,
+
+        /**
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
+         */
+        FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -20,12 +20,13 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -84,7 +85,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
      * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
-     * {@code doc_values.multi_value}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     * {@code doc_values.multi_value}.
      */
     public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.multi_value",
@@ -93,6 +94,50 @@ public abstract class FieldMapper extends Mapper {
         Property.Final,
         Property.ServerlessPublic
     );
+
+    /**
+     * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
+     * default to requiring a non-null value in every document (rejecting documents that omit the field or supply null), unless a field
+     * explicitly sets its own {@code doc_values.nullability}.
+     */
+    public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
+        "index.mapping.doc_values.nullability",
+        true,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Index-level default for the {@code doc_values.on_failure} field mapping parameter. Controls what happens when a document violates
+     * a strict doc_values constraint (ie. {@code multi_value=false} or {@code nullability=false}), unless a field explicitly sets its own
+     * {@code doc_values.on_failure}.
+     */
+    public static final Setting<DocValuesParameter.Values.OnFailure> DOC_VALUES_ON_FAILURE_SETTING = Setting.enumSetting(
+        DocValuesParameter.Values.OnFailure.class,
+        "index.mapping.doc_values.on_failure",
+        DocValuesParameter.Values.OnFailure.FAIL,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Guards {@code doc_values.on_failure=ignore} (mapping parameter and {@link #DOC_VALUES_ON_FAILURE_SETTING} index setting) while the
+     * feature is incomplete: the failure column it redirects to isn't wired into synthetic source reconstruction, block loaders, or
+     * search yet, so a field configured with it today would silently lose the offending value on reconstruction.
+     */
+    public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
+
+    /**
+     * Resolves {@link #DOC_VALUES_ON_FAILURE_SETTING}, falling back to {@link DocValuesParameter.Values.OnFailure#FAIL} while
+     * {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is disabled.
+     */
+    public static DocValuesParameter.Values.OnFailure resolveOnFailureSetting(Settings settings) {
+        return DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
+            ? DOC_VALUES_ON_FAILURE_SETTING.get(settings)
+            : DocValuesParameter.Values.OnFailure.FAIL;
+    }
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -218,15 +263,23 @@ public abstract class FieldMapper extends Mapper {
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
+        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown
+        boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
             if (isSingleValueEnforced()) {
-                context.enforceSingleValue(fullPath());
+                redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
+            if (redirectedToFailureColumn == false) {
+                if (isNullable() == false && context.parser().currentToken().isValue()) {
+                    // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
+                    context.markRequiredSatisfied(fullPath());
+                }
 
-            parseCreateField(context);
+                parseCreateField(context);
+            }
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
         }
@@ -296,11 +349,30 @@ public abstract class FieldMapper extends Mapper {
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
-     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the same
-     * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the
+     * same document violates the constraint: it either throws or is redirected to a failure column, depending on {@link
+     * #onFailureBehavior()}. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
      */
     protected boolean isSingleValueEnforced() {
         return false;
+    }
+
+    /**
+     * Controls what happens when this field violates a strict doc_values constraint (ie. {@code multi_value=false}), as configured by
+     * the {@code doc_values.on_failure} mapping parameter. Defaults to {@link DocValuesParameter.Values.OnFailure#FAIL}. Override on
+     * mappers that expose the {@code on_failure} doc values mapping parameter.
+     */
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * Whether this field accepts documents that omit it or supply null (ie. {@code nullability=true}). When {@code false}, every Lucene
+     * doc must carry a non-null value or parsing fails. A configured {@code null_value} always exempts the field (it is never required),
+     * so mappers exposing {@code nullability} override this to {@code return docValuesParameters.nullability() || <hasNullValue>}.
+     */
+    public boolean isNullable() {
+        return true;
     }
 
     /**
@@ -1413,7 +1485,7 @@ public abstract class FieldMapper extends Mapper {
             if (indexSettings.useDocValuesSkipper() == false) {
                 return false;
             }
-            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+            if (indexSettings.getMode().isTsdb()) {
                 if (isDimension) {
                     return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
                 }
@@ -1506,7 +1578,7 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability, OnFailure onFailure) {
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1517,41 +1589,67 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true);
+            /**
+             * Controls what happens when a document violates a strict doc_values constraint (ie. {@code multi_value=false} or
+             * {@code nullability=false}). {@code FAIL} rejects the document (the only behavior today); {@code IGNORE} is reserved for
+             * future work that will route the offending value to a per-field failure column instead of failing the document.
+             */
+            public enum OnFailure {
+                FAIL,
+                IGNORE;
+
+                @Override
+                public String toString() {
+                    return name().toLowerCase(Locale.ROOT);
+                }
+            }
+
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
         }
 
         public final Parameter<Boolean> multiValueParameter;
+        public final Parameter<Boolean> nullabilityParameter;
+        private final boolean supportsExtendedDocValues;
+        public final Parameter<Values.OnFailure> onFailureParameter;
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
          * IP, keyword family, etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer);
+        public static DocValuesParameter of(
+            Values defaultValue,
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
+        ) {
+            return new DocValuesParameter(defaultValue, initializer, supportsExtendedDocValues);
         }
 
         /**
-         * Variant of {@link #of(Values, Function)} that computes the default value lazily so it can depend on sibling multi-fields, which
-         * are only known after this parameter is constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
+         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
+         * so it can depend on sibling multi-fields, which are only known after this parameter is
+         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
          */
         public static DocValuesParameter of(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            this(() -> defaultValue, defaultValue, initializer);
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
+            this(() -> defaultValue, defaultValue, initializer, supportsExtendedDocValues);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
+            this.supportsExtendedDocValues = supportsExtendedDocValues;
 
             multiValueParameter = Parameter.boolParam(
                 "multi_value",
@@ -1559,6 +1657,24 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).multiValue,
                 subParameterDefaults.multiValue
             );
+            // nullability is not updateable in order to maintain density guarantees inside segments
+            nullabilityParameter = Parameter.boolParam(
+                "nullability",
+                false,
+                m -> initializer.apply(m).nullability,
+                subParameterDefaults.nullability
+            );
+            onFailureParameter = Parameter.enumParam(
+                "on_failure",
+                false,
+                m -> initializer.apply(m).onFailure,
+                subParameterDefaults.onFailure,
+                Values.OnFailure.class
+            ).addValidator(v -> {
+                if (v == Values.OnFailure.IGNORE && DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() == false) {
+                    throw new MapperParsingException("[doc_values.on_failure=ignore] is not yet supported");
+                }
+            });
         }
 
         /**
@@ -1570,22 +1686,60 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
+         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
+         *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
+         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accept the document, routing the offending value to a per-field
+         *       failure column instead of rejecting it (see {@link DocumentParserContext#enforceSingleValue}). Rejected at parse time
+         *       unless {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is enabled, since reconstruction of the failure column isn't wired
+         *       into synthetic source, block loaders, or search yet.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
+         * the multi_value, nullability and on_failure settings. Cardinality is decided internally and is not user-configurable.
+         * The object form itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value})
+         * is rejected together with it.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
-            if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            if (value instanceof Map<?, ?> valueMap) {
+                if (supportsExtendedDocValues == false) {
+                    throw new MapperParsingException(
+                        "unsupported doc_values configuration for field ["
+                            + field
+                            + "] in non-columnar index; supported values: [true, false]"
+                    );
+                }
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
+                if (valueMap.containsKey(nullabilityParameter.name)) {
+                    nullabilityParameter.parse(field, context, valueMap.get(nullabilityParameter.name));
+                }
+                if (valueMap.containsKey(onFailureParameter.name)) {
+                    onFailureParameter.parse(field, context, valueMap.get(onFailureParameter.name));
+                }
 
-                setValue(new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue()));
+                setValue(
+                    new Values(
+                        true,
+                        getDefaultValue().cardinality(),
+                        multiValueParameter.getValue(),
+                        nullabilityParameter.getValue(),
+                        onFailureParameter.getValue()
+                    )
+                );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                    setValue(
+                        new Values(
+                            true,
+                            getDefaultValue().cardinality(),
+                            getDefaultValue().multiValue(),
+                            getDefaultValue().nullability(),
+                            getDefaultValue().onFailure()
+                        )
+                    );
                 } else {
                     setValue(Values.DISABLED);
                 }
@@ -1596,6 +1750,8 @@ public abstract class FieldMapper extends Mapper {
         public void setValue(Values value) {
             super.setValue(value);
             multiValueParameter.setValue(value.multiValue);
+            nullabilityParameter.setValue(value.nullability);
+            onFailureParameter.setValue(value.onFailure);
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1603,16 +1759,24 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+                } else if (supportsExtendedDocValues == false) {
+                    // the object form is only available in columnar index modes, so it must never be emitted here
                     builder.field(name, true);
                 } else {
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
-                    if (includeDefaults == false && multiValueConfigured == false) {
+                    boolean nullabilityConfigured = nullabilityParameter.isConfigured();
+                    boolean onFailureConfigured = onFailureParameter.isConfigured();
+                    if (includeDefaults == false
+                        && multiValueConfigured == false
+                        && nullabilityConfigured == false
+                        && onFailureConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
                         builder.field(multiValueParameter.name, value.multiValue);
+                        builder.field(nullabilityParameter.name, value.nullability);
+                        builder.field(onFailureParameter.name, value.onFailure);
                         builder.endObject();
                     }
                 }
@@ -1968,34 +2132,6 @@ public abstract class FieldMapper extends Mapper {
             return DEPRECATED_PARAMS.contains(propName);
         }
 
-        /**
-         * Ensures that index sort fields don't use binary (non-sortable) doc values. If the default for a columnar index is HIGH
-         * cardinality, it is silently overridden to LOW since sort fields require sortable doc values.
-         */
-        protected static void enforceIndexSortDocValuesCompatibility(
-            String fullFieldName,
-            IndexSortConfig sortConfig,
-            DocValuesParameter docValuesParameters
-        ) {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                return;
-            }
-            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
-                return;
-            }
-            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
-            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
-                return;
-            }
-            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
-            docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    currentValues.enabled(),
-                    DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
-                )
-            );
-        }
     }
 
     /**

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 /**
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
@@ -44,9 +45,27 @@ public final class ExternalSourceDrainUtils {
      * on the Driver thread. The executor captures and restores thread context
      * at submission time, so no explicit context-preserving wrapper is needed.
      *
-     * <p><b>Cancellation:</b> No timeout. Cancellation comes from
+     * <p><b>Cancellation:</b> No timeout. Cooperative cancellation comes from
      * {@code buffer.finish(true)} setting {@code noMoreInputs}, which causes
-     * {@code waitForSpace()} to return an already-completed listener.
+     * {@code waitForSpace()} to return an already-completed listener and stops the loop at the next page
+     * boundary. To also abort a page pull ({@code hasNext()}/{@code next()}) parked in storage retry/throttle
+     * backoff, {@code readCancelled} is installed as the ambient {@link StorageRetryCancellation} signal around
+     * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
+     */
+    public static void drainPagesAsync(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        ActionListener<Void> listener
+    ) {
+        drainBatch(pages, buffer, executor, readCancelled, listener);
+    }
+
+    /**
+     * Overload without an ambient cancellation signal, preserving the pre-existing behaviour for callers
+     * (currently tests) that do not thread a hard-cancel signal into the drain. Equivalent to passing a
+     * supplier that never reports cancelled: cooperative {@code noMoreInputs} cancellation still applies.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -54,35 +73,38 @@ public final class ExternalSourceDrainUtils {
         Executor executor,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, listener);
+        drainBatch(pages, buffer, executor, () -> false, listener);
     }
 
     private static void drainBatch(
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
         Executor executor,
+        BooleanSupplier readCancelled,
         ActionListener<Void> listener
     ) {
         try {
-            while (pages.hasNext() && buffer.noMoreInputs() == false) {
-                SubscribableListener<Void> space = buffer.waitForSpace();
-                if (space.isDone()) {
-                    if (buffer.noMoreInputs()) break;
-                    Page page = pages.next();
-                    page.allowPassingToDifferentDriver();
-                    buffer.addPage(page);
-                } else {
-                    space.addListener(ActionListener.wrap(v -> {
-                        try {
-                            executor.execute(() -> drainBatch(pages, buffer, executor, listener));
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, listener::onFailure));
-                    return;
+            StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
+                while (pages.hasNext() && buffer.noMoreInputs() == false) {
+                    SubscribableListener<Void> space = buffer.waitForSpace();
+                    if (space.isDone()) {
+                        if (buffer.noMoreInputs()) break;
+                        Page page = pages.next();
+                        page.allowPassingToDifferentDriver();
+                        buffer.addPage(page);
+                    } else {
+                        space.addListener(ActionListener.wrap(v -> {
+                            try {
+                                executor.execute(() -> drainBatch(pages, buffer, executor, readCancelled, listener));
+                            } catch (Exception e) {
+                                listener.onFailure(e);
+                            }
+                        }, listener::onFailure));
+                        return;
+                    }
                 }
-            }
-            listener.onResponse(null);
+                listener.onResponse(null);
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }

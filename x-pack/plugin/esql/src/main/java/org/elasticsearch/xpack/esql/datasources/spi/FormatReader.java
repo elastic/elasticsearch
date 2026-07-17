@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -99,9 +100,11 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns the default error policy for this format.
-     * Override to change the default behavior for a specific format (e.g. NDJSON
-     * defaults to lenient because skipping malformed lines is its natural behavior).
+     * Returns the default error policy for this format. The base default is {@link ErrorPolicy#STRICT}
+     * (fail_fast) and every format inherits it, so a bad per-value coercion fails the read across all
+     * formats unless the user opts into {@code error_mode: null_field}. Pinned per reader by a
+     * {@code testDefaultErrorPolicyIsStrict} guard; do not override to a lenient default (that would
+     * silently diverge one format from the others).
      */
     default ErrorPolicy defaultErrorPolicy() {
         return ErrorPolicy.STRICT;
@@ -110,6 +113,25 @@ public interface FormatReader extends Closeable {
     // === METADATA ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;
+
+    /**
+     * Asynchronously resolves metadata for the given storage object.
+     * <p>
+     * The default wraps the synchronous {@link #metadata(StorageObject)} in the provided executor,
+     * mirroring {@link #readAsync}. Formats whose footer/metadata read can be issued without holding
+     * an executor thread across the network round-trip (e.g. Parquet via
+     * {@link StorageObject#readBytesAsync}) should override this so that a wide discovery fan-out is
+     * bounded by an in-flight permit rather than by the number of executor threads it pins.
+     */
+    default void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(metadata(object));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
 
     default List<Attribute> schema(StorageObject object) throws IOException {
         return metadata(object).schema();
@@ -227,6 +249,78 @@ public interface FormatReader extends Closeable {
      */
     default FormatReader withSchema(List<Attribute> schema) {
         return this;
+    }
+
+    /**
+     * Returns a format reader that parses the given columns' dates with the given patterns instead of the ISO default
+     * / file-level {@code datetime_format}. Keyed by <b>physical</b> (file) column name — the caller
+     * ({@code FileSourceFactory}) has already applied any declared {@code path} rename. The patterns are ES
+     * {@code DateFormatter} patterns (named formats and {@code ||} chains included), matching the dataset-put validation.
+     * <p>
+     * Only the text formats (CSV/TSV, NDJSON) parse dates from text and override this. Columnar formats (Parquet, ORC)
+     * carry native typed values and keep the no-op default — a declared {@code format} on a columnar column is rejected
+     * upstream at query resolution, so it never reaches here.
+     *
+     * @param physicalNameToPattern per-column date patterns keyed by physical column name; empty for no declared formats
+     * @return a new reader applying the per-column formats, or {@code this} when none apply
+     */
+    default FormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
+        return this;
+    }
+
+    /**
+     * Returns a format reader that treats the given columns as <b>declared-type</b> columns: their target type came from
+     * an explicit declaration rather than inference, which licenses a lossy read-time coercion toward it (e.g. a declared
+     * {@code integer} over an {@code int64} file column narrows per value, null on overflow). An inferred target must
+     * never narrow — a cross-file clash widens-or-nulls. Keyed by <b>physical</b> (file) column name; the caller
+     * ({@code FileSourceFactory}) has already applied any declared {@code path} rename.
+     * <p>
+     * Only the by-name columnar formats (Parquet, ORC) make a whole-column incompatibility null-fill decision and
+     * override this — a declared column keeps the coercion escape, an inferred column null-fills whenever the file type
+     * is not widening-compatible. The text formats (CSV/TSV, NDJSON) parse straight into the target and keep the no-op
+     * default (their per-field failures are governed by the {@code ErrorPolicy}, not a whole-column type check).
+     *
+     * @param physicalDeclaredColumns physical names of the declared-type columns; empty when no column type was declared
+     * @return a new reader honoring the declared-type set, or {@code this} when none apply
+     */
+    default FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
+        return this;
+    }
+
+    /**
+     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
+     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
+     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
+     * all, must still bind by name.
+     * <p>
+     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
+     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
+     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
+     * positionally would never look at the physical names it was handed, so the same mapping could read a different
+     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
+     * <p>
+     * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
+     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
+     * A declared name the file does not supply reads null with a warning, never a silent positional fallback.
+     *
+     * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
+     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
+     */
+    default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
+        return this;
+    }
+
+    /**
+     * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
+     * unsplittable: every split past the first would have no way to resolve the binding.
+     *
+     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
+     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
+     * throughput-sensitive reads actually use.
+     */
+    default boolean declaredNameBindingNeedsFileStart() {
+        return false;
     }
 
     /**

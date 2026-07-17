@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
@@ -173,6 +174,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
@@ -476,6 +478,7 @@ public class EsqlFunctionRegistry {
                 Concat.DEFINITION,
                 Contains.DEFINITION,
                 EndsWith.DEFINITION,
+                FieldExtract.DEFINITION,
                 Hash.DEFINITION,
                 JsonExtract.DEFINITION,
                 LTrim.DEFINITION,
@@ -511,6 +514,11 @@ public class EsqlFunctionRegistry {
                 DayName.DEFINITION,
                 MonthName.DEFINITION,
                 Now.DEFINITION,
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 TRange.DEFINITION },
             // spatial
             new FunctionDefinition[] {
@@ -560,6 +568,7 @@ public class EsqlFunctionRegistry {
                 ToDatePeriod.DEFINITION,
                 ToDatetime.DEFINITION,
                 ToDateNanos.DEFINITION,
+                ToDateRange.DEFINITION,
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
@@ -574,8 +583,10 @@ public class EsqlFunctionRegistry {
                 ToIntegerSurrogate.DEFINITION,
                 ToLongSurrogate.DEFINITION,
                 ToRadians.DEFINITION,
+                ToRange.DEFINITION,
                 ToString.DEFINITION,
                 ToTDigest.DEFINITION,
+                ToText.DEFINITION,
                 ToTimeDuration.DEFINITION,
                 ToUnsignedLong.DEFINITION,
                 ToVersion.DEFINITION, },
@@ -589,6 +600,7 @@ public class EsqlFunctionRegistry {
                 MvDedupe.DEFINITION,
                 MvDifference.DEFINITION,
                 MvFirst.DEFINITION,
+                MvInRange.DEFINITION,
                 MvIntersection.DEFINITION,
                 MvLast.DEFINITION,
                 MvMax.DEFINITION,
@@ -654,16 +666,7 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION,
-                // date_range functions
-                RangeContains.DEFINITION,
-                RangeIntersects.DEFINITION,
-                RangeMax.DEFINITION,
-                RangeMin.DEFINITION,
-                RangeWithin.DEFINITION,
-                ToDateRange.DEFINITION,
-                ToText.DEFINITION,
-                FieldExtract.DEFINITION } };
+                Magnitude.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -1160,6 +1163,9 @@ public class EsqlFunctionRegistry {
             capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);
+            }
+            for (String sub : def.snapshotCapabilities()) {
+                capabilities.add(name + "_" + sub, enabled && Build.current().isSnapshot());
             }
         }
     }

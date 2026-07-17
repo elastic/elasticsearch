@@ -84,7 +84,7 @@ public abstract class IndexRouting {
         RoutingFunction routingFunction,
         IndexReshardingMetadata reshardingMetadata
     ) {
-        if (metadata.getIndexMode() == IndexMode.TIME_SERIES
+        if (IndexMode.isTsdb(metadata.getIndexMode())
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
             return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, reshardingMetadata);
@@ -411,7 +411,7 @@ public abstract class IndexRouting {
             }
             indexMode = metadata.getIndexMode();
             assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
-            this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
+            this.trackTimeSeriesRoutingHash = indexMode.isTsdb()
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
             addIdWithRoutingHash = (indexMode == IndexMode.LOGSDB
@@ -629,7 +629,7 @@ public abstract class IndexRouting {
 
             ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
                 super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
-                assert metadata.getIndexMode() == IndexMode.TIME_SERIES : "Index mode must be time_series for ForIndexDimensions routing";
+                assert IndexMode.isTsdb(metadata.getIndexMode()) : "Index mode must be time_series for ForIndexDimensions routing";
                 assert metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
                     : "Index version must be at least "
                         + IndexVersions.TSID_CREATED_DURING_ROUTING

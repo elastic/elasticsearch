@@ -56,8 +56,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.FlattenedJunkConfig;
 
 /**
  * Integration test that runs the {@link CsvIT} csv-spec corpus against indices where every field
@@ -320,6 +320,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private final Map<String, Set<String>> protectedKeywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> keywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> nonKeywordPathsByDatasetIndexName;
+        private final Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName;
 
         KeywordToFlattenedStrategy() {
             EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
@@ -329,6 +330,16 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByDatasetIndexName);
             this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
+
+            // Compute per-dataset junk configuration: flip one coin per dataset.
+            // selectJunkFields already returns EMPTY for an empty input set, and
+            // datasets without a mapping file have no converted paths so they also get EMPTY.
+            Map<String, FlattenedJunkConfig> junkMap = new HashMap<>();
+            for (CsvTestsDataLoader.TestDataset dataset : CsvTestsDataLoader.CSV_DATASET.values()) {
+                Set<String> kw = this.keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
+                junkMap.put(dataset.indexName(), FlattenedJunkConfig.selectJunkFields(kw));
+            }
+            this.junkConfigByDatasetIndexName = Map.copyOf(junkMap);
 
             // Emit one INFO line for every keyword field that this variant will
             // intentionally never convert. The user can grep for "skip-convert" to inventory the
@@ -343,6 +354,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             logEnrichMatchFieldExclusions(enrichResult.exclusions());
             logLookupJoinFieldExclusions(lookupResult.exclusions());
             logMappingDenylistHits(datasetPaths.skippedFieldsByDataset());
+            logJunkConfig(this.junkConfigByDatasetIndexName);
         }
 
         /**
@@ -582,7 +594,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
             try {
                 List<URL> urls = classpathResources("/*.csv-spec");
-                List<Object[]> rows = SpecReader.readScriptSpec(urls, specParser());
+                List<Object[]> rows = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
                 List<CsvSpecReader.CsvTestCase> cases = new ArrayList<>(rows.size());
                 for (Object[] row : rows) {
                     if (row[4] instanceof CsvSpecReader.CsvTestCase tc) {
@@ -662,11 +674,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         @Override
         public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException {
             Set<String> paths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
-            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths);
+            FlattenedJunkConfig junk = junkConfigByDatasetIndexName.get(dataset.indexName());
+            assert junk != null : "no junk config for dataset: " + dataset.indexName();
+            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths, junk);
         }
 
         @Override
-        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+        public IndexLoadStrategy.TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             // Tests requiring ts_info_command or metrics_info_command expose TSDB dimension names
             // directly in query output (e.g. _timeseries, _tsid). After the keyword→flattened
             // rewrite those names change from "cluster" to "cluster.v", so the expected results
@@ -848,7 +862,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             if (Booleans.parseBoolean(System.getProperty(LOG_REWRITTEN_QUERIES_PROPERTY, "false"))) {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
-            return result.rewrittenQuery();
+
+            Settings extraPragmas = Settings.EMPTY;
+            return new IndexLoadStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
         }
 
         /**
@@ -1002,7 +1018,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
                 case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
-                case INSIST_BODY -> "INSIST_🐔 grammar slot accepts only attributes, not expressions";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
         }
@@ -1052,6 +1067,22 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     exclusion.field(),
                     exclusion.target()
                 );
+            }
+        }
+
+        /**
+         * Emits one INFO line per dataset listing which fields (if any) will have junk keys
+         * injected into their wrapped flattened objects. An empty junk-fields list means the
+         * coin came up tails for that dataset and no junk is injected.
+         */
+        private static void logJunkConfig(Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName) {
+            List<String> datasets = new ArrayList<>(junkConfigByDatasetIndexName.keySet());
+            datasets.sort(Comparator.naturalOrder());
+            for (String dataset : datasets) {
+                FlattenedJunkConfig cfg = junkConfigByDatasetIndexName.get(dataset);
+                List<String> fields = new ArrayList<>(cfg.junkFields());
+                fields.sort(Comparator.naturalOrder());
+                logger.info("keyword\u2192flattened: junk-config; dataset={}; junk-fields={}", dataset, fields);
             }
         }
 
@@ -1275,8 +1306,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
         "ABSENT_OVER_TIME:field is missing",
-        "BUCKET:from is missing",
-        "BUCKET:to is missing",
         "CIDR_MATCH:blockX is missing",
         "CLAMP:field is missing",
         "CLAMP:max is missing",
@@ -1285,93 +1314,53 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "CLAMP_MAX:max is missing",
         "CLAMP_MIN:field is missing",
         "CLAMP_MIN:min is missing",
-        "CONTAINS:substring is missing",
         "COUNT_DISTINCT_OVER_TIME:field is missing",
         "COUNT_OVER_TIME:field is missing",
         "DATE_DIFF:unit is missing",
-        "DECAY:scale is missing",
         "EMBEDDING:value is missing",
-        "ENDS_WITH:suffix is missing",
+        "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
-        "GREATER_THAN:rhs is missing",
-        "GREATER_THAN_OR_EQUAL:rhs is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "HASH:algorithm is missing",
-        "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
-        "LESS_THAN:rhs is missing",
-        "LESS_THAN_OR_EQUAL:rhs is missing",
-        "LIKE:pattern is missing",
-        "LOCATE:substring is missing",
-        "LTRIM:string is missing",
-        "MATCH:field is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
-        "MATCH_PHRASE:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
-        "MV_CONTAINS:subset is missing",
-        "MV_DEDUPE:field is missing",
-        "MV_DIFFERENCE:field2 is missing",
-        "MV_INTERSECTION:field1 is missing",
-        "MV_INTERSECTION:field2 is missing",
-        "MV_INTERSECTS:field2 is missing",
-        "MV_LAST:field is missing",
-        "MV_SLICE:field is missing",
-        "MV_SORT:order is missing",
-        "MV_UNION:field1 is missing",
-        "MV_UNION:field2 is missing",
-        "MV_ZIP:delim is missing",
+        // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
+        // keyword/text parameters are not exercised via flattened-keyword field extraction.
+        "MV_IN_RANGE:field is missing",
+        "MV_IN_RANGE:lower is missing",
+        "MV_IN_RANGE:upper is missing",
+        // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
+        // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
+        // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_EQUALS:lhs is missing",
-        "NOT_EQUALS:rhs is missing",
-        "NOT_IN:field is missing",
-        "NOT_IN:inlist is missing",
-        "NOT_LIKE:pattern is missing",
-        "NOT_LIKE:str is missing",
-        "NOT_RLIKE:pattern is missing",
-        "NOT_RLIKE:str is missing",
         "PRESENT_OVER_TIME:field is missing",
         "QSTR:query is missing",
-        "REPLACE:newString is missing",
-        "REPLACE:regex is missing",
-        "RLIKE:pattern is missing",
-        "RTRIM:string is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
-        "SPLIT:string is missing",
-        "TBUCKET:from is missing", // THESE are constant and https://github.com/elastic/elasticsearch/pull/151930 should let us skip it
-        "TBUCKET:to is missing",
         "TEXT_EMBEDDING:text is missing",
-        "TOP:order is missing",
-        "TOP_SNIPPETS:query is missing",
         "TO_CARTESIANPOINT:field is missing",
         "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATEPERIOD:field is missing",
         "TO_DATETIME:field is missing",
         "TO_DATE_NANOS:field is missing",
+        "TO_DATE_RANGE:field is missing",
         "TO_DENSE_VECTOR:field is missing",
         "TO_DOUBLE:field is missing",
         "TO_GEOHASH:field is missing",
         "TO_GEOHEX:field is missing",
         "TO_GEOSHAPE:field is missing",
         "TO_GEOTILE:field is missing",
-        "TO_TIMEDURATION:field is missing",
         "TO_UNSIGNED_LONG:field is missing",
         "TO_VERSION:field is missing",
-        "TRANGE:end_time is missing",
-        "TRANGE:start_time_or_offset is missing",
-        "TRIM:string is missing",
-        "TSTEP:from is missing",
-        "TSTEP:to is missing",
         "WITHOUT:dimension is missing"
     );
 
@@ -1416,6 +1405,20 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
 
+                        /*
+                         * The parser just refuses to build these real looking functions, instead building something
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them. NOT_LIKE
+                         * and NOT_RLIKE fall into the same bucket: they parse to Not(WildcardLike(...))/Not(RLike(...)),
+                         * so there is no distinct AST node to track coverage against.
+                         */
+                        boolean rewrittenAwayAtParseTime = switch (name) {
+                            case "NOT_EQUALS", "NOT_IN", "NOT_LIKE", "NOT_RLIKE" -> true;
+                            default -> false;
+                        };
+                        if (rewrittenAwayAtParseTime) {
+                            return;
+                        }
+
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;
                         for (Map<String, Object> sig : signatures) {
@@ -1431,7 +1434,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                                     Map<String, Object> hint = (Map<String, Object>) params.get(i).get("hint");
                                     if (hint != null) {
                                         Object kind = hint.get("kind");
-                                        if ("entity".equals(kind) || "aggregation".equals(kind)) {
+                                        if ("entity".equals(kind) || "aggregation".equals(kind) || "constant".equals(kind)) {
                                             continue;
                                         }
                                     }

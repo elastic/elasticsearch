@@ -35,9 +35,9 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowReader;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
+import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
@@ -49,6 +49,8 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -671,10 +673,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds an EIRF row batch to the transaction log as a single record. The returned {@link Location}
-     * covers the whole batch; on read, {@link TranslogSnapshot#next()} explodes the record back into
-     * individual {@link Index} ops. Reading the batch back via {@link BaseTranslogReader#read(Location)}
-     * is not currently supported.
+     * Adds a source batch to the transaction log as a single record. The returned {@link Location}
+     * covers the whole batch. On snapshot reads, {@link TranslogSnapshot#next()} explodes the record
+     * back into individual {@link Index} ops. To read a single document by row, use
+     * {@link BaseTranslogReader#read(Location)} with a {@link Location} that carries a non-negative
+     * {@code batchRowIndex}.
      */
     public Location add(final IndexBatch batch) throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
@@ -1095,13 +1098,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return deletionPolicy;
     }
 
-    public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
+    public record Location(long generation, long translogLocation, int size, int batchRowIndex) implements Comparable<Location> {
 
         public static final Location EMPTY = new Location(0, 0, 0);
 
+        public Location(long generation, long translogLocation, int size) {
+            this(generation, translogLocation, size, -1);
+        }
+
+        /**
+         * Whether this location pins a single document's row within a batch ({@link IndexBatch})
+         */
+        public boolean isBatchRow() {
+            return batchRowIndex >= 0;
+        }
+
         @Override
         public String toString() {
-            return "[generation: " + generation + ", location: " + translogLocation + ", size: " + size + "]";
+            final String base = "[generation: " + generation + ", location: " + translogLocation + ", size: " + size;
+            return isBatchRow() ? base + ", batchRowIndex: " + batchRowIndex + "]" : base + "]";
         }
 
         @Override
@@ -1110,6 +1125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (result == 0) {
                 result = Long.compare(translogLocation, o.translogLocation);
             }
+
             return result;
         }
     }
@@ -1815,7 +1831,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * A translog record holding an EIRF batch: a single on-disk record that carries N documents
+     * A translog record holding a batch: a single on-disk record that carries N documents
      * (the {@link #batchData} bytes) plus per-document metadata needed for replay.
      */
     public record IndexBatch(BytesReference batchData, long primaryTerm, List<Op> ops) implements Writeable, Record {
@@ -1963,18 +1979,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * {@link XContentType}. {@link NoOpOp} entries decode to {@link NoOp} records.
          */
         public List<Operation> explode() throws IOException {
-            try (EirfBatch eirf = new EirfBatch(batchData, () -> {})) {
-                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(eirf.schema());
+            // TODO: Batches may still be encoded as EIRF (row-major) in some tests; pick the reader by magic.
+            // This branch goes away once we fully transition to the column format (ESCF).
+            try (SourceBatch sourceBatch = openBatch(batchData)) {
+                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
                 List<Operation> out = new ArrayList<>(ops.size());
                 for (int i = 0; i < ops.size(); i++) {
                     Op meta = ops.get(i);
                     if (meta instanceof IndexOp indexOp) {
-                        if (indexOp.rowIndex() >= eirf.docCount()) {
+                        if (indexOp.rowIndex() >= sourceBatch.docCount()) {
                             throw new IOException(
-                                "IndexOp rowIndex [" + indexOp.rowIndex() + "] out of range for batch with [" + eirf.docCount() + "] rows"
+                                "IndexOp rowIndex ["
+                                    + indexOp.rowIndex()
+                                    + "] out of range for batch with ["
+                                    + sourceBatch.docCount()
+                                    + "] rows"
                             );
                         }
-                        EirfRowReader row = eirf.getRowReader(indexOp.rowIndex());
+                        SourceRow row = sourceBatch.row(indexOp.rowIndex());
                         BytesReference source;
                         try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
                             EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
@@ -1997,6 +2019,64 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
                 return out;
             }
+        }
+
+        /**
+         * Gets a single document's {@link Index} operation from this batch by row index,
+         * without re-materializing the other rows
+         */
+        public Index getIndexOp(int rowIndex) throws IOException {
+            // TODO: Batches may still be encoded as EIRF (row-major) in some tests; pick the reader by magic.
+            // This branch goes away once we fully transition to the column format (ESCF).
+            IndexOp indexOp = null;
+            for (Op op : ops) {
+                if (op instanceof IndexOp io && io.rowIndex() == rowIndex) {
+                    indexOp = io;
+                    break;
+                }
+            }
+            if (indexOp == null) {
+                throw new IOException("No IndexOp with rowIndex " + rowIndex + " in this batch");
+            }
+            try (SourceBatch sourceBatch = openBatch(batchData)) {
+                if (indexOp.rowIndex() >= sourceBatch.docCount()) {
+                    throw new IOException(
+                        "IndexOp rowIndex [" + indexOp.rowIndex() + "] out of range for batch with [" + sourceBatch.docCount() + "] rows"
+                    );
+                }
+
+                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
+                SourceRow row = sourceBatch.row(indexOp.rowIndex());
+                BytesReference source;
+                try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
+                    EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                    source = BytesReference.bytes(builder);
+                }
+
+                return new Index(
+                    indexOp.uid(),
+                    indexOp.seqNo(),
+                    primaryTerm,
+                    indexOp.version(),
+                    source,
+                    indexOp.routing(),
+                    indexOp.autoGeneratedIdTimestamp()
+                );
+            }
+        }
+
+        /**
+         * Opens the encoded batch bytes as a {@link SourceBatch}, choosing the reader by the format's
+         * magic header: ESCF (column-major) or EIRF (row-major).
+         *
+         * <p>TODO: Some tests still produce EIRF-encoded batches. Once the write path fully transitions
+         * to the column format, this dispatch collapses to a plain {@code new EscfBatch(...)}.
+         */
+        private static SourceBatch openBatch(BytesReference batchData) {
+            if (batchData.getIntLE(0) == EirfBatch.MAGIC_LE) {
+                return new EirfBatch(batchData, () -> {});
+            }
+            return EscfBatch.parse(batchData, () -> {});
         }
 
         @Override
@@ -2168,7 +2248,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Writes a length-prefixed {@link IndexBatch} metadata header (size + BATCH type byte + all
      * body fields except the {@code batchData} bytes themselves) to the given buffer. The
      * {@code batchData} payload is intentionally omitted so the caller can pass it as
-     * {@link Serialized#payload}, avoiding an extra copy of the EIRF payload — mirroring how
+     * {@link Serialized#payload}, avoiding an extra copy of the source payload — mirroring how
      * {@link TranslogHeaderWriter#writeIndexHeader} writes the {@link Index} header without the
      * source body and the caller carries the source {@link BytesReference} separately.
      *

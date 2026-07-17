@@ -23,7 +23,7 @@ public class HighlightGoldenTests extends GoldenTestCase {
      * whose generated {@code highlight_<field>} column is appended to the output layout.
      */
     public void testBasicHighlight() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
         String query = """
             FROM employees
             | HIGHLIGHT "elasticsearch" ON first_name

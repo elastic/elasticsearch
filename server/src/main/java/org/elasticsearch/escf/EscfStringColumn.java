@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
@@ -19,7 +20,7 @@ import org.elasticsearch.xcontent.XContentString;
 /** An ESCF column whose values are all UTF-8 strings (variable-length layout: offset vector + dense byte payload). */
 final class EscfStringColumn extends AbstractVarColumn {
 
-    EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+    EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
         super(docCount, absent, data, offsets);
     }
 
@@ -29,13 +30,18 @@ final class EscfStringColumn extends AbstractVarColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.STRING;
     }
 
     @Override
-    Text getStringValue(int d) {
-        BytesRef ref = getBinaryValue(d);
+    Text getStringValue(int row) {
+        BytesRef ref = getBinaryValue(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
+    }
+
+    @Override
+    AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets) {
+        return new EscfStringColumn(count, sliceAbsent, sliceData, sliceOffsets);
     }
 }

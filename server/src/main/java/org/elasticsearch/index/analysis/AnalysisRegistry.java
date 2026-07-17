@@ -1276,28 +1276,10 @@ public final class AnalysisRegistry implements Closeable {
 
     /**
      * Reload the synonyms (and any other reloadable resources) of {@code currentReference} in place,
-     * rebuilding its {@link ReloadableCustomAnalyzer} components from the current resource state.
-     *
-     * <p>The reload mutates the existing analyzer instance so pre-existing mapping references
-     * ({@link org.elasticsearch.index.mapper.TextSearchInfo} snapshots the {@link NamedAnalyzer}
-     * reference at mapping-build time) observe the refresh — and, because reloadable analyzers are
-     * shared across indices on the node, every index sharing this instance converges on the
-     * refreshed state. This is intentional and safe:
-     * <ul>
-     *   <li>Reloadable filters force {@link AnalysisMode#SEARCH_TIME}; the mapping layer rejects
-     *       SEARCH_TIME-only analyzers as the index-time {@code analyzer}, so reload can only ever
-     *       change query-time tokenization — never the indexed data.</li>
-     *   <li>The underlying resource (a synonym set in {@code .synonyms}, a file on disk) is
-     *       cluster-global; refreshing it for one sharer and not another would be confusing drift
-     *       for no benefit.</li>
-     * </ul>
-     *
-     * <p>{@code reloadToken} deduplicates a single reload request: because reloadable analyzers are
-     * shared, the same instance would otherwise be rebuilt once per index the request touches. The
-     * first sharer to reach the shared instance rebuilds it (reading from disk / the .synonyms index)
-     * and records the token; later sharers carrying the same token skip the rebuild. A {@code null}
-     * token always rebuilds (internal / direct callers). A subsequent reload request carries a new
-     * token and rebuilds once again, so an explicit reload still re-reads the resource.
+     * rebuilding its {@link ReloadableCustomAnalyzer} components from the current resource state. The
+     * mutation is observed by existing mapping references and by every index sharing this instance; see
+     * {@link ReloadableCustomAnalyzer#reload} for why that is safe and how {@code reloadToken} dedups a
+     * shared instance to a single rebuild per request.
      */
     public void reloadAnalyzerInPlace(IndexSettings indexSettings, String name, NamedAnalyzer currentReference, ReloadToken reloadToken)
         throws IOException {

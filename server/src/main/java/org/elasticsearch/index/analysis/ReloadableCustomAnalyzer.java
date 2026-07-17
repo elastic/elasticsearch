@@ -140,48 +140,34 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return result;
     }
 
-    // The reload request token of the last ATTEMPT on this shared instance — success OR failure — or null
-    // before any explicit reload. Together with lastReloadFailure it makes a single request act on this
-    // instance exactly once even though it fans out across every index sharing it: the first sharer to
-    // arrive attempts the rebuild and the rest observe its outcome. Written only under the monitor in
-    // reload(); volatile so the unsynchronized shouldReload() hint can read it without blocking behind an
-    // in-flight (slow) reload.
+    // The reload-request token of the last attempt on this shared instance (success or failure), or null
+    // before any explicit reload. Written under the reload() monitor; volatile so shouldReload() can read
+    // it without the lock.
     private volatile ReloadToken lastReloadToken;
 
-    // The failure thrown by the attempt recorded in lastReloadToken, or null if that attempt succeeded (or
-    // none has run). A non-null value is REPLAYED to later sharers carrying the same token: they re-throw
-    // it (so their shard reports the failure too) instead of rebuilding. Sharers carry a byte-identical
-    // recipe, so a rebuild would only repeat the same failure — and for a resource failure such as a
-    // synonym map that trips the circuit breaker, retrying on every sharing shard would turn one failure
-    // into a storm. Cleared on the next successful rebuild; a fresh request (new token) ignores it and
-    // rebuilds. Written under the monitor, ALWAYS paired with lastReloadToken and ordered so a
-    // shouldReload() reader that observes a matching token also observes the matching failure state;
-    // volatile for that unsynchronized read.
+    // The failure from the attempt recorded in lastReloadToken, or null if it succeeded. Replayed to later
+    // sharers carrying the same token rather than rebuilding: sharers have a byte-identical recipe, so a
+    // rebuild would only repeat the failure (and, for a resource failure such as a synonym map tripping the
+    // circuit breaker, do so on every sharing shard). Cleared on the next successful rebuild. Volatile;
+    // written under the monitor, before lastReloadToken.
     private volatile RuntimeException lastReloadFailure;
 
-    // Set once this analyzer has been loaded from its resources (synonyms etc.) at least once. The
-    // initial load is deferred from build time to shard recovery (IndicesService#beforeIndexShardRecovery,
-    // a null-token reload); because one instance is shared across indices, that initial load only needs
-    // to happen once per node. Later shard recoveries — including those of other indices that share this
-    // instance — observe this flag (in reload(), under the lock) and skip, instead of rebuilding the
-    // analyzer on every shard opening. Volatile so shouldReload() can read it without the lock.
+    // Set once this instance has loaded its resources (synonyms etc.) at least once. The initial load is
+    // deferred to shard recovery (a null-token reload); because one instance is shared across indices it
+    // only needs to load once per node, so later null-token reloads are no-ops. Volatile for shouldReload().
     private volatile boolean loaded;
 
-    // Set by close() once the last sharer has released this instance. reload() (synchronized) observes
-    // it and discards its result rather than mutate an analyzer nobody references; getStoredComponents()
-    // observes it and fails fast with AlreadyClosedException rather than dereference a closed
-    // CloseableThreadLocal. Volatile so close() can set it WITHOUT taking the reload monitor — close()
-    // runs while the registry holds its cache lock and must never wait behind a (slow) reload build.
+    // Set by close() when the last sharer releases this instance. reload() discards its result rather than
+    // mutate an unreferenced analyzer; getStoredComponents() fails fast with AlreadyClosedException.
+    // Volatile so close() can set it without taking the reload monitor (it must not block behind a build).
     private volatile boolean closed;
 
     /**
-     * Cheap pre-check the registry uses to skip building reload inputs for a reload that {@link #reload}
-     * would skip anyway: {@code false} when the analyzer is closed, when a {@code null} (recovery) token
-     * arrives after the instance has already been loaded once, or when a non-null request token has
-     * already <em>successfully</em> reloaded this instance. It returns {@code true} when that token's
-     * attempt failed, so the registry re-enters {@link #reload} to replay the failure to this sharer. This
-     * is only a hint — it does not mutate dedup state, so under concurrency it may return {@code true} for
-     * more than one caller; {@link #reload} makes the authoritative, atomic decision under the lock.
+     * Cheap pre-check the registry uses to skip building reload inputs when {@link #reload} would be a
+     * no-op: {@code false} when closed, when a {@code null} (recovery) token arrives after the instance is
+     * already loaded, or when a non-null token has already <em>successfully</em> reloaded this instance.
+     * Returns {@code true} when that token's attempt failed, so the registry re-enters {@link #reload} to
+     * replay the failure. Only a hint — {@link #reload} makes the authoritative decision under the lock.
      */
     public boolean shouldReload(ReloadToken token) {
         if (closed) {
@@ -192,9 +178,6 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         }
         if (token == lastReloadToken) {
             // Already attempted for this request: re-enter reload() only to replay a remembered failure.
-            // A successful attempt published in place, so a coasting sharer needs no follow-up. (lastReloadFailure
-            // is written before lastReloadToken, so observing the matching token here means the failure
-            // state is already visible.)
             return lastReloadFailure != null;
         }
         return true;
@@ -210,11 +193,8 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
      *       once {@link #loaded};</li>
      *   <li>a non-null token is an explicit {@code _reload_search_analyzers} request. The first sharer
      *       carrying a given token attempts the rebuild; later sharers carrying the same token observe its
-     *       outcome rather than rebuild — they coast if it succeeded (the rebuild published in place, so
-     *       they are already up to date) or re-throw its failure if it did not. Sharers carry a
-     *       byte-identical recipe, so rebuilding on each would only repeat the same outcome; replaying a
-     *       failure in particular avoids turning one circuit-breaker trip (e.g. a large synonym map) into a
-     *       storm across every sharing shard. A subsequent request carries a new token and rebuilds.</li>
+     *       outcome rather than rebuild — coasting if it succeeded (the rebuild published in place) or
+     *       re-throwing its failure if not. A subsequent request carries a new token and rebuilds.</li>
      * </ul>
      * {@code synchronized} so reloads serialize and never build in parallel; {@link #close} does NOT take
      * this monitor (it only flips the volatile {@link #closed} flag), so it never blocks behind a build.
@@ -256,12 +236,9 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
                 tokenFilters
             );
         } catch (RuntimeException e) {
-            // Remember an explicit reload's failure so the other indices sharing this instance in the same
-            // request replay it (see the dedup branch above) instead of each re-running the identically
-            // failing build — which for a circuit-breaker trip would be a storm of failures. A null-token
-            // recovery load is per-shard and idempotent, so it is left to retry on the next shard opening.
-            // If close() already won there is no one left to report to, so skip recording. Write the
-            // failure BEFORE the token so a shouldReload() reader that sees the token also sees the failure.
+            // Remember an explicit reload's failure so same-request sharers replay it instead of re-running
+            // the identically failing build; a null-token recovery load is per-shard and idempotent, so
+            // leave it to retry. Skip recording if close() already won. Write the failure before the token.
             if (reloadToken != null && closed == false) {
                 this.lastReloadFailure = e;
                 this.lastReloadToken = reloadToken;
@@ -269,17 +246,14 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             throw e;
         }
         if (closed) {
-            // The last sharer released this instance while we were rebuilding. close() wins: there is no
-            // one left to query it, so drop the freshly built components rather than publish them onto a
-            // torn-down analyzer (whose only reader, getStoredComponents(), now throws).
+            // The last sharer released this instance while we were rebuilding: drop the freshly built
+            // components rather than publish them onto a torn-down analyzer.
             return;
         }
         this.components = rebuilt;
         this.loaded = true;
-        // Publish the request token now that the rebuild has succeeded, clearing any failure remembered for
-        // an earlier token so a later sharer carrying this token coasts on the fresh state rather than
-        // replaying a stale error. Clear the failure BEFORE the token so a shouldReload() reader that sees
-        // this token also sees the cleared failure state.
+        // Publish the token now that the rebuild succeeded, clearing any failure from an earlier token.
+        // Clear the failure before the token, matching the ordering shouldReload() relies on.
         if (reloadToken != null) {
             this.lastReloadFailure = null;
             this.lastReloadToken = reloadToken;

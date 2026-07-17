@@ -115,12 +115,9 @@ public class StableApiWrappers {
 
             @Override
             public Object sharingKey() {
-                // The stable plugin API has no sharingKey() contract, so a stable factory must never
-                // share by default. Returning this (a fresh wrapper per get()) keys on wrapper identity,
-                // which is never equal across indices — independent of whether the wrapped factory is a
-                // singleton or overrides equals()/hashCode(). Returning the wrapped factory instead would
-                // silently opt stable plugins into sharing based on an equals() they never wrote as a
-                // sharing contract.
+                // The stable plugin API has no sharingKey() contract, so a stable factory never shares by
+                // default: returning this (a fresh wrapper per get()) keys on wrapper identity, independent
+                // of the wrapped factory's equals()/hashCode().
                 return this;
             }
         };

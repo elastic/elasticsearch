@@ -204,42 +204,23 @@ public interface IndexAnalyzers extends Closeable {
                 }
 
                 if (preview == false) {
-                    // In-place reload: mutate the shared {@link ReloadableCustomAnalyzer}'s
-                    // components so existing mapping references (TextSearchInfo captures a direct
-                    // NamedAnalyzer reference at mapping-build time) observe the refreshed state.
-                    //
-                    // Design rationale: reloadable filters force {@link AnalysisMode#SEARCH_TIME}
-                    // (see {@link SynonymTokenFilterFactory#analysisMode}), and the mapping layer
-                    // enforces that SEARCH_TIME-only analyzers can only be used as
-                    // {@code search_analyzer} / {@code search_quote_analyzer} — NOT as the
-                    // index-time {@code analyzer} (validated in {@code TextParams}). So reload
-                    // can only ever change how user query input is tokenized; it can never
-                    // change how data was indexed, and so cannot corrupt the index.
-                    //
-                    // Because the underlying resource (a synonym set in {@code .synonyms}, a file
-                    // on disk) is inherently cluster-global, refreshing it for one sharer and not
-                    // another would produce confusing query-time inconsistencies for no benefit.
-                    // In-place mutation makes every sharer converge to the same up-to-date state,
-                    // which matches user expectations for resource-driven reloads. The reloadToken
-                    // makes a shared instance rebuild once per request, not once per sharing index.
+                    // In-place reload: mutate the shared ReloadableCustomAnalyzer's components so existing
+                    // mapping references (TextSearchInfo captures a NamedAnalyzer at mapping-build time)
+                    // observe the refresh, and every index sharing the instance converges on it. Safe
+                    // because reloadable filters force AnalysisMode.SEARCH_TIME, which the mapping layer
+                    // only allows as search_analyzer / search_quote_analyzer — so a reload changes
+                    // query-time tokenization only, never how data was indexed. reloadToken makes a shared
+                    // instance rebuild once per request, not once per sharing index.
                     for (Map.Entry<String, NamedAnalyzer> entry : reloadableAnalyzers) {
                         registry.reloadAnalyzerInPlace(indexSettings, entry.getKey(), entry.getValue(), reloadToken);
                     }
                 }
 
-                // Report every matching analyzer as reloaded, including those whose rebuild was deduped
-                // because a sibling shard sharing the same instance rebuilt it first for this request.
-                // That is accurate, not over-reporting: reload mutates the shared instance in place, so a
-                // "coasting" sharer's analyzer reflects the refreshed state just the same. We deliberately
-                // do not distinguish "this shard did the I/O" — a coasted sharer is still reloaded, and a
-                // rebuilt=false flag would wrongly read as "your reload did not take effect".
-                //
-                // Conversely, the returned list (surfaced as the response's reload_details) is NOT an
-                // exhaustive list of every analyzer affected on the node. Because the rebuilt instance is
-                // shared, indices that were not part of this reload request but reference the same
-                // instance also observe the refreshed state — they simply are not enumerated here, since
-                // reload_details reports the analyzers of the requested index, not the full set of
-                // sharers.
+                // Report every matching analyzer as reloaded, including those whose rebuild was deduped by a
+                // sibling sharer: in-place mutation means a coasting sharer reflects the refreshed state just
+                // the same. Note this list (the response's reload_details) reports the requested index's
+                // analyzers, not every affected index — other indices sharing the instance also observe the
+                // refresh but are not enumerated here.
                 return reloadableAnalyzers.stream().map(Map.Entry::getKey).toList();
             }
         };

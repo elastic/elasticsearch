@@ -2767,6 +2767,15 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND,
 
         /**
+         * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
+         * {@code PUT/GET/DELETE /_query/dataset/{name}}) are exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        DATA_SOURCES_SERVERLESS_SCOPE,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
@@ -3406,6 +3415,12 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
          */
         SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Support for lambda expression syntax (e.g. {@code x -> x + 1}) as function arguments.
+         * Syntax only for now: no function accepts a lambda argument yet.
+         */
+        LAMBDA_SYNTAX(Build.current().isSnapshot()),
 
         /**
          * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.

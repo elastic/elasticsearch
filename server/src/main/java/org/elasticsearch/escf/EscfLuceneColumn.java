@@ -53,6 +53,7 @@ public final class EscfLuceneColumn implements SliceableColumn {
     }
 
     public static EscfLuceneColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
+        assert values.length % 8 == 0;
         BytesArray data = new BytesArray(values);
         int docCount = values.length / 8;
         // Dense: no absent set.

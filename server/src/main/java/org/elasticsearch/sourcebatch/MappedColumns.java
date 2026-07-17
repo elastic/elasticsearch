@@ -26,6 +26,7 @@ import org.elasticsearch.escf.EscfLuceneColumn;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class MappedColumns {
 
@@ -68,6 +69,7 @@ public final class MappedColumns {
     }
 
     public void setSeqNo(int doc, long value) {
+        assert doc >= 0 && doc < count;
         if (seqNos != null) {
             ByteUtils.writeLongLE(value, seqNos, (offset + doc) * 8);
         }
@@ -82,15 +84,14 @@ public final class MappedColumns {
     }
 
     public void setVersion(int doc, long value) {
+        assert doc >= 0 && doc < count;
         if (versions != null) {
             ByteUtils.writeLongLE(value, versions, (offset + doc) * 8);
         }
     }
 
     public MappedColumns slice(int from, int to) {
-        if (from < 0 || to > this.count || from > to) {
-            throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + this.count + ")");
-        }
+        Objects.checkFromIndexSize(from, to - from, this.count);
         int newCount = to - from;
         List<SliceableColumn> slicedColumns = new ArrayList<>(columns.size());
         for (SliceableColumn c : columns) {
@@ -216,6 +217,7 @@ public final class MappedColumns {
 
         @Override
         public SliceableColumn slice(int from, int count) {
+            Objects.checkFromIndexSize(from, count, this.count);
             return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
         }
 

@@ -131,6 +131,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preColumnarParse(BatchMappingContext context) {
+        // TODO: Look at moving this and the above to postColumnarParse
         // Engine-assigned: register an array-backed column over the context's mutable version
         // array; the engine fills the real per-document value (see InternalEngine) after mapping,
         // just before requesting the ColumnBatch.

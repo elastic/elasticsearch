@@ -10,7 +10,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ColumnBatch;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,6 +47,7 @@ import java.util.List;
  * @see MetadataFieldMapper#preColumnarParse(BatchMappingContext)
  * @see MetadataFieldMapper#postColumnarParse(BatchMappingContext)
  * @see MappedColumns#rowCursor()
+ * @see MappedColumns#toColumnBatch()
  */
 public abstract class AbstractColumnarMapperCompatibilityTestCase extends MapperServiceTestCase {
 
@@ -125,7 +133,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             m.postColumnarParse(ctx);
         }
 
-        // Apply engine values to the backing byte arrays before reading via RowCursor.
+        // Apply engine values to the backing byte arrays before reading via either cursor path.
         final MappedColumns mc = ctx.columns();
         mc.fillPrimaryTerm(scenario.primaryTerm());
         for (int i = 0; i < docCount; i++) {
@@ -133,19 +141,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             mc.setVersion(i, docs.get(i).version());
         }
 
-        // Convert to descriptors immediately after each advance() call. The RowCursor reuses
-        // the same mutable IndexableField objects across advance() calls, so List.copyOf() of
-        // the raw fields would only snapshot the references — all entries would alias the same
-        // mutated objects by the end of the loop. FieldDescriptor captures values as immutable
-        // primitives/BytesRef, so it is safe to store across multiple advance() calls.
-        final MappedColumns.RowCursor rowCursor = mc.rowCursor();
-        final List<List<FieldDescriptor>> columnarDescsPerDoc = new ArrayList<>(docCount);
-        for (int i = 0; i < docCount; i++) {
-            rowCursor.advance();
-            columnarDescsPerDoc.add(toDescriptors(rowCursor.fields()));
-        }
-
-        final List<List<IndexableField>> xcFieldsPerDoc = new ArrayList<>(docCount);
+        // Materialize x-content descriptors up front.
+        final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
         for (int i = 0; i < docCount; i++) {
             final Doc doc = docs.get(i);
             final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
@@ -153,17 +150,57 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
             pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
             pd.version().setLongValue(doc.version());
-            xcFieldsPerDoc.add(List.copyOf(pd.rootDoc().getFields()));
+            xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
         }
 
+        // Materialize row-cursor descriptors.
+        final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+        final MappedColumns.RowCursor rowCursor = mc.rowCursor();
         for (int i = 0; i < docCount; i++) {
-            final List<FieldDescriptor> columnarDescs = columnarDescsPerDoc.get(i);
-            final List<FieldDescriptor> xcDescs = toDescriptors(xcFieldsPerDoc.get(i));
+            rowCursor.advance();
+            descsPerDoc.add(toDescriptors(rowCursor.fields()));
+        }
+
+        // Compare row-cursor against x-content.
+        for (int i = 0; i < docCount; i++) {
             assertFieldSetsEqual(
-                xcDescs,
-                columnarDescs,
-                "Scenario [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs columnar field sets differ"
+                xcDescsPerDoc.get(i),
+                descsPerDoc.get(i),
+                "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs row-cursor field sets differ"
             );
+            descsPerDoc.get(i).clear();
+        }
+
+        // Populate the same per-doc lists with column-batch descriptors and compare.
+        populateColumnBatchDescriptors(mc, descsPerDoc);
+        for (int i = 0; i < docCount; i++) {
+            assertFieldSetsEqual(
+                xcDescsPerDoc.get(i),
+                descsPerDoc.get(i),
+                "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs column-batch field sets differ"
+            );
+        }
+    }
+
+    private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
+        final ColumnBatch batch = mc.toColumnBatch();
+        for (Column column : batch.columns()) {
+            final FieldType ft = new FieldType(column.fieldType());
+            ft.freeze();
+            final String name = column.name();
+            if (column instanceof LongColumn longColumn) {
+                final LongTupleCursor cursor = longColumn.tuples();
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    perDoc.get(doc).add(new FieldDescriptor(name, ft, cursor.longValue(), null));
+                }
+            } else if (column instanceof BinaryColumn binaryColumn) {
+                final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                }
+            } else {
+                throw new AssertionError("unsupported column type in test harness: " + column.getClass());
+            }
         }
     }
 

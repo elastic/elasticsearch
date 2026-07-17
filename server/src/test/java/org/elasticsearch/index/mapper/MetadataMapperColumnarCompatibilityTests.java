@@ -68,7 +68,14 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         assertColumnarMatchesXContent(
             topMapping(b -> b.startObject(RoutingFieldMapper.NAME).field("doc_values", false).endObject()),
             syntheticSourceSettings(),
-            batch("with routing - doc_values=false", 1L, doc("doc1", "my-route", 100L, "{}"))
+            batch("with routing - doc_values=false", 1L, doc("doc1", "my-route", 100L, "{}")),
+            batch(
+                "mixed routing batch - doc_values=false",
+                2L,
+                doc("batch-1", null, 300L, 1L, "{}"),
+                doc("batch-2", "route-a", 301L, 2L, "{}"),
+                doc("batch-3", "route-b", 302L, 3L, "{}")
+            )
         );
     }
 

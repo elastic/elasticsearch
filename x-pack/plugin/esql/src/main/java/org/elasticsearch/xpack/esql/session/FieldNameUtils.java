@@ -238,19 +238,43 @@ public class FieldNameUtils {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
                     joinRefs.addAll(keepRefs);
                 }
-            } else if (p instanceof AbstractSubqueryJoin subqueryJoin) {
-                // Pre-collect all field references from the subquery join node into joinRefs now, before
-                // the outer forEachDownMayReturnEarly descends into the left subtree. If a Fork in the
-                // left subtree sets the shared breakEarly=true, the outer traversal will skip the right
-                // child entirely; capturing it here ensures the subquery's fields are always included
-                // in the field-caps request. The forEachDownMayReturnEarly call gets its own breakEarly
-                // holder (breakEarly is a parameter, not captured from the outer closure), so it cannot
-                // cut short the outer traversal.
-                // joinRefs are merged into referencesBuilder after alias removal (line 315), mirroring
-                // how LookupJoin collects its join key and join-index fields.
-                joinRefs.addAll(subqueryJoin.references());
-                subqueryJoin.right().forEachDownMayReturnEarly(forEachDownProcessor.get());
-            } else {
+            } else if (p instanceof AbstractSubqueryJoin sj) {
+                // Collect the join-key references now, before descending into either child.
+                joinRefs.addAll(sj.references());
+                // The subquery (right side) is an independent query: its traversal must neither inherit the main pipeline's traversal
+                // state nor corrupt it. Save every piece of mutable context that is scoped to the main query, reset it so the subquery
+                // starts clean, traverse the subquery, then restore so the main pipeline side (left) sees the correct pre-join context.
+                // referencesBuilder, joinRefs, wildcardJoinIndices, and projectAll intentionally accumulate across the boundary — the
+                // subquery's field references, lookup indices, and projectAll flag must be included in the field-caps request alongside
+                // the main query's.
+                AttributeSet savedKeepRefs = keepRefs.build();
+                AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
+                AttributeSet savedDropWildcardRefs = dropWildcardRefs.build();
+                boolean savedCanRemoveAliases = canRemoveAliases.get();
+                LogicalPlan savedLastSeenFork = lastSeenFork.get();
+                boolean savedReduceColumnsAfterFork = reduceColumnsAfterFork.get();
+
+                keepRefs.clear();
+                currentBranchKeepRefs.set(AttributeSet.builder());
+                dropWildcardRefs.clear();
+                canRemoveAliases.set(true);
+                lastSeenFork.set(null);
+                reduceColumnsAfterFork.set(false);
+
+                sj.right().forEachDownMayReturnEarly(forEachDownProcessor.get());
+
+                // Restore state so the main pipeline (left side) sees the correct pre-join context
+                // when the outer traversal descends into it.
+                keepRefs.clear();
+                keepRefs.addAll(savedKeepRefs);
+                currentBranchKeepRefs.set(AttributeSet.builder());
+                currentBranchKeepRefs.get().addAll(savedBranchKeepRefs);
+                dropWildcardRefs.clear();
+                dropWildcardRefs.addAll(savedDropWildcardRefs);
+                canRemoveAliases.set(savedCanRemoveAliases);
+                lastSeenFork.set(savedLastSeenFork);
+                reduceColumnsAfterFork.set(savedReduceColumnsAfterFork);
+            }  else {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.

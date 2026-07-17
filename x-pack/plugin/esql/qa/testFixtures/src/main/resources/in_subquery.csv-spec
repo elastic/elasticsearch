@@ -3243,3 +3243,18 @@ FROM employees
 emp_no:integer | first_name:keyword
 10007          | Tzvetan
 ;
+
+inSubqueryAfterLookupJoinWithoutKeep
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_fork_fix
+
+from employees
+| KEEP languages, first_name
+| rename languages as language_code
+| lookup join languages_lookup on language_code
+| where first_name IN ( from employees_gender_text | KEEP last_name )
+;
+
+language_code:integer | first_name:keyword | language_name:keyword
+;

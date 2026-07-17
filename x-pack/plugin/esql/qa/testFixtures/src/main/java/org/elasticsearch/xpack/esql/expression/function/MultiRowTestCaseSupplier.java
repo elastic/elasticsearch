@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -350,6 +351,20 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> dateRangeCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+
+        addSuppliers(cases, minRows, maxRows, "random date range", DataType.DATE_RANGE, () -> {
+            LongRangeBlockBuilder.LongRange r = TestCaseSupplier.randomDateRange();
+            return r;
+        });
+
+        return cases;
+    }
+
     public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -510,6 +525,14 @@ public final class MultiRowTestCaseSupplier {
     }
 
     public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        return exponentialHistogramCases(minRows, maxRows, false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows, boolean zeroThresholdIsZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         addSuppliers(
             cases,
@@ -525,7 +548,7 @@ public final class MultiRowTestCaseSupplier {
             maxRows,
             "random exponential histogram",
             DataType.EXPONENTIAL_HISTOGRAM,
-            EsqlTestUtils::randomExponentialHistogram
+            () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero)
         );
         return cases;
     }

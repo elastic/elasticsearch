@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
+
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.invalidTypeErrorMsg;
 
 public final class NumberParser {
@@ -29,4 +33,18 @@ public final class NumberParser {
 
         return number.longValue();
     }
+
+    /**
+     * Validates that an optional integer service setting, when present, is strictly positive, throwing an
+     * {@link IllegalArgumentException} otherwise.
+     */
+    public static void validatePositiveInteger(@Nullable Integer value, String settingName) {
+        if (value != null && value <= 0) {
+            throw new IllegalArgumentException(
+                mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
+            );
+        }
+    }
+
+    private NumberParser() {}
 }

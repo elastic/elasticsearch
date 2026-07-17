@@ -2092,6 +2092,23 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<TimeValue> timeSetting(
+        final String key,
+        final TimeValue defaultValue,
+        final TimeValue minValue,
+        final TimeValue maxValue,
+        final Validator<TimeValue> validator,
+        final Property... properties
+    ) {
+        return new Setting<>(
+            key,
+            defaultValue.getStringRep(),
+            minMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)),
+            validator,
+            properties
+        );
+    }
+
     private static Function<String, TimeValue> minTimeValueParser(final String key, final TimeValue minValue, boolean isFiltered) {
         return s -> {
             TimeValue value;

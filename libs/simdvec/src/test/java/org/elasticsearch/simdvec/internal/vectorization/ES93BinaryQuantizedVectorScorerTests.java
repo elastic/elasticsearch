@@ -195,7 +195,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     numVectors
                 );
 
-                assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
+                assertEqualsPercent(defaultMaxScore, panamaMaxScore, 0.05f);
                 assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f);
             }
         }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152592
+pr: 152625
+summary: Fix null-leading concat in Parquet sparse reads
+type: bug

@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: preview 8.14.0, ga 9.4.0
+serverless: ga
 ```
+
+
+:::{include} ../briefSummary/values.md
+:::
 
 ## Syntax
 

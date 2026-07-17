@@ -549,6 +549,10 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | ENRICH _remote:languages_policy ON x
             """));
         assertThat(err, containsString("ENRICH with remote policy can't be executed after [EXTERNAL"));
+        assertThat(
+            err,
+            containsString("federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH")
+        );
     }
 
     public void testEmbeddingLiteralValues() {

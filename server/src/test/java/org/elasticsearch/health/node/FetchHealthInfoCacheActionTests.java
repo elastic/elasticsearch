@@ -55,9 +55,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         CapturingTransport transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
@@ -85,8 +83,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         clusterService.close();
         transportService.close();
     }

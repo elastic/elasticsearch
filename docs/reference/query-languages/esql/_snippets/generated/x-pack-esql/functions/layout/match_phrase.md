@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: ga 9.1.0
+serverless: ga
 ```
+
+
+:::{include} ../briefSummary/match_phrase.md
+:::
 
 ## Syntax
 

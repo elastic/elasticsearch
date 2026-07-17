@@ -26,19 +26,21 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -54,7 +56,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -77,7 +80,14 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static final Literal NULLIFIED = Literal.NULL;
 
     private static EsRelation withAdditionalAttributesUnlessLookup(EsRelation esr, List<? extends Attribute> fields) {
-        return esr.indexMode() == IndexMode.LOOKUP ? esr : esr.withAdditionalAttributes(fields);
+        if (esr.indexMode() == IndexMode.LOOKUP || fields.isEmpty()) {
+            return esr;
+        }
+        // Once real fields are added to an empty-mapping relation, the no-fields marker must not remain in the output.
+        if (esr.output().equals(Analyzer.NO_FIELDS)) {
+            return esr.withAttributes(new ArrayList<>(fields));
+        }
+        return esr.withAdditionalAttributes(fields);
     }
 
     @Override
@@ -127,10 +137,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
         });
+        return nullifyNonEsRelationSources(transformed, unresolved);
+    }
 
-        // For non-EsRelation sources (Row, LocalRelation): insert Eval nodes with null assignments
-        // This handles cases like: ROW x = 1 | EVAL y = unmapped_field
-        transformed = transformed.transformUp(
+    /**
+     * Inserts {@code EVAL <name> = NULL} atop non-{@link EsRelation} sources (Row/LocalRelation) for every attribute in
+     * {@code unresolved}. EsRelation sources are handled separately (their output gains the fields directly). This handles cases
+     * like {@code ROW x = 1 | EVAL y = unmapped_field}.
+     */
+    private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        var transformed = plan.transformUp(
             n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false,
             p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
@@ -150,39 +166,74 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return nullified;
     }
 
-    private static FieldAttribute nullifyField(Attribute attribute) {
-        return new FieldAttribute(
-            attribute.source(),
-            null,
-            attribute.qualifier(),
-            attribute.name(),
-            new MissingEsField(attribute.name(), DataType.NULL, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
-    }
-
     /**
-     * This method introduces field extractors - via "insisted", {@link PotentiallyUnmappedKeywordEsField} wrapped in
-     * {@link FieldAttribute} - for every attribute in {@code unresolved}, within the {@link EsRelation}s in the plan accessible from
-     * the given {@code plan}.
-     * <p>
-     * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
+     * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (unmapped keywords wrapped in {@link FieldAttribute}) for
+     * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
+     * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
+        if (plan.anyMatch(p -> p instanceof UnionAll)) {
+            // Outer references only: a name already surfaced by a branch resolves through the union output. #142033
+            Set<String> surfacedByAnyBranch = mainSpineUnionBranchOutputNames(plan);
+            LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
+            for (UnresolvedAttribute ua : unresolved) {
+                if (surfacedByAnyBranch.contains(ua.name()) == false) {
+                    outerReferences.add(ua);
+                }
+            }
+            return outerReferences.isEmpty() ? plan : loadIntoSources(plan, outerReferences);
+        }
+        return loadIntoSources(plan, unresolved);
+    }
+
+    /**
+     * Adds {@code _source} keyword loaders for {@code toLoad} to every non-LOOKUP {@link EsRelation} reachable from {@code plan};
+     * Row/LocalRelation sources can't load from {@code _source} and are left for {@code ResolveRefs#resolveFork} to null-fill.
+     */
+    private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return plan.transformUp(EsRelation.class, esr -> {
-            List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
+            List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
         });
     }
 
+    /**
+     * Names surfaced by {@link UnionAll} branches on the main (left) pipeline of {@code plan}. A join's right side is an
+     * independent subquery scope (e.g. the RHS of an {@code IN} subquery) and is NOT traversed: its transient branch outputs
+     * must not suppress broadcast-loading of an outer reference belonging to a sibling union. See #142033 / PR #151750.
+     */
+    private static Set<String> mainSpineUnionBranchOutputNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        collectMainSpineUnionBranchOutputNames(plan, names);
+        return names;
+    }
+
+    private static void collectMainSpineUnionBranchOutputNames(LogicalPlan plan, Set<String> names) {
+        if (plan instanceof UnionAll ua) {
+            // Outermost union's direct branch outputs only; nested unions are rejected downstream by checkNestedUnionAlls.
+            for (LogicalPlan branch : ua.children()) {
+                names.addAll(Expressions.names(branch.output()));
+            }
+            return;
+        }
+        if (plan instanceof Join join) {
+            collectMainSpineUnionBranchOutputNames(join.left(), names); // right side is an independent subquery scope
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            collectMainSpineUnionBranchOutputNames(child, names);
+        }
+    }
+
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
-        List<FieldAttribute> insisted = new ArrayList<>(unresolved.size());
+        List<FieldAttribute> loaded = new ArrayList<>(unresolved.size());
         for (var ua : unresolved) {
             if (exclude.contains(ua.name()) == false) {
-                insisted.add(insistKeyword(ua));
+                loaded.add(unmappedKeyword(ua));
             }
         }
-        return insisted;
+        return loaded;
     }
 
     // TODO: would an alternative to this be to have ResolveRefs#resolveFork re-resolve the Fork?
@@ -304,12 +355,14 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         switch (source) {
             case EsRelation esRelation -> {
                 IndexMode mode = esRelation.indexMode();
-                if ((mode == IndexMode.STANDARD || mode == IndexMode.TIME_SERIES) == false) {
+                if ((mode == IndexMode.STANDARD || mode.isTsdb()) == false) {
                     throw new EsqlIllegalArgumentException(
                         "invalid source type [{}] for unmapped field resolution",
                         esRelation.indexMode()
                     );
                 }
+            }
+            case ExternalRelation unused -> {
             }
             case Row unused -> {
             }
@@ -364,12 +417,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (node instanceof LookupJoin lj) {
             Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
             Set<String> rightOutputNames = new HashSet<>(Expressions.names(lj.right().output()));
-            // Unresolved left keys not found in the left child → load candidates.
-            for (Attribute lf : lj.config().leftFields()) {
-                if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
-                    sink.accept(ua);
-                }
-            }
+            collectUnresolvedLeftKeys(lj, leftOutputNames, sink);
             // joinOnConditions UAs not found in either child → load candidates.
             Expression conds = lj.config().joinOnConditions();
             if (conds != null) {
@@ -380,6 +428,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 });
             }
             // Unresolved right keys are intentionally ignored — a query that references them is invalid and will fail verification.
+        } else if (node instanceof AbstractSubqueryJoin sj) {
+            // RHS surfaces the same single-column name, so the generic else-branch would mask an unmapped IN left key. #142033
+            collectUnresolvedLeftKeys(sj, new HashSet<>(Expressions.names(sj.left().output())), sink);
         } else {
             Set<String> childOutputNames = new HashSet<>();
             for (LogicalPlan child : node.children()) {
@@ -393,6 +444,18 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                         sink.accept(ua);
                     }
                 });
+            }
+        }
+    }
+
+    /**
+     * Unresolved {@code leftFields} of a {@link Join} whose name is absent from the left child's output → {@code _source} load
+     * candidates. Left keys must resolve against the left side only (mirrors {@code ResolveRefs} join resolution).
+     */
+    private static void collectUnresolvedLeftKeys(Join join, Set<String> leftOutputNames, Consumer<UnresolvedAttribute> sink) {
+        for (Attribute lf : join.config().leftFields()) {
+            if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
+                sink.accept(ua);
             }
         }
     }

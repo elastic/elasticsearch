@@ -76,12 +76,14 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks if one multi-value field contains all values from another.",
         description = "Checks if all values yielded by the second multivalue expression are present in the values yielded by "
             + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
             @Example(file = "string", tag = "mv_contains"),
             @Example(file = "string", tag = "mv_contains_bothsides"),
             @Example(file = "string", tag = "mv_contains_where"), },
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public MvContains(

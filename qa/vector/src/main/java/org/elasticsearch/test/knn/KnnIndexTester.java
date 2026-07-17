@@ -38,6 +38,10 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -210,6 +214,9 @@ public class KnnIndexTester {
                 var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                    : IvfMergeConfigResolver.useCodecDefault();
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
@@ -223,16 +230,25 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             }
-            case GPU_HNSW -> switch (quantizeBits) {
-                case null -> new ES92GpuHnswVectorsFormat();
-                case 7 -> new ES92GpuHnswSQVectorsFormat();
-                default -> throw new IllegalArgumentException(
-                    "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+            case GPU_HNSW -> {
+                int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(args.hnswM());
+                int intermediateGraphDegree = ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(
+                    args.hnswM(),
+                    args.hnswEfConstruction()
                 );
-            };
+                yield switch (quantizeBits) {
+                    case null -> new ES92GpuHnswVectorsFormat(graphDegree, intermediateGraphDegree);
+                    case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);
+                    default -> throw new IllegalArgumentException(
+                        "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+                    );
+                };
+            }
             case HNSW -> switch (quantizeBits) {
                 case null -> new ES93HnswVectorsFormat(
                     args.hnswM(),
@@ -269,7 +285,7 @@ public class KnnIndexTester {
             };
         };
 
-        logger.info("Using format {}", format.getName());
+        logger.info("Using format {} (via {})", format.getName(), format.getClass().getName());
 
         return new Lucene104Codec() {
             @Override
@@ -516,6 +532,9 @@ public class KnnIndexTester {
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
+                if (testConfiguration.numDeletedDocs() > 0) {
+                    deleteDocuments(knnIndexer, indexResults, sharedDir, testConfiguration);
+                }
             }
             numSegments(indexPath, indexResults, sharedDir);
 
@@ -557,8 +576,49 @@ public class KnnIndexTester {
         }
     }
 
+    static void deleteDocuments(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.deleteDocuments(
+                sharedDir,
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        } else {
+            knnIndexer.deleteDocuments(
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        }
+    }
+
+    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
+
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
         dirConfig.diagnosticLogger().accept(dir, label);
+        logDiskStats(label);
+    }
+
+    private static void logDiskStats(String label) {
+        Path diskstats = Path.of("/proc/diskstats");
+        if (Files.exists(diskstats) == false) {
+            return;
+        }
+        try {
+            for (String line : Files.readAllLines(diskstats)) {
+                String[] fields = line.trim().split("\\s+");
+                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
+                    logger.info("DISKSTATS[{}] device={} reads={} sectors_read={}", label, DISKSTATS_DEVICE, fields[3], fields[5]);
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
+        }
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
@@ -587,13 +647,13 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
         }
     }
 
@@ -606,11 +666,11 @@ public class KnnIndexTester {
         };
     }
 
-    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+    private static QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
         if (queryQuantizeBits == null) {
-            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+            return QuantEncoding.fromBits((byte) docQuantizeBits);
         }
-        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+        return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
@@ -698,6 +758,7 @@ public class KnnIndexTester {
                 "index_name",
                 "index_type",
                 "num_docs",
+                "num_deleted_docs",
                 "doc_add_time(ms)",
                 "total_index_time(ms)",
                 "force_merge_time(ms)",
@@ -724,7 +785,9 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination"
+                "early_termination",
+                "exact",
+                "exact_quantized"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -742,6 +805,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Integer.toString(indexResult.numDeletedDocs),
                     Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
@@ -768,7 +832,9 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination)
+                    Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.exact),
+                    Boolean.toString(queryResult.exactQuantized)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";
@@ -850,6 +916,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
+        int numDeletedDocs;
         float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
@@ -866,6 +933,8 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean exact;
+        boolean exactQuantized;
         int numCandidates;
         int topK;
         Map<String, Float> perPartitionRecall;
@@ -988,6 +1057,7 @@ public class KnnIndexTester {
         "index_name",
         "index_type",
         "num_docs",
+        "num_deleted_docs",
         "num_segments",
         "quantize_bits",
         "query_quantize_bits",
@@ -1006,6 +1076,8 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "exact",
+        "exact_quantized",
         "filter_selectivity",
         "filter_cached",
         "search_threads",
@@ -1099,6 +1171,7 @@ public class KnnIndexTester {
                             qr.indexName,
                             qr.indexType,
                             Integer.toString(qr.numDocs),
+                            Integer.toString(indexResult.numDeletedDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
                             config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",
@@ -1117,6 +1190,8 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.exact()),
+                            Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
                             Boolean.toString(sp.filterCached()),
                             Integer.toString(sp.searchThreads()),

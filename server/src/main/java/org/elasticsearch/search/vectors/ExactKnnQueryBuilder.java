@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.LeafQueryBuilder;
@@ -93,7 +94,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
-            throw new IllegalArgumentException("field [" + field + "] does not exist in the mapping");
+            return Queries.NO_DOCS_INSTANCE;
         }
         if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType == false) {
             throw new IllegalArgumentException(
@@ -101,7 +102,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
             );
         }
         final DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        return vectorFieldType.createExactKnnQuery(query, vectorSimilarity);
+        return vectorFieldType.createIndexedExactKnnQuery(query, vectorSimilarity);
     }
 
     @Override

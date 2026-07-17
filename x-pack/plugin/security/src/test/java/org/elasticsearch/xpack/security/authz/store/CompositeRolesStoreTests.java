@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelec
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -156,7 +157,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -180,6 +180,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1038,7 +1039,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testImplicitPrivilegeProviderGrantIsApplied() {
         final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
         final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        final ImplicitPrivilegesProvider provider = (rd, apds) -> List.of(
+        final ImplicitPrivilegesProvider provider = resolvedPrivileges -> List.of(
             IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build()
         );
 
@@ -1062,19 +1063,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Map.of()
         );
 
-        final List<Collection<ApplicationPrivilegeDescriptor>> seen = new ArrayList<>();
-        final ImplicitPrivilegesProvider provider = (rd, apds) -> {
-            seen.add(List.copyOf(apds));
+        final List<Collection<ResolvedApplicationPrivilege>> seen = new ArrayList<>();
+        final ImplicitPrivilegesProvider provider = resolvedPrivileges -> {
+            seen.add(List.copyOf(resolvedPrivileges));
             return List.of();
         };
 
         buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(agent, unreferenced), List.of(provider), true);
 
         assertThat(seen, hasSize(1));
-        assertThat(seen.get(0), contains(agent));
+        assertThat(seen.get(0), hasSize(1));
+        final ResolvedApplicationPrivilege resolved = seen.get(0).iterator().next();
+        assertThat(resolved.privilege().getApplication(), is("shield"));
+        // Only the referenced "agent" privilege is resolved; the unreferenced "director" privilege must not leak in, so
+        // its data:admin/* actions are absent from the resolved predicate while agent's data:read/* actions are present.
+        assertTrue(resolved.privilege().predicate().test("data:read/foo"));
+        assertFalse(resolved.privilege().predicate().test("data:admin/foo"));
     }
 
-    public void testImplicitPrivilegeProviderInvokedForRoleWithoutApplicationPrivileges() {
+    public void testImplicitPrivilegeProviderNotInvokedForRoleWithoutApplicationPrivileges() {
         final RoleDescriptor roleDescriptor = new RoleDescriptor(
             "r1",
             null,
@@ -1083,21 +1090,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
 
         final AtomicInteger invocations = new AtomicInteger();
-        final ImplicitPrivilegesProvider provider = (rd, apds) -> {
+        final ImplicitPrivilegesProvider provider = resolvedPrivileges -> {
             invocations.incrementAndGet();
-            assertThat("provider should still be called with an empty app-priv collection", apds, empty());
             return List.of();
         };
 
+        // A role with no application privileges gives providers nothing to resolve against, so they must be skipped.
         buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(), List.of(provider), true);
 
-        assertThat(invocations.get(), is(1));
+        assertThat(invocations.get(), is(0));
     }
 
     public void testImplicitDlsFlsPrivilegeSuppressedWhenDlsFlsDisabled() {
         final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
         final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        final ImplicitPrivilegesProvider provider = (rd, apds) -> List.of(
+        final ImplicitPrivilegesProvider provider = resolvedPrivileges -> List.of(
             IndicesPrivileges.builder()
                 .indices("helicarrier-*")
                 .privileges("read")
@@ -1125,10 +1132,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testMultipleImplicitPrivilegeProvidersAreAllInvokedAndMerged() {
         final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
         final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        final ImplicitPrivilegesProvider helicarrier = (rd, apds) -> List.of(
+        final ImplicitPrivilegesProvider helicarrier = resolvedPrivileges -> List.of(
             IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build()
         );
-        final ImplicitPrivilegesProvider triskelion = (rd, apds) -> List.of(
+        final ImplicitPrivilegesProvider triskelion = resolvedPrivileges -> List.of(
             IndicesPrivileges.builder().indices("triskelion-*").privileges("read").build()
         );
 
@@ -1154,10 +1161,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         // Two providers each emit a privilege over the same indices set but with different
         // index privileges. Collation should fold them into a single Group whose privilege
         // is the union of both action sets.
-        final ImplicitPrivilegesProvider readProvider = (rd, apds) -> List.of(
+        final ImplicitPrivilegesProvider readProvider = resolvedPrivileges -> List.of(
             IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build()
         );
-        final ImplicitPrivilegesProvider metadataProvider = (rd, apds) -> List.of(
+        final ImplicitPrivilegesProvider metadataProvider = resolvedPrivileges -> List.of(
             IndicesPrivileges.builder().indices("helicarrier-*").privileges("view_index_metadata").build()
         );
 
@@ -1195,7 +1202,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent));
         final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
             privilegeStore,
-            List.of((r, apds) -> List.of(providerOutput))
+            List.of(resolvedPrivileges -> List.of(providerOutput))
         );
 
         final Collection<RoleDescriptor> result = invokeAddImplicitPrivileges(store, List.of(rd));
@@ -1237,7 +1244,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent));
         final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
             privilegeStore,
-            List.of((r, apds) -> List.of(sharedPrivilege))
+            List.of(resolvedPrivileges -> List.of(sharedPrivilege))
         );
 
         final RoleDescriptor decorated = invokeAddImplicitPrivileges(store, List.of(rd)).iterator().next();
@@ -1269,8 +1276,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verifyNoMoreInteractions(privilegeStore);
     }
 
-    public void testAddImplicitPrivilegesToRolesSkipsPrivilegeStoreWhenNoApplicationPrivilegesReferenced() {
-        // Role has cluster + indices privileges but no application privileges. The provider must still be invoked
+    public void testAddImplicitPrivilegesToRolesSkipsProvidersWhenNoApplicationPrivilegesReferenced() {
+        // Role has cluster + indices privileges but no application privileges, so there is nothing for providers to
+        // resolve against: neither the privilege store nor the providers should be consulted, and the role is returned
+        // undecorated.
         final RoleDescriptor rd = new RoleDescriptor(
             "r1",
             new String[] { "monitor" },
@@ -1278,25 +1287,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null
         );
         final IndicesPrivileges providerOutput = IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build();
-        final List<Collection<ApplicationPrivilegeDescriptor>> seen = new ArrayList<>();
+        final List<Collection<ResolvedApplicationPrivilege>> seen = new ArrayList<>();
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
-        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> {
-            seen.add(List.copyOf(apds));
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of(resolvedPrivileges -> {
+            seen.add(List.copyOf(resolvedPrivileges));
             return List.of(providerOutput);
         }));
 
-        final Collection<RoleDescriptor> result = invokeAddImplicitPrivileges(store, List.of(rd));
+        final Collection<RoleDescriptor> input = List.of(rd);
+        final Collection<RoleDescriptor> result = invokeAddImplicitPrivileges(store, input);
 
-        // Privilege store must not be touched at all — that is the optimization under test.
+        // Privilege store must not be touched at all.
         verifyNoMoreInteractions(privilegeStore);
-        // The provider still runs, but receives an empty descriptor list because the role has no
-        // application privileges. Implicit grants that don't depend on app privs still flow through.
-        assertThat(seen, hasSize(1));
-        assertThat(seen.getFirst(), empty());
+        // The provider is not invoked, and the role is passed through unchanged (no implicit grant appended).
+        assertThat(seen, empty());
+        assertThat(result, sameInstance(input));
         final IndicesPrivileges[] indices = result.iterator().next().getIndicesPrivileges();
-        assertThat(indices, arrayWithSize(2));
-        assertThat(indices[1], instanceOf(IndicesPrivileges.ImplicitlyGranted.class));
-        assertThat(indices[1].getIndices(), arrayContaining("helicarrier-*"));
+        assertThat(indices, arrayWithSize(1));
+        assertThat(indices[0], not(instanceOf(IndicesPrivileges.ImplicitlyGranted.class)));
+        assertThat(indices[0].getIndices(), arrayContaining("logs-*"));
     }
 
     public void testAddImplicitPrivilegesToRolesPreservesAllOtherDescriptorFields() {
@@ -1333,7 +1342,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent));
         final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
             privilegeStore,
-            List.of((r, apds) -> List.of(providerOutput))
+            List.of(resolvedPrivileges -> List.of(providerOutput))
         );
 
         final RoleDescriptor decorated = invokeAddImplicitPrivileges(store, List.of(rd)).iterator().next();
@@ -1364,7 +1373,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor rd = roleWithApplicationPrivilege("r1", "shield", "agent");
         final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent));
-        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> List.of()));
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of(resolvedPrivileges -> List.of()));
 
         final Collection<RoleDescriptor> result = invokeAddImplicitPrivileges(store, List.of(rd));
 
@@ -1383,7 +1392,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent));
         final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
             privilegeStore,
-            List.of((r, apds) -> List.of(helicarrierPriv), (r, apds) -> List.of(triskelionPriv))
+            List.of(resolvedPrivileges -> List.of(helicarrierPriv), resolvedPrivileges -> List.of(triskelionPriv))
         );
 
         final RoleDescriptor decorated = invokeAddImplicitPrivileges(store, List.of(rd)).iterator().next();
@@ -1410,16 +1419,22 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Map.of()
         );
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent, unreferenced));
-        final List<Collection<ApplicationPrivilegeDescriptor>> seen = new ArrayList<>();
-        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> {
-            seen.add(List.copyOf(apds));
+        final List<Collection<ResolvedApplicationPrivilege>> seen = new ArrayList<>();
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of(resolvedPrivileges -> {
+            seen.add(List.copyOf(resolvedPrivileges));
             return List.of();
         }));
 
         invokeAddImplicitPrivileges(store, List.of(rd));
 
         assertThat(seen, hasSize(1));
-        assertThat(seen.get(0), contains(agent));
+        assertThat(seen.get(0), hasSize(1));
+        final ResolvedApplicationPrivilege resolved = seen.get(0).iterator().next();
+        assertThat(resolved.privilege().getApplication(), is("shield"));
+        // Only the referenced "agent" privilege is resolved; the unreferenced "director" privilege must not leak in, so
+        // its data:admin/* actions are absent from the resolved predicate while agent's data:read/* actions are present.
+        assertTrue(resolved.privilege().predicate().test("data:read/foo"));
+        assertFalse(resolved.privilege().predicate().test("data:admin/foo"));
     }
 
     public void testAddImplicitPrivilegesToRolesPropagatesPrivilegeStoreFailure() {
@@ -1434,7 +1449,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             return null;
         }).when(privilegeStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
         final AtomicInteger providerInvocations = new AtomicInteger();
-        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> {
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of(resolvedPrivileges -> {
             providerInvocations.incrementAndGet();
             return List.of();
         }));
@@ -1470,7 +1485,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .build();
         final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
             privilegeStore,
-            List.of((r, apds) -> List.of(dlsBearing)),
+            List.of(resolvedPrivileges -> List.of(dlsBearing)),
             dlsDisabled
         );
 
@@ -1498,7 +1513,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         // SECURITY_ENABLED_SETTINGS leaves dls_fls.enabled at its default (true).
         final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
             privilegeStore,
-            List.of((r, apds) -> List.of(dlsBearing))
+            List.of(resolvedPrivileges -> List.of(dlsBearing))
         );
 
         final RoleDescriptor decorated = invokeAddImplicitPrivileges(store, List.of(rd)).iterator().next();
@@ -1509,149 +1524,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertTrue(decorated.getIndicesPrivileges()[0].isUsingDocumentOrFieldLevelSecurity());
     }
 
-    public void testGetApplicationPrivilegeDescriptorsResolvesConcreteAppHit() {
-        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
-
-        assertThat(result, contains(agent));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsConcreteAppSilentlySkipsActionPatternAndUnknownPriv() {
-        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        // "data:read/*" is an action pattern (not a valid stored-privilege name); "phantom" is undefined. Both must be silently dropped.
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent", "data:read/*", "phantom"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
-
-        assertThat(result, contains(agent));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsConcreteAppDoesNotLeakAcrossApps() {
-        final ApplicationPrivilegeDescriptor agentShield = new ApplicationPrivilegeDescriptor(
-            "shield",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        // Same priv name on a different application; concrete-app match must filter it out.
-        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
-            "hydra",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
-            rd,
-            indexByName(agentShield, agentHydra)
-        );
-
-        assertThat(result, contains(agentShield));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsWildcardAppExpandsAcrossMatchingApps() {
-        final ApplicationPrivilegeDescriptor agentProd = new ApplicationPrivilegeDescriptor(
-            "shield-prod",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        final ApplicationPrivilegeDescriptor agentDev = new ApplicationPrivilegeDescriptor(
-            "shield-dev",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        // hydra/agent shares the priv name but its application does not match the "shield-*" pattern.
-        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
-            "hydra",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield-*", "agent"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
-            rd,
-            indexByName(agentProd, agentDev, agentHydra)
-        );
-
-        assertThat(result, containsInAnyOrder(agentProd, agentDev));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsWildcardStarMatchesEveryApp() {
-        final ApplicationPrivilegeDescriptor agentShield = new ApplicationPrivilegeDescriptor(
-            "shield",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
-            "hydra",
-            "agent",
-            Set.of("data:read/*"),
-            Map.of()
-        );
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("*", "agent"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
-            rd,
-            indexByName(agentShield, agentHydra)
-        );
-
-        assertThat(result, containsInAnyOrder(agentShield, agentHydra));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsWildcardAppSilentlySkipsActionPatternAndUnknownPriv() {
-        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        // Action patterns and unknown priv names look identical to the helper: neither is a key in the byName index, so both are skipped.
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("*", "data:read/*", "phantom"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
-
-        assertThat(result, empty());
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsDedupsAcrossOverlappingEntries() {
-        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        // The same descriptor is reachable twice: once via concrete "shield", once via wildcard "*".
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent"), arp("*", "agent"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
-
-        assertThat(result, contains(agent));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsPreservesEncounterOrder() {
-        final ApplicationPrivilegeDescriptor alpha = new ApplicationPrivilegeDescriptor("app", "alpha", Set.of("data:a/*"), Map.of());
-        final ApplicationPrivilegeDescriptor bravo = new ApplicationPrivilegeDescriptor("app", "bravo", Set.of("data:b/*"), Map.of());
-        final ApplicationPrivilegeDescriptor charlie = new ApplicationPrivilegeDescriptor("app", "charlie", Set.of("data:c/*"), Map.of());
-        // First entry yields charlie then alpha (in that priv-array order); second entry yields bravo. The result list must reflect
-        // first-encounter order across both ApplicationResourcePrivileges entries.
-        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("app", "charlie", "alpha"), arp("app", "bravo"));
-
-        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
-            rd,
-            indexByName(alpha, bravo, charlie)
-        );
-
-        assertThat(result, contains(charlie, alpha, bravo));
-    }
-
-    public void testGetApplicationPrivilegeDescriptorsReturnsEmptyForRoleWithoutApplicationPrivileges() {
-        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
-        final RoleDescriptor rd = new RoleDescriptor("r1", null, null, null);
-
-        assertThat(CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent)), empty());
-    }
-
     public void testAddImplicitPrivilegesToRolesPassesWildcardMatchedAppPrivsToProviders() {
         // Wildcard application name on the role descriptor must result in providers seeing every stored descriptor whose application
         // name matches the pattern and whose privilege name was referenced. This pins the wildcard branch's wiring through the
-        // outer addImplicitPrivilegesToRoles → decorateWithImplicitPrivileges → getApplicationPrivilegeDescriptors path.
+        // outer addImplicitPrivilegesToRoles → decorateWithImplicitPrivileges → resolveApplicationPrivileges path.
         final RoleDescriptor rd = roleWithApplicationPrivilege("r1", "shield-*", "agent");
         final ApplicationPrivilegeDescriptor agentProd = new ApplicationPrivilegeDescriptor(
             "shield-prod",
@@ -1672,32 +1548,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Map.of()
         );
         final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agentProd, agentDev, agentHydra));
-        final List<Collection<ApplicationPrivilegeDescriptor>> seen = new ArrayList<>();
-        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> {
-            seen.add(List.copyOf(apds));
+        final List<Collection<ResolvedApplicationPrivilege>> seen = new ArrayList<>();
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of(resolvedPrivileges -> {
+            seen.add(List.copyOf(resolvedPrivileges));
             return List.of();
         }));
 
         invokeAddImplicitPrivileges(store, List.of(rd));
 
         assertThat(seen, hasSize(1));
-        assertThat(seen.get(0), containsInAnyOrder(agentProd, agentDev));
-    }
-
-    private static RoleDescriptor roleWithAppPrivs(String name, RoleDescriptor.ApplicationResourcePrivileges... arps) {
-        return new RoleDescriptor(name, null, null, arps, null, null, null, null);
-    }
-
-    private static RoleDescriptor.ApplicationResourcePrivileges arp(String application, String... privileges) {
-        return RoleDescriptor.ApplicationResourcePrivileges.builder()
-            .application(application)
-            .privileges(privileges)
-            .resources("*")
-            .build();
-    }
-
-    private static Map<String, List<ApplicationPrivilegeDescriptor>> indexByName(ApplicationPrivilegeDescriptor... descriptors) {
-        return Stream.of(descriptors).collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
+        // The "shield-*" application pattern expands to the concrete stored applications it matches (shield-prod,
+        // shield-dev) but not the non-matching "hydra". Resolution also yields a placeholder for the literal pattern
+        // itself, so assert on the concrete applications that must (and must not) appear rather than an exact set.
+        final List<String> resolvedApplications = seen.get(0).stream().map(rap -> rap.privilege().getApplication()).toList();
+        assertThat(resolvedApplications, hasItems("shield-prod", "shield-dev"));
+        assertThat(resolvedApplications, not(hasItem("hydra")));
     }
 
     private CompositeRolesStore buildStoreForImplicitPrivilegesAddition(

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -176,10 +177,34 @@ final class ParquetPushedExpressions {
      * @param schema the Parquet file's MessageType schema (from footer metadata)
      * @return a combined FilterPredicate, or null if no expressions could be translated
      */
+    /** Formatter-free overload: a read with no declared date formats binds exactly as it did before. */
     FilterPredicate toFilterPredicate(MessageType schema) {
+        return toFilterPredicate(schema, Map.of());
+    }
+
+    /**
+     * @param declaredDateFormats physical-name-keyed declared date formats. A declared format makes a column's unit a
+     *                            property of the DECLARATION rather than of the file, so the annotation alone no
+     *                            longer says what unit the scan emits — and the row-group statistics these predicates
+     *                            are compared against stay in the file's RAW unit. Without this the temporal arms
+     *                            push a decoded-unit bound at raw stats and prune row groups the query matches.
+     */
+    FilterPredicate toFilterPredicate(MessageType schema, Map<String, String> declaredDateFormats) {
+        return toFilterPredicateInner(schema, declaredDateFormats == null ? Map.of() : declaredDateFormats);
+    }
+
+    /**
+     * The declared formats are THREADED, never stored on a MUTABLE field: this instance is shared by every iterator
+     * created from one {@code ParquetFormatReader}, and iterators for different files may run on different driver
+     * threads (the same reason {@code automatonCache} is lock-guarded). A per-translation mutable field would be a
+     * race whose failure mode is precisely the bug this translation exists to prevent — a thread reading another
+     * translation's map, missing the lookup, and pushing a raw-unit bound. (An immutable final field set once in
+     * {@code withDeclaredDateFormats} would be race-free too; threading keeps the map off this object's identity.)
+     */
+    private FilterPredicate toFilterPredicateInner(MessageType schema, Map<String, String> formats) {
         List<FilterPredicate> translated = new ArrayList<>();
         for (Expression expr : expressions) {
-            FilterPredicate fp = translateExpression(expr, schema);
+            FilterPredicate fp = translateExpression(expr, schema, formats);
             if (fp != null) {
                 translated.add(fp);
             }
@@ -235,7 +260,8 @@ final class ParquetPushedExpressions {
      */
     boolean hasYesConjunctOutsideFilterPredicate(MessageType schema) {
         for (Expression expr : expressions) {
-            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema) == null) {
+            // No formats needed: isFullyEvaluable admits only the LIKE family, which never reaches a temporal arm.
+            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema, Map.of()) == null) {
                 return true;
             }
         }
@@ -284,7 +310,7 @@ final class ParquetPushedExpressions {
         return false;
     }
 
-    private FilterPredicate translateExpression(Expression expr, MessageType schema) {
+    private FilterPredicate translateExpression(Expression expr, MessageType schema, Map<String, String> formats) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String name = ne.name();
             DataType dataType = ne.dataType();
@@ -295,33 +321,33 @@ final class ParquetPushedExpressions {
             }
 
             return switch (bc) {
-                case Equals ignored -> buildPredicate(name, dataType, value, PredicateOp.EQ, schema);
-                case NotEquals ignored -> buildPredicate(name, dataType, value, PredicateOp.NOT_EQ, schema);
-                case GreaterThan ignored -> buildPredicate(name, dataType, value, PredicateOp.GT, schema);
-                case GreaterThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.GTE, schema);
-                case LessThan ignored -> buildPredicate(name, dataType, value, PredicateOp.LT, schema);
-                case LessThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.LTE, schema);
+                case Equals ignored -> buildPredicate(name, dataType, value, PredicateOp.EQ, schema, formats);
+                case NotEquals ignored -> buildPredicate(name, dataType, value, PredicateOp.NOT_EQ, schema, formats);
+                case GreaterThan ignored -> buildPredicate(name, dataType, value, PredicateOp.GT, schema, formats);
+                case GreaterThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.GTE, schema, formats);
+                case LessThan ignored -> buildPredicate(name, dataType, value, PredicateOp.LT, schema, formats);
+                case LessThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.LTE, schema, formats);
                 default -> null;
             };
         }
         if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
-            return translateIn(ne.name(), ne.dataType(), inExpr.list(), schema);
+            return translateIn(ne.name(), ne.dataType(), inExpr.list(), schema, formats);
         }
         if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
-            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.EQ, schema);
+            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.EQ, schema, formats);
         }
         if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
-            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.NOT_EQ, schema);
+            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.NOT_EQ, schema, formats);
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
-            return translateRange(ne.name(), ne.dataType(), range, schema);
+            return translateRange(ne.name(), ne.dataType(), range, schema, formats);
         }
         if (expr instanceof And and) {
             // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
             // as many rows). That is safe for stats pruning, RowRanges, and the
             // trivially-passes shortcut, all of which require a SUPERSET of the truth.
-            FilterPredicate leftPred = translateExpression(and.left(), schema);
-            FilterPredicate rightPred = translateExpression(and.right(), schema);
+            FilterPredicate leftPred = translateExpression(and.left(), schema, formats);
+            FilterPredicate rightPred = translateExpression(and.right(), schema, formats);
             if (leftPred != null && rightPred != null) {
                 return FilterApi.and(leftPred, rightPred);
             }
@@ -332,8 +358,8 @@ final class ParquetPushedExpressions {
             // arm yields a STRICTER predicate (the surviving arm alone), which would prune
             // rows the original would have matched via the dropped arm. Return null so the
             // shortcut/RowRanges path skips this expression entirely.
-            FilterPredicate leftPred = translateExpression(or.left(), schema);
-            FilterPredicate rightPred = translateExpression(or.right(), schema);
+            FilterPredicate leftPred = translateExpression(or.left(), schema, formats);
+            FilterPredicate rightPred = translateExpression(or.right(), schema, formats);
             if (leftPred != null && rightPred != null) {
                 return FilterApi.or(leftPred, rightPred);
             }
@@ -361,7 +387,7 @@ final class ParquetPushedExpressions {
             if (isExactlyTranslatable(not.field()) == false) {
                 return null;
             }
-            FilterPredicate inner = translateExpression(not.field(), schema);
+            FilterPredicate inner = translateExpression(not.field(), schema, formats);
             return inner != null ? FilterApi.not(inner) : null;
         }
         if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
@@ -370,6 +396,9 @@ final class ParquetPushedExpressions {
                 return null;
             }
             BytesRef prefix = (BytesRef) prefixValue;
+            if (physicalPrimitiveIs(schema, ne.name(), PrimitiveType.PrimitiveTypeName.BINARY) == false) {
+                return null; // declared keyword over a non-BINARY physical: decline, let FilterExec re-apply
+            }
             var col = FilterApi.binaryColumn(ne.name());
             FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
             BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
@@ -402,21 +431,41 @@ final class ParquetPushedExpressions {
         }
     }
 
-    private FilterPredicate buildPredicate(String columnName, DataType dataType, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildPredicate(
+        String columnName,
+        DataType dataType,
+        Object value,
+        PredicateOp op,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         if (value == null && op.isOrdered()) {
             return null;
         }
+        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
+        // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
+        // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
+        // esql-planning#1056. Value predicates (comparisons/IN/LIKE) are deliberately NOT declined here —
+        // their decoded-block evaluator reads by position index and is not multivalue-safe.
+        if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
+            return null;
+        }
         return switch (dataType) {
-            case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
-            case LONG -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            case INTEGER -> buildIntPredicate(columnName, value, op, schema);
+            case LONG -> buildLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
                 }
                 yield null;
             }
-            case KEYWORD -> orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op);
+            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                ? orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op)
+                : null;
             case BOOLEAN -> {
+                if (physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN) == false) {
+                    yield null;
+                }
                 var col = FilterApi.booleanColumn(columnName);
                 Boolean v = value != null ? (Boolean) value : null;
                 yield switch (op) {
@@ -425,9 +474,56 @@ final class ParquetPushedExpressions {
                     default -> null;
                 };
             }
-            case DATETIME -> buildDatetimePredicate(columnName, value, op, schema);
+            case DATETIME -> buildDatetimePredicate(columnName, value, op, schema, formats);
+            case DATE_NANOS -> buildDateNanosPredicate(columnName, value, op, schema, formats);
             default -> null;
         };
+    }
+
+    /**
+     * Whether a raw integral predicate pushed against the file's raw footer statistics would mis-prune because the
+     * scan decodes the column with a scaling transform the stats do not carry (parquet-mr prunes against the raw
+     * physical values; the scan applies the transform on top, so any factor between them drops matching row groups).
+     * The set of scaling annotations is owned by {@link ParquetColumnDecoding#integralDecodeScalesRelativeToRawStats}
+     * — co-located with the decode transforms so the two cannot drift. This is the single authority every integral
+     * push path ({@link #buildLongPredicate}/{@link #translateLongIn} and the {@code INTEGER} arms of
+     * {@link #buildPredicate}/{@link #translateIn}) consults before pushing.
+     */
+    private static boolean pushDeclinedForUnitMismatch(LogicalTypeAnnotation annotation) {
+        return ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(annotation);
+    }
+
+    /**
+     * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be a
+     * dotted path into a nested STRUCT) is exactly {@code expected}.
+     *
+     * <p>The INTEGER/KEYWORD/BOOLEAN predicate arms guard on this before minting a {@link FilterApi}
+     * column of the matching kind. A declared retype is a supported coercion ({@code
+     * DeclaredTypeCoercions.supports}), so {@code keyword} over a physical {@code INT64}, or {@code
+     * integer} over a physical {@code INT64}, reaches those arms — without the guard they would push a
+     * BINARY/INT32/BOOLEAN predicate against a column the file stores as something else, which
+     * parquet-mr rejects as a declared-type mismatch or (worse) mis-prunes. Declining is safe: these
+     * predicates are RECHECK, so {@code FilterExec} re-applies the real ESQL semantics — the same
+     * reasoning as {@link #buildLongPredicate} and {@link #isPhysicalDouble}.
+     */
+    private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
+        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
+        return primitive != null && primitive.getPrimitiveTypeName() == expected;
+    }
+
+    /**
+     * Whether {@code ptype} is {@code DECIMAL} with a nonzero scale — its on-disk value is the
+     * <b>unscaled</b> integer, not the value a declared/inferred {@code long}/{@code integer}/
+     * {@code keyword} column exposes. Pushing a raw literal against such stats compares mismatched
+     * units. {@code scale=0} is exempt: unscaled equals scaled there.
+     *
+     * <p>This only matters for <b>value</b> comparisons (EQ/ordered/IN); it must NOT gate IS
+     * NULL/IS NOT NULL dispatch, since nullability is orthogonal to scale — see the {@code value
+     * == null} carve-outs at call sites.
+     */
+    private static boolean isScaledDecimal(PrimitiveType ptype) {
+        return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal
+            && decimal.getScale() > 0;
     }
 
     /**
@@ -435,11 +531,110 @@ final class ParquetPushedExpressions {
      * a dotted path into a nested STRUCT) is {@link PrimitiveType.PrimitiveTypeName#DOUBLE}.
      */
     private static boolean isPhysicalDouble(MessageType schema, String columnName) {
-        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
-        if (primitive == null) {
-            return false;
+        return physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.DOUBLE);
+    }
+
+    /**
+     * Builds a predicate for an ESQL {@code LONG} column, dispatching on the file's <b>physical</b>
+     * primitive rather than the (possibly widened) ESQL type — see the class Javadoc's
+     * {@code INT32}/{@code INT64} split. Two Parquet shapes surface as ESQL {@code LONG} while their
+     * physical primitive is {@code INT32}: an unsigned 32-bit integer (values can exceed signed
+     * {@code int} range) and {@code TIME_MILLIS} (signed, but ESQL has no distinct "time of day" type).
+     * A {@link FilterApi#longColumn} pushed against either would describe a column the file doesn't
+     * have — {@code INT64} — and parquet-mr rejects it as a declared-type mismatch
+     * (github.com/elastic/esql-planning/issues/1030).
+     *
+     * <p>When the physical primitive is {@code INT32}, the literal is narrowed via
+     * {@link #narrowLongToPhysicalInt32}; when narrowing fails (the literal cannot possibly match any
+     * value the column can hold) this returns {@code null} rather than push an incorrect predicate.
+     * That is safe: LONG comparisons are always RECHECK, never YES (see
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the
+     * real ESQL semantics regardless of whether this predicate was pushed for pruning.
+     */
+    private static FilterPredicate buildLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        // isScaledDecimal only matters for a real value comparison; IS NULL/IS NOT NULL (value ==
+        // null) doesn't care about the column's scale, so it's exempt — see buildPredicate's callers.
+        if (ptype == null || (value != null && isScaledDecimal(ptype))) {
+            return null;
         }
-        return primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
+        // A temporal-annotated column reaching a LONG predicate has a unit transform between the block value and
+        // the raw physical value the row-group statistics hold: TIMESTAMP(MICROS)->epoch-nanos (x1000),
+        // DATE(days)->epoch-millis (x86_400_000), TIME(MICROS)->nanos-of-day (x1000). The literal is in the decoded
+        // unit, the stats are in the physical unit, so pushing it prunes row groups that genuinely match. Pruning is
+        // unrecoverable — RECHECK guards against false positives, not against rows we never read — so decline and let
+        // FilterExec apply the real semantics. Reached via a DECLARED long over a TIMESTAMP/DATE column or an
+        // inferred TIME(MICROS) column; inferred datetime/date_nanos go through the unit-aware build*Predicate arms.
+        // IS NULL/IS NOT NULL (value == null) is exempt: null-checks operate on the null mask only, not on the
+        // decoded value, so there is no unit mismatch to guard against.
+        if (value != null && pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
+            return null;
+        }
+        return switch (ptype.getPrimitiveTypeName()) {
+            case INT64 -> {
+                if (ParquetColumnDecoding.isUnsignedInt64(ptype) && op != PredicateOp.EQ && op != PredicateOp.NOT_EQ) {
+                    // ORDERED comparison over an UNSIGNED_64 column: the block decodes uint64 via signed sign-wrap
+                    // (raws >= 2^63 read as negative), so signed-block ordering disagrees with parquet-mr's UNSIGNED
+                    // row-group comparator in BOTH directions and for either literal sign: lt/lte drop the negative-
+                    // block groups (large unsigned) that genuinely match, and gt/gte — though merely over-including on
+                    // their own — become UNDER-including once wrapped in NOT, which the schema-blind
+                    // isExactlyTranslatable pushes as if exact. So decline every ordered op; only eq/notEq (and IN)
+                    // are bit-exact and stay pushable. The INT32 sibling declines the analogous unsigned mismatch.
+                    yield null;
+                }
+                yield orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            }
+            case INT32 -> {
+                if (value == null) {
+                    yield orderedPredicate(FilterApi.intColumn(columnName), null, op);
+                }
+                Integer narrowed = narrowLongToPhysicalInt32(((Number) value).longValue(), ptype);
+                yield narrowed != null ? orderedPredicate(FilterApi.intColumn(columnName), narrowed, op) : null;
+            }
+            default -> null;
+        };
+    }
+
+    /**
+     * Builds a predicate for an ESQL {@code INTEGER} column over a physical {@code INT32} column. Mirrors
+     * {@link #buildLongPredicate}: it consults {@link #pushDeclinedForUnitMismatch}, so a declared {@code integer}
+     * over a {@code DATE} (INT32, x86_400_000) or {@code DECIMAL(INT32, scale>0)} (÷10^scale) column — whose scan
+     * decode carries a transform the raw {@code INT32} footer stats do not — declines rather than mis-prunes.
+     * Declining is safe — INTEGER comparisons are RECHECK, so {@code FilterExec} re-applies the exact semantics.
+     */
+    private static FilterPredicate buildIntPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
+            return null;
+        }
+        if (value != null && pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
+            return null;
+        }
+        return orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
+    }
+
+    /**
+     * Narrows an ESQL {@code LONG} literal to the raw {@code int} bit pattern to push against a
+     * physical {@code INT32} column, or returns {@code null} when {@code value} cannot possibly be
+     * held by that column (in which case the caller must not push a predicate for it — see
+     * {@link #buildLongPredicate}).
+     *
+     * <p>For {@code UINT_32} (unsigned), any value in {@code [0, 2^32 - 1]} round-trips through
+     * {@code (int) value}: the cast reinterprets the low 32 bits, which is exactly the column's raw
+     * on-disk representation, and parquet-mr's statistics comparator already applies unsigned
+     * ordering for {@code UINT_32} columns when evaluating the pushed predicate against row-group /
+     * page stats, so the signed-vs-unsigned interpretation is handled beneath this method.
+     *
+     * <p>For a signed {@code INT32} widened to {@code LONG} (today: {@code TIME_MILLIS}, whose values
+     * are always small and positive), the standard signed round trip applies.
+     */
+    @Nullable
+    private static Integer narrowLongToPhysicalInt32(long value, PrimitiveType ptype) {
+        if (ParquetColumnDecoding.isUnsignedInt32(ptype)) {
+            return (value >= 0 && value <= 0xFFFFFFFFL) ? (int) value : null;
+        }
+        int narrowed = (int) value;
+        return narrowed == value ? narrowed : null;
     }
 
     /**
@@ -496,7 +691,13 @@ final class ParquetPushedExpressions {
         return null;
     }
 
-    private static FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildDatetimePredicate(
+        String columnName,
+        Object value,
+        PredicateOp op,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
@@ -504,6 +705,12 @@ final class ParquetPushedExpressions {
         LogicalTypeAnnotation logical = ptype.getLogicalTypeAnnotation();
 
         if (value == null) {
+            // IS NULL must not push when decode can turn a physically-present cell into null (a format parse
+            // failure, an out-of-range narrowing) — same gate as the date_nanos twin. IS NOT NULL stays pushed
+            // (it only over-includes). INT32/INT64 differ only in the column kind.
+            if (op == PredicateOp.EQ && ParquetColumnDecoding.decodeCanNull(ptype, DataType.DATETIME, formats.get(columnName))) {
+                return null;
+            }
             return switch (ptype.getPrimitiveTypeName()) {
                 case INT32 -> orderedPredicate(FilterApi.intColumn(columnName), null, op);
                 case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), null, op);
@@ -515,37 +722,230 @@ final class ParquetPushedExpressions {
         return switch (ptype.getPrimitiveTypeName()) {
             case INT32 -> {
                 if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
-                    int days = (int) Math.floorDiv(millis, MILLIS_PER_DAY);
-                    yield orderedPredicate(FilterApi.intColumn(columnName), days, op);
+                    // A DATE column stores whole days; the literal is epoch-millis. The bound must be rounded to a
+                    // day boundary OUTWARD per operator (floorDiv for every op silently prunes matching days on `<`
+                    // and `!=` — a non-midnight literal makes `< X` exclude the day it falls in, and `!= X` drop the
+                    // all-day-D row group that genuinely matches). boundToPhysicalUnit handles the direction and
+                    // declines EQ/NOT_EQ on a non-midnight literal.
+                    Long dayBound = boundToPhysicalUnit(millis, op, MILLIS_PER_DAY);
+                    yield dayBound == null ? null : orderedPredicate(FilterApi.intColumn(columnName), (int) (long) dayBound, op);
                 }
                 yield null;
             }
             case INT64 -> {
-                try {
-                    long physicalValue = convertMillisToPhysical(millis, logical);
-                    yield orderedPredicate(FilterApi.longColumn(columnName), physicalValue, op);
-                } catch (ArithmeticException e) {
-                    yield null;
+                if (op == PredicateOp.EQ) {
+                    // Equality is a band, not a point, once decode is lossy: push the whole band and keep pruning.
+                    yield temporalBandPredicate(columnName, millis, ptype, DataType.DATETIME, formats);
                 }
+                Long bound = temporalBoundToRaw(columnName, millis, op, ptype, DataType.DATETIME, formats);
+                yield bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
             }
             default -> null;
         };
     }
 
     /**
-     * Converts ESQL epoch millis to the physical unit used in the Parquet file.
-     * Uses {@link Math#multiplyExact} to detect overflow — timestamps beyond ~year 2262
-     * would overflow when scaled to nanos.
+     * The raw predicate matching every stored value that decodes to {@code decodedValue}, or {@code null} when none
+     * can (or the column's decode admits no exact relation). A lossy decode makes this a range; an exact one makes it
+     * a plain {@code eq}, so the common case is untouched. Shared by {@code ==} and by each element of {@code IN}.
      */
-    static long convertMillisToPhysical(long millis, LogicalTypeAnnotation logical) {
-        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            return switch (ts.getUnit()) {
-                case MILLIS -> millis;
-                case MICROS -> Math.multiplyExact(millis, 1000L);
-                case NANOS -> Math.multiplyExact(millis, 1_000_000L);
-            };
+    @Nullable
+    private FilterPredicate temporalBandPredicate(
+        String columnName,
+        long decodedValue,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
+        if (relation == null) {
+            return null;
         }
-        return millis;
+        DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, decodedValue);
+        if (band == null) {
+            return null; // no stored value can decode to this literal
+        }
+        return bandToPredicate(FilterApi.longColumn(columnName), band);
+    }
+
+    /**
+     * The raw predicate for a single decoded value's {@link DeclaredTypeCoercions.RawBand}: a plain {@code eq} for a
+     * degenerate one-value band (exact decode), an inclusive {@code gtEq && ltEq} for a wider band (lossy decode).
+     * Shared by the {@code ==} arm ({@link #temporalBandPredicate}) and each element of {@code IN}
+     * ({@link #temporalInPredicate}) so the two cannot disagree about how a band becomes a predicate.
+     */
+    private static FilterPredicate bandToPredicate(Operators.LongColumn col, DeclaredTypeCoercions.RawBand band) {
+        return band.lo() == band.hi()
+            ? FilterApi.eq(col, band.lo())
+            : FilterApi.and(FilterApi.gtEq(col, band.lo()), FilterApi.ltEq(col, band.hi()));
+    }
+
+    /**
+     * The RAW bound to push for a {@code DATETIME} column whose query literal is epoch-millis, or {@code null} to
+     * decline. Both halves of the question are delegated: the parquet-local derivation of how decode relates raw to
+     * decoded ({@link ParquetColumnDecoding#rawDecodeRelation}), and the shared, brute-force-verified inversion that
+     * guarantees the pushed bound is never stricter than the truth ({@link DeclaredTypeCoercions#rawBoundFor}).
+     *
+     * <p>Nothing about units is restated here. That restating — one arm op-aware, another not — is what let a
+     * {@code <=} over a truncating decode push the floor of a band instead of its top and prune matching rows.
+     */
+    @Nullable
+    private Long temporalBoundToRaw(
+        String columnName,
+        long decodedBound,
+        PredicateOp op,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
+        DeclaredTypeCoercions.BoundOp boundOp = boundOpOf(op);
+        // NOT_EQ has no raw counterpart under any rescaling map: `decoded != b` is true for a whole band of raw
+        // values, which a single notEq cannot express. Decline rather than push one that excludes the rest.
+        if (relation == null || boundOp == null) {
+            return null;
+        }
+        return DeclaredTypeCoercions.rawBoundFor(relation, decodedBound, boundOp);
+    }
+
+    /**
+     * {@code IN} over a temporal column, as the OR of each element's raw equality band. {@code IN} matches ANY element,
+     * so the pushed predicate must never UNDER-include (that would prune matching rows). A null band from
+     * {@link DeclaredTypeCoercions#rawEqualityBand} means one of two things, and they are handled oppositely:
+     * <ul>
+     *   <li><b>{@code Identity} / {@code ScaleUp}</b> — the element has no exact raw counterpart because NO stored
+     *       value decodes to it (a {@code ScaleUp} non-multiple; {@code Identity} never nulls). That element matches
+     *       nothing, so DROPPING it leaves the pushed OR EXACT for the surviving elements — still a superset of the
+     *       true match set, and exact rather than merely loose so it stays correct even wrapped in {@code NOT}. This
+     *       is the pruning the old {@code date_nanos} IN path kept by dropping non-tick elements.</li>
+     *   <li><b>{@code ScaleDown}</b> — a null band is an OVERFLOW (the band's raw base could not be computed), not an
+     *       empty match set. Dropping it would make the OR under-inclusive, so the whole push DECLINES.</li>
+     * </ul>
+     * When every element drops, no predicate is pushed and the scan + {@code FilterExec} recheck yields the (empty)
+     * result. The relation is resolved once here rather than per element via {@link #temporalBandPredicate}.
+     */
+    @Nullable
+    private FilterPredicate temporalInPredicate(
+        String columnName,
+        List<Object> rawValues,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
+        if (relation == null) {
+            return null;
+        }
+        var col = FilterApi.longColumn(columnName);
+        FilterPredicate combined = null;
+        for (Object v : rawValues) {
+            DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, ((Number) v).longValue());
+            if (band == null) {
+                if (relation instanceof DeclaredTypeCoercions.RawDecodeRelation.ScaleDown) {
+                    return null; // overflow: an indeterminate band would make the OR under-inclusive
+                }
+                continue; // matches nothing: dropping keeps the OR exact for the rest
+            }
+            FilterPredicate bandPredicate = bandToPredicate(col, band);
+            combined = combined == null ? bandPredicate : FilterApi.or(combined, bandPredicate);
+        }
+        return combined;
+    }
+
+    @Nullable
+    /**
+     * Maps this class's predicate op onto the shared authority's, or {@code null} for one the authority cannot
+     * answer. The authority deliberately has no {@code NOT_EQ}: its truth set is a band under any rescaling map.
+     */
+    private static DeclaredTypeCoercions.BoundOp boundOpOf(PredicateOp op) {
+        return switch (op) {
+            case EQ -> DeclaredTypeCoercions.BoundOp.EQ;
+            case GT -> DeclaredTypeCoercions.BoundOp.GT;
+            case GTE -> DeclaredTypeCoercions.BoundOp.GTE;
+            case LT -> DeclaredTypeCoercions.BoundOp.LT;
+            case LTE -> DeclaredTypeCoercions.BoundOp.LTE;
+            // NOT_EQ is exact for Identity and exact-multiple ScaleUp (the authority returns the raw point, the
+            // caller builds notEq); ScaleDown declines it there. Restores the != pruning main had on inferred reads.
+            case NOT_EQ -> DeclaredTypeCoercions.BoundOp.NOT_EQ;
+        };
+    }
+
+    /**
+     * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. Since
+     * {@code date_nanos} became declarable, this column can sit over any physical INT64 a declared read admits —
+     * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes. The raw-to-decoded relation and the bound math
+     * are delegated to the shared {@link DeclaredTypeCoercions.RawDecodeRelation} authority (via
+     * {@link #temporalBandPredicate} for {@code ==} and {@link #temporalBoundToRaw} for the ordered ops), which
+     * derives the relation from {@link ParquetColumnDecoding#rawDecodeRelation} — timestamps in all three units plus
+     * the un-annotated signed INT64 identity case push; everything else (TIME, unsigned, unknown) resolves to a null
+     * relation and declines rather than pushing a raw-unit predicate that silently prunes matching row groups. The
+     * bound is rounded outward so the pushed predicate is never stricter than the true nanosecond predicate. Safe
+     * because temporal pushdown is always RECHECK (see {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so
+     * {@code FilterExec} re-applies the exact semantics — while a decline merely loses pruning, never rows.
+     */
+    private FilterPredicate buildDateNanosPredicate(
+        String columnName,
+        Object value,
+        PredicateOp op,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        if (value == null) {
+            return nullPredicateOrDecline(columnName, op, ptype, DataType.DATE_NANOS, formats);
+        }
+        long nanos = ((Number) value).longValue();
+        if (op == PredicateOp.EQ) {
+            return temporalBandPredicate(columnName, nanos, ptype, DataType.DATE_NANOS, formats);
+        }
+        Long bound = temporalBoundToRaw(columnName, nanos, op, ptype, DataType.DATE_NANOS, formats);
+        return bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
+    }
+
+    /**
+     * {@code IS NULL} / {@code IS NOT NULL} on a temporal column. Coercion is PARTIAL — a negative epoch, a
+     * format-parse failure, or a range overflow decodes a physically-present value to {@code null} — so the decoded
+     * null set can be LARGER than the physical one the row-group statistics count.
+     *
+     * <p>{@code IS NULL} (an {@code eq(col, null)}) prunes groups whose physical {@code nullCount == 0}; if decode
+     * nulls a value in such a group, the matching row is lost. So {@code IS NULL} declines whenever decode can null.
+     * {@code IS NOT NULL} only ever keeps groups with a physical non-null, and decode never turns a physical null
+     * into a value — it can only over-include, which {@code FilterExec} rechecks — so it stays pushed.
+     */
+    @Nullable
+    private FilterPredicate nullPredicateOrDecline(
+        String columnName,
+        PredicateOp op,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        if (op == PredicateOp.EQ && ParquetColumnDecoding.decodeCanNull(ptype, declaredType, formats.get(columnName))) {
+            return null;
+        }
+        return orderedPredicate(FilterApi.longColumn(columnName), null, op);
+    }
+
+    /**
+     * Converts a bound expressed in a fine unit to the coarse physical-unit bound to push against a column stored in
+     * that coarse unit ({@code divisor} fine units per stored tick — e.g. nanos→micros is 1_000, nanos→millis is
+     * 1_000_000, epoch-millis→epoch-days is {@link #MILLIS_PER_DAY}), rounding each comparison OUTWARD so the pushed
+     * predicate never excludes a matching row (a stored tick {@code t} represents the fine value {@code t × divisor}):
+     * {@code >}/{@code <=} round down, {@code >=}/{@code <} round up, and {@code ==}/{@code !=} are only representable
+     * when the bound lands exactly on a tick — otherwise {@code null} is returned and no predicate is pushed (the scan
+     * plus {@code FilterExec} recheck still yields the correct result, only without pruning). Getting the direction
+     * wrong (e.g. floor for {@code <}) is a silent false-negative: it prunes a row group the query genuinely matches.
+     * {@code divisor == 1} is the identity case, where floor/ceil/mod all leave the bound unchanged.
+     */
+    private static Long boundToPhysicalUnit(long value, PredicateOp op, long divisor) {
+        return switch (op) {
+            case GT, LTE -> Math.floorDiv(value, divisor);
+            case GTE, LT -> Math.ceilDiv(value, divisor);
+            case EQ, NOT_EQ -> value % divisor == 0 ? value / divisor : null;
+        };
     }
 
     private static <T extends Comparable<T>, C extends Operators.Column<T> & Operators.SupportsLtGt> FilterPredicate orderedPredicate(
@@ -563,7 +963,13 @@ final class ParquetPushedExpressions {
         };
     }
 
-    private FilterPredicate translateIn(String columnName, DataType dataType, List<Expression> items, MessageType schema) {
+    private FilterPredicate translateIn(
+        String columnName,
+        DataType dataType,
+        List<Expression> items,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         List<Object> rawValues = new ArrayList<>();
         for (Expression item : items) {
             Object val = literalValueOf(item);
@@ -575,22 +981,92 @@ final class ParquetPushedExpressions {
             return null;
         }
         return switch (dataType) {
-            case INTEGER -> inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
-            case LONG -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            case INTEGER -> translateIntIn(columnName, rawValues, schema);
+            case LONG -> translateLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
                 }
                 yield null;
             }
-            case KEYWORD -> inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary);
-            case BOOLEAN -> inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v);
-            case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
+            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                ? inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary)
+                : null;
+            case BOOLEAN -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN)
+                ? inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v)
+                : null;
+            case DATETIME -> translateDatetimeIn(columnName, rawValues, schema, formats);
+            case DATE_NANOS -> translateDateNanosIn(columnName, rawValues, schema, formats);
             default -> null;
         };
     }
 
-    private static FilterPredicate translateDatetimeIn(String columnName, List<Object> rawValues, MessageType schema) {
+    /**
+     * {@code IN} counterpart to {@link #buildLongPredicate}: dispatches on the physical primitive
+     * rather than the widened ESQL {@code LONG} type. For a physical {@code INT32} column, literals
+     * that fail to narrow (see {@link #narrowLongToPhysicalInt32}) are dropped from the pushed set
+     * rather than aborting the whole predicate — such a literal can never equal any value the column
+     * holds, so omitting it only makes the pushed set a (still-correct) subset of the true domain,
+     * never stricter than the truth for the values that remain.
+     */
+    private static FilterPredicate translateLongIn(String columnName, List<Object> rawValues, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || isScaledDecimal(ptype)) {
+            return null;
+        }
+        // Same unit-mismatch decline as buildLongPredicate — a temporal physical carries a unit transform the
+        // raw stats do not, so an IN over a declared/inferred LONG temporal column must not push a raw predicate.
+        if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
+            return null;
+        }
+        return switch (ptype.getPrimitiveTypeName()) {
+            case INT64 -> {
+                // parquet-mr's IN pruning takes ONE combined min/max over the whole set; a sign mix
+                // straddles the unsigned/signed halves and corrupts it, so decline only for a mix
+                // (same-sign sets, including all-negative, stay exact and pushable).
+                if (ParquetColumnDecoding.isUnsignedInt64(ptype)
+                    && rawValues.stream().anyMatch(v -> ((Number) v).longValue() < 0)
+                    && rawValues.stream().anyMatch(v -> ((Number) v).longValue() >= 0)) {
+                    yield null;
+                }
+                yield inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            }
+            case INT32 -> {
+                List<Object> narrowed = new ArrayList<>();
+                for (Object v : rawValues) {
+                    Integer n = narrowLongToPhysicalInt32(((Number) v).longValue(), ptype);
+                    if (n != null) {
+                        narrowed.add(n);
+                    }
+                }
+                yield narrowed.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), narrowed, v -> (Integer) v);
+            }
+            default -> null;
+        };
+    }
+
+    /**
+     * {@code IN} counterpart to {@link #buildIntPredicate}: pushes an {@code IN} over a physical {@code INT32} column,
+     * declining via {@link #pushDeclinedForUnitMismatch} when the declared {@code integer} sits over a {@code DATE} or
+     * {@code DECIMAL(scale>0)} column whose decode transform the raw footer stats do not carry.
+     */
+    private static FilterPredicate translateIntIn(String columnName, List<Object> rawValues, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
+            return null;
+        }
+        if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
+            return null;
+        }
+        return inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
+    }
+
+    private FilterPredicate translateDatetimeIn(
+        String columnName,
+        List<Object> rawValues,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
@@ -600,24 +1076,49 @@ final class ParquetPushedExpressions {
             return switch (ptype.getPrimitiveTypeName()) {
                 case INT32 -> {
                     if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
-                        yield inPredicate(
-                            FilterApi.intColumn(columnName),
-                            rawValues,
-                            v -> (int) Math.floorDiv(((Number) v).longValue(), MILLIS_PER_DAY)
-                        );
+                        // Only a midnight literal can equal a stored day; a non-midnight literal matches no day, so
+                        // drop it from the pushed set (a correct subset). Unlike a floorDiv'd day that over-includes,
+                        // an exact set stays correct when this IN is wrapped in NOT. Empty set => push nothing.
+                        List<Object> days = new ArrayList<>();
+                        for (Object v : rawValues) {
+                            long m = ((Number) v).longValue();
+                            if (m % MILLIS_PER_DAY == 0) {
+                                days.add((int) (m / MILLIS_PER_DAY));
+                            }
+                        }
+                        yield days.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), days, v -> (Integer) v);
                     }
                     yield null;
                 }
-                case INT64 -> inPredicate(
-                    FilterApi.longColumn(columnName),
-                    rawValues,
-                    v -> convertMillisToPhysical(((Number) v).longValue(), logical)
-                );
+                case INT64 -> temporalInPredicate(columnName, rawValues, ptype, DataType.DATETIME, formats);
                 default -> null;
             };
         } catch (ArithmeticException e) {
             return null;
         }
+    }
+
+    /**
+     * {@code IN} counterpart to {@link #buildDateNanosPredicate}, folded onto the same {@link #temporalInPredicate}
+     * that serves the {@code DATETIME} arm ({@link #translateDatetimeIn}) so the two temporal IN paths share ONE
+     * raw-band authority. The query literals are epoch-nanoseconds; {@link #temporalInPredicate} resolves the
+     * raw-to-decoded relation from {@link ParquetColumnDecoding#rawDecodeRelation} and pushes each element's exact
+     * raw equality band: an identity column (NANOS, or the un-annotated signed INT64 a declared {@code date_nanos}
+     * reads as raw epoch-nanos) pushes every value exactly; a scaled column (MICROS, MILLIS, or a declared epoch
+     * format) drops the non-tick elements that no stored value can equal and pushes the rest; an un-pushable
+     * physical (TIME, unsigned INT64, unknown) resolves to a null relation and declines entirely.
+     */
+    private FilterPredicate translateDateNanosIn(
+        String columnName,
+        List<Object> rawValues,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null) {
+            return null;
+        }
+        return temporalInPredicate(columnName, rawValues, ptype, DataType.DATE_NANOS, formats);
     }
 
     private static <T extends Comparable<T>, C extends Operators.Column<T> & Operators.SupportsEqNotEq> FilterPredicate inPredicate(
@@ -632,7 +1133,13 @@ final class ParquetPushedExpressions {
         return FilterApi.in(col, converted);
     }
 
-    private FilterPredicate translateRange(String columnName, DataType dataType, Range range, MessageType schema) {
+    private FilterPredicate translateRange(
+        String columnName,
+        DataType dataType,
+        Range range,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         Object lower = literalValueOf(range.lower());
         Object upper = literalValueOf(range.upper());
 
@@ -641,14 +1148,16 @@ final class ParquetPushedExpressions {
             dataType,
             lower,
             range.includeLower() ? PredicateOp.GTE : PredicateOp.GT,
-            schema
+            schema,
+            formats
         );
         FilterPredicate upperBound = buildPredicate(
             columnName,
             dataType,
             upper,
             range.includeUpper() ? PredicateOp.LTE : PredicateOp.LT,
-            schema
+            schema,
+            formats
         );
 
         if (lowerBound != null && upperBound != null) {

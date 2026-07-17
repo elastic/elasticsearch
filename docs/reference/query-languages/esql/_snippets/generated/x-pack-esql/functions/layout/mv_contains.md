@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: preview 9.2.0
+serverless: preview
 ```
+
+
+:::{include} ../briefSummary/mv_contains.md
+:::
 
 ## Syntax
 

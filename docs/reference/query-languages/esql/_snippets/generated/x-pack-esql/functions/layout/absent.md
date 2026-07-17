@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: ga 9.2.0
+serverless: ga
 ```
+
+
+:::{include} ../briefSummary/absent.md
+:::
 
 ## Syntax
 

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -100,6 +101,11 @@ public final class MockIndexEventListener {
         }
 
         @Override
+        public void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+            delegate.afterIndexShardClosing(shardId, indexShard, indexSettings);
+        }
+
+        @Override
         public void indexShardStateChanged(
             IndexShard indexShard,
             @Nullable IndexShardState previousState,
@@ -147,6 +153,31 @@ public final class MockIndexEventListener {
         @Override
         public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
             delegate.beforeIndexAddedToCluster(index, indexSettings);
+        }
+
+        @Override
+        public void onStoreCreated(ShardId shardId) {
+            delegate.onStoreCreated(shardId);
+        }
+
+        @Override
+        public void onStoreClosed(ShardId shardId) {
+            delegate.onStoreClosed(shardId);
+        }
+
+        @Override
+        public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+            delegate.beforeIndexShardRecovery(indexShard, indexSettings, listener);
+        }
+
+        @Override
+        public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+            delegate.afterIndexShardRecovery(indexShard, listener);
+        }
+
+        @Override
+        public void afterFilesRestoredFromRepository(IndexShard indexShard) {
+            delegate.afterFilesRestoredFromRepository(indexShard);
         }
     }
 }

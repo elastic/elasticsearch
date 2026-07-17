@@ -242,8 +242,12 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
-        Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
+        Platforms.onLinux(() -> {
+            createKeystoreIfMissing();
+            bin.keystoreTool.run("passwd", password + "\n" + password + "\n");
+        });
         Platforms.onWindows(() -> {
+            createKeystoreIfMissing();
             sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
         });
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);

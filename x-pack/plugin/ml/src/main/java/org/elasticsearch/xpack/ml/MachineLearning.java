@@ -805,6 +805,11 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Interval between scans of {@code .ml-config} for config-derived ML gauges (CPS datafeed adoption metrics).
+     */
+    public static final Setting<TimeValue> CONFIG_METRICS_POLL_INTERVAL = MlConfigMetrics.POLL_INTERVAL;
+
+    /**
      * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
      * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
      * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
@@ -938,6 +943,7 @@ public class MachineLearning extends Plugin
             JOB_OPEN_RETRY_TIMEOUT,
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
+            CONFIG_METRICS_POLL_INTERVAL,
             REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
@@ -1264,7 +1270,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             anomalyDetectionAuditor,
             autodetectProcessManager,
-            datafeedContextProvider
+            datafeedContextProvider,
+            telemetryProvider.getMeterRegistry()
         );
         this.datafeedRunner.set(datafeedRunner);
 
@@ -1480,6 +1487,13 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
+        MlConfigMetrics mlConfigMetrics = new MlConfigMetrics(
+            telemetryProvider.getMeterRegistry(),
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings
+        );
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1515,7 +1529,8 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
-            mlMetrics
+            mlMetrics,
+            mlConfigMetrics
         );
     }
 

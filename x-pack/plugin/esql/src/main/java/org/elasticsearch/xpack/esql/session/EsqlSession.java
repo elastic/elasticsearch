@@ -103,10 +103,10 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -1393,9 +1393,9 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         executionInfo.queryProfile().indicesResolutionMarker().start();
-        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
+        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
-        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
+        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
@@ -1458,6 +1458,7 @@ public class EsqlSession {
                 executionInfo.queryProfile().enrichResolutionMarker().start();
                 enrichPolicyResolver.resolvePolicies(
                     preAnalysis.enriches(),
+                    computeEnrichScopes(preAnalysis.enriches(), r.indexResolution(), executionInfo),
                     executionInfo,
                     r.minimumTransportVersion(),
                     l.delegateFailureAndWrap((ll, enrichResolution) -> {
@@ -1563,7 +1564,7 @@ public class EsqlSession {
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
      * <p>
-     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectLookupJoinLeftScope}.
+     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectSourceClusterScope}.
      */
     static Set<String> computeLookupJoinIndexScope(
         LogicalPlan plan,
@@ -1573,14 +1574,59 @@ public class EsqlSession {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
-                collectLookupJoinLeftScope(lj.left(), scope, indexResolution);
+                collectSourceClusterScope(lj.left(), scope, indexResolution);
             }
         });
         return scope;
     }
 
     /**
-     * Collects the clusters that feed rows into a LOOKUP JOIN by walking only the data-bearing spine of its left subtree.
+     * Derives the scope (set of clusters) that feed rows into a specific {@link Enrich} node, so its policy only needs to be
+     * resolved against the clusters that actually reach it - e.g. for
+     * `FROM (FROM logs-*), (FROM cluster-a:logs-* | ENRICH _remote:policy ON v)`, the ENRICH is scoped to {@code cluster-a}
+     * only; the sibling local branch never feeds it.
+     * <p>
+     * Only the data-bearing subtree rooted at {@code enrich.child()} is considered, see {@link #collectSourceClusterScope}.
+     */
+    static Set<String> computeEnrichScope(Enrich enrich, Map<IndexPattern, IndexResolution> indexResolution) {
+        Set<String> scope = new LinkedHashSet<>();
+        collectSourceClusterScope(enrich.child(), scope, indexResolution);
+        return scope;
+    }
+
+    /**
+     * Computes the per-node scope for every {@link Enrich} in the plan, keyed by {@link Enrich#source()} - which is stable
+     * across the rewrites the plan undergoes between pre-analysis and analysis (see {@link Enrich#replaceChild}), unlike the
+     * {@link Enrich} instance itself. Two (rare) occurrences sharing the exact same source location - e.g. an ENRICH inside a
+     * view referenced from two differently-scoped subquery branches - have their scopes unioned rather than colliding; this
+     * can only make resolution stricter than the true per-branch scope, never looser.
+     * <p>
+     * Each scope is filtered through {@link EsqlCCSUtils#onlyRunning}, mirroring {@link #preAnalyzeLookupIndex}: a cluster
+     * that failed to connect during main index resolution (skipped, e.g. behind {@code skip_unavailable=true}) can still show
+     * up in a wildcard pattern's {@code originalIndices()}, but the policy should not be required there.
+     */
+    // package-private static so EsqlSessionTests can drive it directly, e.g. to exercise the same-Source union above
+    static Map<Source, Set<String>> computeEnrichScopes(
+        List<Enrich> enriches,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        EsqlExecutionInfo executionInfo
+    ) {
+        Map<Source, Set<String>> enrichScopes = new HashMap<>();
+        for (Enrich enrich : enriches) {
+            Set<String> scope = new HashSet<>(EsqlCCSUtils.onlyRunning(executionInfo, computeEnrichScope(enrich, indexResolution)));
+            // onlyRunning can return an immutable Set (e.g. Set.of(...) when no cluster is tracked yet), so copy it into a
+            // mutable one before it's potentially unioned in place by a later same-Source occurrence, below.
+            enrichScopes.merge(enrich.source(), scope, (existing, additional) -> {
+                existing.addAll(additional);
+                return existing;
+            });
+        }
+        return enrichScopes;
+    }
+
+    /**
+     * Collects the clusters that feed rows into a plan node (a LOOKUP JOIN's left subtree, or an ENRICH's child) by walking
+     * only the data-bearing spine of that subtree.
      * <p>
      * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
      * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
@@ -1593,11 +1639,7 @@ public class EsqlSession {
      * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
      * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
      */
-    private static void collectLookupJoinLeftScope(
-        LogicalPlan plan,
-        Set<String> scope,
-        Map<IndexPattern, IndexResolution> indexResolution
-    ) {
+    private static void collectSourceClusterScope(LogicalPlan plan, Set<String> scope, Map<IndexPattern, IndexResolution> indexResolution) {
         switch (plan) {
             case UnresolvedRelation source -> {
                 IndexResolution resolution = indexResolution.get(source.indexPattern());
@@ -1606,10 +1648,10 @@ public class EsqlSession {
                 }
             }
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            case AbstractSubqueryJoin subqueryJoin -> collectLookupJoinLeftScope(subqueryJoin.left(), scope, indexResolution);
+            case AbstractSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {
-                    collectLookupJoinLeftScope(child, scope, indexResolution);
+                    collectSourceClusterScope(child, scope, indexResolution);
                 }
             }
         }

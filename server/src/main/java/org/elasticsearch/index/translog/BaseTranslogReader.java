@@ -168,14 +168,23 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     /**
-     * Reads a single operation from the given location. Throws if the record at that location is
-     * an {@link Translog.IndexBatch} — batch records cover N documents but this method can only
-     * return a single {@link Translog.Operation}. Iterate the snapshot instead, which explodes
-     * batches into individual {@link Translog.Index} ops.
+     * Reads a single operation from the given location. If the record at that location is
+     * an {@link Translog.IndexBatch}, calls {@link Translog.IndexBatch#getIndexOp(int)} with the
+     * {@link Translog.Location#batchRowIndex()} to return the individual row's {@link Translog.Index}
+     * operation.
+     * If batchRowIndex is not set, the buffer is returned as a single operation
      */
     Translog.Operation read(Translog.Location location) throws IOException {
         assert location.generation() == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation();
         ByteBuffer buffer = ByteBuffer.allocate(location.size());
-        return read(checksummedStream(buffer, location.translogLocation(), location.size(), null));
+        final Translog.Record record = readRecord(checksummedStream(buffer, location.translogLocation(), location.size(), null));
+        if (record instanceof Translog.IndexBatch indexBatch) {
+            if (location.isBatchRow() == false) {
+                throw new IOException("Record at location is a batch; use a location with batchRowIndex to read a single row");
+            }
+            return indexBatch.getIndexOp(location.batchRowIndex());
+        }
+        assert location.isBatchRow() == false : "Location set for a non batch record";
+        return (Translog.Operation) record;
     }
 }

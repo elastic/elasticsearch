@@ -7,16 +7,20 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestWarningsSource;
@@ -179,6 +183,113 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertMatchesOracle(results, oracle, 0L);
     }
 
+    public void testIntGroupingKey() {
+        Map<Integer, Long> oracle = new HashMap<>();
+        List<Page> input = randomIntInput(4_000, 100, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.INT))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(8)
+            .partitionConversionThreshold(30)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertTrue(
+            "expected conversion to partitioned mode for 100 distinct int keys",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesIntOracle(results, oracle);
+    }
+
+    public void testBytesRefGroupingKey() {
+        Map<String, Long> oracle = new HashMap<>();
+        List<Page> input = randomBytesRefInput(3_000, 50, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(8)
+            .partitionConversionThreshold(30)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertTrue(
+            "expected conversion to partitioned mode for 50 distinct bytesref keys",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesBytesRefOracle(results, oracle);
+    }
+
+    public void testTwoLongGroupingKeys() {
+        // Two LONG columns -> PackedValuesBlockHash (fixed-width) -> router works.
+        Map<String, Long> oracle = new HashMap<>();
+        List<Page> input = randomTwoLongInput(5_000, 20, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG))
+        )
+            .aggregators(List.of(sumLongFactoryAt(2)))
+            .partitionCount(8)
+            .partitionConversionThreshold(50)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertTrue(
+            "expected conversion with " + oracle.size() + " distinct key pairs",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesTwoLongOracle(results, oracle);
+    }
+
+    public void testRouterNullFallsBackToSingleTable() {
+        // LONG+BYTES_REF -> LongBytesRefAdaptiveBlockHash -> router() == null -> permanent single-table.
+        Map<String, Long> oracle = new HashMap<>();
+        List<Page> input = randomLongBytesRefInput(3_000, 50, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF))
+        )
+            .aggregators(List.of(sumLongFactoryAt(2)))
+            .partitionCount(8)
+            .partitionConversionThreshold(30)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        for (TaggedPage tagged : results) {
+            assertThat(
+                "LONG+BYTES_REF has no router; all output must be NONE_PARTITION",
+                tagged.partition,
+                equalTo(PartitionedHashAggregationOperator.NONE_PARTITION)
+            );
+        }
+        assertMatchesLongBytesRefOracle(results, oracle);
+    }
+
+    public void testMultipleAggregators() {
+        Map<Long, Long> sumOracle = new HashMap<>();
+        Map<Long, Long> maxOracle = new HashMap<>();
+        List<Page> input = randomInputWithMax(4_000, 100, sumOracle, maxOracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(sumLongFactory(), maxLongFactory()))
+            .partitionCount(8)
+            .partitionConversionThreshold(30)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertMatchesSumAndMaxOracle(results, sumOracle, maxOracle);
+    }
+
     private PartitionedHashAggregationOperator.AggregatorSpec sumLongFactory() {
         return new PartitionedHashAggregationOperator.AggregatorSpec(
             new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE),
@@ -301,5 +412,253 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
 
     private DriverContext driverContext() {
         return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+    }
+
+    private PartitionedHashAggregationOperator.AggregatorSpec sumLongFactoryAt(int channel) {
+        return new PartitionedHashAggregationOperator.AggregatorSpec(
+            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE),
+            List.of(channel)
+        );
+    }
+
+    private PartitionedHashAggregationOperator.AggregatorSpec maxLongFactory() {
+        return new PartitionedHashAggregationOperator.AggregatorSpec(new MaxLongAggregatorFunctionSupplier(), List.of(1));
+    }
+
+    private List<Page> randomIntInput(int rows, int cardinality, Map<Integer, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                IntBlock.Builder keyBuilder = blockFactory.newIntBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    int key = between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendInt(key);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomBytesRefInput(int rows, int cardinality, Map<String, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                BytesRefBlock.Builder keyBuilder = blockFactory.newBytesRefBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    String keyStr = "key" + between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendBytesRef(new BytesRef(keyStr));
+                    valueBuilder.appendLong(value);
+                    oracle.merge(keyStr, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomTwoLongInput(int rows, int cardinality, Map<String, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                LongBlock.Builder key1Builder = blockFactory.newLongBlockBuilder(pageSize);
+                LongBlock.Builder key2Builder = blockFactory.newLongBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key1 = between(0, cardinality - 1);
+                    long key2 = between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    key1Builder.appendLong(key1);
+                    key2Builder.appendLong(key2);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key1 + ":" + key2, value, Long::sum);
+                }
+                pages.add(new Page(key1Builder.build(), key2Builder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomLongBytesRefInput(int rows, int cardinality, Map<String, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                LongBlock.Builder key1Builder = blockFactory.newLongBlockBuilder(pageSize);
+                BytesRefBlock.Builder key2Builder = blockFactory.newBytesRefBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key1 = between(0, cardinality - 1);
+                    String key2Str = "tag" + between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    key1Builder.appendLong(key1);
+                    key2Builder.appendBytesRef(new BytesRef(key2Str));
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key1 + ":" + key2Str, value, Long::sum);
+                }
+                pages.add(new Page(key1Builder.build(), key2Builder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomInputWithMax(int rows, int cardinality, Map<Long, Long> sumOracle, Map<Long, Long> maxOracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key = between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendLong(key);
+                    valueBuilder.appendLong(value);
+                    sumOracle.merge(key, value, Long::sum);
+                    maxOracle.merge(key, value, Long::max);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private void assertMatchesIntOracle(List<TaggedPage> results, Map<Integer, Long> oracle) {
+        Map<Integer, Long> actual = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(4)); // key, sum, seen, failed
+            IntBlock keys = page.getBlock(0);
+            LongBlock sums = page.getBlock(1);
+            BooleanBlock seenFlags = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                actual.merge(keys.getInt(i), sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
+    }
+
+    private void assertMatchesBytesRefOracle(List<TaggedPage> results, Map<String, Long> oracle) {
+        Map<String, Long> actual = new HashMap<>();
+        BytesRef scratch = new BytesRef();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(4)); // key, sum, seen, failed
+            BytesRefBlock keys = page.getBlock(0);
+            LongBlock sums = page.getBlock(1);
+            BooleanBlock seenFlags = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                String key = keys.getBytesRef(i, scratch).utf8ToString();
+                actual.merge(key, sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Folds output from a two-LONG-key aggregation. Output layout per page:
+     * [key1(LONG), key2(LONG), sum(LONG), seen(BOOLEAN), failed(BOOLEAN)].
+     */
+    private void assertMatchesTwoLongOracle(List<TaggedPage> results, Map<String, Long> oracle) {
+        Map<String, Long> actual = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(5)); // key1, key2, sum, seen, failed
+            LongBlock keys1 = page.getBlock(0);
+            LongBlock keys2 = page.getBlock(1);
+            LongBlock sums = page.getBlock(2);
+            BooleanBlock seenFlags = page.getBlock(3);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                actual.merge(keys1.getLong(i) + ":" + keys2.getLong(i), sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Folds output from a LONG+BYTES_REF-key aggregation. Output layout per page:
+     * [key1(LONG), key2(BYTES_REF), sum(LONG), seen(BOOLEAN), failed(BOOLEAN)].
+     */
+    private void assertMatchesLongBytesRefOracle(List<TaggedPage> results, Map<String, Long> oracle) {
+        Map<String, Long> actual = new HashMap<>();
+        BytesRef scratch = new BytesRef();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(5)); // key1, key2, sum, seen, failed
+            LongBlock keys1 = page.getBlock(0);
+            BytesRefBlock keys2 = page.getBlock(1);
+            LongBlock sums = page.getBlock(2);
+            BooleanBlock seenFlags = page.getBlock(3);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                String key = keys1.getLong(i) + ":" + keys2.getBytesRef(i, scratch).utf8ToString();
+                actual.merge(key, sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Folds output from a single-LONG-key aggregation with both SumLong and MaxLong. Output layout:
+     * [key(LONG), sum(LONG), seen_sum(BOOLEAN), failed_sum(BOOLEAN), max(LONG), seen_max(BOOLEAN)].
+     */
+    private void assertMatchesSumAndMaxOracle(List<TaggedPage> results, Map<Long, Long> sumOracle, Map<Long, Long> maxOracle) {
+        Map<Long, Long> actualSum = new HashMap<>();
+        Map<Long, Long> actualMax = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(6)); // key, sum, seen, failed, max, seen
+            LongBlock keys = page.getBlock(0);
+            LongBlock sums = page.getBlock(1);
+            BooleanBlock sumSeen = page.getBlock(2);
+            LongBlock maxVals = page.getBlock(4);
+            BooleanBlock maxSeen = page.getBlock(5);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long key = keys.isNull(i) ? 0L : keys.getLong(i);
+                if (sumSeen.getBoolean(i)) {
+                    actualSum.merge(key, sums.getLong(i), Long::sum);
+                }
+                if (maxSeen.getBoolean(i)) {
+                    actualMax.merge(key, maxVals.getLong(i), Long::max);
+                }
+            }
+        }
+        assertThat(actualSum, equalTo(sumOracle));
+        assertThat(actualMax, equalTo(maxOracle));
     }
 }

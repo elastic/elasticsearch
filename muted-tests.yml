@@ -601,9 +601,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchShardRecoveryWarmingTests
   method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
   issue: https://github.com/elastic/elasticsearch/issues/154033
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
-  method: testPreFlushWaitsForOngoingFlushes
-  issue: https://github.com/elastic/elasticsearch/issues/154061
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/154062

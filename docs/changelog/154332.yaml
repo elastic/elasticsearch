@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 154020
+pr: 154332
+summary: Reject unsupported dense vector index types when index slicing is enabled
+type: bug

@@ -673,3 +673,9 @@ tests:
 - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
   method: test {p0=/11_nodes/Additional disk information}
   issue: https://github.com/elastic/elasticsearch/issues/154223
+- class: org.elasticsearch.reindex.ReindexerTests
+  method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
+  issue: https://github.com/elastic/elasticsearch/issues/154237
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/154241

@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 /// Transport action for batch cancellation of recoveries on a data node.
 /// Note that cancellation is best-effort. Recoveries may complete before the cancellation goes through or the request
@@ -90,13 +91,16 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
-        final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
+        final Set<String> allocationIdsCancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
 
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-            if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
+            if (allocationIdsCancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
+        final Set<CancelRecoveriesAction.CancelledInQueue> cancelledInQueue = allocationIdsCancelledInQueue.stream()
+            .map(allocationId -> new CancelRecoveriesAction.CancelledInQueue(toCancel.get(allocationId), allocationId))
+            .collect(Collectors.toSet());
         listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
     }
 

@@ -47,6 +47,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -1154,6 +1155,63 @@ public class ReindexerTests extends ESTestCase {
             runRemotePitTestWithMockServer(server, request -> request.setMaxRetries(0), initFuture -> {
                 ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, initFuture::actionGet);
                 assertThat(e.status(), equalTo(INTERNAL_SERVER_ERROR));
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * The {@link RemoteInfo} credentials are owned by {@link Reindexer}, not the hit sources, and are zeroed exactly once when the
+     * operation terminates normally. This guards the contract that hit sources no longer close the credentials (they must survive a
+     * relocation handoff serialization).
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    public void testRemoteReindexClosesRemoteInfoOnNormalCompletion() throws Exception {
+        HttpServer server = createRemotePitMockServer((path, method) -> false, exchange -> {});
+        server.start();
+        final SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        try {
+            runRemotePitTestWithMockServer(
+                server,
+                request -> request.setRemoteInfo(remoteInfoWithPassword(server, password)),
+                initFuture -> {
+                    assertNotNull(initFuture.actionGet());
+                    assertThat(
+                        expectThrows(IllegalStateException.class, password::getChars).getMessage(),
+                        containsString("SecureString has already been closed")
+                    );
+                }
+            );
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * When a remote reindex fails before any hit source is built (here the version lookup returns 500), {@link Reindexer} still zeroes
+     * the {@link RemoteInfo} credentials via its terminal listener. This guards against the latent credential leak on the early-failure
+     * path, where previously only a built hit source would have closed them.
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    public void testRemoteReindexClosesRemoteInfoOnEarlyFailure() throws Exception {
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.sendResponseHeaders(INTERNAL_SERVER_ERROR.getStatus(), -1);
+            exchange.close();
+        });
+        server.start();
+        final SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        try {
+            runRemotePitTestWithMockServer(server, request -> {
+                request.setMaxRetries(0);
+                request.setRemoteInfo(remoteInfoWithPassword(server, password));
+            }, initFuture -> {
+                expectThrows(ElasticsearchStatusException.class, initFuture::actionGet);
+                assertThat(
+                    expectThrows(IllegalStateException.class, password::getChars).getMessage(),
+                    containsString("SecureString has already been closed")
+                );
             });
         } finally {
             server.stop(0);
@@ -2947,6 +3005,26 @@ public class ReindexerTests extends ESTestCase {
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);
         }
+    }
+
+    /**
+     * Builds a {@link RemoteInfo} pointing at {@code server} that carries a password-bearing {@link SecureString}, so tests can assert
+     * the credential's lifecycle (owned and closed by {@link Reindexer}).
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    private static RemoteInfo remoteInfoWithPassword(HttpServer server, SecureString password) {
+        return new RemoteInfo(
+            "http",
+            server.getAddress().getHostString(),
+            server.getAddress().getPort(),
+            null,
+            new BytesArray("{\"match_all\":{}}"),
+            randomAlphaOfLength(8),
+            password,
+            emptyMap(),
+            TimeValue.timeValueSeconds(5),
+            TimeValue.timeValueSeconds(5)
+        );
     }
 
     /**

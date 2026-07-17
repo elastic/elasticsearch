@@ -276,7 +276,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -300,7 +301,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -334,7 +336,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
     }
 
@@ -379,7 +382,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             isStable,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
         // everything but name is different from descriptor1
         PluginDescriptor descriptor2 = new PluginDescriptor(
@@ -397,7 +401,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.isLicensed() == false,
             descriptor1.isModular() == false,
             descriptor1.isStable() == false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
         // only name is different from descriptor1
         PluginDescriptor descriptor3 = new PluginDescriptor(
@@ -413,7 +418,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.isLicensed(),
             descriptor1.isModular(),
             descriptor1.isStable(),
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
 
         assertThat(descriptor1, equalTo(descriptor2));

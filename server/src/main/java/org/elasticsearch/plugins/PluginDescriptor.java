@@ -74,56 +74,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     /**
      * Construct plugin info.
      *
-     * @param name                 the name of the plugin
-     * @param description          a description of the plugin
-     * @param version              an opaque version identifier for the plugin
-     * @param elasticsearchVersion the version of Elasticsearch the plugin was built for
-     * @param javaVersion          the version of Java the plugin was built with
-     * @param classname            the entry point to the plugin
-     * @param moduleName           the module name to load the plugin class from, or null if not in a module
-     * @param extendedPlugins      other plugins this plugin extends through SPI
-     * @param hasNativeController  whether or not the plugin has a native controller
-     * @param isLicensed           whether is this a licensed plugin
-     * @param isModular            whether this plugin should be loaded in a module layer
-     * @param isStable             whether this plugin is implemented using the stable plugin API
-     * @param deploymentTarget     when to load this plugin
-     */
-    public PluginDescriptor(
-        String name,
-        String description,
-        String version,
-        String elasticsearchVersion,
-        String javaVersion,
-        String classname,
-        String moduleName,
-        List<String> extendedPlugins,
-        boolean hasNativeController,
-        boolean isLicensed,
-        boolean isModular,
-        boolean isStable,
-        DeploymentTarget deploymentTarget
-    ) {
-        this(
-            name,
-            description,
-            version,
-            elasticsearchVersion,
-            javaVersion,
-            classname,
-            moduleName,
-            extendedPlugins,
-            hasNativeController,
-            isLicensed,
-            isModular,
-            isStable,
-            deploymentTarget,
-            List.of()
-        );
-    }
-
-    /**
-     * Construct plugin info.
-     *
      * @param name                             the name of the plugin
      * @param description                      a description of the plugin
      * @param version                          an opaque version identifier for the plugin
@@ -396,7 +346,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             false,
             isModular,
             true,
-            deploymentTarget
+            deploymentTarget,
+            List.of()
         );
     }
 

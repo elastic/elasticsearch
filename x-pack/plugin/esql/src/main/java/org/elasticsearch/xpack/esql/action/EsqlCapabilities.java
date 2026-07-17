@@ -2220,6 +2220,11 @@ public class EsqlCapabilities {
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
 
         /**
+         * Avoid inferring root-field null checks for negated checks on shadowing aliases.
+         */
+        FIX_NEGATED_IS_NOT_NULL_ALIAS_INFERENCE,
+
+        /**
          * Chunk function.
          */
         CHUNK_FUNCTION_V2(),

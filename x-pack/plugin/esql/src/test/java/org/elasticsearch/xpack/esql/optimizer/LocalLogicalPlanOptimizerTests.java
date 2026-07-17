@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -726,6 +727,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         inn = as(filter.condition(), IsNotNull.class);
         assertThat(Expressions.names(inn.children()), contains("emp_no"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testNegatedIsNotNullOnShadowingAlias() {
+        EsRelation relation = relation();
+        var field = getFieldAttribute("a");
+        var alias = new Alias(EMPTY, "a", new Add(EMPTY, field, ONE, TEST_CFG));
+        var eval = new Eval(EMPTY, relation, List.of(alias));
+        var condition = new Not(EMPTY, isNotNull(alias.toAttribute()));
+        var filter = new Filter(EMPTY, eval, condition);
+
+        assertEquals(filter, new InferIsNotNull().apply(filter));
     }
 
     public void testIsNotNullOnCase() {

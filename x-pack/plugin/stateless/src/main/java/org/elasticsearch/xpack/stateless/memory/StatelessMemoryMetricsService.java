@@ -340,7 +340,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return selfReportedShardMemoryOverheadEnabled;
     }
 
-    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimate heapBytes) {}
+    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimate nodeHeapEstimate) {}
 
     /**
      * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
@@ -382,7 +382,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         final List<NodeHeapEstimateSnapshot> snapshot = lastPerNodeHeapSnapshots.getAndSet(List.of());
         return snapshot.stream()
             .map(
-                s -> new LongWithAttributes(s.heapBytes().totalHeapUsage(), Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName()))
+                s -> new LongWithAttributes(
+                    s.nodeHeapEstimate().totalHeapUsage(),
+                    Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
+                )
             )
             .toList();
     }

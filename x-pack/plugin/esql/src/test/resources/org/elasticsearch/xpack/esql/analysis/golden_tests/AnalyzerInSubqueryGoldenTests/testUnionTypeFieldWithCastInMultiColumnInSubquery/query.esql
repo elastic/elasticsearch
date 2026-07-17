@@ -1,0 +1,4 @@
+FROM employees, employees_incompatible
+| EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
+| WHERE (id_kw, sal_kw) IN (FROM employees | EVAL e = emp_no::keyword, s = salary::keyword | KEEP e, s)
+| KEEP id_kw, sal_kw

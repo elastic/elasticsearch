@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_SemiJoin[[emp_no{f}#0, languages{f}#1],[emp_no{f}#2, languages{f}#3]]
+  |_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#0, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#1, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#18, salary{f}#19, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]
+  \_Project[[emp_no{f}#2, languages{f}#3]]
+    \_Filter[languages{f}#3 > 2[INTEGER]]
+      \_Filter[salary{f}#25 > 50000[INTEGER]]
+        \_EsRelation[employees][avg_worked_seconds{f}#26, birth_date{f}#27, emp_no{f}#2, first_name{f}#28, gender{f}#29, height{f}#30, height.float{f}#31, height.half_float{f}#32, height.scaled_float{f}#33, hire_date{f}#34, is_rehired{f}#35, job_positions{f}#36, languages{f}#3, languages.byte{f}#37, languages.long{f}#38, languages.short{f}#39, last_name{f}#40, salary{f}#25, salary_change{f}#41, salary_change.int{f}#42, salary_change.keyword{f}#43, salary_change.long{f}#44, still_hired{f}#45]

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -88,7 +89,8 @@ import java.util.TreeSet;
  *   <li>The left-hand side of the match operator {@code :} ({@link MatchOperator}) accepts only a
  *       bare attribute; in-scope references there are recorded as
  *       {@link SkipSite#MATCH_OPERATOR_LHS} skip events.</li>
- *   <li>{@code field IN (subquery)} hoists a bare in-scope left-hand side into an
+ *   <li>{@code field IN (subquery)} — including the multi-column tuple form
+ *       {@code (f1, f2) IN (subquery)} — hoists a bare in-scope left-hand side into an
  *       {@code EVAL field = field_extract(field, "v")} inserted before the {@code WHERE} (the
  *       IN-subquery resolver accepts only a bare attribute or constant on that side, rejecting a
  *       {@code field_extract(...)} call as a "Complicated IN subquery"), and recursively rewrites
@@ -577,6 +579,13 @@ public final class AstKeywordFieldRewriter {
                     hoist.add(attr.name());
                 }
             });
+            condition.forEachDown(MultiColumnInSubquery.class, mcs -> {
+                for (Expression value : mcs.values()) {
+                    if (value instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
+                        hoist.add(attr.name());
+                    }
+                }
+            });
             return hoist;
         }
 
@@ -837,7 +846,17 @@ public final class AstKeywordFieldRewriter {
                 // a field_extract(...) LHS), and is excluded from this scope so it is not wrapped in
                 // place. A non-attribute LHS (constant/expression) is wrapped here as usual.
                 wrapExpression(inSubquery.value(), scope, null);
-                processInSubquery(inSubquery);
+                processInSubquery(inSubquery.subquery());
+                return;
+            }
+            if (expression instanceof MultiColumnInSubquery mcs) {
+                // Same treatment as InSubquery: every bare in-scope attribute in the left tuple is
+                // hoisted by collectInSubqueryLhsHoist (the resolver accepts only bare attributes or
+                // constants in the tuple), so wrapping here only affects non-attribute values.
+                for (Expression value : mcs.values()) {
+                    wrapExpression(value, scope, null);
+                }
+                processInSubquery(mcs.subquery());
                 return;
             }
             if (expression instanceof MatchOperator matchOperator) {
@@ -900,8 +919,7 @@ public final class AstKeywordFieldRewriter {
          * reaches the outer comparison as {@code keyword}. The outer left-hand side is rebound to
          * {@code keyword} separately by {@link #hoistBeforeCommand}, so both sides agree on type.
          */
-        private void processInSubquery(InSubquery inSubquery) {
-            LogicalPlan subquery = inSubquery.subquery();
+        private void processInSubquery(LogicalPlan subquery) {
             String subText = subqueryText(subquery);
             if (subText == null) {
                 return;

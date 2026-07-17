@@ -60,6 +60,10 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
         assumeTrue("Requires where in subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
     }
 
+    private static void requireMultiColumnInSubquerySupport() {
+        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
+    }
+
     // -- basic IN subqueries --
 
     public void testInSubquery() {
@@ -238,6 +242,34 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | WHERE "Georgi" IN (FROM employees | KEEP first_name)
+            """, STAGES);
+    }
+
+    /**
+     * The same constant IN predicate repeated across conjuncts of one WHERE materializes two synthetic constant aliases in the same
+     * Eval; their names must stay distinct (via the per-rewrite ordinal in {@code InSubqueryResolver#syntheticConstName}) or the
+     * Eval's output merging would silently drop the first field and orphan the join key referencing it. Mirrors
+     * {@code InSubqueryResolverTests#testRepeatedConstantInSubqueriesGetDistinctNames}.
+     */
+    public void testRepeatedConstantInSubqueriesInOneWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE 42 IN (FROM employees | KEEP emp_no) AND 42 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    /**
+     * The same constant IN predicate in two separate WHERE commands. Each Filter is rewritten independently, allocating its synthetic
+     * constant alias in its own Eval, so the two aliases can share a name (see {@code InSubqueryResolver#syntheticConstName}). That
+     * collision is benign — ordinary cross-level name shadowing (as in {@code EVAL x = .. | EVAL x = ..}): each SemiJoin consumes its
+     * key from its own Eval below the shadowing point, bound by NameId. The golden plan pins this down: two stacked SemiJoin/Eval
+     * pairs, each join key referencing its own Eval's field.
+     */
+    public void testSameConstantInSubqueryInTwoWhereCommands() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE 42 IN (FROM employees | KEEP emp_no)
+            | WHERE 42 IN (FROM employees | KEEP emp_no)
             """, STAGES);
     }
 
@@ -972,6 +1004,286 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             FROM salaries_int
             | WHERE emp_no NOT IN (FROM salaries_long | KEEP emp_no)
             """);
+    }
+
+    // -- multi-column IN subquery: mixed with single-column IN subquery connected by AND/OR/NOT --
+
+    public void testMultiColumnInSubqueryAndSingleColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryOrSingleColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+               OR languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnNotInSubqueryAndSingleColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) NOT IN (FROM employees | KEEP emp_no, salary)
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryAndSingleColumnNotInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+              AND languages NOT IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: constant left-hand side --
+
+    public void testConstantsInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (10001, 60000) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    public void testMixedConstantAndFieldInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, 60000) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    /**
+     * Repeated equal constants in a multi-column tuple hash identically, so both synthetic constant aliases land in the same Eval;
+     * their names must stay distinct (via the per-rewrite ordinal in {@code InSubqueryResolver#syntheticConstName}) or the Eval's
+     * output merging would silently drop the first field and orphan the join key referencing it. The golden plan pins down the two
+     * distinctly-named Eval fields and the SemiJoin keys bound to them. Mirrors
+     * {@code InSubqueryResolverTests#testRepeatedConstantsInMultiColumnInSubqueryGetDistinctNames}.
+     */
+    public void testRepeatedConstantsInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (1, 1) IN (FROM employees | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: implicit date cast --
+
+    public void testMultiColumnInSubqueryWithImplicitDateCast() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, hire_date) IN (
+                FROM employees
+                | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+                | KEEP emp_no, hire_date
+              )
+            | KEEP emp_no, hire_date
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: FROM subquery combinations --
+
+    public void testFromSubqueryInsideMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees, (FROM employees | KEEP emp_no, salary)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    public void testFromSubqueryBeforeMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees | WHERE salary > 50000 | KEEP emp_no, salary)
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInsideFromSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees
+                  | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+                  | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    // -- nested multi-column IN subquery --
+
+    public void testNestedMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees
+                | WHERE (languages, salary) IN (FROM employees | KEEP languages, salary)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    public void testNestedNotInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) NOT IN (
+                FROM employees
+                | WHERE (languages, salary) NOT IN (FROM employees | KEEP languages, salary)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees
+                | WHERE languages IN (FROM employees | KEEP languages)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: union-typed field resolved by an explicit cast --
+
+    public void testFromSubqueryUnionTypeLeftFieldWithCastInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
+            | EVAL id = emp_no::long, sal = salary::long
+            | WHERE (id, sal) IN (FROM employees_incompatible | KEEP emp_no, salary)
+            | KEEP id, sal
+            """, STAGES);
+    }
+
+    public void testUnionTypeFieldWithCastInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees, employees_incompatible
+            | EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
+            | WHERE (id_kw, sal_kw) IN (FROM employees | EVAL e = emp_no::keyword, s = salary::keyword | KEEP e, s)
+            | KEEP id_kw, sal_kw
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testUnionTypeRightFieldWithCastInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (first_name, last_name) IN (
+                FROM employees, employees_incompatible
+                | EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
+                | KEEP id_kw, sal_kw
+              )
+            | KEEP first_name, last_name
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // -- multi-column IN subquery: ROW as main source or subquery source --
+
+    public void testMultiColumnInSubqueryWithRowSource() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)
+            """, STAGES);
+    }
+
+    public void testRowMainMultiColumnInSubqueryWithIndexSource() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            ROW emp_no = 10001, salary = 60000
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    public void testRowMainMultiColumnInSubqueryWithRowSource() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            ROW emp_no = 10001, salary = 60000
+            | WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: TS as main source or subquery source --
+
+    public void testMultiColumnInSubqueryWithTsSource() {
+        requireMultiColumnInSubquerySupport();
+        requireInSubqueryWithTSSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (first_name, last_name) IN (
+                TS k8s
+                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+                | KEEP cluster, pod
+              )
+            | KEEP first_name, last_name
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+    }
+
+    public void testTsMainMultiColumnInSubqueryWithIndexSource() {
+        requireMultiColumnInSubquerySupport();
+        requireInSubqueryWithTSSupport();
+        runGoldenTest("""
+            TS k8s
+            | WHERE (cluster, pod) IN (FROM employees | KEEP first_name, last_name)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+    }
+
+    public void testTsMainMultiColumnInSubqueryWithRowSource() {
+        requireMultiColumnInSubquerySupport();
+        requireInSubqueryWithTSSupport();
+        runGoldenTest("""
+            TS k8s
+            | WHERE (cluster, pod) IN (ROW cluster = "my-cluster", pod = "my-pod")
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+    }
+
+    public void testTsMainMultiColumnInSubqueryWithTsSource() {
+        requireMultiColumnInSubquerySupport();
+        requireInSubqueryWithTSSupport();
+        runGoldenTest("""
+            TS k8s
+            | WHERE (cluster, pod) IN (
+                TS k8s
+                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+                | KEEP cluster, pod
+              )
+            | STATS total_bytes = sum(to_long(network.total_bytes_in)) BY cluster
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+    }
+
+    public void testRowMainMultiColumnInSubqueryWithTsSource() {
+        requireMultiColumnInSubquerySupport();
+        requireInSubqueryWithTSSupport();
+        runGoldenTest("""
+            ROW cluster = "my-cluster", pod = "my-pod"
+            | WHERE (cluster, pod) IN (
+                TS k8s
+                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+                | KEEP cluster, pod
+              )
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
     }
 
     // -- helpers --

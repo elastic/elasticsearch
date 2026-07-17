@@ -109,10 +109,22 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
 
     private void checkRemoteJoin(Failures failures) {
         // Check only for LIMITs, Join will check the rest post-optimization
-        this.forEachUp(Limit.class, f -> {
-            failures.add(
-                fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.source().text() + "]" + f.source().source())
-            );
-        });
+        checkForLimits(this, failures);
+    }
+
+    private void checkForLimits(LogicalPlan plan, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            // The right side is an independent subquery; do not traverse into it.
+            checkForLimits(subqueryJoin.left(), failures);
+        } else {
+            if (plan instanceof Limit f) {
+                failures.add(
+                    fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.source().text() + "]" + f.source().source())
+                );
+            }
+            for (LogicalPlan child : plan.children()) {
+                checkForLimits(child, failures);
+            }
+        }
     }
 }

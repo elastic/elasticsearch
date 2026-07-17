@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
@@ -156,6 +158,15 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
+     * Build the terminal plan for the multi-column filter path. The {@code condition} is an already-built OR-of-ANDs expression
+     * covering all deduplicated right-side tuples. SEMI returns {@code Filter(wrapInExpression(condition))}; ANTI wraps in {@code Not}
+     * via {@link #wrapInExpression}; MarkJoin overrides to produce an {@code Eval} that materialises the mark attribute.
+     */
+    protected LogicalPlan buildFilterPathPlanFromExpression(Expression condition, Source source) {
+        return new Filter(source, left(), wrapInExpression(source, condition));
+    }
+
+    /**
      * Build the {@link In} expression for the filter path by turning each BlockHash dedup position into a {@link Literal}. A NULL position
      * (BlockHash's reserved group 0) becomes a NULL literal naturally, so {@link In}'s three-valued semantics carry the correct
      * predicate/mark value into the surrounding {@code Filter} (SEMI/ANTI) or {@code Eval} (MARK).
@@ -217,40 +228,45 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // SemiJoin/AntiJoin/MarkJoin are built by InSubqueryResolver which always produces a single-field config (one left field, one
-        // right field). The Analyzer additionally verifies that the subquery returns exactly one column. inlineData reads
-        // leftFields().get(0) unconditionally, so a multi-field config would silently use only the first pair — fail loudly here instead.
-        if (config().leftFields().size() != 1 || config().rightFields().size() != 1) {
+        List<Attribute> leftFields = config().leftFields();
+        List<Attribute> rightFields = config().rightFields();
+
+        if (leftFields.isEmpty() || leftFields.size() != rightFields.size()) {
             failures.add(
                 fail(
                     this,
-                    "IN subquery requires exactly one left and right field, found [{}] and [{}]",
-                    config().leftFields().size(),
-                    config().rightFields().size()
+                    "IN subquery requires the same non-zero number of fields on each side, found [{}] left and [{}] right",
+                    leftFields.size(),
+                    rightFields.size()
                 )
             );
             return;
         }
-        Attribute leftField = config().leftFields().get(0);
-        Attribute rightField = config().rightFields().get(0);
-        DataType leftType = leftField.dataType();
-        DataType rightType = rightField.dataType();
 
-        if (subqueryJoinCompatible(leftType, rightType) == false) {
-            failures.add(
-                fail(
-                    leftField,
-                    "left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
-                    leftField.name(),
-                    leftType,
-                    rightField.name(),
-                    rightType
-                )
-            );
-        }
-        // Same unsupported types as Join, except TEXT and VERSION are allowed in IN/NOT IN subquery joins
-        if (isSubqueryJoinUnsupported(rightType)) {
-            failures.add(fail(leftField, "IN subquery with right field [{}] of type [{}] is not supported", rightField.name(), rightType));
+        for (int i = 0; i < leftFields.size(); i++) {
+            Attribute leftField = leftFields.get(i);
+            Attribute rightField = rightFields.get(i);
+            DataType leftType = leftField.dataType();
+            DataType rightType = rightField.dataType();
+
+            if (subqueryJoinCompatible(leftType, rightType) == false) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        leftField.name(),
+                        leftType,
+                        rightField.name(),
+                        rightType
+                    )
+                );
+            }
+            // Same unsupported types as Join, except TEXT and VERSION are allowed in IN/NOT IN subquery joins
+            if (isSubqueryJoinUnsupported(rightType)) {
+                failures.add(
+                    fail(leftField, "IN subquery with right field [{}] of type [{}] is not supported", rightField.name(), rightType)
+                );
+            }
         }
     }
 
@@ -337,11 +353,24 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         // InSubqueryResolver always produces single-field SemiJoin/AntiJoin/MarkJoin configs, and the Analyzer enforces a single-column
         // subquery output. This method reads leftFields().get(0) unconditionally — assert the contract here so a programmatic misuse trips
         // an assertion rather than silently using only the first field pair.
-        assert subqueryJoin.config().leftFields().size() == 1
-            : "subquery join must have exactly one left field, found " + subqueryJoin.config().leftFields().size();
-        assert subqueryJoin.config().rightFields().size() == 1
-            : "subquery join must have exactly one right field, found " + subqueryJoin.config().rightFields().size();
+        int fieldCount = subqueryJoin.config().leftFields().size();
+        assert fieldCount >= 1 : "subquery join must have at least one field, found " + fieldCount;
+        assert fieldCount == subqueryJoin.config().rightFields().size()
+            : "subquery join left/right field count mismatch: " + fieldCount + " vs " + subqueryJoin.config().rightFields().size();
 
+        if (fieldCount > 1) {
+            return inlineDataMultiColumn(subqueryJoin, data, hashJoinThreshold, blockFactory, pageHolder);
+        }
+        return inlineDataSingleColumn(subqueryJoin, data, hashJoinThreshold, blockFactory, pageHolder);
+    }
+
+    private static LogicalPlan inlineDataSingleColumn(
+        AbstractSubqueryJoin subqueryJoin,
+        LocalRelation data,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
         List<Attribute> schema = data.output();
         Page page = data.supplier().get();
         Source source = subqueryJoin.source();
@@ -471,6 +500,74 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         @Override
         public void close() {
             Releasables.closeExpectNoException(keys);
+        }
+    }
+
+    private static final class MultiColumnDedupResult implements Releasable {
+        private final Block[] keyColumns;
+        private final boolean[] isNullPosition;
+        private final boolean hadNulls;
+
+        MultiColumnDedupResult(Block[] keyColumns) {
+            this.keyColumns = keyColumns;
+            int positions = keyColumns.length > 0 ? keyColumns[0].getPositionCount() : 0;
+            this.isNullPosition = new boolean[positions];
+            boolean anyNull = false;
+            for (Block col : keyColumns) {
+                for (int pos = 0; pos < positions; pos++) {
+                    if (col.isNull(pos)) {
+                        isNullPosition[pos] = true;
+                        anyNull = true;
+                    }
+                }
+            }
+            this.hadNulls = anyNull;
+        }
+
+        Block[] keyColumns() {
+            return keyColumns;
+        }
+
+        int positions() {
+            return keyColumns.length > 0 ? keyColumns[0].getPositionCount() : 0;
+        }
+
+        boolean hadNulls() {
+            return hadNulls;
+        }
+
+        boolean allNull() {
+            if (hadNulls == false || positions() == 0) {
+                return false;
+            }
+            for (boolean b : isNullPosition) {
+                if (b == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        int[] nullFreePositions() {
+            int count = 0;
+            for (boolean b : isNullPosition) {
+                if (b == false) {
+                    count++;
+                }
+            }
+            int[] result = new int[count];
+            int idx = 0;
+            for (int i = 0; i < isNullPosition.length; i++) {
+                if (isNullPosition[i] == false) {
+                    result[idx++] = i;
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(keyColumns);
         }
     }
 
@@ -618,6 +715,224 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         }
 
         return subqueryJoin.buildHashJoinPathPlan(leftSide, deduplicatedData, leftJoinConfig, sentinelAttr, source, rightHadNulls);
+    }
+
+    private static LogicalPlan inlineDataMultiColumn(
+        AbstractSubqueryJoin subqueryJoin,
+        LocalRelation data,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        List<Attribute> schema = data.output();
+        Page page = data.supplier().get();
+        Source source = subqueryJoin.source();
+        int n = subqueryJoin.config().leftFields().size();
+
+        if (page == null || page.getBlockCount() == 0 || schema.isEmpty() || page.getPositionCount() == 0) {
+            releaseSourcePage(pageHolder);
+            return subqueryJoin.buildEmptyRightSidePlan(source);
+        }
+
+        List<Block> keyBlocks = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            keyBlocks.add(page.getBlock(i));
+        }
+
+        try (MultiColumnDedupResult dedup = deduplicateMultiColumnKeys(keyBlocks, blockFactory)) {
+            if (dedup.positions() == 0) {
+                releaseSourcePage(pageHolder);
+                return subqueryJoin.buildEmptyRightSidePlan(source);
+            }
+
+            boolean rightHadNulls = dedup.hadNulls();
+            boolean allRightNull = dedup.allNull();
+
+            if (allRightNull) {
+                releaseSourcePage(pageHolder);
+                return subqueryJoin.buildShortCircuitPlan(source, true);
+            }
+
+            List<Attribute> leftFields = subqueryJoin.config().leftFields();
+            DataType[] keyTypes = new DataType[n];
+            for (int i = 0; i < n; i++) {
+                keyTypes[i] = schema.get(i).dataType();
+            }
+
+            // For ANTI with any NULL-containing right tuples, the hash-join path gives wrong SQL semantics:
+            // a left row that partially matches the null component (matching only the non-null columns)
+            // would be incorrectly included. Use the filter path which handles NULLs through Equals
+            // three-valued semantics.
+            boolean forceFilterPath = subqueryJoin instanceof AntiJoin && rightHadNulls;
+
+            if (dedup.positions() <= hashJoinThreshold || forceFilterPath) {
+                releaseSourcePage(pageHolder);
+                Expression filterExpr = buildMultiColumnInExpression(dedup.keyColumns(), keyTypes, leftFields, source);
+                return buildMultiColumnFilterPathPlan(subqueryJoin, filterExpr, source, leftFields);
+            }
+
+            return inlineAsHashJoinMultiColumn(subqueryJoin, dedup, schema, source, blockFactory, pageHolder, rightHadNulls);
+        }
+    }
+
+    private static Expression buildMultiColumnInExpression(
+        Block[] dedupBlocks,
+        DataType[] keyTypes,
+        List<Attribute> leftFields,
+        Source source
+    ) {
+        int positions = dedupBlocks[0].getPositionCount();
+        int n = leftFields.size();
+        List<Expression> rowPredicates = new ArrayList<>(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            List<Expression> colEqs = new ArrayList<>(n);
+            for (int col = 0; col < n; col++) {
+                Expression literal = new Literal(source, toJavaObject(dedupBlocks[col], pos), keyTypes[col]);
+                colEqs.add(new Equals(source, leftFields.get(col), literal));
+            }
+            rowPredicates.add(Predicates.combineAnd(colEqs));
+        }
+        return Predicates.combineOr(rowPredicates);
+    }
+
+    /**
+     * Build the terminal plan for the multi-column filter path. For SEMI/ANTI ({@link #filterNullLeftKeysBeforeHashJoin} returns true),
+     * a pre-filter removes rows where any left key is multi-valued or null before applying the IN/NOT IN condition. Without this guard,
+     * {@code NOT(false AND null) = true} would incorrectly include MV-keyed rows in NOT IN results when no right row's non-null columns
+     * match — the AND short-circuit hides the null that should propagate. For MARK ({@link #filterNullLeftKeysBeforeHashJoin} returns
+     * false), the filter path is handed to {@link #buildFilterPathPlanFromExpression} unchanged so the mark expression's three-valued
+     * semantics handle nulls directly.
+     */
+    private static LogicalPlan buildMultiColumnFilterPathPlan(
+        AbstractSubqueryJoin subqueryJoin,
+        Expression condition,
+        Source source,
+        List<Attribute> leftFields
+    ) {
+        if (subqueryJoin.filterNullLeftKeysBeforeHashJoin() == false) {
+            return subqueryJoin.buildFilterPathPlanFromExpression(condition, source);
+        }
+        List<Expression> notNullChecks = new ArrayList<>(leftFields.size());
+        for (Attribute leftField : leftFields) {
+            notNullChecks.add(new IsNotNull(source, new MvSingleValueOrNull(source, leftField)));
+        }
+        LogicalPlan guardedLeft = new Filter(source, subqueryJoin.left(), Predicates.combineAnd(notNullChecks));
+        return new Filter(source, guardedLeft, subqueryJoin.wrapInExpression(source, condition));
+    }
+
+    private static LogicalPlan inlineAsHashJoinMultiColumn(
+        AbstractSubqueryJoin subqueryJoin,
+        MultiColumnDedupResult dedup,
+        List<Attribute> schema,
+        Source source,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder,
+        boolean rightHadNulls
+    ) {
+        int n = subqueryJoin.config().leftFields().size();
+        int[] nullFreePositions = dedup.nullFreePositions();
+
+        Block sentinel = null;
+        Page dedupPage;
+        boolean success = false;
+        try {
+            Block[] pageBlocks = new Block[n + 1];
+            for (int col = 0; col < n; col++) {
+                pageBlocks[col] = dedup.keyColumns()[col].filter(false, nullFreePositions);
+            }
+            sentinel = blockFactory.newConstantBooleanBlockWith(true, nullFreePositions.length);
+            pageBlocks[n] = sentinel;
+            sentinel = null;
+            dedupPage = new Page(pageBlocks);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(sentinel);
+            }
+        }
+
+        if (pageHolder != null) {
+            Page oldSource = pageHolder.getAndSet(dedupPage);
+            if (oldSource != null) {
+                Releasables.closeExpectNoException(oldSource);
+            }
+        }
+
+        Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
+        List<Attribute> extendedSchema = new ArrayList<>(schema);
+        extendedSchema.add(sentinelAttr);
+        LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
+
+        List<Attribute> leftFields = subqueryJoin.config().leftFields();
+        List<Alias> svGuardAliases = new ArrayList<>(n);
+        List<Attribute> svGuardedLeftFields = new ArrayList<>(n);
+        for (Attribute leftField : leftFields) {
+            Alias svGuardAlias = new Alias(source, "$$" + leftField.name() + "$sv", new MvSingleValueOrNull(source, leftField), null, true);
+            svGuardAliases.add(svGuardAlias);
+            svGuardedLeftFields.add(svGuardAlias.toAttribute());
+        }
+        LogicalPlan leftSide = new Eval(source, subqueryJoin.left(), svGuardAliases);
+
+        if (subqueryJoin.filterNullLeftKeysBeforeHashJoin()) {
+            List<Expression> notNullChecks = new ArrayList<>(n);
+            for (Attribute svField : svGuardedLeftFields) {
+                notNullChecks.add(new IsNotNull(source, svField));
+            }
+            leftSide = new Filter(source, leftSide, Predicates.combineAnd(notNullChecks));
+        }
+
+        JoinConfig leftJoinConfig = new JoinConfig(LEFT, svGuardedLeftFields, subqueryJoin.config().rightFields(), null);
+        return subqueryJoin.buildHashJoinPathPlan(leftSide, deduplicatedData, leftJoinConfig, sentinelAttr, source, rightHadNulls);
+    }
+
+    private static MultiColumnDedupResult deduplicateMultiColumnKeys(List<Block> keyBlocks, BlockFactory blockFactory) {
+        int n = keyBlocks.size();
+        Block[] convertedBlocks = new Block[n];
+        boolean[] converted = new boolean[n];
+        try {
+            for (int i = 0; i < n; i++) {
+                if (keyBlocks.get(i).mayHaveMultivaluedFields()) {
+                    convertedBlocks[i] = convertMvPositionsToNull(keyBlocks.get(i), blockFactory);
+                    converted[i] = true;
+                } else {
+                    convertedBlocks[i] = keyBlocks.get(i);
+                }
+            }
+            Block[] dedupKeys = dedupViaBlockHashMultiColumn(convertedBlocks, blockFactory);
+            return new MultiColumnDedupResult(dedupKeys);
+        } finally {
+            for (int i = 0; i < n; i++) {
+                if (converted[i]) {
+                    Releasables.closeExpectNoException(convertedBlocks[i]);
+                }
+            }
+        }
+    }
+
+    private static Block[] dedupViaBlockHashMultiColumn(Block[] inputs, BlockFactory blockFactory) {
+        int emitBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(inputs.length);
+        for (int i = 0; i < inputs.length; i++) {
+            specs.add(new BlockHash.GroupSpec(i, inputs[i].elementType()));
+        }
+        try (BlockHash hash = BlockHash.build(specs, blockFactory, emitBatchSize, false)) {
+            hash.add(new Page(inputs), new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {}
+
+                @Override
+                public void close() {}
+            });
+            try (IntVector selected = hash.nonEmpty()) {
+                return hash.getKeys(selected);
+            }
+        }
     }
 
     private static void releaseSourcePage(AtomicReference<Page> pageHolder) {

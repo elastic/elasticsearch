@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154146
+pr: 154270
+summary: Fix negated match-all RLIKE on shadowed fields
+type: bug

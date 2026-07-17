@@ -336,6 +336,14 @@ public class SplitCoalescerTests extends ESTestCase {
         assertSame(splits, SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 14));
     }
 
+    public void testInvalidParamsThrowEvenBelowThreshold() {
+        // Validation must fire before the early-return size guard so the same invalid argument is always rejected.
+        List<ExternalSplit> belowThreshold = makeSplits(COALESCING_THRESHOLD - 1);
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 8, 0));
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 0, 8, 1));
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 0, 1));
+    }
+
     public void testMixedSizesProducesReasonableGroups() {
         List<ExternalSplit> splits = new ArrayList<>();
         long targetGroupSize = 100 * 1024 * 1024;

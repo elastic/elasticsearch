@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.PriorityQueue;
 
 /**
  * Groups many small {@link ExternalSplit}s into {@link CoalescedSplit}s to
@@ -27,10 +28,18 @@ public final class SplitCoalescer {
 
     private SplitCoalescer() {}
 
+    /**
+     * Coalesces with the default size and count budgets and no minimum group floor; equivalent to
+     * {@link #coalesce(List, long, int, int)} with {@code minGroupCount=1}.
+     */
     public static List<ExternalSplit> coalesce(List<ExternalSplit> splits) {
         return coalesce(splits, DEFAULT_TARGET_GROUP_SIZE_BYTES, DEFAULT_TARGET_GROUP_COUNT);
     }
 
+    /**
+     * Coalesces with the given size and count budgets and no minimum group floor; equivalent to
+     * {@link #coalesce(List, long, int, int)} with {@code minGroupCount=1}.
+     */
     public static List<ExternalSplit> coalesce(List<ExternalSplit> splits, long targetGroupSizeBytes, int targetGroupCount) {
         return coalesce(splits, targetGroupSizeBytes, targetGroupCount, 1);
     }
@@ -60,9 +69,6 @@ public final class SplitCoalescer {
         if (splits == null) {
             throw new IllegalArgumentException("splits cannot be null");
         }
-        if (splits.size() <= COALESCING_THRESHOLD) {
-            return splits;
-        }
         if (targetGroupCount <= 0) {
             throw new IllegalArgumentException("targetGroupCount must be positive, got: " + targetGroupCount);
         }
@@ -71,6 +77,9 @@ public final class SplitCoalescer {
         }
         if (minGroupCount < 1) {
             throw new IllegalArgumentException("minGroupCount must be positive, got: " + minGroupCount);
+        }
+        if (splits.size() <= COALESCING_THRESHOLD) {
+            return splits;
         }
 
         boolean allHaveSize = true;
@@ -198,55 +207,56 @@ public final class SplitCoalescer {
 
         List<List<ExternalSplit>> groups = new ArrayList<>(groupCount);
         long[] loads = new long[groupCount];
+        int[] leafCounts = new int[groupCount];
         for (int i = 0; i < groupCount; i++) {
             ExternalSplit leaf = sorted.get(i);
             List<ExternalSplit> group = new ArrayList<>();
             group.add(leaf);
             groups.add(group);
             loads[i] = bySize ? leaf.estimatedSizeInBytes() : 1;
+            leafCounts[i] = 1;
         }
 
-        for (int i = groupCount; i < sorted.size(); i++) {
-            ExternalSplit leaf = sorted.get(i);
-            int target = 0;
-            for (int g = 1; g < groupCount; g++) {
-                if (preferred(groups, loads, g, target, bySize, targetGroupSizeBytes)) {
-                    target = g;
-                }
+        if (sorted.size() > groupCount) {
+            PriorityQueue<Integer> pq = new PriorityQueue<>(
+                groupCount,
+                (a, b) -> compareGroups(leafCounts, loads, a, b, bySize, targetGroupSizeBytes)
+            );
+            for (int i = 0; i < groupCount; i++) {
+                pq.offer(i);
             }
-            groups.get(target).add(leaf);
-            loads[target] += bySize ? leaf.estimatedSizeInBytes() : 1;
+            for (int i = groupCount; i < sorted.size(); i++) {
+                ExternalSplit leaf = sorted.get(i);
+                int target = pq.poll();
+                groups.get(target).add(leaf);
+                leafCounts[target]++;
+                loads[target] += bySize ? leaf.estimatedSizeInBytes() : 1;
+                pq.offer(target);
+            }
         }
         return groups;
     }
 
     /**
-     * Returns true when {@code candidate} is a better target for the next leaf than {@code current}. A group still
-     * under the size budget is preferred over one that has reached it, so no group grows past the budget while
-     * another has room; if every group is at the budget the tie-break below still places the leaf somewhere. Among
-     * groups on the same side of the budget the one holding fewer leaves wins (count balance), and byte load only
-     * separates groups with an equal leaf count. Byte load and the budget are ignored when {@code bySize} is false
-     * because unsized leaves carry no budget to respect.
+     * Three-way comparator for group selection: returns negative when {@code a} is a better target than {@code b},
+     * positive when {@code b} is better, zero when equal priority. A group still under the size budget is preferred
+     * over one that has reached it, so no group grows past the budget while another has room. Among groups on the
+     * same side of the budget, the one holding fewer leaves wins (count balance), and byte load only separates
+     * groups with an equal leaf count. Budget and byte load are ignored when {@code bySize} is false.
      */
-    private static boolean preferred(
-        List<List<ExternalSplit>> groups,
-        long[] loads,
-        int candidate,
-        int current,
-        boolean bySize,
-        long targetGroupSizeBytes
-    ) {
-        boolean candidateHasRoom = bySize == false || loads[candidate] < targetGroupSizeBytes;
-        boolean currentHasRoom = bySize == false || loads[current] < targetGroupSizeBytes;
-        if (candidateHasRoom != currentHasRoom) {
-            return candidateHasRoom;
+    private static int compareGroups(int[] leafCounts, long[] loads, int a, int b, boolean bySize, long targetGroupSizeBytes) {
+        if (bySize) {
+            boolean aHasRoom = loads[a] < targetGroupSizeBytes;
+            boolean bHasRoom = loads[b] < targetGroupSizeBytes;
+            if (aHasRoom != bHasRoom) {
+                return aHasRoom ? -1 : 1;
+            }
         }
-        int candidateCount = groups.get(candidate).size();
-        int currentCount = groups.get(current).size();
-        if (candidateCount != currentCount) {
-            return candidateCount < currentCount;
+        int countDiff = Integer.compare(leafCounts[a], leafCounts[b]);
+        if (countDiff != 0) {
+            return countDiff;
         }
-        return bySize && loads[candidate] < loads[current];
+        return bySize ? Long.compare(loads[a], loads[b]) : 0;
     }
 
     private static List<ExternalSplit> buildResult(List<List<ExternalSplit>> bins) {

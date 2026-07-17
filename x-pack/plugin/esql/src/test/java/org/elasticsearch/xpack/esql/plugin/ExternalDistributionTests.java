@@ -474,7 +474,7 @@ public class ExternalDistributionTests extends ESTestCase {
             exec -> exec.splits().isEmpty() ? exec.withSplits(splits) : exec
         );
 
-        final List<ExternalSourceExec> sources = new java.util.ArrayList<>();
+        final List<ExternalSourceExec> sources = new ArrayList<>();
         withSplits.forEachDown(ExternalSourceExec.class, sources::add);
         assertFalse("Should have at least one ExternalSourceExec", sources.isEmpty());
         assertEquals("Splits should be injected", 2, sources.get(0).splits().size());

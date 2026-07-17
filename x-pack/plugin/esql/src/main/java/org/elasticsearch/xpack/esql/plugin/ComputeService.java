@@ -13,6 +13,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -191,6 +192,7 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
@@ -212,6 +214,7 @@ public class ComputeService {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.threadPool = threadPool;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
@@ -293,18 +296,26 @@ public class ComputeService {
             if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
                 return exec;
             }
-            List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, minGroupCount);
-            if (coalesced == splits) {
-                return exec;
-            }
-            return exec.withSplits(coalesced);
+            return exec.withSplits(SplitCoalescer.coalesce(splits, minGroupCount));
         });
+    }
+
+    private NodeEligibilityStrategy externalNodeEligibility() {
+        return DiscoveryNode.isStateless(clusterService.getSettings())
+            ? NodeEligibilityStrategy.SEARCH_NODES_ONLY
+            : NodeEligibilityStrategy.DATA_NODES_ONLY;
     }
 
     private int externalCoalesceFloor(Configuration configuration) {
         int taskConcurrency = configuration.pragmas().taskConcurrency();
-        int eligibleNodes = Math.max(1, NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(clusterService.state().nodes()).size());
-        return externalCoalesceFloor(taskConcurrency, eligibleNodes);
+        // The TASK_CONCURRENCY default is computed from Settings.EMPTY at class-load time and therefore ignores
+        // node.processors. On a K8s node with node.processors=4 on a 64-CPU host the default is 97 while the
+        // esql_worker pool has only 7 threads. Cap against the pool size so the floor never creates more groups
+        // than there are workers to drain them.
+        int poolMax = threadPool.info(EsqlPlugin.computePool()).getMax();
+        int effectiveConcurrency = Math.min(taskConcurrency, poolMax);
+        int eligibleNodes = Math.max(1, externalNodeEligibility().eligibleNodes(clusterService.state().nodes()).size());
+        return externalCoalesceFloor(effectiveConcurrency, eligibleNodes);
     }
 
     /**
@@ -321,15 +332,19 @@ public class ComputeService {
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
+        return resolveExternalDistributionStrategy(pragmas, NodeEligibilityStrategy.DATA_NODES_ONLY);
+    }
+
+    static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas, NodeEligibilityStrategy eligibility) {
         String value = pragmas.externalDistribution();
         return switch (value) {
-            case "", "adaptive" -> new AdaptiveStrategy();
+            case "", "adaptive" -> new AdaptiveStrategy(eligibility);
             case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
-            case "round_robin" -> new RoundRobinStrategy();
-            case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
+            case "round_robin" -> new RoundRobinStrategy(eligibility);
+            case "weighted_round_robin" -> new WeightedRoundRobinStrategy(eligibility);
             default -> {
                 LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
-                yield new AdaptiveStrategy();
+                yield new AdaptiveStrategy(eligibility);
             }
         };
     }
@@ -350,7 +365,7 @@ public class ComputeService {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, List.of());
         }
 
-        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
+        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas(), externalNodeEligibility());
         ExternalDistributionContext context = new ExternalDistributionContext(
             resolvedPlan,
             externalSplits,
@@ -406,10 +421,8 @@ public class ComputeService {
                 PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
-                    if (coalesced != splits) {
-                        splits.clear();
-                        splits.addAll(coalesced);
-                    }
+                    splits.clear();
+                    splits.addAll(coalesced);
                 }
                 return new CollectedSplits(rewritten, splits);
             }

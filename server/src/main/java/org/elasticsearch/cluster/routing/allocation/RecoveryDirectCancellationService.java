@@ -41,6 +41,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
+/// Master-side service that proactively cancels shard recoveries that are no longer wanted
+/// according to the current [DesiredBalance].
+///
+/// When the desired balance changes and an initializing shard is no longer assigned to its current
+/// node, this service sends a [CancelRecoveriesAction] transport request to the data node so that
+/// the recovery is cancelled as soon as possible rather than waiting it for it to complete before the next allocation
+/// round can move the shard.
+///
+/// Every operation in this service is fire-and-forget. Errors are all handled by logging a warning
+/// or silently ignoring the result. In all failure cases the affected shards are eventually
+/// reassigned through the normal reroute/shard-failed path.
 public class RecoveryDirectCancellationService {
 
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
@@ -162,7 +173,7 @@ public class RecoveryDirectCancellationService {
             final var failedShardEntry = new FailedShardEntry(
                 shardId,
                 cancelled.allocationId(),
-                indexMetadata.primaryTerm(shardId.id()),
+                0L,
                 "recovery direct cancelled while still queued on the data node",
                 new RecoveryCancelledException(shardId, null, node),
                 false

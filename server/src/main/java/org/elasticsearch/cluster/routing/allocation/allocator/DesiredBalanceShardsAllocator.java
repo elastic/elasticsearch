@@ -236,7 +236,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     // problem, as direct cancellation is a best effort optimization but we should probably catch those
                     // (maybe by triggering another cancellation round after the first reconcile, after we add request deduplication?)
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
-                        recoveryDirectCancellationAction.apply(currentDesiredBalance, desiredBalanceInput.routingAllocation());
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);
                     }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
@@ -245,7 +246,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
-                        recoveryDirectCancellationAction.apply(currentDesiredBalance, desiredBalanceInput.routingAllocation());
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);
                     }
                     submitReconcileTask(currentDesiredBalance);
                 } else {

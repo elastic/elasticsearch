@@ -12,13 +12,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SliceableColumn;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -50,8 +50,14 @@ public final class BatchMappingContext {
     private BytesRef[] routings;
 
     private boolean routingsInitialized;
-    /** Per-document {@code _field_names} entries; lazily allocated on first write via {@link #fieldNames()}. */
-    private BytesRef[] fieldNames;
+    /**
+     * Accumulates {@code (doc, name)} pairs for {@code _field_names}. Multiple contributors may
+     * call {@link #addFieldNamesColumnar} for any doc in any order; {@link FieldNamesFieldMapper}
+     * sorts and drains these in {@code postColumnarParse}. Lazily allocated on first write.
+     */
+    private int[] fieldNameDocs;
+    private BytesRef[] fieldNameValues;
+    private int fieldNameCount;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
@@ -80,13 +86,28 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the {@code _field_names} backing array, or {@code null} if no field names have been
-     * registered for any document in the batch. Called only by {@link FieldNamesFieldMapper} during
-     * {@link FieldNamesFieldMapper#postColumnarParse}.
+     * Returns the number of {@code (doc, name)} entries accumulated so far for {@code _field_names}.
+     * Zero when no contributor has called {@link #addFieldNamesColumnar}. Called only by
+     * {@link FieldNamesFieldMapper} during {@link FieldNamesFieldMapper#postColumnarParse}.
      */
-    @Nullable
-    BytesRef[] fieldNamesIfPresent() {
-        return fieldNames;
+    int fieldNameCount() {
+        return fieldNameCount;
+    }
+
+    /**
+     * Returns the doc-index parallel array for the {@code _field_names} accumulator.
+     * Valid only when {@link #fieldNameCount()} &gt; 0.
+     */
+    int[] fieldNameDocs() {
+        return fieldNameDocs;
+    }
+
+    /**
+     * Returns the name parallel array for the {@code _field_names} accumulator.
+     * Valid only when {@link #fieldNameCount()} &gt; 0.
+     */
+    BytesRef[] fieldNameValues() {
+        return fieldNameValues;
     }
 
     /**
@@ -181,15 +202,21 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Lazily allocates and returns the {@code _field_names} backing array (length {@code docCount}).
-     * Called only by {@link FieldNamesFieldMapper} when registering a field name.
+     * Appends a {@code (doc, value)} pair to the {@code _field_names} accumulator. Called only by
+     * {@link FieldNamesFieldMapper#addFieldNamesColumnar}; the arrays are grown as needed and drained
+     * in sorted order by {@link FieldNamesFieldMapper#postColumnarParse}.
      */
-    BytesRef[] fieldNames() {
-        if (fieldNames == null) {
-            // TODO: Single value only currently. Will replace this with a multi-value Escf array column.
-            fieldNames = new BytesRef[docCount];
+    void recordFieldName(int doc, BytesRef value) {
+        if (fieldNameDocs == null) {
+            fieldNameDocs = new int[4];
+            fieldNameValues = new BytesRef[4];
+        } else if (fieldNameCount == fieldNameDocs.length) {
+            fieldNameDocs = Arrays.copyOf(fieldNameDocs, fieldNameDocs.length * 2);
+            fieldNameValues = Arrays.copyOf(fieldNameValues, fieldNameValues.length * 2);
         }
-        return fieldNames;
+        fieldNameDocs[fieldNameCount] = doc;
+        fieldNameValues[fieldNameCount] = value;
+        fieldNameCount++;
     }
 
     /** The number of documents in this chunk. */

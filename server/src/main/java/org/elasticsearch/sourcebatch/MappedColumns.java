@@ -216,6 +216,11 @@ public final class MappedColumns {
         }
 
         @Override
+        public SliceableColumn slice(int from, int count) {
+            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
+        }
+
+        @Override
         public Column toLuceneColumn() {
             return this;
         }

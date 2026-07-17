@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.Column;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -142,6 +143,37 @@ abstract class EscfColumn implements SliceableColumn {
     @Override
     public final SliceableColumn slice(int from, int count) {
         return sliceInternal(from, count);
+    }
+
+    /**
+     * Not supported directly on raw {@link EscfColumn} instances. Use a dedicated wrapper such as
+     * {@link EscfLuceneColumn} (for long columns) or {@link EscfStringArrayColumn} (for
+     * array-of-string columns) to obtain a {@link SliceableColumn} with a functioning row cursor.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    @Override
+    public final RowFieldCursor rowFieldCursor() {
+        throw new UnsupportedOperationException(
+            "rowFieldCursor() is not supported directly on EscfColumn kind="
+                + EscfColumnKind.name(kind())
+                + "; use a SliceableColumn wrapper such as EscfLuceneColumn"
+        );
+    }
+
+    /**
+     * Not supported directly on raw {@link EscfColumn} instances. Use a dedicated wrapper such as
+     * {@link EscfLuceneColumn} or {@link EscfStringArrayColumn} to obtain a Lucene column.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    @Override
+    public final Column toLuceneColumn() {
+        throw new UnsupportedOperationException(
+            "toLuceneColumn() is not supported directly on EscfColumn kind="
+                + EscfColumnKind.name(kind())
+                + "; use a SliceableColumn wrapper such as EscfLuceneColumn"
+        );
     }
 
     abstract EscfColumn sliceInternal(int from, int count);

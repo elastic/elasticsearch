@@ -48,6 +48,21 @@ final class EscfArrayColumn extends EscfColumn {
         return new ColumnarArrayReader(child, elemFrom, elemTo);
     }
 
+    /** Returns the start element index in the child column for row {@code r}. */
+    int rowElemFrom(int r) {
+        return intAt(rowOffsets, r);
+    }
+
+    /** Returns the exclusive end element index in the child column for row {@code r}. */
+    int rowElemTo(int r) {
+        return intAt(rowOffsets, r + 1);
+    }
+
+    /** Returns the child element column. Element indices are absolute (the child is never sliced). */
+    EscfColumn child() {
+        return child;
+    }
+
     @Override
     EscfColumn sliceInternal(int from, int count) {
         // Child stays full/unsliced — ColumnarArrayReader uses absolute element indices.

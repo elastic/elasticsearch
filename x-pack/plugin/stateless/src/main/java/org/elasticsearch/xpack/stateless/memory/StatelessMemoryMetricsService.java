@@ -187,6 +187,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /** Populated with the per-node heap estimate results from the last {@link #getPerNodeMemoryMetrics} call, consumed when the gauge is
      * read. Metric depends on that method being called regularly. */
     private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHeapSnapshots = new AtomicReference<>(List.of());
+    /** Same snapshots as {@link #lastPerNodeHeapSnapshots}, held in a separate reference so each gauge can consume independently. */
+    private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHostedShardsSnapshots = new AtomicReference<>(List.of());
     protected volatile int shardLimitPerNode;
     protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
@@ -273,10 +275,16 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             heapUsageBuilders,
             builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)
         );
-        lastPerNodeHeapSnapshots.set(nodeIdToHeapUsage.entrySet().stream().filter(e -> discoveryNodes.get(e.getKey()) != null).map(e -> {
-            final DiscoveryNode node = discoveryNodes.get(e.getKey());
-            return new NodeHeapEstimateSnapshot(e.getKey(), node.getName(), e.getValue());
-        }).toList());
+        final List<NodeHeapEstimateSnapshot> snapshots = nodeIdToHeapUsage.entrySet()
+            .stream()
+            .filter(e -> discoveryNodes.get(e.getKey()) != null)
+            .map(e -> {
+                final DiscoveryNode node = discoveryNodes.get(e.getKey());
+                return new NodeHeapEstimateSnapshot(e.getKey(), node.getName(), e.getValue());
+            })
+            .toList();
+        lastPerNodeHeapSnapshots.set(snapshots);
+        lastPerNodeHostedShardsSnapshots.set(snapshots);
         return nodeIdToHeapUsage;
     }
 
@@ -384,6 +392,18 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             .map(
                 s -> new LongWithAttributes(
                     s.nodeHeapEstimate().totalHeapUsage(),
+                    Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
+                )
+            )
+            .toList();
+    }
+
+    public List<LongWithAttributes> getPerNodeHostedShardsHeapAndReset() {
+        final List<NodeHeapEstimateSnapshot> snapshot = lastPerNodeHostedShardsSnapshots.getAndSet(List.of());
+        return snapshot.stream()
+            .map(
+                s -> new LongWithAttributes(
+                    s.nodeHeapEstimate().hostedShardsHeapUsage(),
                     Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
                 )
             )

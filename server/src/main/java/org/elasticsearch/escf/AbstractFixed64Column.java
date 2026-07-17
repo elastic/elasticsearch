@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
  */
 abstract class AbstractFixed64Column extends EscfColumn {
 
-    private final BytesReference data;
+    protected final BytesReference data;
 
     AbstractFixed64Column(int docCount, FixedBitSet absent, BytesReference data) {
         super(docCount, absent);
@@ -26,7 +26,7 @@ abstract class AbstractFixed64Column extends EscfColumn {
     }
 
     /** The raw little-endian 8-byte slot for document {@code d}. */
-    final long rawLong(int d) {
-        return data.getLongLE(d * 8);
+    final long rawLong(int row) {
+        return data.getLongLE(row * 8);
     }
 }

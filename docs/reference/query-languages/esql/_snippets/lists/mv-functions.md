@@ -8,7 +8,7 @@
 * [`MV_FIRST`](../../functions-operators/mv-functions/mv_first.md)
 * [`MV_IN_RANGE`](../../functions-operators/mv-functions/mv_in_range.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`MV_INTERSECTION`](../../functions-operators/mv-functions/mv_intersection.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
-* [`MV_INTERSECTS`](../../functions-operators/mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`MV_INTERSECTS`](../../functions-operators/mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_LAST`](../../functions-operators/mv-functions/mv_last.md)
 * [`MV_MAX`](../../functions-operators/mv-functions/mv_max.md)
 * [`MV_MEDIAN`](../../functions-operators/mv-functions/mv_median.md)

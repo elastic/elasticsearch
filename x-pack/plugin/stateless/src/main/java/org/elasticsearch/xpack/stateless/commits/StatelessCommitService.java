@@ -1635,6 +1635,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // * There should be no translog files to release for a recovering shard.
             // * We do not need to get the translog release end file from the commit user data.
             handleUploadedBcc(recoveredBcc, false, -1);
+            // Recovered commits are already fully present in the object store; fire generation
+            // listeners immediately so that callers of addListenerForUploadedGeneration do not
+            // wait indefinitely for an upload that will never happen for these generations.
+            fireUploadedGenerationListeners(recoveredBcc.lastCompoundCommit().generation());
         }
 
         public void setTrackedSearchNodesPerCommitOnRelocationTarget(

@@ -1126,6 +1126,41 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testUploadedGenerationListenerFiresImmediatelyForRecoveredGeneration() throws Exception {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
+            StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commitRef);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commitRef.getGeneration());
+
+            var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
+            testHarness.commitService.closeShard(testHarness.shardId);
+            testHarness.commitService.unregister(testHarness.shardId);
+
+            testHarness.commitService.register(
+                testHarness.shardId,
+                primaryTerm,
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> gcpListener.accept(Long.MAX_VALUE, null),
+                () -> {}
+            );
+            testHarness.commitService.markRecoveredBcc(
+                testHarness.shardId,
+                indexingShardState.latestCommit(),
+                indexingShardState.otherBlobs(),
+                Collections.emptyIterator()
+            );
+
+            // The recovered generation is already in the object store; the listener must fire
+            // immediately without waiting for a new upload.
+            long recoveredGeneration = indexingShardState.latestCommit().lastCompoundCommit().generation();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, recoveredGeneration, future);
+            future.actionGet();
+        }
+    }
+
     public void testWaitForGenerationFailsForClosedShard() throws IOException {
         try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
             ShardId unregisteredShardId = new ShardId("index", "uuid", 0);

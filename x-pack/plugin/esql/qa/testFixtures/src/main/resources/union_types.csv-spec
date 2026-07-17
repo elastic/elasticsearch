@@ -217,6 +217,30 @@ sample_data_str | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889      
 sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
 ;
 
+multiIndexKeywordTextToTextAndMatch
+required_capability: fn_to_text
+required_capability: union_types
+required_capability: index_metadata_field
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+FROM employees, employees_gender_text METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| WHERE gender_text:"a b c d e f"
+| KEEP emp_no, _index, gender_text
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | _index:keyword        | gender_text:text
+10002          | employees             | F
+10002          | employees_gender_text | F
+10006          | employees             | F
+10006          | employees_gender_text | F
+10007          | employees             | F
+10007          | employees_gender_text | F
+;
+
 multiIndexWhereIpString
 required_capability: union_types
 required_capability: index_metadata_field
@@ -2577,3 +2601,5 @@ id:integer  | name:keyword
 2           | bbbbb
 3           | ccccc
 ;
+
+

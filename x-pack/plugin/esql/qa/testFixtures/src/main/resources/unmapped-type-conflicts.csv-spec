@@ -95,6 +95,50 @@ null                         | null         | null                | Connected to
 null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
+typeConflictWithUnmappedToTextAndMatch
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL message_text = TO_TEXT(message)
+| WHERE message_text:"error connection"
+| KEEP _index, message, message_text
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword   | message_text:text
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+;
+
+typeConflictWithUnmappedKeywordAndMatch
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE message:"Connection error"
+| KEEP _index, message
+;
+ignoreOrder:true
+
+_index:keyword | message:keyword
+sample_data    | Connection error
+sample_data    | Connection error
+sample_data    | Connection error
+;
+
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks

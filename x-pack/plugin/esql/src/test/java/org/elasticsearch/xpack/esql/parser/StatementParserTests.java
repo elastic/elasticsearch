@@ -3656,12 +3656,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testInvalidInsistAsterisk() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
-    }
-
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3826,7 +3820,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo*
             | FORK
                ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
-               ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;

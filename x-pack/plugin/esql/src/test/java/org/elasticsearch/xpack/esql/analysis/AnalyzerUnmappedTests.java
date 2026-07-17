@@ -952,7 +952,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSingleTypeLongUnmappedAutoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -975,24 +975,24 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testTypeConflictLongKeywordUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("baz", Map.of())
+                fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("test2", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("test3", Map.of())
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
+        var resolutions = indexResolutions(mergedResolution("test1,test2,test3", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+            typeConflictVerificationFailure(setUnmappedLoad("FROM test1, test2, test3 " + suffix), resolutions);
         }
     }
 
     public void testTypeConflictLongIntUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -1009,7 +1009,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSameMappingHashNotPartiallyUnmapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -1031,7 +1031,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSameMappingHashWithUnmappedIndexAutoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(

@@ -1036,7 +1036,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
                 case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
-                case INSIST_BODY -> "INSIST_🐔 grammar slot accepts only attributes, not expressions";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
         }

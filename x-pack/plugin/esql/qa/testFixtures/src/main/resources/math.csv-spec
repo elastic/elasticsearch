@@ -918,6 +918,34 @@ COUNT(*):long | salary:integer
             8 | 70000
 ;
 
+// ROUND_TO whose first argument is a function (not a bare field) must not be pushed to query-and-tags. See #135759.
+// ABS(salary) equals salary here (all salaries are non-negative), so the buckets match roundToSalaryWindow.
+roundToOverFunctionArgument
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS COUNT(*) BY salary=ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| SORT salary ASC
+;
+
+COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
 roundToNanos
 required_capability: round_to
 FROM sample_data_ts_nanos

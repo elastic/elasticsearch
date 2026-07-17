@@ -294,17 +294,18 @@ final class BytesRefBlockHash extends BlockHash {
                 private final BytesRef scratch = new BytesRef();
 
                 @Override
-                public int partitionHashOfKey(Block keyBlock, int position) {
-                    return (int) BytesRefSwissHash.hash64(((BytesRefBlock) keyBlock).getBytesRef(position, scratch));
+                public int partitionHashOfRow(Page page, int position) {
+                    return (int) BytesRefSwissHash.hash64(((BytesRefBlock) page.getBlock(channel)).getBytesRef(position, scratch));
                 }
 
                 @Override
-                public int addKey(Block keyBlock, int position, int hash) {
+                public int addRow(Page page, int position, int hash) {
+                    BytesRefBlock keyBlock = (BytesRefBlock) page.getBlock(channel);
                     if (keyBlock.isNull(position)) {
                         seenNull = true;
                         return 0;
                     }
-                    BytesRef key = ((BytesRefBlock) keyBlock).getBytesRef(position, scratch);
+                    BytesRef key = keyBlock.getBytesRef(position, scratch);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
                 }
             };

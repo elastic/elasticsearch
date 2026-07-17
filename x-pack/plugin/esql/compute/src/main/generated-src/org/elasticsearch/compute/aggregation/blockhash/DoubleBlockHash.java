@@ -185,17 +185,18 @@ final class DoubleBlockHash extends BlockHash {
         if (hash instanceof LongSwissHash swiss) {
             return new Router() {
                 @Override
-                public int partitionHashOfKey(Block keyBlock, int position) {
-                    return LongSwissHash.hash(Double.doubleToRawLongBits(((DoubleBlock) keyBlock).getDouble(position)));
+                public int partitionHashOfRow(Page page, int position) {
+                    return LongSwissHash.hash(Double.doubleToRawLongBits(((DoubleBlock) page.getBlock(channel)).getDouble(position)));
                 }
 
                 @Override
-                public int addKey(Block keyBlock, int position, int hash) {
+                public int addRow(Page page, int position, int hash) {
+                    DoubleBlock keyBlock = (DoubleBlock) page.getBlock(channel);
                     if (keyBlock.isNull(position)) {
                         seenNull = true;
                         return 0;
                     }
-                    long key = Double.doubleToRawLongBits(((DoubleBlock) keyBlock).getDouble(position));
+                    long key = Double.doubleToRawLongBits(keyBlock.getDouble(position));
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
             };

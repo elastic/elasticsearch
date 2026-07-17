@@ -185,17 +185,18 @@ final class IntBlockHash extends BlockHash {
         if (hash instanceof LongSwissHash swiss) {
             return new Router() {
                 @Override
-                public int partitionHashOfKey(Block keyBlock, int position) {
-                    return LongSwissHash.hash((long) ((IntBlock) keyBlock).getInt(position));
+                public int partitionHashOfRow(Page page, int position) {
+                    return LongSwissHash.hash((long) ((IntBlock) page.getBlock(channel)).getInt(position));
                 }
 
                 @Override
-                public int addKey(Block keyBlock, int position, int hash) {
+                public int addRow(Page page, int position, int hash) {
+                    IntBlock keyBlock = (IntBlock) page.getBlock(channel);
                     if (keyBlock.isNull(position)) {
                         seenNull = true;
                         return 0;
                     }
-                    long key = (long) ((IntBlock) keyBlock).getInt(position);
+                    long key = (long) keyBlock.getInt(position);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
             };

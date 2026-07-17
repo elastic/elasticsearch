@@ -42,8 +42,7 @@ import java.time.Instant;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
 /**
- * Local reproduction for the two-phase page-filtered skip overshoot described in
- * esql-planning#1398.
+ * Exercises the two-phase page-filtered skip overshoot.
  *
  * <p>When a projection {@link PageColumnReader} carries a survivor {@link RowRanges} that
  * EXCLUDES an early data page (zero survivors on that page) and survivors sit on a later page,
@@ -64,6 +63,7 @@ public class PageColumnReaderSkipOvershootReproTests extends ESTestCase {
     private BlockFactory blockFactory;
     private PlainCompressionCodecFactory codecFactory;
 
+    /** Sets up block factory and codec factory; clears the footer cache so each test starts clean. */
     @Before
     public void init() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
@@ -71,6 +71,7 @@ public class PageColumnReaderSkipOvershootReproTests extends ESTestCase {
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
+    /** Releases native resources held by {@link PlainCompressionCodecFactory} even on test failure. */
     @After
     public void releaseCodec() {
         codecFactory.release();
@@ -96,7 +97,7 @@ public class PageColumnReaderSkipOvershootReproTests extends ESTestCase {
             assertTrue(firstPageRows >= 2);
 
             // Survivor RowRanges cover only page 1 onward, so page 0 is excluded (zero survivors)
-            // and survivors sit strictly after it: the exact #1398 trigger.
+            // and survivors sit strictly after it, triggering the skip overshoot.
             RowRanges survivorRanges = RowRanges.of(firstPageRows, totalRows, totalRows);
 
             ColumnDescriptor desc = SCHEMA.getColumns().getFirst();
@@ -168,6 +169,8 @@ public class PageColumnReaderSkipOvershootReproTests extends ESTestCase {
     }
 
     private static StorageObject storageObject(byte[] data) {
+        // There is no named byte-array-backed StorageObject in the production codebase; this
+        // anonymous adapter exists only to feed pre-built bytes to ParquetFileReader in tests.
         return new StorageObject() {
             @Override
             public InputStream newStream() {

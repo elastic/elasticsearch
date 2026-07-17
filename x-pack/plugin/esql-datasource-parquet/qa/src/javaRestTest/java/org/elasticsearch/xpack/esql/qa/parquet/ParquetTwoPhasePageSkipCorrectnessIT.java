@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.hasSize;
  *       yields a sparse survivor set (one run) so page filtering engages rather than being discarded.</li>
  *   <li>{@link #HIT_START} sits well past the first projection page and past several row batches, so
  *       draining the fully-filtered leading batches issues more than one {@code skipRows} across the
- *       excluded pages: the first banks the overshoot, a later one would over-advance without the fix.</li>
+ *       excluded pages. The banked overshoot must prevent later skips from advancing into survivor rows.</li>
  * </ul>
  *
  * <p>{@code v} is unique per row, so the surviving group's {@code MV_COUNT(VALUES(v))} must equal the
@@ -86,7 +86,7 @@ public class ParquetTwoPhasePageSkipCorrectnessIT extends AbstractFromDatasetSub
     /** Size of the {@code "hit"} cluster; the exact expected distinct-value count for the survivor group. */
     private static final int HIT_COUNT = 17;
 
-    /** ~1 KiB of int64 values per page (8 KiB page / 8 bytes), so {@code v} spans ~40 pages. */
+    /** ~1,024 int64 values per page (8 KiB page / 8 bytes), so {@code v} spans ~40 pages. */
     private static final int PAGE_SIZE_BYTES = 8 * 1024;
     /** One row group for the whole file, so all pages live under a single {@code BlockMetaData}. */
     private static final long ROW_GROUP_SIZE_BYTES = 1L << 30;
@@ -97,20 +97,44 @@ public class ParquetTwoPhasePageSkipCorrectnessIT extends AbstractFromDatasetSub
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
 
+    /**
+     * Pre-built fixture bytes. Computing 40K rows of Parquet data is not cheap; building it once
+     * and reusing the result keeps repeated test invocations ({@code -Dtests.iters=N}) fast.
+     */
+    private static final byte[] FIXTURE_BYTES;
+
+    static {
+        try {
+            FIXTURE_BYTES = twoPhasePageSkipParquetBytes();
+        } catch (IOException e) {
+            throw new AssertionError("failed to build fixture parquet bytes", e);
+        }
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
+    /**
+     * Deletes the test dataset and data source so they do not interfere with subsequent test
+     * classes that may register the same names against the same cluster.
+     */
     @AfterClass
     public static void cleanupRegistry() throws IOException {
         deleteIgnoringMissing("/_query/dataset/" + DATASET);
         deleteIgnoringMissing("/_query/data_source/" + DATA_SOURCE);
     }
 
+    /**
+     * Verifies that {@code MV_COUNT(VALUES(v))} returns exactly {@link #HIT_COUNT} when the
+     * two-phase page-filtered iterator's {@code skipRows} crosses an excluded projection page and
+     * banks the overshoot surplus. Before the fix the surplus was discarded, causing a later skip
+     * to advance into the survivor page and silently drop rows, making the count smaller.
+     */
     public void testGroupedDistinctSurvivesExcludedProjectionPageSkip() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);
-        s3Backend.uploadBlob(BLOB_KEY, twoPhasePageSkipParquetBytes());
+        s3Backend.uploadBlob(BLOB_KEY, FIXTURE_BYTES);
         putDataSource(DATA_SOURCE, s3Backend.dataSourceType(), s3Backend.dataSourceSettings());
         putDataset(DATASET, DATA_SOURCE, s3Backend.resourceUri(BLOB_KEY), Map.of());
 

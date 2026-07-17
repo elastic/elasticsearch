@@ -554,6 +554,9 @@ final class PageColumnReader implements Releasable {
     }
 
     void skipRows(int count) {
+        if (count <= 0) {
+            return;
+        }
         // The physical cursor may already be ahead of the caller (a previous skip jumped a
         // survivor-excluded page past its target). Spend that credit before touching the cursor,
         // so a skip that lands entirely within the pre-jumped span is a no-op on the decoder.
@@ -565,6 +568,9 @@ final class PageColumnReader implements Releasable {
                 return;
             }
         }
+        // target must be computed after the credit block above: the banking below
+        // (pendingPrejumped += rowPositionInRowGroup - target) is only correct when
+        // target measures how far the caller wants to advance from the current cursor.
         long target = rowPositionInRowGroup + count;
         while (rowPositionInRowGroup < target) {
             if (ensurePage() == false) {

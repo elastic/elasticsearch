@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.toolchain;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainDownload;
 import org.gradle.jvm.toolchain.JavaToolchainRequest;
@@ -29,6 +31,8 @@ import java.util.stream.StreamSupport;
 import static org.gradle.jvm.toolchain.JavaToolchainDownload.fromUri;
 
 public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
+
+    private static final Logger LOGGER = Logging.getLogger(AdoptiumJdkToolchainResolver.class);
 
     // package protected for better testing
     final Map<AdoptiumVersionRequest, Optional<String>> CACHED_RELEASES = new ConcurrentHashMap<>();
@@ -74,10 +78,13 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
             JsonNode versionsNode = jsonNode.get("releases");
             return StreamSupport.stream(versionsNode.spliterator(), false).map(JsonNode::textValue).findFirst();
         } catch (FileNotFoundException e) {
-            // request combo not supported (e.g. aarch64 + windows
+            // request combo not supported (e.g. aarch64 + windows)
             return Optional.empty();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            // Transient network error (e.g. HTTP 5xx, timeout) — treat as unsupported so that a
+            // temporary api.adoptium.net outage does not hard-fail configuration-cache storage.
+            LOGGER.warn("Failed to resolve Adoptium JDK version from api.adoptium.net ({}); skipping Adoptium toolchain.", e.getMessage());
+            return Optional.empty();
         }
     }
 

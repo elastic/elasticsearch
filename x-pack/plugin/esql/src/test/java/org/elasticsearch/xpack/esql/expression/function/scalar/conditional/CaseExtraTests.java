@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.junit.After;
 
 import java.time.Duration;
@@ -37,6 +38,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,7 +76,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.small()),
+            c.partiallyFold(FoldContext.small(), TEST_CFG),
             equalToIgnoringIds(
                 new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
             )
@@ -88,7 +91,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.small()),
+            c.partiallyFold(FoldContext.small(), TEST_CFG),
             equalToIgnoringIds(
                 new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
             )
@@ -102,7 +105,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), sameInstance(c));
+        assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), sameInstance(c));
     }
 
     public void testPartialFoldFirst() {
@@ -112,7 +115,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("first", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), equalToIgnoringIds(field("first", DataType.LONG)));
     }
 
     public void testPartialFoldFirstAfterKeepingUnknown() {
@@ -128,7 +131,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.small()),
+            c.partiallyFold(FoldContext.small(), TEST_CFG),
             equalToIgnoringIds(
                 new Case(
                     Source.synthetic("case"),
@@ -151,7 +154,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), equalToIgnoringIds(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldSecondAfterDroppingFalse() {
@@ -166,7 +169,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), equalToIgnoringIds(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldLast() {
@@ -181,7 +184,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("last", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), equalToIgnoringIds(field("last", DataType.LONG)));
     }
 
     public void testPartialFoldTrailingTextLeadingKeyword() {
@@ -191,11 +194,23 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("keyword_field", DataType.KEYWORD), field("text_field", DataType.TEXT))
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
-        Expression result = c.partiallyFold(FoldContext.small());
-        assertThat(result, equalToIgnoringIds(field("text_field", DataType.TEXT)));
-        // This should be KEYWORD so it lines up with the original value.
-        // It isn't because the conversion is difficult.
-        // But it's not likely to break anything as is.
+        Expression result = c.partiallyFold(FoldContext.small(), TEST_CFG);
+        assertThat("partiallyFold must preserve the Case's declared type, not text", result.dataType(), equalTo(DataType.KEYWORD));
+        ToString toString = as(result, ToString.class);
+        assertThat(toString.field(), equalToIgnoringIds(field("text_field", DataType.TEXT)));
+    }
+
+    public void testPartialFoldTrueConditionTextValue() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+            List.of(field("text_field", DataType.TEXT))
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small(), TEST_CFG);
+        assertThat(result.dataType(), equalTo(DataType.KEYWORD));
+        ToString toString = as(result, ToString.class);
+        assertThat(toString.field(), equalToIgnoringIds(field("text_field", DataType.TEXT)));
     }
 
     public void testPartialFoldTrailingKeywordLeadingText() {
@@ -205,7 +220,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("text_field", DataType.TEXT), field("keyword_field", DataType.KEYWORD))
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
-        Expression result = c.partiallyFold(FoldContext.small());
+        Expression result = c.partiallyFold(FoldContext.small(), TEST_CFG);
         assertThat(result, equalToIgnoringIds(field("keyword_field", DataType.KEYWORD)));
     }
 
@@ -216,7 +231,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("username", DataType.KEYWORD), new Literal(Source.EMPTY, null, DataType.NULL))
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
-        Expression result = c.partiallyFold(FoldContext.small());
+        Expression result = c.partiallyFold(FoldContext.small(), TEST_CFG);
         assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
     }
 
@@ -232,7 +247,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
-        Expression result = c.partiallyFold(FoldContext.small());
+        Expression result = c.partiallyFold(FoldContext.small(), TEST_CFG);
         assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
     }
 
@@ -248,7 +263,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
-        Expression result = c.partiallyFold(FoldContext.small());
+        Expression result = c.partiallyFold(FoldContext.small(), TEST_CFG);
         assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
     }
 
@@ -265,7 +280,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.small()),
+            c.partiallyFold(FoldContext.small(), TEST_CFG),
             equalToIgnoringIds(
                 new Case(
                     Source.synthetic("case"),

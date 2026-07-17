@@ -16,7 +16,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.escf.EscfRowColumnBuilder;
 import org.elasticsearch.escf.EscfStringArrayColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -24,7 +23,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.transport.BytesRefRecycler;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -202,9 +200,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
      * within this batch. The entry is accumulated in {@link BatchMappingContext} and the column is
      * assembled and attached in {@link #postColumnarParse}.
      *
-     * <p>Multiple calls for the same {@code doc} are supported (multi-value): each call appends
-     * an independent entry to the accumulator, and the final array column will contain one element
-     * per call for that document.
+     * <p>Multiple distinct field names for the same {@code doc} are supported (multi-value).
+     * Duplicate values for the same document are silently deduplicated.
      */
     void addFieldNamesColumnar(BatchMappingContext ctx, int doc, String field) {
         if (enabled.value() == false) {
@@ -214,36 +211,21 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Drains the {@code _field_names} accumulator, sorts entries by document index (to satisfy the
-     * non-decreasing row requirement of {@link EscfRowColumnBuilder}), and attaches an
-     * array-of-string {@link EscfStringArrayColumn} to the batch context.
+     * Drains the {@code _field_names} accumulator and attaches an array-of-string
+     * {@link EscfStringArrayColumn} to the batch context. The accumulator iterates documents in
+     * ascending order, so no explicit sort is required.
      *
      * <p>If no contributor registered any field name during this batch, no column is added.
      */
     @Override
     public void postColumnarParse(BatchMappingContext ctx) {
-        final int n = ctx.fieldNameCount();
-        if (n == 0) {
+        final DeduplicatingStringColumnAccumulator acc = ctx.fieldNamesAccumulator();
+        if (acc == null || acc.isEmpty()) {
             return;
         }
-        // Build sort keys: high 32 bits = doc index, low 32 bits = original insertion index.
-        // Sorting by this key groups entries by doc (non-decreasing rows) and preserves insertion
-        // order within the same doc (stable for ties), which satisfies EscfRowColumnBuilder's
-        // non-decreasing row contract.
-        final int[] docs = ctx.fieldNameDocs();
-        final long[] sortKeys = new long[n];
-        for (int i = 0; i < n; i++) {
-            sortKeys[i] = ((long) docs[i] << 32) | i;
-        }
-        Arrays.sort(sortKeys);
-
-        final BytesRef[] values = ctx.fieldNameValues();
-        final EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        for (long key : sortKeys) {
-            final int origIdx = (int) (key & 0xFFFFFFFFL);
-            builder.setString(docs[origIdx], values[origIdx]);
-        }
-        ctx.addColumn(EscfStringArrayColumn.fieldNamesColumn(builder.finish(ctx.docCount()), NAME, StringField.TYPE_NOT_STORED));
+        ctx.addColumn(
+            EscfStringArrayColumn.fieldNamesColumn(acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE), NAME, StringField.TYPE_NOT_STORED)
+        );
     }
 
     @Override

@@ -18,7 +18,6 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SliceableColumn;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -53,11 +52,9 @@ public final class BatchMappingContext {
     /**
      * Accumulates {@code (doc, name)} pairs for {@code _field_names}. Multiple contributors may
      * call {@link #addFieldNamesColumnar} for any doc in any order; {@link FieldNamesFieldMapper}
-     * sorts and drains these in {@code postColumnarParse}. Lazily allocated on first write.
+     * drains this in {@code postColumnarParse}. Lazily allocated on first write.
      */
-    private int[] fieldNameDocs;
-    private BytesRef[] fieldNameValues;
-    private int fieldNameCount;
+    private DeduplicatingStringColumnAccumulator fieldNames;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
@@ -86,28 +83,12 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the number of {@code (doc, name)} entries accumulated so far for {@code _field_names}.
-     * Zero when no contributor has called {@link #addFieldNamesColumnar}. Called only by
-     * {@link FieldNamesFieldMapper} during {@link FieldNamesFieldMapper#postColumnarParse}.
+     * Returns the {@code _field_names} accumulator, or {@code null} if no entry has been recorded
+     * yet. Called only by {@link FieldNamesFieldMapper} during
+     * {@link FieldNamesFieldMapper#postColumnarParse}.
      */
-    int fieldNameCount() {
-        return fieldNameCount;
-    }
-
-    /**
-     * Returns the doc-index parallel array for the {@code _field_names} accumulator.
-     * Valid only when {@link #fieldNameCount()} &gt; 0.
-     */
-    int[] fieldNameDocs() {
-        return fieldNameDocs;
-    }
-
-    /**
-     * Returns the name parallel array for the {@code _field_names} accumulator.
-     * Valid only when {@link #fieldNameCount()} &gt; 0.
-     */
-    BytesRef[] fieldNameValues() {
-        return fieldNameValues;
+    DeduplicatingStringColumnAccumulator fieldNamesAccumulator() {
+        return fieldNames;
     }
 
     /**
@@ -202,21 +183,16 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Appends a {@code (doc, value)} pair to the {@code _field_names} accumulator. Called only by
-     * {@link FieldNamesFieldMapper#addFieldNamesColumnar}; the arrays are grown as needed and drained
-     * in sorted order by {@link FieldNamesFieldMapper#postColumnarParse}.
+     * Records a {@code (doc, value)} pair in the {@code _field_names} accumulator, deduplicating
+     * within-document repeated values. Called only by
+     * {@link FieldNamesFieldMapper#addFieldNamesColumnar}; drained by
+     * {@link FieldNamesFieldMapper#postColumnarParse}.
      */
     void recordFieldName(int doc, BytesRef value) {
-        if (fieldNameDocs == null) {
-            fieldNameDocs = new int[4];
-            fieldNameValues = new BytesRef[4];
-        } else if (fieldNameCount == fieldNameDocs.length) {
-            fieldNameDocs = Arrays.copyOf(fieldNameDocs, fieldNameDocs.length * 2);
-            fieldNameValues = Arrays.copyOf(fieldNameValues, fieldNameValues.length * 2);
+        if (fieldNames == null) {
+            fieldNames = new DeduplicatingStringColumnAccumulator(docCount);
         }
-        fieldNameDocs[fieldNameCount] = doc;
-        fieldNameValues[fieldNameCount] = value;
-        fieldNameCount++;
+        fieldNames.record(doc, value);
     }
 
     /** The number of documents in this chunk. */

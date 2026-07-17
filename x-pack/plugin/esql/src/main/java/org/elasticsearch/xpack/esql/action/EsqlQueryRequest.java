@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -67,6 +68,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
 
+    public static final TransportVersion ESQL_STREAMING = TransportVersion.fromName("esql_streaming");
+
+    /**
+     * Number of rows per streamed NDJSON chunk when using the streaming endpoint ({@code POST /_query/stream}).
+     * Zero means "use native compute page size" (no re-chunking).
+     */
+    private int pageSize = 0;
+
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
@@ -116,6 +125,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.pageSize = source.pageSize;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -329,6 +339,18 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        return this;
+    }
+
+    /**
+     * Number of rows per NDJSON chunk for the streaming endpoint. Zero means use native compute page size.
+     */
+    public int pageSize() {
+        return pageSize;
+    }
+
+    public EsqlQueryRequest pageSize(int pageSize) {
+        this.pageSize = pageSize;
         return this;
     }
 

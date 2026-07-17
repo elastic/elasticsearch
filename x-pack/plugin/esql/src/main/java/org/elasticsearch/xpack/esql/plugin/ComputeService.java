@@ -13,7 +13,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -300,12 +299,6 @@ public class ComputeService {
         });
     }
 
-    private NodeEligibilityStrategy externalNodeEligibility() {
-        return DiscoveryNode.isStateless(clusterService.getSettings())
-            ? NodeEligibilityStrategy.SEARCH_NODES_ONLY
-            : NodeEligibilityStrategy.DATA_NODES_ONLY;
-    }
-
     private int externalCoalesceFloor(Configuration configuration) {
         int taskConcurrency = configuration.pragmas().taskConcurrency();
         // The TASK_CONCURRENCY default is computed from Settings.EMPTY at class-load time and therefore ignores
@@ -314,7 +307,7 @@ public class ComputeService {
         // than there are workers to drain them.
         int poolMax = threadPool.info(EsqlPlugin.computePool()).getMax();
         int effectiveConcurrency = Math.min(taskConcurrency, poolMax);
-        int eligibleNodes = Math.max(1, externalNodeEligibility().eligibleNodes(clusterService.state().nodes()).size());
+        int eligibleNodes = Math.max(1, NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(clusterService.state().nodes()).size());
         return externalCoalesceFloor(effectiveConcurrency, eligibleNodes);
     }
 
@@ -332,19 +325,15 @@ public class ComputeService {
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
-        return resolveExternalDistributionStrategy(pragmas, NodeEligibilityStrategy.DATA_NODES_ONLY);
-    }
-
-    static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas, NodeEligibilityStrategy eligibility) {
         String value = pragmas.externalDistribution();
         return switch (value) {
-            case "", "adaptive" -> new AdaptiveStrategy(eligibility);
+            case "", "adaptive" -> new AdaptiveStrategy();
             case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
-            case "round_robin" -> new RoundRobinStrategy(eligibility);
-            case "weighted_round_robin" -> new WeightedRoundRobinStrategy(eligibility);
+            case "round_robin" -> new RoundRobinStrategy();
+            case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
                 LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
-                yield new AdaptiveStrategy(eligibility);
+                yield new AdaptiveStrategy();
             }
         };
     }
@@ -365,7 +354,7 @@ public class ComputeService {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, List.of());
         }
 
-        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas(), externalNodeEligibility());
+        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
         ExternalDistributionContext context = new ExternalDistributionContext(
             resolvedPlan,
             externalSplits,

@@ -106,16 +106,22 @@ describe("toBuildkitePipeline end-to-end", () => {
     const [batch, analyze] = pipeline.steps[0].steps;
 
     // Single-batch step captures the start epoch and writes a per-job status
-    // file tagged with the kind + step key, carrying the runtime rc + duration.
+    // file tagged with the kind + step key, carrying the runtime rc + duration
+    // + OOM subtype (from the heap-dump probe below).
     expect(batch.command).toContain("_fd_start=$(date +%s)");
     expect(batch.command).toContain(
-      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
+      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s"}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
     );
+    // OOM is detected from a heap-dump file (TTY-safe), not the log; the probe
+    // stops at the first match.
+    expect(batch.command).toContain("find . -type f -path '*/build/heapdump/*.hprof' -print -quit");
 
-    // The analyze step is not a test batch and must not write a status file.
+    // The analyze step is not a test batch and must not write a status file or
+    // probe for OOM.
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.command).not.toContain("flakiness-status/status-");
     expect(analyze.command).not.toContain("_fd_start=");
+    expect(analyze.command).not.toContain("heapdump");
   });
 
   test("each parallel batch writes a status file with the correct kind", () => {
@@ -253,6 +259,7 @@ describe("toBuildkitePipeline", () => {
     expect(analyze.artifact_paths).toBe("flakiness-outcomes.json");
     expect(analyze.agents).toBeUndefined();
     expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-status/*.json" . || true');
+    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
     expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
     // Order: download statuses → analyzer.
     const downloadIdx = analyze.command.indexOf("artifact download");
@@ -260,5 +267,21 @@ describe("toBuildkitePipeline", () => {
     expect(downloadIdx).toBeLessThan(analyzerIdx);
     // Analyze step uses timeout_in_minutes: 10, so inner timeout is 8m.
     expect(analyze.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 8m bash");
+  });
+
+  test("emits an analyze-only step when all tests are not_applicable (no batches)", () => {
+    // All detected tests were BWC → zero batch commands, but the analyze step
+    // must still run so the not_applicable records reach the outcomes artifact.
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, { hasNotApplicable: true });
+    const steps = pipeline.steps[0].steps;
+    expect(steps).toHaveLength(1);
+    expect(steps[0].key).toBe("flakiness-detection:analyze");
+    expect(steps[0].depends_on).toEqual([]);
+    expect(steps[0].command).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
+  });
+
+  test("no analyze step when there are neither batches nor not_applicable tests", () => {
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG);
+    expect(pipeline.steps[0].steps).toEqual([]);
   });
 });

@@ -3408,6 +3408,12 @@ public class EsqlCapabilities {
         SPATIAL_BBOX_VALIDATION_FIX,
 
         /**
+         * Support for lambda expression syntax (e.g. {@code x -> x + 1}) as function arguments.
+         * Syntax only for now: no function accepts a lambda argument yet.
+         */
+        LAMBDA_SYNTAX(Build.current().isSnapshot()),
+
+        /**
          * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
          * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
          */

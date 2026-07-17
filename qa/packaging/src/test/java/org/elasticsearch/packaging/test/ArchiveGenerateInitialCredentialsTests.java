@@ -101,11 +101,13 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     public void test50CredentialAutogenerationOnlyOnce() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
-        stopElasticsearch();
+        // test40 already stopped the node it started, so this is a genuine second startup against the
+        // already auto-configured node1 installation and must not regenerate any credentials.
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         assertThat(parseElasticPassword(result.stdout()), nullValue());
         assertThat(parseKibanaToken(result.stdout()), nullValue());
         assertThat(parseFingerprint(result.stdout()), nullValue());
+        stopElasticsearch();
     }
 
     private static String stripAnsi(String output) {

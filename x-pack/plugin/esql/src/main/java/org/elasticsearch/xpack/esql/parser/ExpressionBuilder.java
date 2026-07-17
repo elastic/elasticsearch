@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -859,32 +860,48 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
         Source source = source(ctx);
-        String opname = ctx.RLIKE().getText();
         Expression left = expression(ctx.valueExpression());
-        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
-        String patternString = stringFromStringOrParameter(source, opname, right, INVALID_REGEX);
-        try {
-            RLike rLike = new RLike(source, left, new RLikePattern(patternString));
-            return ctx.NOT() == null ? rLike : new Not(source, rLike);
-        } catch (InvalidArgumentException e) {
-            throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternString, e.getMessage());
+        Expression right = expression(ctx.primaryExpression());
+        // Fast path: string literal known at parse time → validate and build concrete pattern immediately
+        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD) {
+            String patternString = BytesRefs.toString(lit.fold(FoldContext.small()));
+            try {
+                RLike rLike = new RLike(source, left, new RLikePattern(patternString));
+                return ctx.NOT() == null ? rLike : new Not(source, rLike);
+            } catch (InvalidArgumentException e) {
+                throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternString, e.getMessage());
+            }
         }
+        // General constant expression: defer type/foldability checks and folding to the analysis phase
+        UnresolvedRegexExpression rlike = new UnresolvedRegexExpression(
+            source,
+            left,
+            right,
+            false,
+            UnresolvedRegexExpression.Variant.RLIKE
+        );
+        return ctx.NOT() == null ? rlike : new Not(source, rlike);
     }
 
     @Override
     public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
         Source source = source(ctx);
-        String opname = ctx.LIKE().getText();
         Expression left = expression(ctx.valueExpression());
-        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
-        String patternString = stringFromStringOrParameter(source, opname, right, INVALID_WILDCARD);
-        try {
-            WildcardPattern pattern = new WildcardPattern(patternString);
-            WildcardLike result = new WildcardLike(source, left, pattern);
-            return ctx.NOT() == null ? result : new Not(source, result);
-        } catch (InvalidArgumentException e) {
-            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternString, e.getMessage());
+        Expression right = expression(ctx.primaryExpression());
+        // Fast path: string literal known at parse time → validate and build concrete pattern immediately
+        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD) {
+            String patternString = BytesRefs.toString(lit.fold(FoldContext.small()));
+            try {
+                WildcardPattern pattern = new WildcardPattern(patternString);
+                WildcardLike result = new WildcardLike(source, left, pattern);
+                return ctx.NOT() == null ? result : new Not(source, result);
+            } catch (InvalidArgumentException e) {
+                throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternString, e.getMessage());
+            }
         }
+        // General constant expression: defer type/foldability checks and folding to the analysis phase
+        UnresolvedRegexExpression like = new UnresolvedRegexExpression(source, left, right, false, UnresolvedRegexExpression.Variant.LIKE);
+        return ctx.NOT() == null ? like : new Not(source, like);
     }
 
     @Override

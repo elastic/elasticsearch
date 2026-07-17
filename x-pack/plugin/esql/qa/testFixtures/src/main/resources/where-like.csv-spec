@@ -1536,3 +1536,51 @@ from employees | eval n = first_name | where n like "*" | stats c = count(*);
 c:long
 90
 ;
+
+
+// Constant expression on the RHS of LIKE/RLIKE (https://github.com/elastic/elasticsearch/issues/147671)
+
+likeConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+from employees | where first_name like concat("Eber", "*") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+rlikeConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+from employees | where first_name rlike concat("Eber", ".*") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeConstantExpressionToLower
+required_capability: like_rlike_constant_expression
+row x = "hello" | where x like to_lower("HELL*");
+
+x:keyword
+hello
+;
+
+
+likeConstantExpressionNested
+required_capability: like_rlike_constant_expression
+from employees | where first_name like concat(to_lower("EBER"), "*") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+rlikeConstantExpressionToUpper
+required_capability: like_rlike_constant_expression
+// (?-i) is the default; RLIKE is case-sensitive so matching the uppercase prefix after TO_UPPER
+from employees | where first_name rlike concat("(?i)", to_lower("EBER"), ".*") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;

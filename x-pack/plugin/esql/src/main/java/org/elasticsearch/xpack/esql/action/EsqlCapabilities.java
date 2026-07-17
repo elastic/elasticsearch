@@ -2293,6 +2293,12 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
+         * Support constant expressions on the RHS of LIKE/RLIKE, e.g. {@code WHERE x LIKE CONCAT("prefix", "*")}.
+         * https://github.com/elastic/elasticsearch/issues/147671
+         */
+        LIKE_RLIKE_CONSTANT_EXPRESSION,
+
+        /**
          * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
         PROMQL_COMMAND_V0,

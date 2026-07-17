@@ -3020,6 +3020,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), is(error));
     }
 
+    public void testSimplifyLikeNoWildcardFromConstantExpression() {
+        // After constant folding, LIKE CONCAT("foo", "") => LIKE "foo" => Equals
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like concat("foo", "")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertTrue(filter.condition() instanceof Equals);
+    }
+
+    public void testSimplifyLikeMatchAllFromConstantExpression() {
+        // After constant folding, LIKE CONCAT("", "*") => LIKE "*" => IsNotNull
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like concat("", "*")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    public void testSimplifyRLikeMatchAllFromConstantExpression() {
+        // After constant folding, RLIKE CONCAT("", ".*") => RLIKE ".*" => IsNotNull
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name rlike concat("", ".*")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
     public void testFoldNullInToLocalRelation() {
         LogicalPlan plan = optimizedPlan("""
             from test

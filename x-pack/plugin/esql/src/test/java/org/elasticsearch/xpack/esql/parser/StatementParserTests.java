@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -1677,6 +1678,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
         );
+    }
+
+    public void testLikeRLikeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // At parse time, a function call on the RHS produces an UnresolvedRegexExpression placeholder.
+        // The analyzer's FoldConstantRegexPattern rule converts it to WildcardLike/RLike later.
+        LogicalPlan cmd = processingCommand("where foo like concat(\"pre\", \"fix*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+
+        cmd = processingCommand("where foo rlike concat(\"pre\", \".*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
     }
 
     public void testIdentifierPatternTooComplex() {

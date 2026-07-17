@@ -5155,6 +5155,53 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testLikeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like concat(\"Anna\", \"*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        WildcardLike like = as(filter.condition(), WildcardLike.class);
+        assertEquals("Anna*", like.pattern().pattern());
+    }
+
+    public void testRLikeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike concat(\"Anna\", \".*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    public void testLikeNonFoldableExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        basic().error(
+            "from test | where first_name like last_name",
+            containsString("second argument of [LIKE] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testRLikeNonFoldableExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        basic().error(
+            "from test | where first_name rlike last_name",
+            containsString("second argument of [RLIKE] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testLikeWrongTypeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        basic().error("from test | where first_name like to_integer(\"42\")", containsString("second argument of [LIKE] must be [string]"));
+    }
+
+    public void testRLikeWrongTypeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        basic().error(
+            "from test | where first_name rlike to_integer(\"42\")",
+            containsString("second argument of [RLIKE] must be [string]")
+        );
+    }
+
     public void testConfigurationAwareResolved() {
         var query = """
             from test

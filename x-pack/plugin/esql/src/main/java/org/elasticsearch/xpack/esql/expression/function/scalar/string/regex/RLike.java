@@ -29,6 +29,7 @@ import java.util.function.Predicate;
 
 public class RLike extends RegexMatch<RLikePattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
+
     public static final String NAME = "RLIKE";
 
     @FunctionInfo(

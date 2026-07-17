@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.util.List;
@@ -77,7 +76,19 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             limit,
             PrometheusQueryResponseListener.QueryMode.RANGE
         );
-        var esqlRequest = PreparedEsqlQueryRequest.sync(result.esqlStatement(), query);
+        var esqlRequest = new PromqlQueryRequest(
+            index,
+            result.esqlStatement(),
+            query,
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            START_PARAM,
+            start,
+            END_PARAM,
+            end,
+            PrometheusQueryResponseListener.STEP_PARAM,
+            step
+        );
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,

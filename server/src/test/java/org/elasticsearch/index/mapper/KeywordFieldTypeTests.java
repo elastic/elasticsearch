@@ -164,9 +164,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testNormalizeWildcardPatternReescapesOperators() {
-        // Regression test for #150699: when a normalizer (e.g. ICU NFKC) maps fullwidth forms to the ASCII wildcard
-        // operators, literal data must not become an operator, and the contents of an escape sequence must be
-        // normalized like any other literal.
+        // A normalizer can map fullwidth forms to the ASCII wildcard control characters (#150699). Operators the
+        // normalizer produces out of literal data are re-escaped, and escape contents are normalized like any literal.
         Analyzer normalizer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
@@ -181,21 +180,23 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         };
         NamedAnalyzer named = new NamedAnalyzer("fullwidth_nfkc", AnalyzerScope.INDEX, normalizer);
 
-        // Bug 1: an escaped fullwidth '＊' must be normalized to an escaped ASCII '*' (a literal star), not left as-is.
-        assertEquals("東京\\*大阪", StringFieldType.normalizeWildcardPattern("f", "東京\\＊大阪", named));
-        // Bug 2: a bare fullwidth '＊' must become an escaped ASCII '*' (literal), not a wildcard operator.
-        assertEquals("東京\\*大阪", StringFieldType.normalizeWildcardPattern("f", "東京＊大阪", named));
-        // Bug 2: a bare fullwidth '？' must become an escaped ASCII '?' (literal).
-        assertEquals("東京\\?大阪", StringFieldType.normalizeWildcardPattern("f", "東京？大阪", named));
+        // An escaped fullwidth '＊' is normalized to an escaped ASCII '*': still the literal star.
+        assertEquals("foo\\*bar", StringFieldType.normalizeWildcardPattern("f", "foo\\＊bar", named));
+        // A bare fullwidth '＊' also normalizes to the literal star, not a wildcard operator.
+        assertEquals("foo\\*bar", StringFieldType.normalizeWildcardPattern("f", "foo＊bar", named));
+        // Same for the fullwidth '？'.
+        assertEquals("foo\\?bar", StringFieldType.normalizeWildcardPattern("f", "foo？bar", named));
         // Real ASCII wildcard operators are preserved verbatim, including at the start and end of the pattern.
-        assertEquals("東京*大阪", StringFieldType.normalizeWildcardPattern("f", "東京*大阪", named));
+        assertEquals("foo*bar", StringFieldType.normalizeWildcardPattern("f", "foo*bar", named));
         assertEquals("foo?bar*", StringFieldType.normalizeWildcardPattern("f", "foo?bar*", named));
-        assertEquals("*大阪", StringFieldType.normalizeWildcardPattern("f", "*大阪", named));
-        assertEquals("東京*", StringFieldType.normalizeWildcardPattern("f", "東京*", named));
-        // A fullwidth backslash '＼' that normalizes to '\' must be re-escaped to a literal backslash, whether the
-        // user wrote it bare or escaped.
-        assertEquals("東京\\\\大阪", StringFieldType.normalizeWildcardPattern("f", "東京＼大阪", named));
-        assertEquals("東京\\\\大阪", StringFieldType.normalizeWildcardPattern("f", "東京\\＼大阪", named));
+        assertEquals("*bar", StringFieldType.normalizeWildcardPattern("f", "*bar", named));
+        assertEquals("foo*", StringFieldType.normalizeWildcardPattern("f", "foo*", named));
+        // A fullwidth backslash '＼' that normalizes to '\' is re-escaped to a literal backslash, whether the user
+        // wrote it bare or escaped.
+        assertEquals("foo\\\\bar", StringFieldType.normalizeWildcardPattern("f", "foo＼bar", named));
+        assertEquals("foo\\\\bar", StringFieldType.normalizeWildcardPattern("f", "foo\\＼bar", named));
+        // A trailing lone backslash is literal data and is re-escaped.
+        assertEquals("abc\\\\", StringFieldType.normalizeWildcardPattern("f", "abc\\", named));
         // An escape before a line terminator is still an escape (WILDCARD_PATTERN is DOTALL): "a\<LF>b" is the literal
         // "a<LF>b", and the backslash must not be re-introduced as a literal backslash.
         assertEquals("a\nb", StringFieldType.normalizeWildcardPattern("f", "a\\\nb", named));

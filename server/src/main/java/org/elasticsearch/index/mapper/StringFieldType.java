@@ -159,16 +159,28 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (chunk.isEmpty()) {
             return;
         }
-        String normalized = normalizer.normalize(fieldname, chunk).utf8ToString();
-        StringBuilder escaped = new StringBuilder(normalized.length());
-        for (int i = 0; i < normalized.length(); i++) {
-            char c = normalized.charAt(i);
-            if (c == '*' || c == '?' || c == '\\') {
-                escaped.append('\\');
+        BytesRef normalized = normalizer.normalize(fieldname, chunk);
+        // The operators are ASCII and UTF-8 never uses bytes below 0x80 inside a multi-byte sequence, so scanning the
+        // raw bytes is safe. In the common case the normalizer emits no operator and the bytes are appended as-is.
+        int operators = 0;
+        for (int i = 0; i < normalized.length; i++) {
+            byte b = normalized.bytes[normalized.offset + i];
+            if (b == '*' || b == '?' || b == '\\') {
+                operators++;
             }
-            escaped.append(c);
         }
-        sb.append(new BytesRef(escaped.toString()));
+        if (operators == 0) {
+            sb.append(normalized);
+            return;
+        }
+        sb.grow(sb.length() + normalized.length + operators);
+        for (int i = 0; i < normalized.length; i++) {
+            byte b = normalized.bytes[normalized.offset + i];
+            if (b == '*' || b == '?' || b == '\\') {
+                sb.append((byte) '\\');
+            }
+            sb.append(b);
+        }
     }
 
     @Override

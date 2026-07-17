@@ -2609,10 +2609,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final String field = "dense_value";
         final int numDocs = randomIntBetween(129, 2047);
 
-        try (
-            Directory dir = newDirectory();
-            IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))
-        ) {
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
             long ts = BASE_TIMESTAMP;
             for (int i = 0; i < numDocs; i++) {
                 final Document d = new Document();
@@ -2646,10 +2643,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final String field = "dense_value";
         final int numDocs = randomIntBetween(129, 2047);
 
-        try (
-            Directory dir = newDirectory();
-            IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))
-        ) {
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
             long ts = BASE_TIMESTAMP;
             int expectedCount = 0;
             for (int i = 0; i < numDocs; i++) {
@@ -2677,10 +2671,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final String field = "dense_value";
         final int numDocs = 4000;
 
-        try (
-            Directory dir = newDirectory();
-            IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))
-        ) {
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
             long ts = BASE_TIMESTAMP;
             for (int i = 0; i < numDocs; i++) {
                 final Document d = new Document();

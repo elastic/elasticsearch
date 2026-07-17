@@ -857,8 +857,9 @@ required_capability: fix_negated_is_not_null_alias_inference
 FROM airports_no_doc_values
 | EVAL city = MV_CONCAT(city, ", ")
 | WHERE NOT city RLIKE ".*"
-| KEEP city
+| STATS rows = COUNT(*)
 ;
 
-city:keyword
+rows:long
+19
 ;

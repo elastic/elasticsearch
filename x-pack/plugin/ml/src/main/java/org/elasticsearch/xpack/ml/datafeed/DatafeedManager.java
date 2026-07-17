@@ -407,7 +407,23 @@ public final class DatafeedManager {
         return crossProjectMlEnabled()
             && MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE.get(settings)
             && defaultedProjectRoutingForMigration == false
-            && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, rawUpdate);
+            && isEffectiveScopeChange(current, rawUpdate);
+    }
+
+    /**
+     * A rollback-worthy scope change is a user-initiated project_routing change (see
+     * {@link DatafeedUpdate#isUserInitiatedProjectRoutingChange}) that also changes the datafeed's effective
+     * search scope. An unset project_routing is an implicit local-only scope, so assigning
+     * {@link ProjectRoutingResolver#LOCAL_ONLY} for the first time -- mirroring the system-applied migration
+     * default -- is excluded even though the stored value changes from null to non-null.
+     */
+    private static boolean isEffectiveScopeChange(DatafeedConfig current, DatafeedUpdate rawUpdate) {
+        if (DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, rawUpdate) == false) {
+            return false;
+        }
+        boolean firstTimeLocalOnlyAssignment = current.getProjectRouting() == null
+            && ProjectRoutingResolver.LOCAL_ONLY.equals(rawUpdate.getProjectRouting());
+        return firstTimeLocalOnlyAssignment == false;
     }
 
     private void retainRollbackSnapshotBeforeScopeChange(

@@ -1053,7 +1053,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         DatafeedConfig updatedConfig = new DatafeedConfig.Builder("test-datafeed", "test-job").setIndices(List.of("logs-*"))
-            .setProjectRouting("_origin")
+            .setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
             .build();
 
         doAnswer(invocation -> {
@@ -1063,7 +1063,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(), any());
 
         DatafeedUpdate.Builder updateBuilder = new DatafeedUpdate.Builder("test-datafeed");
-        updateBuilder.setProjectRouting("_origin");
+        updateBuilder.setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY);
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(updateBuilder.build());
 
         AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
@@ -1075,7 +1075,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
         );
 
-        assertThat(response.get().getResponse().getProjectRouting(), equalTo("_origin"));
+        assertThat(response.get().getResponse().getProjectRouting(), equalTo(ProjectRoutingResolver.LOCAL_ONLY));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 
@@ -1641,6 +1641,8 @@ public class DatafeedManagerTests extends ESTestCase {
             legacyConfig,
             capturedUpdate
         );
+        mockGetJobWithSnapshot(jobConfigProvider, "job-3", "migration-explicit-snap");
+        mockUpdateModelSnapshotSucceeds(client, "job-3", "migration-explicit-snap");
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-3").setProjectRouting("_alias:explicit").build()
@@ -1649,6 +1651,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:explicit"));
+        verify(client, times(1)).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
     }
 
     @SuppressWarnings("unchecked")

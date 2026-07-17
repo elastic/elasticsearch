@@ -489,12 +489,13 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         Set<Long> termsAfter = blobsAfter.stream().map(PrimaryTermAndGeneration::primaryTerm).collect(Collectors.toSet());
         assertThat("new primary term blobs must exist", termsAfter.contains(primaryTermAfter), is(true));
 
+        // BUG: allocate_empty_primary bypasses markRecoveredBcc so old blobs are never cleaned up. This is a minor bug which we might want
+        // to fix. This assertion documents the current (incorrect) behavior; it should be removed once the leak is fixed.
         logger.debug("--> verify that old primary term blobs remain orphaned");
-        Set<Long> orphanedTerms = termsAfter.stream().filter(t -> t < primaryTermAfter).collect(Collectors.toSet());
         assertThat(
             "old blobs should remain orphaned since allocate_empty_primary bypasses markRecoveredBcc",
-            orphanedTerms.isEmpty(),
-            is(false)
+            termsAfter.contains(primaryTermBefore),
+            is(true)
         );
     }
 

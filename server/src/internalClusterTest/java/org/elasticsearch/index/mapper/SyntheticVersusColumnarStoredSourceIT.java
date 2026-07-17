@@ -212,19 +212,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * A keyword field with a normalizer operates in FALLBACK synthetic-source mode: the original (pre-normalization) value cannot
-     * be reconstructed from doc values alone, so it is pre-captured into {@code _ignored_source}.  When the same field also has
-     * {@code multi_value=false, on_failure=ignore}, a second value simultaneously goes to {@code ._on_failure} (the violation
-     * handler) and into {@code _ignored_source} (the FALLBACK pre-capture), creating double storage on disk.
-     *
-     * <p>In synthetic-source reconstruction the FALLBACK path takes priority: the field's synthetic-source loader is not
-     * instantiated, so only {@code _ignored_source} is read — the {@code ._on_failure} copy is silently skipped.  "HELLO"
-     * is pre-captured in {@code _ignored_source} (FALLBACK); "WORLD" is stored in both {@code ._on_failure} (cardinality
-     * violation) and {@code _ignored_source} (FALLBACK pre-capture), but only the {@code _ignored_source} copy is used
-     * during reconstruction.  Both originals must appear in the reconstructed source.
-     * {@code columnar_stored} reads the whole-document blob written before column pruning, which also contains both originals.
-     * Verifying cross-mode equality confirms that the FALLBACK loader is correctly selected and that no value is lost or
-     * double-emitted.
+     * Asserts reconstructed sources are the same & field is stored in _ignored across both source types when normalizer is used.
+     * @throws Exception
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
         var mappingXContent = XContentFactory.jsonBuilder()
@@ -232,7 +221,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            // lowercase normalizer makes this field FALLBACK: doc values store "hello"/"world", not the originals
             .field("normalizer", "lowercase")
             .startObject("doc_values")
             .field("multi_value", false)
@@ -241,9 +229,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        // "HELLO" is indexed normally (FALLBACK: original pre-captured in _ignored_source).
-        // "WORLD" violates multi_value=false: goes to ._on_failure AND is pre-captured in _ignored_source (FALLBACK).
-        // Both originals must appear exactly once in the reconstructed _source of each mode.
         assertEqualSource(mappingXContent, Map.of("kw", List.of("HELLO", "WORLD")), randomBoolean());
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");

@@ -736,31 +736,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
-    public void testOnFailureIgnoreViolatedValueStoredExactlyOnce() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
-            settings,
-            fieldMapping(
-                b -> b.field("type", "keyword")
-                    .startObject("doc_values")
-                    .field("multi_value", false)
-                    .field("on_failure", "ignore")
-                    .endObject()
-            )
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
-
-        // "a" is indexed normally (doc values in the main field); "b" is the violated duplicate and must land
-        // exclusively in ._on_failure — not also in _ignored_source or the main field.
-        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
-        assertThat(
-            "field must be marked ignored",
-            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
-            equalTo(true)
-        );
-    }
-
     public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(

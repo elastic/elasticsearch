@@ -35,10 +35,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,9 +46,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
@@ -326,7 +322,7 @@ public final class Case extends EsqlScalarFunction {
      * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
      * {@code EVAL c=CASE(b, bar, bort)}.
      */
-    public Expression partiallyFold(FoldContext ctx, Configuration configuration) {
+    public Expression partiallyFold(FoldContext ctx) {
         // TODO don’t throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
         List<Expression> newChildren = new ArrayList<>(children().size());
         boolean modified = false;
@@ -352,7 +348,7 @@ public final class Case extends EsqlScalarFunction {
                  * away, returning just what ever’s remaining in the CASE.
                  */
                 newChildren.add(condition.value);
-                return finishPartialFold(newChildren, configuration);
+                return finishPartialFold(newChildren);
             }
         }
         if (modified == false) {
@@ -361,31 +357,28 @@ public final class Case extends EsqlScalarFunction {
         if (elseValueIsExplicit()) {
             newChildren.add(elseValue);
         }
-        return finishPartialFold(newChildren, configuration);
+        return finishPartialFold(newChildren);
     }
 
-    private Expression finishPartialFold(List<Expression> newChildren, Configuration configuration) {
-        Expression result = innerFinishPartialFold(newChildren, configuration);
-        if (result.dataType().equals(dataType()) == false) {
+    private Expression finishPartialFold(List<Expression> newChildren) {
+        Expression result = innerFinishPartialFold(newChildren);
+        // A surviving TEXT arm is allowed here even though dataType() is KEYWORD; PartiallyFoldCase re-types it
+        // so the plan output matches what resolveValueType declared (#154278).
+        if (result.dataType().noText().equals(dataType()) == false) {
             throw new IllegalStateException("partiallyFold produced type [" + result.dataType() + "] but expected [" + dataType() + "]");
         }
         return result;
     }
 
-    private Expression innerFinishPartialFold(List<Expression> newChildren, Configuration configuration) {
+    private Expression innerFinishPartialFold(List<Expression> newChildren) {
         return switch (newChildren.size()) {
             // CASE(false, a) -> NULL
             case 0 -> new Literal(source(), null, dataType());
-            // CASE(false, a, b) -> b, which must keep dataType(): a NULL arm becomes a typed null,
-            // and a TEXT arm under a KEYWORD CASE is coerced back to KEYWORD so the plan output type
-            // does not drift from the type resolveValueType declared (#154058).
+            // CASE(false, a, b) -> b, casting a NULL arm to dataType() so callers see KEYWORD, not NULL.
             case 1 -> {
                 Expression child = newChildren.getFirst();
                 if (child.dataType() == NULL && dataType() != NULL) {
                     yield new Literal(child.source(), null, dataType());
-                }
-                if (child.dataType() == TEXT && dataType() == KEYWORD) {
-                    yield new ToString(child.source(), child, configuration);
                 }
                 yield child;
             }

@@ -487,7 +487,7 @@ public class EsqlCapabilities {
 
         /**
          * Partial folding of {@code CASE} keeps the KEYWORD type declared at analysis time when the
-         * surviving branch is TEXT, instead of letting the plan output drift to TEXT. See #154058.
+         * surviving branch is TEXT, instead of letting the plan output drift to TEXT. See #154278.
          */
         FIX_CASE_PARTIAL_FOLD_KEYWORD_TYPE,
 

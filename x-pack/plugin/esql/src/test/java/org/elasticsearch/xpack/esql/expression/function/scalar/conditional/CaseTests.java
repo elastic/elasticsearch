@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -31,8 +30,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
@@ -814,25 +811,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         Case c = (Case) buildFieldExpression(testCase);
         if (extra().expectedPartialFold == null) {
-            assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), sameInstance(c));
+            assertThat(c.partiallyFold(FoldContext.small()), sameInstance(c));
             return;
         }
         if (extra().expectedPartialFold.size() == 1) {
-            Expression expectedField = extra().expectedPartialFold.get(0).asField();
-            Expression folded = c.partiallyFold(FoldContext.small(), TEST_CFG);
-            assertThat(folded.dataType(), equalTo(c.dataType()));
-            if (expectedField.dataType() != c.dataType()) {
-                assertThat(as(folded, ToString.class).field(), equalToIgnoringIds(expectedField));
-            } else {
-                assertThat(folded, equalToIgnoringIds(expectedField));
-            }
+            assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(extra().expectedPartialFold.get(0).asField()));
             return;
         }
         Case expected = build(
             Source.synthetic("expected"),
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
-        assertThat(c.partiallyFold(FoldContext.small(), TEST_CFG), equalToIgnoringIds(expected));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(expected));
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

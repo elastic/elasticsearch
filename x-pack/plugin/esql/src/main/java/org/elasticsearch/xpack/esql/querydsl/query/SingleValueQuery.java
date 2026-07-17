@@ -17,10 +17,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -134,6 +133,17 @@ public class SingleValueQuery extends Query {
         private final String field;
         private final Source source;
 
+        /**
+         * Bridge used to resolve per-driver {@link org.elasticsearch.compute.operator.Warnings} for any
+         * {@link SingleValueMatchQuery} built from this builder. This can't be a constructor parameter:
+         * this builder is (de)serialized as a {@link QueryBuilder} (see {@link #AbstractBuilder(StreamInput)})
+         * well before a bridge exists for the local query execution that will eventually run it. Instead,
+         * it's injected once, after the {@link QueryBuilder} tree is fully built and known locally --
+         * see {@code EsPhysicalOperationProviders#querySupplier} -- and carried across rewrites in
+         * {@link #doRewrite}.
+         */
+        private SingleValueQueryWarnings warnings;
+
         AbstractBuilder(QueryBuilder next, String field, Source source) {
             this.next = next;
             this.field = field;
@@ -174,6 +184,18 @@ public class SingleValueQuery extends Query {
             return source;
         }
 
+        /**
+         * Bind the bridge used to resolve per-driver warnings for any {@link SingleValueMatchQuery}
+         * built from this builder (and, transitively, any builder produced by rewriting it).
+         */
+        public void warnings(SingleValueQueryWarnings warnings) {
+            this.warnings = warnings;
+        }
+
+        public SingleValueQueryWarnings warnings() {
+            return warnings;
+        }
+
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
         @Override
@@ -185,7 +207,9 @@ public class SingleValueQuery extends Query {
             if (rewritten == next) {
                 return this;
             }
-            return rewrite(rewritten);
+            AbstractBuilder rewrittenBuilder = rewrite(rewritten);
+            rewrittenBuilder.warnings(warnings);
+            return rewrittenBuilder;
         }
 
         @Override
@@ -201,7 +225,8 @@ public class SingleValueQuery extends Query {
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
+                warnings(),
+                source(),
                 "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
@@ -328,7 +353,8 @@ public class SingleValueQuery extends Query {
 
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
+                warnings(),
+                source(),
                 "single-value function encountered multi-value"
             );
             singleValueQuery = singleValueQuery.rewrite(context.searcher());

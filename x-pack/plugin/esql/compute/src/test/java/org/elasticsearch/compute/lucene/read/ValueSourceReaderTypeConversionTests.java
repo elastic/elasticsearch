@@ -52,6 +52,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -285,7 +286,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false, // no scoring
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            new SingleValueQueryWarnings()
         );
         return luceneFactory.get(context);
     }
@@ -872,7 +874,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false, // no scoring
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            new SingleValueQueryWarnings()
         );
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(
             reader(indexKey),
@@ -1053,7 +1056,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 LuceneOperator.NO_LIMIT,
                 false, // no scoring
                 () -> 0L,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                new SingleValueQueryWarnings()
             );
             // TODO add index2
             MappedFieldType ft = mapperService(indexKey).fieldType("key");

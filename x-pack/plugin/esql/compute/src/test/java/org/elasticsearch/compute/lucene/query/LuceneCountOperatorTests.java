@@ -36,6 +36,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -282,7 +283,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             testCase.tagTypes(),
             limit,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            new SingleValueQueryWarnings()
         );
     }
 
@@ -422,7 +424,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             List.of(),
             Integer.MAX_VALUE,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            new SingleValueQueryWarnings()
         );
         int driverCount = partitioningTaskConcurrency;
         List<Page> results = new CopyOnWriteArrayList<>();
@@ -561,7 +564,15 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         List<Driver> drivers = new ArrayList<>();
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext driverCtx = driverContext();
-            LuceneCountOperator op = new LuceneCountOperator(contexts, driverCtx, sliceQueue, List.of(), Integer.MAX_VALUE, () -> 0L);
+            LuceneCountOperator op = new LuceneCountOperator(
+                contexts,
+                driverCtx,
+                sliceQueue,
+                List.of(),
+                Integer.MAX_VALUE,
+                () -> 0L,
+                new SingleValueQueryWarnings()
+            );
             drivers.add(TestDriverFactory.create(driverCtx, op, List.of(), new TestResultPageSinkOperator(results::add)));
         }
         new TestDriverRunner().run(drivers);
@@ -702,7 +713,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                         List.of(),
                         Integer.MAX_VALUE,
                         () -> 0L,
-                        LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                        LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                        new SingleValueQueryWarnings()
                     );
                     int driverCount = partitioningTaskConcurrency;
                     List<Page> results = new CopyOnWriteArrayList<>();

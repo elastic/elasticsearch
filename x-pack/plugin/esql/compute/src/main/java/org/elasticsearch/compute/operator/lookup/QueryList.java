@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -44,6 +45,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -132,12 +134,22 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
 
     private Query getOrComputeSingleValueFilter(SearchExecutionContext searchExecutionContext) {
         if (singleValueFilterComputed == false) {
+            /*
+             * Unlike the Lucene-pushdown SingleValueQuery, this query is never shared with another
+             * driver: it's built and used entirely within this single QueryList instance, on a single
+             * driver's thread. So we can build a private, one-off bridge and bind it once, right here,
+             * to the already-built Warnings the caller gave us -- no need to rebuild it per driver or
+             * to clear it after each use.
+             */
+            SingleValueQueryWarnings warningsBridge = new SingleValueQueryWarnings();
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
-                // Not emitting warnings for multivalued fields not matching
-                onlySingleValueParams.warnings,
+                warningsBridge,
+                null,
                 onlySingleValueParams.multiValueWarningMessage
             );
+            // Not emitting warnings for multivalued fields not matching
+            warningsBridge.set(Map.of(singleValueQuery, onlySingleValueParams.warnings));
             try {
                 Query rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
                 cachedSingleValueFilter = (rewrite instanceof MatchAllDocsQuery) ? null : rewrite;

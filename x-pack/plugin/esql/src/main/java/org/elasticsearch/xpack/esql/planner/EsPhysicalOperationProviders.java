@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -99,6 +100,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -176,17 +178,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final LongSupplier directoryBytesRead;
 
+    private final SingleValueQueryWarnings singleValueQueryWarnings;
+
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        SingleValueQueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     @Override
@@ -427,12 +433,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         QueryBuilder builder
     ) {
         QueryBuilder qb = builder == null ? QueryBuilders.matchAllQuery().boost(0.0f) : builder;
+        injectSingleValueQueryWarnings(qb, singleValueQueryWarnings);
         return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
     public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
         List<EsQueryExec.QueryBuilderAndTags> queryAndTagsFromEsQueryExec
     ) {
+        for (EsQueryExec.QueryBuilderAndTags queryBuilderAndTags : queryAndTagsFromEsQueryExec) {
+            if (queryBuilderAndTags.query() != null) {
+                injectSingleValueQueryWarnings(queryBuilderAndTags.query(), singleValueQueryWarnings);
+            }
+        }
         return ctx -> queryAndTagsFromEsQueryExec.stream().map(queryBuilderAndTags -> {
             QueryBuilder qb = queryBuilderAndTags.query();
             return new LuceneSliceQueue.QueryAndTags(
@@ -440,6 +452,36 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 queryBuilderAndTags.tags()
             );
         }).toList();
+    }
+
+    /**
+     * Walk {@code queryBuilder}, binding {@code warnings} onto every
+     * {@link SingleValueQuery.AbstractBuilder} node found (including nested ones, e.g. under an
+     * {@code AND}/{@code OR}-composed {@link BoolQueryBuilder}), so that when this tree is eventually
+     * converted to a Lucene {@code Query} (see {@link DefaultShardContext#toQuery}), every
+     * {@code SingleValueMatchQuery} it produces can resolve its per-driver warnings through the bridge.
+     * This has to happen here -- once, locally, right after the {@link QueryBuilder} tree is known --
+     * rather than at {@code SingleValueQuery} construction time, since that tree may have arrived
+     * pre-built over the wire (as part of the physical plan) with no bridge available yet.
+     */
+    static void injectSingleValueQueryWarnings(QueryBuilder queryBuilder, SingleValueQueryWarnings warnings) {
+        switch (queryBuilder) {
+            case SingleValueQuery.AbstractBuilder svq -> {
+                svq.warnings(warnings);
+                injectSingleValueQueryWarnings(svq.next(), warnings);
+            }
+            case BoolQueryBuilder bq -> {
+                for (List<QueryBuilder> clauses : List.of(bq.must(), bq.filter(), bq.should(), bq.mustNot())) {
+                    for (QueryBuilder c : clauses) {
+                        injectSingleValueQueryWarnings(c, warnings);
+                    }
+                }
+            }
+            case ConstantScoreQueryBuilder csq -> injectSingleValueQueryWarnings(csq.innerQuery(), warnings);
+            default -> {
+                // Leaf query types (Term, Range, Exists, ...) can't contain a nested SingleValueQuery.
+            }
+        }
     }
 
     @Override
@@ -483,7 +525,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 sortBuilders,
                 estimatedPerRowSortSize,
                 scoring,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -494,7 +537,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
@@ -508,7 +552,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 limit,
                 scoring,
                 directoryBytesRead,
-                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+                singleValueQueryWarnings
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -597,7 +642,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
             directoryBytesRead,
-            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+            singleValueQueryWarnings
         );
     }
 

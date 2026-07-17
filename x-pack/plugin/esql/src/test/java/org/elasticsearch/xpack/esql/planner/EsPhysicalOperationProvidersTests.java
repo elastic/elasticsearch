@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -50,12 +52,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -67,6 +71,7 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
@@ -101,7 +106,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            new SingleValueQueryWarnings()
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -150,6 +156,37 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
                 );
             }
         }
+    }
+
+    /**
+     * {@link EsPhysicalOperationProviders#injectSingleValueQueryWarnings} has to find every
+     * {@link SingleValueQuery.AbstractBuilder} in the tree, however it's nested, so that each one can
+     * resolve its warnings through the shared bridge once converted to a Lucene query. This covers an
+     * {@code AND}-composed pushdown ({@code BoolQueryBuilder#filter}), an {@code OR}-composed one
+     * ({@code BoolQueryBuilder#should}), a negated one ({@code BoolQueryBuilder#mustNot}), and one
+     * wrapped in a {@link ConstantScoreQueryBuilder}.
+     */
+    public void testInjectSingleValueQueryWarningsWalksComposedPushdowns() {
+        SingleValueQuery filterPushdown = new SingleValueQuery(new MatchAll(Source.EMPTY), "f1", false);
+        SingleValueQuery shouldPushdown = new SingleValueQuery(new MatchAll(Source.EMPTY), "f2", false);
+        SingleValueQuery mustNotPushdown = new SingleValueQuery(new MatchAll(Source.EMPTY), "f3", false);
+        SingleValueQuery constantScorePushdown = new SingleValueQuery(new MatchAll(Source.EMPTY), "f4", false);
+
+        BoolQueryBuilder bool = new BoolQueryBuilder().filter(filterPushdown.toQueryBuilder())
+            .should(shouldPushdown.toQueryBuilder())
+            .mustNot(mustNotPushdown.toQueryBuilder())
+            .filter(new ConstantScoreQueryBuilder(constantScorePushdown.toQueryBuilder()));
+
+        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+        EsPhysicalOperationProviders.injectSingleValueQueryWarnings(bool, bridge);
+
+        assertThat(((SingleValueQuery.AbstractBuilder) bool.filter().get(0)).warnings(), sameInstance(bridge));
+        assertThat(((SingleValueQuery.AbstractBuilder) bool.should().get(0)).warnings(), sameInstance(bridge));
+        assertThat(((SingleValueQuery.AbstractBuilder) bool.mustNot().get(0)).warnings(), sameInstance(bridge));
+        assertThat(
+            ((SingleValueQuery.AbstractBuilder) ((ConstantScoreQueryBuilder) bool.filter().get(1)).innerQuery()).warnings(),
+            sameInstance(bridge)
+        );
     }
 
     /**
@@ -222,7 +259,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            new SingleValueQueryWarnings()
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -255,7 +293,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            new SingleValueQueryWarnings()
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));

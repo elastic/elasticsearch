@@ -28,7 +28,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -45,7 +45,7 @@ import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
 
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits
- * a {@link Warnings warning}.
+ * a {@link org.elasticsearch.compute.operator.Warnings warning}.
  * <p>
  *     Warnings are only emitted if the {@link TwoPhaseIterator#matches}. Meaning that,
  *     if the other query skips the doc either because the index doesn't match or because it's
@@ -64,13 +64,35 @@ public final class SingleValueMatchQuery extends Query {
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
     private final IndexFieldData<?> fieldData;
-    private final Warnings warnings;
+    private final SingleValueQueryWarnings warnings;
+    private final WarningSourceLocation source;
     private final String multiValueExceptionMessage;
 
-    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
+    /**
+     * Build.
+     * @param warnings bridge used to resolve the calling driver's {@link org.elasticsearch.compute.operator.Warnings}
+     *                 for this query node; see {@link SingleValueQueryWarnings} for why this can't just be a plain
+     *                 {@code Warnings} field
+     * @param source the location that produced this query, used to build a {@code Warnings} instance per driver
+     */
+    public SingleValueMatchQuery(
+        IndexFieldData<?> fieldData,
+        SingleValueQueryWarnings warnings,
+        WarningSourceLocation source,
+        String multiValueExceptionMessage
+    ) {
         this.fieldData = fieldData;
         this.warnings = warnings;
+        this.source = source;
         this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * The location that produced this query. Used by {@link org.elasticsearch.compute.lucene.query.LuceneOperator}
+     * to build a driver-local {@link org.elasticsearch.compute.operator.Warnings} for this node.
+     */
+    public WarningSourceLocation source() {
+        return source;
     }
 
     @Override
@@ -316,7 +338,7 @@ public final class SingleValueMatchQuery extends Query {
     }
 
     private void registerMultiValueException() {
-        warnings.registerException(IllegalArgumentException.class, multiValueExceptionMessage);
+        warnings.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
     }
 
     static DocIdSetIterator getApproximationIterator(LeafReader reader, String fieldName, int maxDoc) throws IOException {

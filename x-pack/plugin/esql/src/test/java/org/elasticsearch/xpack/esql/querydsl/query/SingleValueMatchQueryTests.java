@@ -29,9 +29,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -43,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
@@ -107,11 +110,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = new SingleValueMatchQuery(
-                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
-                    "single-value function encountered multi-value"
-                );
+                Query query = singleValueMatchQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH));
                 runCase(fieldValues, ctx.searcher().count(query));
                 setup.assertRewrite(ctx.searcher(), query);
             }
@@ -123,14 +122,27 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = new SingleValueMatchQuery(
-                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
-                    "single-value function encountered multi-value"
-                );
+                Query query = singleValueMatchQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH));
                 runCase(List.of(), ctx.searcher().count(query));
             }
         }
+    }
+
+    /**
+     * Build a {@link SingleValueMatchQuery} bound, via a private one-off {@link SingleValueQueryWarnings}
+     * bridge, to a fresh {@link Warnings} -- mirroring how {@link org.elasticsearch.compute.operator.lookup.QueryList}
+     * binds a non-shared query to its bridge.
+     */
+    private SingleValueMatchQuery singleValueMatchQuery(IndexFieldData<?> fieldData) {
+        SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+        SingleValueMatchQuery query = new SingleValueMatchQuery(
+            fieldData,
+            bridge,
+            new TestWarningsSource("test"),
+            "single-value function encountered multi-value"
+        );
+        bridge.set(Map.of(query, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"))));
+        return query;
     }
 
     private void runCase(List<List<Object>> fieldValues, int count) {

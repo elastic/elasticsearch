@@ -8,10 +8,12 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -26,9 +28,13 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -39,6 +45,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +70,20 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected final IndexedByShardId<? extends RefCounted> refCounteds;
     protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+    private final SingleValueQueryWarnings singleValueQueryWarnings;
+
+    /**
+     * {@link Warnings} for each {@link SingleValueMatchQuery} node this operator has encountered so
+     * far, built lazily from this driver's own {@link DriverContext} the first time each node is seen
+     * (see {@link #populateSingleValueQueryWarnings}). {@link SingleValueMatchQuery} nodes are shared
+     * (by identity) across every driver that scans the same shard/query, since the underlying Lucene
+     * {@link Weight} is built once and reused -- but each driver gets its own {@link Warnings}, and
+     * therefore its own warnings cap, rather than sharing a single accumulation across every driver
+     * touching the query. See {@link SingleValueQueryWarnings} for how this map is bridged to the
+     * calling thread while Lucene is running.
+     */
+    private final IdentityHashMap<SingleValueMatchQuery, Warnings> singleValueMatchQueryWarnings = new IdentityHashMap<>();
 
     /**
      * Count of the number of slices processed.
@@ -116,17 +137,20 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        SingleValueQueryWarnings singleValueQueryWarnings
     ) {
         this.directoryBytesRead = directoryBytesRead;
         this.refCounteds = refCounteds;
         refCounteds.iterable().forEach(RefCounted::mustIncRef);
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
         this.shardRowsEmitted = new long[shardProcessNanos.length];
@@ -139,6 +163,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
         protected final LongSupplier directoryBytesRead;
+        protected final SingleValueQueryWarnings singleValueQueryWarnings;
 
         /**
          * Build the factory.
@@ -156,7 +181,8 @@ public abstract class LuceneOperator extends SourceOperator {
             boolean needsScore,
             Function<ShardContext, ScoreMode> scoreModeFunction,
             LongSupplier directoryBytesRead,
-            int minDocsPerSlice
+            int minDocsPerSlice,
+            SingleValueQueryWarnings singleValueQueryWarnings
         ) {
             this(
                 contextsByShardId,
@@ -170,7 +196,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 scoreModeFunction,
                 directoryBytesRead,
                 minDocsPerSlice,
-                LuceneSliceQueue.LeafSplitGuard.NEVER
+                LuceneSliceQueue.LeafSplitGuard.NEVER,
+                singleValueQueryWarnings
             );
         }
 
@@ -186,9 +213,11 @@ public abstract class LuceneOperator extends SourceOperator {
             Function<ShardContext, ScoreMode> scoreModeFunction,
             LongSupplier directoryBytesRead,
             int minDocsPerSlice,
-            LuceneSliceQueue.LeafSplitGuard leafSplitGuard
+            LuceneSliceQueue.LeafSplitGuard leafSplitGuard,
+            SingleValueQueryWarnings singleValueQueryWarnings
         ) {
             this.directoryBytesRead = directoryBytesRead;
+            this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -218,6 +247,11 @@ public abstract class LuceneOperator extends SourceOperator {
     @Override
     public final Page getOutput() {
         long bytesSnapshot = directoryBytesRead.getAsLong();
+        // Bind this driver's SingleValueMatchQuery -> Warnings map to the calling thread for the
+        // duration of this synchronous call, and unbind it unconditionally afterwards -- even if
+        // getCheckedOutput() throws -- so a failing driver never leaves another driver's thread
+        // (in a pooled executor) pointing at a stale map.
+        singleValueQueryWarnings.set(singleValueMatchQueryWarnings);
         try {
             Page page = getCheckedOutput();
             if (page != null) {
@@ -229,6 +263,7 @@ public abstract class LuceneOperator extends SourceOperator {
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         } finally {
+            singleValueQueryWarnings.clear();
             recordBytesRead(bytesSnapshot);
         }
     }
@@ -276,6 +311,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 ) {
                     final Weight weight = currentSlice.weight();
                     processedQueries.add(Status.queryString(weight.getQuery()));
+                    populateSingleValueQueryWarnings(weight.getQuery());
                     currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                     if (sliceBlocked == null || sliceBlocked.isDone()) {
@@ -304,6 +340,39 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected LuceneSliceQueue getSliceQueue() {
         return sliceQueue;
+    }
+
+    /**
+     * Visible for testing only: the per-driver {@link SingleValueMatchQuery} warnings map, so tests can
+     * assert that two {@link LuceneOperator}s scanning the same shared query node end up with distinct
+     * {@link Warnings} instances for it.
+     */
+    Map<SingleValueMatchQuery, Warnings> testOnlySingleValueQueryWarnings() {
+        return singleValueMatchQueryWarnings;
+    }
+
+    /**
+     * Walk {@code query} once, via {@link Query#visit}, recording a fresh, driver-local
+     * {@link Warnings} (built through this driver's own {@link DriverContext}) for every
+     * {@link SingleValueMatchQuery} node not already present in {@link #singleValueMatchQueryWarnings}.
+     * Cheap to call repeatedly for the same query: already-seen nodes are simply skipped.
+     */
+    private void populateSingleValueQueryWarnings(Query query) {
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query leaf) {
+                if (leaf instanceof SingleValueMatchQuery svmq) {
+                    singleValueMatchQueryWarnings.computeIfAbsent(svmq, q -> driverContext.createWarnings(q.source()));
+                }
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                // Visit every branch, including MUST_NOT, so negated pushdowns still register their
+                // warnings collector.
+                return this;
+            }
+        });
     }
 
     @Override

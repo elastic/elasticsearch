@@ -16,10 +16,16 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.querydsl.query.SingleValueQueryWarnings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -34,7 +40,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -180,12 +188,38 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                SingleValueQueryWarnings bridge = new SingleValueQueryWarnings();
+                builder.warnings(bridge);
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
+                bridge.set(warningsFor(query));
                 testCase.run(fieldValues, ctx.searcher().count(query));
                 assertEqualsAndHashcodeStable(query, rewritten.toQuery(ctx));
             }
         }
+    }
+
+    /**
+     * Mirrors {@code LuceneOperator#populateSingleValueQueryWarnings}: walk {@code query} once, binding
+     * a fresh {@link Warnings} to every {@link SingleValueMatchQuery} node found, mimicking what a real
+     * driver does before running the query on its own thread.
+     */
+    private static Map<SingleValueMatchQuery, Warnings> warningsFor(Query query) {
+        Map<SingleValueMatchQuery, Warnings> warnings = new IdentityHashMap<>();
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query leaf) {
+                if (leaf instanceof SingleValueMatchQuery svmq) {
+                    warnings.computeIfAbsent(svmq, q -> Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, q.source()));
+                }
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                return this;
+            }
+        });
+        return warnings;
     }
 
     private void assertEqualsAndHashcodeStable(Query query1, Query query2) {

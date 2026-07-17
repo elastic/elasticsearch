@@ -1156,7 +1156,7 @@ ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
 ;
 
 key:integer | value:integer | type:keyword | pvalue:double
-13          | 1             | step_change  | 0..1e-150
+13          | 1             | step_change  | 0..1E-150
 ;
 
 

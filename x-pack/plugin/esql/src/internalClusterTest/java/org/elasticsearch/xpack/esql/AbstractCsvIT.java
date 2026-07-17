@@ -123,39 +123,27 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * CSV-based integration testing.
- * This test picks up *.csv-specs and run them against `InternalTestCluster`.
- * Unlike CsvTests this does not mock esql query execution infra and relies on real components.
- * InternalTestCluster` reuses current jvm. This enables debugging all scenarios from IDE.
- * Test data is loaded lazily in order to facilitate faster startup when running/debugging individual test cases.
+ * CSV-based integration testing. Subclasses pick up *.csv-specs and run
+ * them against an {@link InternalTestCluster}. Test data is loaded lazily.
+ * <h2>Static state is tricky</h2>
  * <p>
- * This class is abstract: it used to be the single {@code @ParametersFactory}-driven suite that ran
- * every csv-spec file as one 40-minute JUnit class, which made CI runs slow and put the whole corpus
- * at risk of being muted at once if a single test destabilized the suite. It is now split, one
- * generated {@code Csv<PascalSpecName>IT} class per csv-spec file (see {@code generateCsvItTests} in
- * {@code x-pack/plugin/esql/build.gradle} and {@code GenerateEsqlSpecTestsTask}), each calling
- * {@link #readScriptSpec(String)} for just its own file.
- * <p>
- * Unlike the equivalent split for the REST-based QA modules ({@code EsqlSpecTestCase} subclasses),
- * generated subclasses here do <b>not</b> share a single cluster: each spins up its own
- * {@link InternalTestCluster} per class via {@link #setupCluster()}/{@link #cleanupCluster()}, same as
- * before the split. A csv-spec file only touches a handful of indices and index loading is lazy, so
- * there's little to gain from sharing a cluster across files &mdash; and not sharing lets generated
- * classes run in independent Gradle test-JVM forks in parallel, rather than being serialized behind one
- * shared cluster.
- * <p>
- * <b>Static state caveat:</b> {@link #cluster}, {@link #indexLoadStrategy}, {@code currentGroupName},
- * and the {@code indices}/{@code enrich}/{@code inference}/{@code views} {@link ResourceLoader}s are all
- * static fields declared here, not per-subclass fields, because the {@link EsqlTestPlugin} action filter
- * that populates them runs inside the cluster's node processes and has no handle back to the JUnit test
- * instance or a per-subclass identifier &mdash; it can only reach this state through statics shared by
- * every generated subclass. That is safe only because Gradle runs one test class at a time per JVM fork
- * (never two csv-spec classes concurrently in the same JVM) and because {@link #setupCluster()}
- * unconditionally replaces every one of these fields with a fresh value rather than merely clearing them.
- * If a future change makes {@link #setupCluster()} reuse rather than replace any of these fields (e.g. to
- * "optimize" by clearing a collection in place instead of reassigning it), the next generated class to run
- * in the same JVM will silently inherit the previous class's already-closed cluster's loaded-resource
- * bookkeeping and fail with confusing "resource not found" errors instead of loading its own data.
+ *     {@link #cluster}, {@link #indexLoadStrategy}, {@code currentGroupName},
+ *     and the {@code indices}/{@code enrich}/{@code inference}/{@code views}
+ *     {@link ResourceLoader}s are all static fields declared here, not
+ *     per-subclass fields, because the {@link EsqlTestPlugin} action filter
+ *     that populates them runs inside the cluster's node processes and has no
+ *     handle back to the JUnit test instance or a per-subclass identifier.
+ *     It can only reach this state through statics shared by every generated
+ *     subclass. That is safe only because Gradle runs one test class at a time
+ *     per JVM fork and because {@link #setupCluster()} unconditionally replaces
+ *     every one of these fields with a fresh value rather than merely clearing
+ *     them. If a future change makes {@link #setupCluster()} reuse rather than
+ *     replace any of these fields (e.g. to "optimize" by clearing a collection
+ *     in place instead of reassigning it), the next generated class to run
+ *     in the same JVM will silently inherit the previous class's already-closed
+ *     cluster's loaded-resource bookkeeping and fail with confusing
+ *     "resource not found" errors instead of loading its own data.
+ * </p>
  */
 @TimeoutSuite(millis = TimeUnits.HOUR)
 public abstract class AbstractCsvIT extends ESTestCase {

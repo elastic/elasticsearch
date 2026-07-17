@@ -457,12 +457,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvInlinestatsIT
   method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndOneExpression_Last}
   issue: https://github.com/elastic/elasticsearch/issues/153394
-# unmapped_fields.csv-spec no longer exists (it was deleted/split into unmapped-*.csv-spec by
-# #153845, unrelated to the CsvIT per-spec-file split); this mute has already been a no-op since
-# then and is left as-is rather than guessed at across the resulting files.
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:unmapped_fields.fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex}
-  issue: https://github.com/elastic/elasticsearch/issues/153411
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testDataStreamValidationDoesNotBreakUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/153413

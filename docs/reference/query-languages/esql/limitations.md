@@ -150,7 +150,7 @@ Runtime fields are different from unmapped fields. An unmapped field is a field 
 
 ## _source availability [esql-_source-availability]
 
-{{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
+{{esql}} does not support configurations where the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
 ## Full-text search [esql-limitations-full-text-search]
 

@@ -12,11 +12,19 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
@@ -633,5 +641,204 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         var err = error(testAnalyzer.query("FROM test | FORK (SORT emp_no + 1) | STATS y = COUNT(*)"));
 
         assertThat(err, is("1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT"));
+    }
+
+    // LIKE/RLIKE constant-expression tests: pattern folding happens in the optimizer, not the analyzer.
+
+    /**
+     * LIKE with a foldable CONCAT expression is folded by ConstantFolding in the optimizer into a concrete WildcardLike.
+     */
+    public void testLikeConstantExpressionFoldsToWildcardLike() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name like concat(\"Anna\", \"*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        WildcardLike like = as(filter.condition(), WildcardLike.class);
+        assertEquals("Anna*", like.pattern().pattern());
+    }
+
+    /**
+     * RLIKE with a foldable CONCAT expression is folded by ConstantFolding in the optimizer into a concrete RLike.
+     */
+    public void testRLikeConstantExpressionFoldsToRLike() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name rlike concat(\"Anna\", \".*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * EVAL propagation: PropagateEvalFoldables folds the literal "Anna*" from the EVAL back into
+     * the LIKE pattern before the regex-resolution rule fires. This is the key case that the
+     * analyzer-only approach could not handle: a pattern arriving via an EVAL alias should work
+     * identically to an inline literal.
+     * <p>
+     * The Eval stays above the Limit in the optimized plan because x is part of the output
+     * (no KEEP to exclude it), and the Filter is pushed below Limit.
+     */
+    public void testLikeEvalPropagatedConstant() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = \"Anna*\" | where first_name like x"));
+        // Eval → Limit → Filter → EsRelation (Eval stays because x is in the output)
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        WildcardLike like = as(filter.condition(), WildcardLike.class);
+        assertEquals("Anna*", like.pattern().pattern());
+    }
+
+    /**
+     * Same as {@link #testLikeEvalPropagatedConstant} for RLIKE.
+     */
+    public void testRLikeEvalPropagatedConstant() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = \"Anna.*\" | where first_name rlike x"));
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * EVAL with a CONCAT that folds: the optimizer first evaluates CONCAT, then propagates and
+     * converts the UnresolvedRegexExpression into a WildcardLike.
+     */
+    public void testLikeEvalPropagatedConcat() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = concat(\"Anna\", \"*\") | where first_name like x"));
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        WildcardLike like = as(filter.condition(), WildcardLike.class);
+        assertEquals("Anna*", like.pattern().pattern());
+    }
+
+    /**
+     * Same as {@link #testLikeEvalPropagatedConcat} for RLIKE.
+     */
+    public void testRLikeEvalPropagatedConcat() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = concat(\"Anna\", \".*\") | where first_name rlike x"));
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * Multi-level EVAL chain: PropagateEvalFoldables must propagate through two EVAL steps.
+     * First {@code suffix = ".*"} is substituted into {@code p = CONCAT("Eber", suffix)}, making
+     * p a foldable CONCAT, which is then substituted into the RLIKE pattern and resolved.
+     * CombineEvals merges both EVAL nodes into one, so the plan root is a single merged Eval.
+     */
+    public void testRLikeMultiLevelEvalChain() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(
+            defaultAnalyzer().query("from test | eval suffix = \".*\" | eval p = concat(\"Eber\", suffix) | where first_name rlike p")
+        );
+        // CombineEvals merges both EVAL nodes into one; plan shape mirrors the single-EVAL case
+        var eval = as(plan, Eval.class);
+        var filter = as(as(eval.child(), Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Eber.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * Same as {@link #testRLikeMultiLevelEvalChain} for LIKE.
+     */
+    public void testLikeMultiLevelEvalChain() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(
+            defaultAnalyzer().query("from test | eval suffix = \"*\" | eval p = concat(\"Eber\", suffix) | where first_name like p")
+        );
+        var eval = as(plan, Eval.class);
+        var filter = as(as(eval.child(), Limit.class).child(), Filter.class);
+        WildcardLike like = as(filter.condition(), WildcardLike.class);
+        assertEquals("Eber*", like.pattern().pattern());
+    }
+
+    /**
+     * EVAL with a matchesAll pattern ("*") should produce IsNotNull, same as the inline case.
+     * ResolveRegexPattern handles this directly after propagation.
+     */
+    public void testLikeEvalPropagatedMatchesAll() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \"*\" | where first_name like p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    /**
+     * EVAL with an exactMatch pattern (no wildcards) should produce Equals, same as the inline case.
+     */
+    public void testLikeEvalPropagatedExactMatch() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \"Eber\" | where first_name like p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    /**
+     * Non-foldable pattern (a field reference) must be rejected at post-optimization verification
+     * with an error indicating the argument must be a constant.
+     */
+    public void testLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like last_name"));
+        assertThat(err, containsString("second argument of [LIKE] must be a constant, received [last_name]"));
+    }
+
+    /**
+     * Non-foldable pattern (a field reference) must be rejected at post-optimization verification for RLIKE.
+     */
+    public void testRLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike last_name"));
+        assertThat(err, containsString("second argument of [RLIKE] must be a constant, received [last_name]"));
+    }
+
+    /**
+     * A pattern that folds to a non-string type (integer) must be rejected at post-optimization
+     * verification with a type error.
+     */
+    public void testLikeIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like 12"));
+        assertThat(err, containsString("second argument of [LIKE] must be [string]"));
+    }
+
+    /**
+     * A foldable arithmetic expression that yields a non-string constant (1 + 2 = 3) is rejected
+     * the same way as a bare integer literal.
+     */
+    public void testLikeFoldedIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like (1 + 2)"));
+        assertThat(err, containsString("second argument of [LIKE] must be [string]"));
+    }
+
+    /**
+     * Same as {@link #testLikeIntegerPatternReportsTypeError} for RLIKE.
+     */
+    public void testRLikeIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike 12"));
+        assertThat(err, containsString("second argument of [RLIKE] must be [string]"));
+    }
+
+    /**
+     * A null-valued keyword pattern (e.g. via {@code null::keyword}) must produce a clear user error,
+     * not an internal crash. The pattern passes type and foldability checks but folds to null,
+     * so the null guard in {@code postOptimizationVerification} must catch it.
+     */
+    public void testLikeNullPatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name like p"));
+        assertThat(err, containsString("second argument of [LIKE] cannot be null, received [null]"));
+    }
+
+    /**
+     * Same as {@link #testLikeNullPatternReportsError} for RLIKE.
+     */
+    public void testRLikeNullPatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name rlike p"));
+        assertThat(err, containsString("second argument of [RLIKE] cannot be null, received [null]"));
     }
 }

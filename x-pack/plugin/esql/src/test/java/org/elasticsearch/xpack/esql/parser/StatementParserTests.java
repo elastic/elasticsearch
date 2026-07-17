@@ -1679,8 +1679,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testLikeRLikeConstantExpression() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        // At parse time, a function call on the RHS produces an UnresolvedRegexExpression placeholder.
-        // The analyzer's FoldConstantRegexPattern rule converts it to WildcardLike/RLike later.
+        // At parse time, a non-literal RHS produces an UnresolvedRegexExpression placeholder.
+        // The optimizer folds the pattern and ResolveRegexPattern converts it to WildcardLike/RLike.
         LogicalPlan cmd = processingCommand("where foo like concat(\"pre\", \"fix*\")");
         assertEquals(Filter.class, cmd.getClass());
         assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
@@ -1691,8 +1691,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
         assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
 
-        // Integer literals on the RHS also produce UnresolvedRegexExpression at parse time;
-        // the type mismatch (integer vs. string) is reported by the analyzer, not the parser.
+        // Integer literals parse as UnresolvedRegexExpression too, but the query still fails:
+        // post-optimization verification rejects non-string patterns (see OptimizerVerificationTests).
         cmd = processingCommand("where foo like 12");
         assertEquals(Filter.class, cmd.getClass());
         assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());

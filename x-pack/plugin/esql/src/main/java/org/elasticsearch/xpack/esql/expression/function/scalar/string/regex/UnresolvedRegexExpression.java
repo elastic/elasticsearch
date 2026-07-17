@@ -8,19 +8,22 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Validations;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * A temporary placeholder for a {@code LIKE} or {@code RLIKE} predicate whose pattern is a
@@ -30,11 +33,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * and the pattern expression (RHS). Having both as children ensures the standard analyzer tree
  * walk resolves the pattern expression through the normal reference/function resolution rules.
  * <p>
- * The {@code FoldConstantRegexPattern} analysis rule (in the "Resolution" batch) replaces this
- * node with a concrete {@link WildcardLike} or {@link RLike} once both children are resolved and
- * the pattern expression is foldable.
+ * After analysis the optimizer's {@code PropagateEvalFoldables} and {@code ConstantFolding} rules
+ * run on the pattern child. A subsequent optimizer rule ({@code ResolveRegexPattern}) then
+ * replaces this node with a concrete {@link WildcardLike} or {@link RLike} once the pattern is
+ * foldable to a string. Any node that survives to post-optimization verification is reported as
+ * an error via {@link #postOptimizationVerification}.
  */
-public class UnresolvedRegexExpression extends Expression {
+public class UnresolvedRegexExpression extends Expression implements PostOptimizationVerificationAware {
 
     /** Which regex operator this placeholder represents. */
     public enum Variant {
@@ -89,14 +94,32 @@ public class UnresolvedRegexExpression extends Expression {
 
     @Override
     protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        // Use the operator name (LIKE/RLIKE) as the operation name in error messages
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    /**
+     * Validates the pattern after the optimizer has run constant folding and eval propagation.
+     * Any {@code UnresolvedRegexExpression} that survives to this point means the optimizer's
+     * {@code ResolveRegexPattern} rule could not convert it: the pattern is not foldable
+     * (field reference), folds to a non-string type, or folds to null.
+     */
+    @Override
+    public void postOptimizationVerification(Failures failures) {
         String opName = variant.name();
-        TypeResolution r = isString(patternExpression, opName, SECOND);
-        if (r.unresolved()) return r;
-        return isFoldable(patternExpression, opName, SECOND);
+        Expression.TypeResolution typeCheck = TypeResolutions.isString(patternExpression, opName, SECOND);
+        if (typeCheck.unresolved()) {
+            failures.add(Failure.fail(patternExpression, typeCheck.message()));
+            return;
+        }
+        Failure foldableFailure = Validations.isFoldable(patternExpression, opName, SECOND);
+        if (foldableFailure != null) {
+            failures.add(foldableFailure);
+            return;
+        }
+        // Pattern is foldable and string-typed but evaluates to null
+        if (patternExpression.fold(FoldContext.small()) == null) {
+            failures.add(Failure.fail(patternExpression, "second argument of [{}] cannot be null, received [null]", opName));
+        }
     }
 
     @Override

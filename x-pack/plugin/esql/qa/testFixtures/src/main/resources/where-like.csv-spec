@@ -1584,3 +1584,30 @@ from employees | where first_name rlike concat("(?i)", to_lower("EBER"), ".*") |
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
 ;
+
+
+likeEvalPropagatedLiteral
+required_capability: like_rlike_constant_expression
+from employees | eval p = "Eber*" | where first_name like p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+from employees | eval p = concat("Eber", "*") | where first_name like p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+rlikeEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+from employees | eval p = concat("Eber", ".*") | where first_name rlike p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;

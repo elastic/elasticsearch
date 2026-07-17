@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -5155,51 +5156,76 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testLikeConstantExpression() {
+    /**
+     * After analysis (before optimization), a constant-expression LIKE pattern remains as
+     * UnresolvedRegexExpression. The optimizer's ConstantFolding + ResolveRegexPattern rule
+     * converts it to a concrete WildcardLike; see OptimizerVerificationTests.
+     */
+    public void testLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = basic().query("from test | where first_name like concat(\"Anna\", \"*\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        WildcardLike like = as(filter.condition(), WildcardLike.class);
-        assertEquals("Anna*", like.pattern().pattern());
+        UnresolvedRegexExpression expr = as(filter.condition(), UnresolvedRegexExpression.class);
+        assertEquals(UnresolvedRegexExpression.Variant.LIKE, expr.variant());
     }
 
-    public void testRLikeConstantExpression() {
+    /**
+     * Same as {@link #testLikeConstantExpressionRemainsUnresolvedAfterAnalysis} for RLIKE.
+     */
+    public void testRLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = basic().query("from test | where first_name rlike concat(\"Anna\", \".*\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        RLike rlike = as(filter.condition(), RLike.class);
-        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+        UnresolvedRegexExpression expr = as(filter.condition(), UnresolvedRegexExpression.class);
+        assertEquals(UnresolvedRegexExpression.Variant.RLIKE, expr.variant());
     }
 
-    public void testLikeNonFoldableExpression() {
+    /**
+     * A non-foldable pattern (field reference) passes analysis; the "must be a constant" error
+     * is raised by post-optimization verification. See OptimizerVerificationTests.
+     */
+    public void testLikeNonFoldableExpressionPassesAnalysis() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        basic().error(
-            "from test | where first_name like last_name",
-            containsString("second argument of [LIKE] must be a constant, received [last_name]")
-        );
+        var plan = basic().query("from test | where first_name like last_name");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), UnresolvedRegexExpression.class);
     }
 
-    public void testRLikeNonFoldableExpression() {
+    /**
+     * Same as {@link #testLikeNonFoldableExpressionPassesAnalysis} for RLIKE.
+     */
+    public void testRLikeNonFoldableExpressionPassesAnalysis() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        basic().error(
-            "from test | where first_name rlike last_name",
-            containsString("second argument of [RLIKE] must be a constant, received [last_name]")
-        );
+        var plan = basic().query("from test | where first_name rlike last_name");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), UnresolvedRegexExpression.class);
     }
 
-    public void testLikeWrongTypeConstantExpression() {
+    /**
+     * A foldable integer pattern passes analysis; the type error is raised at post-optimization
+     * verification. See OptimizerVerificationTests.
+     */
+    public void testLikeWrongTypeConstantExpressionPassesAnalysis() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        basic().error("from test | where first_name like to_integer(\"42\")", containsString("second argument of [LIKE] must be [string]"));
+        var plan = basic().query("from test | where first_name like to_integer(\"42\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), UnresolvedRegexExpression.class);
     }
 
-    public void testRLikeWrongTypeConstantExpression() {
+    /**
+     * Same as {@link #testLikeWrongTypeConstantExpressionPassesAnalysis} for RLIKE.
+     */
+    public void testRLikeWrongTypeConstantExpressionPassesAnalysis() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        basic().error(
-            "from test | where first_name rlike to_integer(\"42\")",
-            containsString("second argument of [RLIKE] must be [string]")
-        );
+        var plan = basic().query("from test | where first_name rlike to_integer(\"42\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), UnresolvedRegexExpression.class);
     }
 
     public void testConfigurationAwareResolved() {

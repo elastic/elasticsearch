@@ -74,6 +74,9 @@ setup:
       indices.forcemerge:
         index: bbq_flat
         max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
 ---
 "Test knn search":
   - requires:

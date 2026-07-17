@@ -27,6 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
@@ -89,5 +90,24 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
+    }
+
+    public void testNoCollectionWithoutExternalData() throws Exception {
+        // We're using local data source here, which needs the flag
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        lastMetrics = null;
+
+        try (var ignored = run(syncEsqlQueryRequest("ROW a=1 | LIMIT 10"), TIMEOUT)) {
+            // run the query — result discarded, only the collector side-effect matters
+        }
+
+        assertThat(lastMetrics, nullValue());
+
+        createIndex("test");
+        try (var ignored = run(syncEsqlQueryRequest("FROM test | LIMIT 10"), TIMEOUT)) {
+            // run the query — result discarded, only the collector side-effect matters
+        }
+
+        assertThat(lastMetrics, nullValue());
     }
 }

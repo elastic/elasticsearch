@@ -247,7 +247,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
     }
 
     @Override
-    public void closeBlock() {
+    public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }

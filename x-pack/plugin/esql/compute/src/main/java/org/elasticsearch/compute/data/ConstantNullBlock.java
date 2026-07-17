@@ -214,7 +214,7 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
-    public void closeBlock() {
+    public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsed());
     }
 

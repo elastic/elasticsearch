@@ -179,7 +179,7 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public void closeBlock() {
+    public void closeInternal() {
         // The circuit breaker that tracks the values {@link IntArray} is adjusted outside
         // of this class.
         values.close();

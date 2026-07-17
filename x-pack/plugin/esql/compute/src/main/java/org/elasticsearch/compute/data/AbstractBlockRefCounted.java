@@ -40,7 +40,7 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
 
     /**
      * Attaches a {@link Releasable} that is invoked exactly once when this object's reference count reaches zero,
-     * immediately after {@link #closeBlock()} completes. May be called at most once; throws
+     * immediately after {@link #closeInternal()} completes. May be called at most once; throws
      * {@link IllegalStateException} if called after release or a second time.
      */
     public final void attachReleasable(Releasable releasable) {
@@ -103,7 +103,7 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
             closed = --refCount == 0;
         }
         if (closed) {
-            closeBlock();
+            closeInternal();
             Releasables.closeExpectNoException(onClose);
         }
         return closed;
@@ -133,5 +133,5 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
      * This is called when the number of references reaches zero.
      * This is where resources should be released (adjusting circuit breakers if needed).
      */
-    protected abstract void closeBlock();
+    protected abstract void closeInternal();
 }

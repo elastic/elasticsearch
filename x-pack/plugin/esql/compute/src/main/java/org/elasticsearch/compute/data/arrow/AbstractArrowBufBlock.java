@@ -141,7 +141,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         if (closed) {
             return;
         }

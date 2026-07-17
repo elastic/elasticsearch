@@ -249,7 +249,7 @@ public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBl
     }
 
     @Override
-    public void closeBlock() {
+    public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }

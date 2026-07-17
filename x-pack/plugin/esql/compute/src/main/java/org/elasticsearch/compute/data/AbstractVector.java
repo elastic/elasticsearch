@@ -36,7 +36,7 @@ abstract class AbstractVector extends AbstractBlockRefCounted implements Vector 
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed());
     }
 }

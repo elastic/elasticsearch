@@ -63,7 +63,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     protected abstract ArrowBufBlockConstructor<B> blockConstructor();
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         if (closed) {
             return;
         }

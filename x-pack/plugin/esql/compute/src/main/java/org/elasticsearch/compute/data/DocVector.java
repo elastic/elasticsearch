@@ -484,7 +484,7 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
-    public void closeBlock() {
+    public void closeInternal() {
         Releasables.closeExpectNoException(
             () -> blockFactory().adjustBreaker(-BASE_RAM_BYTES_USED - (shardSegmentDocMapForwards == null ? 0 : sizeOfSegmentDocMap())),
             shards,

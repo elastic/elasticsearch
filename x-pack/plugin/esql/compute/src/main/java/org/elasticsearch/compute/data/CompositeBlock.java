@@ -282,7 +282,7 @@ public final class CompositeBlock extends AbstractBlockRefCounted implements Blo
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         Releasables.close(blocks);
     }
 

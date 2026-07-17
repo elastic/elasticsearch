@@ -187,7 +187,7 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         Releasables.close(ordinals, bytes);
     }
 

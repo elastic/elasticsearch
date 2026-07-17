@@ -24,7 +24,7 @@ public class AbstractBlockRefCountedTests extends ESTestCase {
         private final AtomicInteger closeCount = new AtomicInteger();
 
         @Override
-        protected void closeBlock() {
+        protected void closeInternal() {
             closeCount.incrementAndGet();
         }
     }

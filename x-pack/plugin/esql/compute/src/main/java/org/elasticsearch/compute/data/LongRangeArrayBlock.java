@@ -40,7 +40,7 @@ public final class LongRangeArrayBlock extends AbstractBlockRefCounted implement
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         Releasables.close(fromBlock, toBlock);
     }
 

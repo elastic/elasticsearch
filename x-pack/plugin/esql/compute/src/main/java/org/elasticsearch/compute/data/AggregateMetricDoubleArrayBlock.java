@@ -136,7 +136,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractBlockRefCount
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         Releasables.close(getSubBlocks());
     }
 

@@ -127,7 +127,7 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
-    public void closeBlock() {
+    public void closeInternal() {
         // The circuit breaker that tracks the values {@link FloatArray} is adjusted outside
         // of this class.
         values.close();

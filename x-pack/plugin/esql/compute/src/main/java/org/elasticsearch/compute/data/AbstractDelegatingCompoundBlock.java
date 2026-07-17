@@ -199,7 +199,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
-    protected void closeBlock() {
+    protected void closeInternal() {
         if (firstValueIndexes != null) {
             blockFactory().preAdjustBreakerForInt(-firstValueIndexes.length);
         }

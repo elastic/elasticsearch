@@ -620,13 +620,7 @@ public class ComputeService {
 
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
         PhysicalPlan collapsed = plan.transformUp(ExchangeExec.class, exchange -> {
-            if (exchange.child() instanceof ExternalSourceExec) {
-                return exchange.child();
-            }
-            if (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)) {
-                return exchange.child();
-            }
-            return exchange;
+            return isCollapsibleExchange(exchange) ? exchange.child() : exchange;
         });
         return collapsed.transformUp(TopNExec.class, topN -> {
             if (topN.inputOrdering() != InputOrdering.NOT_SORTED && topN.child() instanceof FragmentExec) {
@@ -643,12 +637,19 @@ public class ComputeService {
      * runs with more than one split group.
      */
     static boolean hasCollapsibleExternalExchange(PhysicalPlan plan) {
-        return plan.anyMatch(
-            p -> p instanceof ExchangeExec exchange
-                && (exchange.child() instanceof ExternalSourceExec
-                    || (exchange.child() instanceof FragmentExec fragment
-                        && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)))
-        );
+        return plan.anyMatch(p -> p instanceof ExchangeExec exchange && isCollapsibleExchange(exchange));
+    }
+
+    /**
+     * Whether {@code exchange} is one that sits directly above an external source — either a top-level
+     * {@link ExternalSourceExec} or a {@link FragmentExec} wrapping an {@link ExternalRelation}. Both
+     * {@link #collapseExternalSourceExchanges} and {@link #hasCollapsibleExternalExchange} use this predicate
+     * so the two stay in sync: if either ever diverges, a multi-split-group STATS query would silently emit
+     * one row per split group instead of a single merged row.
+     */
+    private static boolean isCollapsibleExchange(ExchangeExec exchange) {
+        return exchange.child() instanceof ExternalSourceExec
+            || (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
     }
 
     public void execute(

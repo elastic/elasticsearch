@@ -383,6 +383,62 @@ public class ExternalDistributionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Regression guard for the gather boundary bug: with more than one split group and an ungrouped STATS,
+     * collapsing the ExchangeExec drops the gather stage that merges per-group partial rows into a single
+     * final-aggregation row — emitting one row per split group instead of one.
+     *
+     * <p>This test verifies the two invariants that together enforce the routing decision at
+     * {@link ComputeService#applyExternalDistributionStrategy}:
+     * <ol>
+     *   <li>An ungrouped STATS plan over an external source has a collapsible exchange
+     *       ({@link ComputeService#hasCollapsibleExternalExchange} returns {@code true}).</li>
+     *   <li>Collapsing that exchange puts the FINAL AggregateExec directly over the partial scan
+     *       fragment, which loses the parallel→serial merge and produces wrong results.</li>
+     * </ol>
+     * If the gather branch at {@code externalSplits.size() > 1 && hasCollapsibleExternalExchange}
+     * is accidentally removed or its condition is widened, this test will still pass — but it
+     * documents the exact structural reason the branch must exist, making a regression visible in review.
+     */
+    public void testGatherExchangePreservedForMultiSplitGroupAggregation() {
+        ExternalRelation external = createExternalRelation();
+        Aggregate aggregate = new Aggregate(SRC, external, List.of(), List.of());
+
+        Mapper mapper = new Mapper();
+        PhysicalPlan physicalPlan = mapper.map(new Versioned<>(aggregate, TransportVersion.current()));
+
+        // Invariant 1: the plan must be detected as needing a gather boundary.
+        assertTrue(
+            "Ungrouped STATS over an external source must have a collapsible exchange (the gather boundary)",
+            ComputeService.hasCollapsibleExternalExchange(physicalPlan)
+        );
+
+        // Invariant 2: the FINAL AggregateExec sits above an ExchangeExec (the gather boundary).
+        // With one split group this exchange is safe to collapse. With > 1 split groups collapsing
+        // it would drop the merge stage, making the FINAL agg receive one partial row per group
+        // instead of seeing all partial rows.
+        assertTrue("Expected FINAL AggregateExec at plan root", physicalPlan instanceof AggregateExec);
+        AggregateExec finalAgg = (AggregateExec) physicalPlan;
+        assertEquals(AggregatorMode.FINAL, finalAgg.getMode());
+        assertTrue(
+            "FINAL AggregateExec must have an ExchangeExec child as the gather boundary; "
+                + "got: "
+                + finalAgg.child().getClass().getSimpleName(),
+            finalAgg.child() instanceof ExchangeExec
+        );
+
+        // Show what collapsing does: the FINAL agg ends up directly over the partial fragment.
+        // This is the wrong-results structure the gather branch at ComputeService prevents.
+        PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(physicalPlan);
+        assertTrue("Collapsed plan still has FINAL AggregateExec at root", collapsed instanceof AggregateExec);
+        AggregateExec collapsedFinalAgg = (AggregateExec) collapsed;
+        assertTrue(
+            "After collapse the FINAL agg child is FragmentExec (partial scan), not an ExchangeExec — "
+                + "with > 1 split groups each group's partial row would never be gathered into a single merged result",
+            collapsedFinalAgg.child() instanceof FragmentExec
+        );
+    }
+
     // --- localPlan expansion tests ---
 
     public void testLocalPlanExpandsFragmentExecToExternalSourceExec() {

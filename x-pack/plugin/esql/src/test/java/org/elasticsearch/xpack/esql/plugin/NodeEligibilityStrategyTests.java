@@ -17,6 +17,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class NodeEligibilityStrategyTests extends ESTestCase {
 
@@ -58,5 +59,41 @@ public class NodeEligibilityStrategyTests extends ESTestCase {
 
         assertTrue(NodeEligibilityStrategy.ALL_NODES.eligibleNodes(nodes).isEmpty());
         assertTrue(NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(nodes).isEmpty());
+        assertTrue(NodeEligibilityStrategy.SEARCH_NODES_ONLY.eligibleNodes(nodes).isEmpty());
+    }
+
+    public void testSearchNodesOnlyIncludesSearchRoleNode() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("data-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .build();
+
+        List<DiscoveryNode> eligible = NodeEligibilityStrategy.SEARCH_NODES_ONLY.eligibleNodes(nodes);
+
+        assertEquals(1, eligible.size());
+        assertEquals("search-1", eligible.get(0).getId());
+    }
+
+    public void testSearchNodesOnlyExcludesNonSearchNodes() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("data-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("master-1").roles(Set.of(MASTER_ROLE)).build())
+            .build();
+
+        List<DiscoveryNode> eligible = NodeEligibilityStrategy.SEARCH_NODES_ONLY.eligibleNodes(nodes);
+
+        assertTrue("data and master nodes must not appear in search-only results", eligible.isEmpty());
+    }
+
+    public void testSearchNodesOnlyIncludesMultiRoleNodeWithSearch() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("search-data-1").roles(Set.of(SEARCH_ROLE, DATA_HOT_NODE_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("data-only-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .build();
+
+        List<DiscoveryNode> eligible = NodeEligibilityStrategy.SEARCH_NODES_ONLY.eligibleNodes(nodes);
+
+        assertEquals(1, eligible.size());
+        assertEquals("search-data-1", eligible.get(0).getId());
     }
 }

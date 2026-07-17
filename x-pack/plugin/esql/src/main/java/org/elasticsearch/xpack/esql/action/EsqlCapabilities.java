@@ -2767,6 +2767,15 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND,
 
         /**
+         * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
+         * {@code PUT/GET/DELETE /_query/dataset/{name}}) are exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        DATA_SOURCES_SERVERLESS_SCOPE,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
@@ -3337,7 +3346,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V4(Build.current().isSnapshot()),
+        HIGHLIGHT_V5(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3431,6 +3440,11 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
          */
         FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
+      
+        /**
+         * Support for the PromQL {@code topk()} order-statistic aggregation.
+         */
+        PROMQL_TOPK,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

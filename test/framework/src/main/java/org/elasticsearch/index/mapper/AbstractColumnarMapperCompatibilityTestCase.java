@@ -33,8 +33,8 @@ import java.util.List;
  * same Lucene fields as the conventional x-content parse path for the same documents.
  * <p>
  * Subclasses write {@code public void testXxx()} methods and call
- * {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Scenario...)} directly, passing
- * their own mapping, index settings, and scenarios. This allows a single subclass to define multiple
+ * {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Batch...)} directly, passing
+ * their own mapping, index settings, and batches. This allows a single subclass to define multiple
  * independent tests with different mappings (e.g. one per routing variant).
  *
  * @see MetadataFieldMapper#preColumnarParse(BatchMappingContext)
@@ -55,17 +55,17 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      *
      * @param primaryTerm the primary term the "engine" will assign to every document in the batch
      */
-    protected record Scenario(String name, long primaryTerm, List<Doc> docs) {}
+    protected record Batch(String name, long primaryTerm, List<Doc> docs) {}
 
     /**
      * Runs the parity check for the given mapping, index settings, and scenarios. Builds a
      * {@link MapperService} from the supplied mapping and settings, then calls
      * {@link #assertScenario} for each scenario.
      */
-    protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Scenario... scenarios)
+    protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
-        for (Scenario scenario : scenarios) {
+        for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario);
         }
     }
@@ -85,9 +85,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         return new Doc(id, routing, seqNo, version, source);
     }
 
-    /** Creates a {@link Scenario} with an explicit primary term from a varargs array of {@link Doc}s. */
-    protected static Scenario scenario(String name, long primaryTerm, Doc... docs) {
-        return new Scenario(name, primaryTerm, List.of(docs));
+    /** Creates a {@link Batch} with an explicit primary term from a varargs array of {@link Doc}s. */
+    protected static Batch batch(String name, long primaryTerm, Doc... docs) {
+        return new Batch(name, primaryTerm, List.of(docs));
     }
 
     /**
@@ -98,7 +98,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@code (seqNo, primaryTerm, version)} values to both paths after parsing, exactly as
      * {@code InternalEngine} does at indexing time.
      */
-    private void assertScenario(MapperService mapperService, Scenario scenario) throws IOException {
+    private void assertScenario(MapperService mapperService, Batch scenario) throws IOException {
         final List<Doc> docs = scenario.docs();
         final int docCount = docs.size();
 

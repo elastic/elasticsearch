@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
@@ -579,23 +577,28 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    public void testTrailingJsonThrowsException() {
-        var initialData = """
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
             {
                 "id": "1",
                 "choices": [],
                 "model": "m",
                 "object": "chat.completion.chunk"
-            }
+            }\
             """;
-        var trailingData = """
+        var secondChunkData = """
             {
-                "trailing": "json"
-            }
+                "id": "2",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
             """;
-        var data = initialData + trailingData;
+        var data = firstChunkData + "\n" + secondChunkData;
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var exception = expectThrows(XContentParseException.class, () -> OpenAiUnifiedStreamingProcessor.parse(parserConfig, data));
-        assertThat(exception.getMessage(), containsString("Found trailing content after the JSON object"));
+        var chunks = OpenAiUnifiedStreamingProcessor.parse(parserConfig, data).toList();
+        assertThat(chunks.size(), is(2));
+        assertThat(chunks.get(0).id(), is("1"));
+        assertThat(chunks.get(1).id(), is("2"));
     }
 }

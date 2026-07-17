@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
@@ -219,24 +219,28 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    public void testTrailingJsonThrowsException() {
-        var initialData = """
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
             {
                 "candidates": [],
                 "usageMetadata": {},
                 "modelVersion": "m",
-                "responseId": "r"
-            }
+                "responseId": "r1"
+            }\
             """;
-        var trailingData = """
+        var secondChunkData = """
             {
-                "trailing": "json"
-            }
+                "candidates": [],
+                "usageMetadata": {},
+                "modelVersion": "m",
+                "responseId": "r2"
+            }\
             """;
-        var data = initialData + trailingData;
+        var data = firstChunkData + "\n" + secondChunkData;
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var processor = new GoogleVertexAiUnifiedStreamingProcessor(RuntimeException::new);
-        var exception = expectThrows(XContentParseException.class, () -> processor.parse(parserConfig, data));
-        assertThat(exception.getMessage(), containsString("Found trailing content after the JSON object"));
+        var chunks = new ArrayList<>();
+        processor.parse(parserConfig, data).forEachRemaining(chunks::add);
+        assertThat(chunks.size(), is(2));
     }
 }

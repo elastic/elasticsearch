@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.inference.external.response;
 
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.Strings.format;
@@ -127,14 +131,33 @@ public class XContentUtils {
     }
 
     /**
-     * Throws if the parser has any tokens remaining after the root object, i.e. the input contained
-     * more than one JSON document. Must be called with the parser positioned at the root object's
-     * END_OBJECT token.
+     * Applies {@code objectParser} to every root JSON object contained in {@code data} and
+     * returns a stream of all results. A single SSE event's data may legally contain multiple
+     * JSON objects joined by newlines. This helper parses every root object and flat-maps the
+     * per-object results into one stream.
+     * <p>
+     * The parser passed to {@code objectParser} is positioned at a root {@code START_OBJECT} and
+     * <em>must</em> be fully consumed (left at the matching {@code END_OBJECT}) before returning.
+     * Parsers built on {@link org.elasticsearch.xcontent.ConstructingObjectParser} or
+     * {@link XContentParser#map()} already satisfy this contract. Token-navigation parsers
+     * that stop early should wrap the received parser in an
+     * {@link org.elasticsearch.xcontent.XContentSubParser} (whose {@code close()} drains to
+     * {@code END_OBJECT} regardless of nesting depth) and ensure any returned {@link Stream} is
+     * fully materialized before the subparser is closed.
      */
-    public static void ensureNoTrailingContent(XContentParser parser) throws IOException {
-        if (parser.nextToken() != null) {
-            throw new XContentParseException(parser.getTokenLocation(), "Found trailing content after the JSON object");
+    public static <T> Stream<T> parseObjects(
+        XContentParserConfiguration parserConfig,
+        String data,
+        CheckedFunction<XContentParser, Stream<T>, IOException> objectParser
+    ) throws IOException {
+        var results = new ArrayList<T>();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
+            while (parser.nextToken() != null) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+                objectParser.apply(parser).forEach(results::add);
+            }
         }
+        return results.stream();
     }
 
     private XContentUtils() {}

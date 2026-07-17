@@ -161,6 +161,6 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
         APMTracer tracer = new APMTracer(settings, traceSupplier, false, 0, false);
-        return new APMTelemetryProvider(meterService, tracer, new APMLoggingService(Settings.EMPTY));
+        return new APMTelemetryProvider(meterService, tracer, new APMLoggingService(Settings.EMPTY, createTempDir()));
     }
 }

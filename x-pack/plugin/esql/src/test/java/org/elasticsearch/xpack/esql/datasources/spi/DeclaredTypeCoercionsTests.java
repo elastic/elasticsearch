@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -102,11 +103,22 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             case KEYWORD, TEXT -> true; // ingest stringifies any scalar
             case LONG, INTEGER, DOUBLE, UNSIGNED_LONG -> fromString || fromWhole || from == DataType.DOUBLE;
             case BOOLEAN -> fromString; // number->boolean does not ingest
-            case DATETIME -> fromString || from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG;
-            // string parse, or the millis->nanos widen a date_nanos field runs on an epoch-millis
-            // token at ingest (also cross-file DATETIME + DATE_NANOS unification); a raw long stays
-            // out — ambiguous between millis and nanos
-            case DATE_NANOS -> fromString || from == DataType.DATETIME;
+            // numeric sources ride the unit rule (format names the unit, else the type does: millis)
+            case DATETIME -> fromString
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG
+                || from == DataType.DOUBLE
+                // an instant the file already typed: the unit is known, so nanos->millis narrows
+                || from == DataType.DATE_NANOS;
+            // string parse, the millis->nanos widen a date_nanos field runs on an epoch-millis token
+            // at ingest (also cross-file DATETIME + DATE_NANOS unification), or a numeric source on
+            // the same unit rule (format names the unit, else the type does: nanos)
+            case DATE_NANOS -> fromString
+                || from == DataType.DATETIME
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG;
             case IP -> fromString;
             default -> false;
         };
@@ -208,6 +220,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertTrue("string->ip parses", DeclaredTypeCoercions.supports(DataType.KEYWORD, DataType.IP));
         assertTrue("long->integer narrows with range check", DeclaredTypeCoercions.supports(DataType.LONG, DataType.INTEGER));
         assertTrue("datetime->long reads epoch millis", DeclaredTypeCoercions.supports(DataType.DATETIME, DataType.LONG));
+        assertTrue(
+            "double->datetime rounds to epoch millis (the ::datetime semantic)",
+            DeclaredTypeCoercions.supports(DataType.DOUBLE, DataType.DATETIME)
+        );
     }
 
     /**
@@ -227,7 +243,6 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertFalse("timestamp->ip has no ingest coercion", DeclaredTypeCoercions.supports(DataType.DATETIME, DataType.IP));
         assertFalse("long->ip has no ingest coercion", DeclaredTypeCoercions.supports(DataType.LONG, DataType.IP));
         assertFalse("number->boolean does not ingest", DeclaredTypeCoercions.supports(DataType.LONG, DataType.BOOLEAN));
-        assertFalse("double->datetime has no epoch encoding", DeclaredTypeCoercions.supports(DataType.DOUBLE, DataType.DATETIME));
         assertFalse("unsupported physical columns cannot decode", DeclaredTypeCoercions.supports(DataType.UNSUPPORTED, DataType.KEYWORD));
     }
 
@@ -260,6 +275,22 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.TEXT));
         assertFalse("long->double runs through castBlock", DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DOUBLE));
         assertFalse("string->long runs through castBlock", DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.LONG));
+
+        // The 2-arg predicate is the no-format overload, so the fused set is unchanged for a column with no format.
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DATETIME, false));
+        // A declared format defuses the epoch-millis reinterpret onto castBlock, which parses through the format.
+        assertFalse(
+            "long->datetime with a declared format runs through castBlock",
+            DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DATETIME, true)
+        );
+        // string->datetime stays fused either way: its fused BINARY decode arm already threads the declared formatter.
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.DATETIME, false));
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.DATETIME, true));
+        // the format flag does not fuse a pair the no-format overload leaves unfused
+        assertFalse(DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DOUBLE, true));
+        // integer->long and keyword<->text are format-agnostic
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.INTEGER, DataType.LONG, true));
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.TEXT, true));
     }
 
     // ---- castBlock value semantics ----
@@ -417,6 +448,172 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             Block cast = castStrict(src, DataType.LONG, DataType.DATETIME)
         ) {
             assertEquals(epochMillis, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
+     * A whole-number source declared {@code datetime} WITH a declared {@code format} parses the token THROUGH the
+     * format as the epoch unit / parse dialect, overriding the epoch-millis reinterpret — the same semantic the
+     * CSV/NDJSON readers apply to a numeric token. Covers INTEGER, LONG and UNSIGNED_LONG sources with
+     * {@code epoch_second}.
+     */
+    public void testCastWholeNumberToDatetimeHonorsEpochSecondFormat() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long token = 1704067200L; // 2024-01-01T00:00:00Z, in seconds (fits an int as well as a long)
+        long expectedMillis = 1704067200000L;
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { (int) token }, 1).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(expectedMillis, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { token }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(expectedMillis, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { NumericUtils.asLongUnsigned(BigInteger.valueOf(token)) }, 1).asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(expectedMillis, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
+     * A COMPOSITE format ({@code a||b}, the ES multi-format syntax — the default date format is itself
+     * {@code strict_date_optional_time||epoch_millis}) serves a column whose carrier differs per file format: the same
+     * declaration reads a calendar STRING token and a numeric EPOCH-SECOND token to the same instant. Alternatives are
+     * tried left-to-right, and string-vs-number is unambiguous, so neither can shadow the other. This is the ClickBench
+     * shape: {@code EventTime} is an int64 of Unix seconds in parquet and the string "2013-07-14 20:38:47" in NDJSON.
+     */
+    public void testCompositeFormatServesBothStringAndNumericCarriers() {
+        DateFormatter composite = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||epoch_second");
+        long expected = 1704067200000L; // 2024-01-01T00:00:00Z
+        try (Block src = bytesBlock("2024-01-01 00:00:00"); Block cast = castStrict(src, DataType.KEYWORD, DataType.DATETIME, composite)) {
+            assertEquals("the calendar alternative parses the string carrier", expected, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 1704067200L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, composite)
+        ) {
+            assertEquals("the epoch_second alternative parses the numeric carrier", expected, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /** {@code epoch_millis} on a whole-number source is the identity reinterpret — the same value as no format. */
+    public void testCastWholeNumberToDatetimeEpochMillisFormatIsIdentity() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        long token = 1704067200000L;
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { token }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, epochMillis)
+        ) {
+            assertEquals(token, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /** A calendar pattern reads a numeric token as its DIGITS, not as an epoch value: 20260101 -> 2026-01-01. */
+    public void testCastWholeNumberToDatetimeCalendarPattern() {
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        long expected = DeclaredTypeCoercions.parseDatetimeMillis("20260101", yyyyMMdd);
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 20260101L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd)
+        ) {
+            assertEquals(expected, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /** A numeric token the declared format cannot parse fails per-value: throw when strict, warn+null when lenient. */
+    public void testCastWholeNumberToDatetimeUnparseableTokenFollowsErrorPolicy() {
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        try (Block src = blockFactory.newLongArrayVector(new long[] { 7L }, 1).asBlock()) {
+            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close());
+        }
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 7L }, 1).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.DATETIME,
+                yyyyMMdd,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue(cast.isNull(0));
+            assertThat(warnings, hasSize(1));
+        }
+    }
+
+    /**
+     * A {@code double} source declared {@code datetime}: with no format the value is epoch millis and its fractional
+     * part rounds (the {@code ::datetime} / {@code safeDoubleToLong} semantic); with {@code epoch_second} it parses
+     * as fractional seconds. A magnitude &ge; 1e7 must render plain-decimal (not scientific), else the epoch parser
+     * rejects it.
+     */
+    public void testCastDoubleToDatetime() {
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1704067200000.6 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME)
+        ) {
+            assertEquals(1704067200001L, ((LongBlock) cast).getLong(0)); // fraction rounds to the nearest milli
+        }
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1704067200.5 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(1704067200500L, ((LongBlock) cast).getLong(0)); // 0.5s -> 500ms, >= 1e7 plain-decimal render
+        }
+    }
+
+    /**
+     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis, truncating sub-millisecond
+     * precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which infers as
+     * {@code date_nanos} — be declared as the conventional {@code date}. Pinned value-identical to {@code ::datetime},
+     * which maps DATE_NANOS through the same {@link DateUtils#toMilliSeconds}, so a declared read and an explicit cast
+     * cannot disagree.
+     */
+    public void testCastDateNanosToDatetimeNarrowsToMillis() {
+        long nanos = 1704067200_123_456_789L; // 2024-01-01T00:00:00.123456789Z
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { nanos }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.DATETIME)
+        ) {
+            assertEquals("nanos truncate to millis", 1704067200_123L, ((LongBlock) cast).getLong(0));
+            assertEquals("must equal the ::datetime primitive", DateUtils.toMilliSeconds(nanos), ((LongBlock) cast).getLong(0));
+        }
+        // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
+        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
+            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
+        }
+    }
+
+    /**
+     * A non-finite double in a {@code datetime} column follows {@code safeDoubleToLong} exactly as {@code ::datetime}
+     * does today ({@code ToDatetime} maps DOUBLE via {@code ToLong.fromDouble} == {@code safeDoubleToLong}), so a
+     * declared read and an explicit cast can never disagree: NaN rounds to epoch 0 and an infinity throws out-of-range.
+     * NaN&rarr;1970 is a recorded consequence of mirroring the cast engine, not an accident. With a declared format
+     * there is no parse for a non-finite token, so it fails per value through the error policy instead.
+     */
+    public void testCastNonFiniteDoubleToDatetimeMirrorsCastEngine() {
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME)
+        ) {
+            assertEquals("NaN rounds to epoch 0, exactly as ::datetime does", 0L, ((LongBlock) cast).getLong(0));
+        }
+        try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.POSITIVE_INFINITY }, 1).asBlock()) {
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME).close());
+        }
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock()) {
+            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond).close());
         }
     }
 
@@ -703,6 +900,169 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * A whole-number source declared {@code date_nanos} is an identity epoch-NANOS reinterpret — the declared
+     * type names the numeric unit (datetime = millis, date_nanos = nanos), matching the shipped CSV
+     * inline-schema numeric read and keeping footer stats, pushdown, and scan values bit-identical for a raw
+     * column. NOT the mapper-ingest millis reading — see the class Javadoc's deliberate divergence.
+     */
+    public void testCastWholeNumberToDateNanosIsIdentityNanos() {
+        long nanos = 1_700_000_000_123_456_789L;
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 0L, nanos }, 2).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATE_NANOS)
+        ) {
+            LongBlock out = (LongBlock) cast;
+            assertEquals(0L, out.getLong(out.getFirstValueIndex(0)));
+            assertEquals("identity reinterpret, no scaling", nanos, out.getLong(out.getFirstValueIndex(1)));
+        }
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { 42 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.DATE_NANOS)
+        ) {
+            assertEquals(42L, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
+     * A negative epoch has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule): the
+     * lenient read nulls the cell and warns — never a negative nanos long — and the strict read fails.
+     */
+    /**
+     * A whole-number source declared {@code date_nanos} WITH a declared {@code format} parses THROUGH the format —
+     * the unit rule, identical to the DATETIME arm: the format names the unit, and only in its absence does the type
+     * ({@code date_nanos} = nanos). Without this a column declared {@code {date_nanos, format: epoch_second}} would
+     * silently reinterpret seconds as nanos: 1704067200 would read as 1970-01-01T00:00:01.37Z instead of 2024-01-01.
+     * <p>
+     * This is the pair that was jointly unreachable before the datetime and date_nanos work were reconciled — the
+     * resolver rejected a format on a numeric physical, so the combination could not be expressed; once it could, the
+     * numeric arm had to honor it.
+     */
+    public void testCastWholeNumberToDateNanosHonorsDeclaredFormat() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long token = 1704067200L;                    // 2024-01-01T00:00:00Z, in SECONDS
+        long expectedNanos = 1704067200_000_000_000L; // the same instant, in nanos
+        for (DataType from : List.of(DataType.INTEGER, DataType.LONG)) {
+            Block src = from == DataType.INTEGER
+                ? blockFactory.newIntArrayVector(new int[] { (int) token }, 1).asBlock()
+                : blockFactory.newLongArrayVector(new long[] { token }, 1).asBlock();
+            try (src; Block cast = castStrict(src, from, DataType.DATE_NANOS, epochSecond)) {
+                assertEquals(
+                    "[" + from.typeName() + "] declared date_nanos with epoch_second must read SECONDS, not nanos",
+                    expectedNanos,
+                    ((LongBlock) cast).getLong(0)
+                );
+            }
+        }
+        // unsigned_long rides the same arm (values held sign-flip-encoded in a LongBlock)
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { NumericUtils.asLongUnsigned(BigInteger.valueOf(token)) }, 1).asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.DATE_NANOS, epochSecond)
+        ) {
+            assertEquals(expectedNanos, ((LongBlock) cast).getLong(0));
+        }
+        // and a calendar dialect reads the digits, not an epoch
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 20260101L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATE_NANOS, yyyyMMdd)
+        ) {
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2026-01-01T00:00:00Z"), ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    public void testCastNegativeWholeNumberToDateNanosFailsPerValue() {
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { -1L, 5L }, 2).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.DATE_NANOS,
+                null,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue("negative epoch nulls the cell", cast.isNull(0));
+            LongBlock out = (LongBlock) cast;
+            assertEquals("the good cell still decodes", 5L, out.getLong(out.getFirstValueIndex(1)));
+        }
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
+        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.LONG, DataType.DATE_NANOS, null, blockFactory, null, null).close()
+            );
+        }
+    }
+
+    /**
+     * An {@code unsigned_long} source decodes through valueReader's sign-flip decode to the true Number, so a
+     * magnitude &ge; 2^63 arrives as a BigInteger whose longValue() is negative and the non-negative domain
+     * check rejects it per value — a wrapped positive cannot leak. In-domain magnitudes pass identically.
+     */
+    public void testCastUnsignedLongToDateNanosRejectsAboveSignedRangePerValue() {
+        long inRange = NumericUtils.asLongUnsigned(BigInteger.valueOf(1_700_000_000_123_456_789L));
+        long aboveSigned = NumericUtils.asLongUnsigned(new BigInteger("9223372036854775808")); // 2^63
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { inRange, aboveSigned }, 2).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.UNSIGNED_LONG,
+                DataType.DATE_NANOS,
+                null,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            LongBlock out = (LongBlock) cast;
+            assertEquals(1_700_000_000_123_456_789L, out.getLong(out.getFirstValueIndex(0)));
+            assertTrue("2^63 has no date_nanos representation — per-value failure, not a wrap", cast.isNull(1));
+        }
+        assertThat(warnings, hasSize(1));
+    }
+
+    /** Multi-value positions coerce element-by-element; a failing element nulls the whole position (bulk semantics). */
+    public void testCastLongToDateNanosMultiValue() {
+        List<String> warnings = new ArrayList<>();
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendLong(1L);
+            builder.appendLong(2L);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendLong(3L);
+            builder.appendLong(-1L);
+            builder.endPositionEntry();
+            try (Block source = builder.build()) {
+                try (
+                    Block cast = DeclaredTypeCoercions.castBlock(
+                        source,
+                        DataType.LONG,
+                        DataType.DATE_NANOS,
+                        null,
+                        blockFactory,
+                        "ts",
+                        capturing(warnings)
+                    )
+                ) {
+                    LongBlock out = (LongBlock) cast;
+                    assertThat(out.getValueCount(0), equalTo(2));
+                    int first = out.getFirstValueIndex(0);
+                    assertEquals(1L, out.getLong(first));
+                    assertEquals(2L, out.getLong(first + 1));
+                    assertTrue("bulk semantics null the whole position on a negative element", cast.isNull(1));
+                }
+            }
+        }
+        assertThat(warnings, hasSize(1));
+    }
+
     // ---- per-cell bulk leniency ----
 
     public void testLenientCoercionNullsCellAndWarns() {
@@ -813,6 +1173,34 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         return DeclaredTypeCoercions.castBlock(source, from, to, null, blockFactory, null, null);
     }
 
+    private Block castStrict(Block source, DataType from, DataType to, DateFormatter format) {
+        return DeclaredTypeCoercions.castBlock(source, from, to, format, blockFactory, null, null);
+    }
+
+    private Block doubleBlock(double... values) {
+        try (var builder = blockFactory.newDoubleBlockBuilder(values.length)) {
+            for (double v : values) {
+                builder.appendDouble(v);
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * {@code epoch_millis} means "the number is already epoch-millis" — the identity. On a double it must therefore
+     * ROUND like the format-free path (safeDoubleToLong), not truncate the fraction. 1.5 -> 2, matching {@code {date}}.
+     */
+    public void testDoubleToDatetimeEpochMillisRoundsLikeNoFormat() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        try (Block src = doubleBlock(1.5)) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(src, DataType.DOUBLE, DataType.DATETIME, epochMillis, blockFactory, null, null)
+            ) {
+                assertEquals("epoch_millis on a double is the identity: round, do not truncate", 2L, ((LongBlock) cast).getLong(0));
+            }
+        }
+    }
+
     private Block bytesBlock(String... values) {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
             for (String v : values) {
@@ -865,5 +1253,342 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DeclaredTypeCoercions.elementTypeFor(type));
             assertThat(e.getMessage(), containsString("is not readable as a declared column"));
         }
+    }
+
+    /**
+     * The convert-the-bound pushdown rests entirely on {@code decode(v) == v * declaredEpochFormatScale(...)} being
+     * EXACT — a bound converted with a scale the decode does not actually follow would prune matching row groups.
+     * Pin it over randomized values (including negatives, which pre-date the epoch) rather than assume it.
+     */
+    public void testDeclaredEpochFormatScaleMatchesTheActualDecode() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        for (int i = 0; i < 500; i++) {
+            long seconds = randomLongBetween(-62_135_596_800L, 253_402_300_799L); // year 0001..9999
+            assertEquals(
+                "epoch_second -> datetime must be exactly x1000",
+                seconds * 1_000L,
+                DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(seconds), epochSecond)
+            );
+            assertEquals(
+                "epoch_second scale must describe that decode",
+                Long.valueOf(1_000L),
+                DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.DATETIME)
+            );
+
+            long millis = randomLongBetween(-62_135_596_800_000L, 253_402_300_799_000L);
+            assertEquals(
+                "epoch_millis -> datetime must be the exact identity",
+                millis,
+                DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(millis), epochMillis)
+            );
+            assertEquals(
+                "epoch_millis on datetime is the identity scale",
+                Long.valueOf(1L),
+                DeclaredTypeCoercions.declaredEpochFormatScale("epoch_millis", DataType.DATETIME)
+            );
+        }
+    }
+
+    /** The date_nanos half of the same pin: nanos have no identity format, so every format must rescale exactly. */
+    public void testDeclaredEpochFormatScaleMatchesTheActualDateNanosDecode() {
+        for (int i = 0; i < 500; i++) {
+            // date_nanos spans ~1677..2262; stay inside it so the decode does not legitimately fail.
+            long seconds = randomLongBetween(0L, 9_000_000_000L);
+            assertEquals(
+                "epoch_second -> date_nanos must be exactly x1e9",
+                seconds * 1_000_000_000L,
+                EsqlDataTypeConverter.dateNanosToLong(String.valueOf(seconds), DateFormatter.forPattern("epoch_second"))
+            );
+            assertEquals(Long.valueOf(1_000_000_000L), DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.DATE_NANOS));
+
+            long millis = randomLongBetween(0L, 9_000_000_000_000L);
+            assertEquals(
+                "epoch_millis -> date_nanos must be exactly x1e6, NOT the identity",
+                millis * 1_000_000L,
+                EsqlDataTypeConverter.dateNanosToLong(String.valueOf(millis), DateFormatter.forPattern("epoch_millis"))
+            );
+            assertEquals(Long.valueOf(1_000_000L), DeclaredTypeCoercions.declaredEpochFormatScale("epoch_millis", DataType.DATE_NANOS));
+        }
+    }
+
+    /**
+     * A calendar format parses the digit string; a compound format resolves first-match-wins per value. Neither is a
+     * single scale, so both must decline — and the compound case must not be mistaken for the identity by a
+     * substring test, which would push a bound scaled 1000x wrong.
+     */
+    public void testNonEpochFormatsAdmitNoScale() {
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("yyyyMMdd", DataType.DATETIME));
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("strict_date_optional_time", DataType.DATETIME));
+        assertNull(
+            "a compound format containing epoch_millis is NOT the identity",
+            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATETIME)
+        );
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATE_NANOS));
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale(null, DataType.DATETIME));
+        assertNull(
+            "a non-temporal declared type never carries a format",
+            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.LONG)
+        );
+    }
+
+    /**
+     * The property every pruning decision depends on: a pushed bound must NEVER be stricter than the true predicate.
+     * Too loose is harmless (the reader over-includes, FilterExec re-checks); too strict prunes a row group the query
+     * matches, and a pruned group is never decoded. Brute-force it over the raw domain rather than restating the
+     * algebra the implementation already claims.
+     */
+    public void testRawBoundIsNeverStricterThanTheTruth() {
+        List<DeclaredTypeCoercions.RawDecodeRelation> relations = List.of(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L)
+        );
+        for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
+            for (DeclaredTypeCoercions.BoundOp op : DeclaredTypeCoercions.BoundOp.values()) {
+                if (op == DeclaredTypeCoercions.BoundOp.EQ) {
+                    continue; // EQ has no single-bound raw form; it routes through rawEqualityBand, tested separately
+                }
+                for (int i = 0; i < 200; i++) {
+                    long raw = randomLongBetween(-5_000_000L, 5_000_000L);
+                    long decoded = decodeFor(relation, raw);
+                    long bound = randomLongBetween(-6_000L, 6_000L);
+                    boolean trulyMatches = switch (op) {
+                        case EQ -> decoded == bound;
+                        case NOT_EQ -> decoded != bound;
+                        case GT -> decoded > bound;
+                        case GTE -> decoded >= bound;
+                        case LT -> decoded < bound;
+                        case LTE -> decoded <= bound;
+                    };
+                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(relation, bound, op);
+                    if (rawBound == null) {
+                        continue; // declined: no pruning, never a lost row
+                    }
+                    boolean pushedKeeps = switch (op) {
+                        case EQ -> raw == rawBound;
+                        case NOT_EQ -> raw != rawBound;
+                        case GT -> raw > rawBound;
+                        case GTE -> raw >= rawBound;
+                        case LT -> raw < rawBound;
+                        case LTE -> raw <= rawBound;
+                    };
+                    // Ordered ops must be EXACT (never looser either): a loose bound is safe DIRECTLY but becomes
+                    // stricter-than-truth once wrapped in NOT, which the translator admits. Only == is allowed to be
+                    // a decline (null), never loose.
+                    if (op != DeclaredTypeCoercions.BoundOp.EQ
+                        && op != DeclaredTypeCoercions.BoundOp.NOT_EQ
+                        && trulyMatches == false
+                        && pushedKeeps) {
+                        fail(
+                            "LOOSER THAN TRUTH — unsafe under NOT: relation="
+                                + relation
+                                + " op="
+                                + op
+                                + " raw="
+                                + raw
+                                + " decodes to "
+                                + decoded
+                                + ", bound="
+                                + bound
+                                + ", pushed raw bound="
+                                + rawBound
+                        );
+                    }
+                    if (trulyMatches && pushedKeeps == false) {
+                        fail(
+                            "STRICTER THAN TRUTH — this prunes a matching row: relation="
+                                + relation
+                                + " op="
+                                + op
+                                + " raw="
+                                + raw
+                                + " decodes to "
+                                + decoded
+                                + ", bound="
+                                + bound
+                                + ", pushed raw bound="
+                                + rawBound
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /** Mirrors what the readers actually do, written independently of the implementation under test. */
+    private static long decodeFor(DeclaredTypeCoercions.RawDecodeRelation relation, long raw) {
+        return switch (relation) {
+            case DeclaredTypeCoercions.RawDecodeRelation.Identity ignored -> raw;
+            case DeclaredTypeCoercions.RawDecodeRelation.ScaleUp up -> raw * up.factor();
+            case DeclaredTypeCoercions.RawDecodeRelation.ScaleDown down -> Math.floorDiv(raw, down.divisor());
+        };
+    }
+
+    /**
+     * The equality band must be EXACT in both directions: every raw value in it decodes to the bound (so pushing it
+     * keeps no junk the reader must re-filter), and every raw value outside it does not (so pushing it prunes no
+     * matching row). A one-sided property would let a band that is too wide pass.
+     */
+    public void testEqualityBandIsExactlyTheRawValuesThatDecodeToTheBound() {
+        List<DeclaredTypeCoercions.RawDecodeRelation> relations = List.of(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L)
+        );
+        for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
+            for (int i = 0; i < 300; i++) {
+                long bound = randomLongBetween(-6_000L, 6_000L);
+                DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, bound);
+                if (band == null) {
+                    // Declined: only legal when NO raw value decodes to the bound at all.
+                    for (long raw = -10_000; raw <= 10_000; raw++) {
+                        assertNotEquals(
+                            "declined an equality that a stored value could have matched: relation=" + relation + " bound=" + bound,
+                            bound,
+                            decodeFor(relation, raw)
+                        );
+                    }
+                    continue;
+                }
+                assertTrue("band must not be inverted: " + band, band.lo() <= band.hi());
+                for (long raw = band.lo(); raw <= band.hi(); raw++) {
+                    assertEquals(
+                        "a raw value inside the band must decode to the bound: relation=" + relation + " raw=" + raw,
+                        bound,
+                        decodeFor(relation, raw)
+                    );
+                }
+                // just outside, both sides, must NOT decode to the bound
+                assertNotEquals("band is too narrow on the low side", bound, decodeFor(relation, band.lo() - 1));
+                assertNotEquals("band is too narrow on the high side", bound, decodeFor(relation, band.hi() + 1));
+            }
+        }
+    }
+
+    /** The forward map must be monotone, so a min stays a min and a max stays a max through it. */
+    public void testForwardStatMapIsMonotone() {
+        List<DeclaredTypeCoercions.RawDecodeRelation> relations = List.of(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L)
+        );
+        for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
+            for (int i = 0; i < 300; i++) {
+                long a = randomLongBetween(-5_000_000L, 5_000_000L);
+                long b = randomLongBetween(-5_000_000L, 5_000_000L);
+                Long da = DeclaredTypeCoercions.rawStatToDecoded(relation, Math.min(a, b));
+                Long db = DeclaredTypeCoercions.rawStatToDecoded(relation, Math.max(a, b));
+                if (da != null && db != null) {
+                    assertTrue("forward map inverted order: " + relation + " " + da + " > " + db, da <= db);
+                }
+                assertEquals(
+                    "forward map must agree with the reader decode",
+                    decodeFor(relation, a),
+                    (long) DeclaredTypeCoercions.rawStatToDecoded(relation, a)
+                );
+            }
+        }
+    }
+
+    /**
+     * The forward stat map must DECLINE (return null) rather than wrap when a raw stat scaled up has no {@code long}
+     * representation — a huge garbage {@code epoch_second} value under a {@code date_nanos} declaration, say. A wrapped
+     * negative would read as a bogus extremum and skip the wrong TopN groups. The monotone property test above never
+     * hits this because it stays within +/-5M; this pins the edge. Relaxing {@code multiplyExact} to {@code *} reds it.
+     */
+    public void testForwardStatMapDeclinesOnScaleUpOverflow() {
+        var scaleUp = new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1_000_000_000L); // epoch_second -> nanos
+        long lastSafe = Long.MAX_VALUE / 1_000_000_000L;
+        assertNotNull("the largest raw that still fits must map", DeclaredTypeCoercions.rawStatToDecoded(scaleUp, lastSafe));
+        assertNull(
+            "a raw whose x1e9 overflows Long.MAX must decline, not wrap",
+            DeclaredTypeCoercions.rawStatToDecoded(scaleUp, lastSafe + 1)
+        );
+        assertNull(
+            "negative overflow must decline too",
+            DeclaredTypeCoercions.rawStatToDecoded(scaleUp, Long.MIN_VALUE / 1_000_000_000L - 1)
+        );
+    }
+
+    /**
+     * A huge epoch-second literal parses to a valid Instant, then x1000 to millis overflows a long. That overflow
+     * must surface as an IllegalArgumentException the reader per-cell error policy can catch and null — not an
+     * ArithmeticException that escapes it and hard-fails the whole read. Same contract coerceToUnsignedLong keeps.
+     */
+    public void testEpochSecondOverflowFailsPerCellNotAsArithmeticException() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long hugeSeconds = 10_000_000_000_000_000L; // parses fine as an Instant; x1000 overflows
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(hugeSeconds), epochSecond)
+        );
+        assertFalse("must not leak ArithmeticException past the per-cell policy", e instanceof ArithmeticException);
+    }
+
+    /**
+     * Boundary-exact version of the never-stricter/never-looser property: random sampling almost never lands in the
+     * 999-wide band where a ScaleDown bound can be loose, so probe the band edges DETERMINISTICALLY. A loose ordered
+     * bound is safe directly but stricter-than-truth once wrapped in NOT, which the translator admits.
+     */
+    public void testOrderedBoundsAreExactAtBandEdges() {
+        long d = 1000L;
+        var rel = new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(d);
+        for (long bound : new long[] { -3, 0, 1, 7 }) {
+            long base = bound * d;
+            // raw values straddling both the low edge (base) and the high edge (base + d - 1) of the band.
+            for (long raw : new long[] { base - 1, base, base + 1, base + d - 1, base + d, base + d + 1 }) {
+                long decoded = Math.floorDiv(raw, d);
+                for (DeclaredTypeCoercions.BoundOp op : DeclaredTypeCoercions.BoundOp.values()) {
+                    if (op == DeclaredTypeCoercions.BoundOp.EQ || op == DeclaredTypeCoercions.BoundOp.NOT_EQ) {
+                        continue; // EQ/NOT_EQ are set-membership, not ordered — tested separately
+                    }
+                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(rel, bound, op);
+                    if (rawBound == null) {
+                        continue;
+                    }
+                    boolean truth = switch (op) {
+                        case GT -> decoded > bound;
+                        case GTE -> decoded >= bound;
+                        case LT -> decoded < bound;
+                        case LTE -> decoded <= bound;
+                        case EQ, NOT_EQ -> throw new AssertionError("skipped above");
+                    };
+                    boolean kept = switch (op) {
+                        case GT -> raw > rawBound;
+                        case GTE -> raw >= rawBound;
+                        case LT -> raw < rawBound;
+                        case LTE -> raw <= rawBound;
+                        case EQ, NOT_EQ -> throw new AssertionError("skipped above");
+                    };
+                    assertEquals(
+                        "ordered bound must be EXACT (safe under NOT): op="
+                            + op
+                            + " bound="
+                            + bound
+                            + " raw="
+                            + raw
+                            + " decodes "
+                            + decoded
+                            + " pushed="
+                            + rawBound,
+                        truth,
+                        kept
+                    );
+                }
+            }
+        }
+    }
+
+    /** NOT_EQ restores the != pruning: exact for Identity and an exact-multiple ScaleUp, declined for a band. */
+    public void testNotEqBoundExactOrDeclined() {
+        var identity = new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+        var up = new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L);
+        var down = new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L);
+        var NE = DeclaredTypeCoercions.BoundOp.NOT_EQ;
+        assertEquals("identity passes the bound through", Long.valueOf(5L), DeclaredTypeCoercions.rawBoundFor(identity, 5L, NE));
+        assertEquals("scale-up exact multiple inverts by division", Long.valueOf(5L), DeclaredTypeCoercions.rawBoundFor(up, 5000L, NE));
+        assertNull("scale-up non-multiple matches everything -> decline", DeclaredTypeCoercions.rawBoundFor(up, 5001L, NE));
+        assertNull("scale-down != is a band complement -> decline", DeclaredTypeCoercions.rawBoundFor(down, 5L, NE));
     }
 }

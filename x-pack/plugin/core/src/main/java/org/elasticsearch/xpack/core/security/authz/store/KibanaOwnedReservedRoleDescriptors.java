@@ -719,7 +719,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Context Engine's SML storage. A regular (non-system) index that Kibana
                 // creates and manages itself at startup, including its alias.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".context-idx-sml-data", ".context-idx-sml-data-*")
+                    .indices(".ai-index-idx-sml-data", ".ai-index-idx-sml-data-*")
                     .privileges("all")
                     .build(),
                 // Significant events. Kibana system user manages index plumbing and document access.

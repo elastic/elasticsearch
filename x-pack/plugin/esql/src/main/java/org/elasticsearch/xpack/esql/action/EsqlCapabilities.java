@@ -15,6 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -26,6 +27,15 @@ import java.util.Set;
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
+ *
+ * <p>There are two ways to declare an ES|QL capability:
+ * <ol>
+ *   <li><strong>Global ({@link Cap} enum, this file)</strong>: use when a capability applies
+ *       across ES|QL generally, or when it touches many functions at once.</li>
+ *   <li><strong>Per-function ({@link FunctionDefinition.Builder#capabilities})</strong>:
+ *       use when a capability is specific to one function or a small number of functions.
+ *       These are auto-registered with the prefix {@code fn_<funcname>_<sub>}.</li>
+ * </ol>
  */
 public class EsqlCapabilities {
     /**
@@ -80,6 +90,12 @@ public class EsqlCapabilities {
         }
     }
 
+    /**
+     * Global ES|QL capabilities. Use this for capabilities that apply across ES|QL generally,
+     * or that touch many functions at once. For capabilities specific to one function or a small
+     * number of functions, use {@link FunctionDefinition.Builder#capabilities}
+     * instead.
+     */
     public enum Cap {
         /**
          * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -2665,9 +2681,9 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar itself is gated by
-         * {@link org.elasticsearch.xpack.esql.parser.EsqlConfig#isExternalDataSourcesEnabled()}, so this capability
-         * mirrors that build-type check rather than reporting unconditionally enabled.
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
+         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
+         * grammar surface, rather than this capability mirroring a separate build-type check.
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
@@ -3319,10 +3335,9 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes
-         * generated columns named {@code <prefix><field>} ({@code highlight_} by default). Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V3(Build.current().isSnapshot()),
+        HIGHLIGHT_V4(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3391,6 +3406,18 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
          */
         SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
+         */
+        FIX_MATCH_FUZZINESS_ON_VERSION_FIELD,
+
+        /**
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
+         */
+        FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

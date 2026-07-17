@@ -3440,7 +3440,7 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
          */
         FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
-      
+
         /**
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */

@@ -16,6 +16,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import java.util.List;
 
@@ -28,8 +29,10 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
 
     private static final List<String> COMPRESSED_FORMATS = List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz");
 
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    @ClassRule
+    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
 
     public CsvCompressedFormatSpecIT(
         String fileName,

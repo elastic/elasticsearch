@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3Http
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.net.URL;
@@ -150,14 +152,31 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return parameterizedTests;
     }
 
-    @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
-    @ClassRule
     public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture();
 
-    @ClassRule
     public static DataSourcesGcsHttpFixture gcsFixture = new DataSourcesGcsHttpFixture();
+
+    /**
+     * Builds a {@link ClassRule} that starts object-store fixtures before the test cluster. Without an
+     * explicit order, JUnit may boot the cluster while fixtures are not yet listening and external reads
+     * fail with transient {@code Connection is closed} errors (especially on Azure).
+     * <p>
+     * The cluster is taken as a {@link TestRule} because {@code test-clusters} is only on the classpath of
+     * the {@code javaRestTest} source sets, not of this shared one.
+     */
+    protected static TestRule chainFixturesBeforeCluster(TestRule cluster) {
+        return RuleChain.outerRule(s3Fixture).around(gcsFixture).around(azureFixture).around(cluster);
+    }
+
+    /**
+     * Like {@link #chainFixturesBeforeCluster(TestRule)} but runs {@code outer} first (e.g.
+     * an {@code assumeFalse} guard) before bringing up fixtures and the cluster.
+     */
+    protected static TestRule chainOuterRuleBeforeFixturesAndCluster(TestRule outer, TestRule cluster) {
+        return RuleChain.outerRule(outer).around(s3Fixture).around(gcsFixture).around(azureFixture).around(cluster);
+    }
 
     /** Cached path to local fixtures directory */
     private static Path localFixturesPath;

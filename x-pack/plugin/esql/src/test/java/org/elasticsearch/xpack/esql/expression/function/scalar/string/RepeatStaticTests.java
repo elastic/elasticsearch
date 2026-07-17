@@ -66,6 +66,15 @@ public class RepeatStaticTests extends ESTestCase {
         assertThat(process("", Integer.MAX_VALUE), equalTo(""));
     }
 
+    public void testLengthOverflowRejected() {
+        // int multiplication of length*count would overflow (2 * Integer.MAX_VALUE == -2) and skip the size guard
+        assertNull(process("ab", Integer.MAX_VALUE));
+        assertWarnings(
+            "Line -1:-1: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported",
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded."
+        );
+    }
+
     public String process(String str, int number) {
         try (
             var eval = AbstractScalarFunctionTestCase.evaluator(

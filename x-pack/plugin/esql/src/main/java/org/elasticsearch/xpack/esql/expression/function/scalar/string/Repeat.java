@@ -133,13 +133,14 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         if (str.length == 0 || number == 0) {
             return scratch.bytesRefView();
         }
-        int repeatedLen = str.length * number;
+        // Use long so large length*count cannot overflow int and bypass the size guard.
+        long repeatedLen = (long) str.length * number;
         if (repeatedLen > MAX_BYTES_REF_RESULT_SIZE) {
             throw new IllegalArgumentException(
                 "Creating repeated strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
             );
         }
-        scratch.grow(repeatedLen);
+        scratch.grow((int) repeatedLen);
         for (int i = 0; i < number; ++i) {
             scratch.append(str);
         }

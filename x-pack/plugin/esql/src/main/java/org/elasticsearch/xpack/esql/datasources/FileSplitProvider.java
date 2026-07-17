@@ -241,6 +241,10 @@ public class FileSplitProvider implements SplitProvider {
 
         // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
         // build the list of FileTask items that need I/O (footer reads, boundary scans).
+        // Tracks whether any file was dropped by the row-count-unsafe no-column-overlap heuristic:
+        // such a file still contributes rows to COUNT(*), so an all-dropped result driven by it is
+        // NOT an exhaustive prune and must fall back to a full read (see SplitDiscoveryResult).
+        boolean droppedByColumnOverlap = false;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
@@ -265,6 +269,10 @@ public class FileSplitProvider implements SplitProvider {
 
             if (fileBackedQuerySchema.isEmpty() == false && fileSchemaInfo != null) {
                 if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), fileBackedQuerySchema)) {
+                    // Row-count-unsafe: the file's rows still exist (they would be all-NULL for the query's
+                    // columns), so COUNT(*) and other row-count-sensitive queries need them. Skipping is a
+                    // best-effort optimization that relies on a full-read fallback when it empties the plan.
+                    droppedByColumnOverlap = true;
                     continue;
                 }
             }
@@ -340,7 +348,11 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         if (tasks.isEmpty()) {
-            return SplitDiscoveryResult.EMPTY;
+            // Every file was dropped. Only a resolved, non-empty file list whose files were all removed by
+            // row-count-preserving filter contradictions (no no-overlap heuristic among them) is a true
+            // exhaustive prune the phase may trust to read nothing; otherwise fall back to a full read.
+            boolean exhaustivelyPruned = fileList.fileCount() > 0 && droppedByColumnOverlap == false;
+            return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
         }
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
@@ -441,8 +453,14 @@ public class FileSplitProvider implements SplitProvider {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
-        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently.
+        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
+        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
+        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
+        if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
+            configuredReader = configuredReader.withDeclaredPathBinding(true);
+        }
 
         // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
         // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
@@ -575,6 +593,10 @@ public class FileSplitProvider implements SplitProvider {
     private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
         if (reader == null) {
             return false;
+        }
+        if (reader.declaredNameBindingNeedsFileStart()) {
+            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+            return true;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
         if (seg == null) {

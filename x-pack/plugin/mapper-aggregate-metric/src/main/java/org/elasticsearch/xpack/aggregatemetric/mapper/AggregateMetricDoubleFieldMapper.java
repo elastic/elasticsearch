@@ -671,7 +671,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 return switch (cfg.function()) {
                     // After an AggregateMetricDoubleBlock is loaded, we do not have anymore the single metric
                     // information, this is why in the context of ES|QL we always default to average.
-                    case AMD_DEFAULT -> new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields);
+                    case AMD_DEFAULT -> new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields, blContext.warnings());
                     case AMD_COUNT -> getIndividualBlockLoader(Metric.value_count);
                     case AMD_MAX -> getIndividualBlockLoader(Metric.max);
                     case AMD_MIN -> getIndividualBlockLoader(Metric.min);

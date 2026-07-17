@@ -24,7 +24,7 @@ public class EvaluatorMapperTests extends ESTestCase {
             new Literal(Source.EMPTY, 3, DataType.INTEGER),
             EsqlTestUtils.TEST_CFG
         );
-        assertEquals(add.fold(new FoldContext(100)), 4);
+        assertEquals(add.fold(new FoldContext(200)), 4);
     }
 
     public void testFoldBreaksWithLittleMemory() {

@@ -83,6 +83,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             @Example(file = "string", tag = "mv_contains"),
             @Example(file = "string", tag = "mv_contains_bothsides"),
             @Example(file = "string", tag = "mv_contains_where"), },
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public MvContains(

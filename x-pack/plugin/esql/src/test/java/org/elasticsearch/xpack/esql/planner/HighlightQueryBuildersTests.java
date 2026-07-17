@@ -27,6 +27,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 /** Tests query building against {@link RuntimeSearchExecutionContext}. */
 public class HighlightQueryBuildersTests extends ESTestCase {
@@ -247,6 +249,43 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         BooleanClause mustNot = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.MUST_NOT).findFirst().orElseThrow();
         assertThat(filter.query(), instanceOf(MatchAllDocsQuery.class));
         assertThat(mustNot.query(), instanceOf(TermQuery.class));
+    }
+
+    // QueryBuilderResolver resolves the lexical builder for MATCH / MATCH_PHRASE on the coordinator instead of the
+    // index-context rewrite; the function options only survive plan serialization inside it. The next tests resolve
+    // the builder, then rebuild the function the way it looks on a remote node: options gone, builder planted.
+
+    public void testMatchResolvedLexicalBuilderKeepsOptionsAfterSerialization() {
+        Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match("title", "quick fox", options("operator", "AND")));
+        MatchQueryBuilder planted = asInstanceOf(MatchQueryBuilder.class, asInstanceOf(Match.class, resolved).queryBuilder());
+        assertThat(planted.fieldName(), equalTo("title"));
+        Match deserialized = new Match(EMPTY, getFieldAttribute("title", KEYWORD), of("quick fox"), null, planted);
+        BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(deserialized, TITLE));
+        assertThat(bq.clauses(), hasSize(2));
+        for (BooleanClause clause : bq.clauses()) {
+            assertThat(clause.occur(), equalTo(BooleanClause.Occur.MUST));
+        }
+    }
+
+    public void testMatchPhraseResolvedLexicalBuilderKeepsOptionsAfterSerialization() {
+        Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(matchPhrase("title", "quick fox", options("slop", 2)));
+        MatchPhraseQueryBuilder planted = asInstanceOf(
+            MatchPhraseQueryBuilder.class,
+            asInstanceOf(MatchPhrase.class, resolved).queryBuilder()
+        );
+        MatchPhrase deserialized = new MatchPhrase(EMPTY, getFieldAttribute("title", KEYWORD), of("quick fox"), null, planted);
+        PhraseQuery phrase = asInstanceOf(PhraseQuery.class, translate(deserialized, TITLE));
+        assertThat(phrase.getSlop(), equalTo(2));
+    }
+
+    public void testResolveLexicalQueryBuilderIsIdempotent() {
+        Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match("title", "fox", null));
+        assertThat(HighlightQueryBuilders.resolveLexicalQueryBuilder(resolved), sameInstance(resolved));
+    }
+
+    public void testResolveLexicalQueryBuilderLeavesOtherExpressionsUnchanged() {
+        Expression queryString = queryString("fox", null);
+        assertThat(HighlightQueryBuilders.resolveLexicalQueryBuilder(queryString), sameInstance(queryString));
     }
 
     public void testMatchLenientOptionHonored() {

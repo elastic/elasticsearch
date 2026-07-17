@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -96,23 +98,37 @@ public final class QueryBuilderResolver {
         public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
-                Expression finalExpression = expr;
-                if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
-                    QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
-                    builder = builder == null
-                        ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
-                        : builder;
-                    try {
-                        builder = builder.rewrite(ctx);
-                    } catch (IOException e) {
-                        exceptionHolder.setIfAbsent(e);
+            LogicalPlan newPlan = plan.transformDown(p -> {
+                // HIGHLIGHT runs MATCH and MATCH_PHRASE against a per-row MemoryIndex keyed by the ON column names,
+                // not against the target indices, so the index-context rewrite would produce builders the
+                // highlighter cannot run - most notably inference queries for semantic_text fields. They get the
+                // lexical builder the highlighter executes instead, which also carries the function options across
+                // plan serialization. QSTR and KQL resolve against the indices as usual.
+                boolean highlight = p instanceof Highlight;
+                return p.transformExpressionsOnly(Expression.class, expr -> {
+                    if (highlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
+                        Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(expr);
+                        updated.set(updated.get() || resolved != expr);
+                        return resolved;
                     }
-                    var rewritten = builder != initial;
-                    updated.set(updated.get() || rewritten);
-                    finalExpression = rewritten ? rewriteableAware.replaceQueryBuilder(builder) : finalExpression;
-                }
-                return finalExpression;
+                    Expression finalExpression = expr;
+                    if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
+                        QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
+                        builder = builder == null
+                            ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER)
+                                .toQueryBuilder()
+                            : builder;
+                        try {
+                            builder = builder.rewrite(ctx);
+                        } catch (IOException e) {
+                            exceptionHolder.setIfAbsent(e);
+                        }
+                        var rewritten = builder != initial;
+                        updated.set(updated.get() || rewritten);
+                        finalExpression = rewritten ? rewriteableAware.replaceQueryBuilder(builder) : finalExpression;
+                    }
+                    return finalExpression;
+                });
             });
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();

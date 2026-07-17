@@ -103,6 +103,7 @@ null
 '%'
 '{'
 '}'
+null
 '??'
 null
 null
@@ -282,6 +283,7 @@ SLASH
 PERCENT
 LEFT_BRACES
 RIGHT_BRACES
+ARROW
 DOUBLE_PARAMS
 NAMED_OR_POSITIONAL_PARAM
 NAMED_OR_POSITIONAL_DOUBLE_PARAMS
@@ -451,6 +453,8 @@ operatorExpression
 primaryExpression
 functionExpression
 functionName
+functionParam
+lambda
 mapExpression
 entryExpression
 mapValue

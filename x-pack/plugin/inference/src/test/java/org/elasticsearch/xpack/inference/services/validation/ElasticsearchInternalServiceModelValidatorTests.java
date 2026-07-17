@@ -19,7 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandEmbeddingModel;
-import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticDeployedModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalTextEmbeddingServiceSettings;
 import org.junit.Before;
 import org.mockito.Mock;
 
@@ -264,8 +265,77 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         );
     }
 
+    public void testValidate_ElasticDeployedModelWithNonTextEmbeddingTaskTypeSkipsValidation() {
+        var elasticDeployedModel = createElasticDeployedModel(randomFrom(TaskType.RERANK, TaskType.SPARSE_EMBEDDING));
+
+        underTest.validate(mockInferenceService, elasticDeployedModel, TIMEOUT, mockActionListener);
+
+        verify(mockActionListener).onResponse(elasticDeployedModel);
+        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockActionListener);
+    }
+
+    public void testValidate_ElasticDeployedTextEmbeddingModelValidationFails() {
+        var elasticDeployedModel = createElasticDeployedModel(TaskType.TEXT_EMBEDDING);
+
+        doAnswer(ans -> {
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
+            responseListener.onFailure(new ElasticsearchStatusException("Model validation failed", RestStatus.INTERNAL_SERVER_ERROR));
+            return null;
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(elasticDeployedModel), eq(TIMEOUT), any());
+
+        underTest.validate(mockInferenceService, elasticDeployedModel, TIMEOUT, mockActionListener);
+
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(elasticDeployedModel), eq(TIMEOUT), any());
+        verify(mockActionListener).delegateFailureAndWrap(any());
+        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockActionListener);
+    }
+
+    public void testValidate_ElasticDeployedTextEmbeddingModelValidationSucceeds() {
+        var dimensions = randomIntBetween(1, 10);
+        var mockInferenceServiceResults = mock(DenseEmbeddingResults.class);
+        var mockUpdatedModel = mock(ElasticDeployedModel.class);
+        when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenReturn(dimensions);
+        var elasticDeployedModel = createElasticDeployedModel(TaskType.TEXT_EMBEDDING);
+
+        doAnswer(ans -> {
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
+            responseListener.onResponse(mockInferenceServiceResults);
+            return null;
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(elasticDeployedModel), eq(TIMEOUT), any());
+        when(mockInferenceService.updateModelWithEmbeddingDetails(eq(elasticDeployedModel), eq(dimensions))).thenReturn(mockUpdatedModel);
+
+        underTest.validate(mockInferenceService, elasticDeployedModel, TIMEOUT, mockActionListener);
+
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(elasticDeployedModel), eq(TIMEOUT), any());
+        verify(mockInferenceService).updateModelWithEmbeddingDetails(eq(elasticDeployedModel), eq(dimensions));
+        verify(mockActionListener).delegateFailureAndWrap(any());
+        verify(mockActionListener).onResponse(mockUpdatedModel);
+        verify(mockInferenceServiceResults).getFirstEmbeddingSize();
+        verifyNoMoreInteractions(
+            mockServiceIntegrationValidator,
+            mockInferenceService,
+            mockActionListener,
+            mockUpdatedModel,
+            mockInferenceServiceResults
+        );
+    }
+
+    private ElasticDeployedModel createElasticDeployedModel(TaskType taskType) {
+        var mockServiceSettings = mock(ElasticsearchInternalTextEmbeddingServiceSettings.class);
+        when(mockServiceSettings.modelId()).thenReturn(randomAlphaOfLength(10));
+
+        return new ElasticDeployedModel(
+            randomAlphaOfLength(10),
+            taskType,
+            randomAlphaOfLength(10),
+            mockServiceSettings,
+            ChunkingSettingsTests.createRandomChunkingSettings()
+        );
+    }
+
     private CustomElandEmbeddingModel createCustomElandEmbeddingModel(boolean areDimensionsSetByUser, Integer dimensions) {
-        var mockServiceSettings = mock(CustomElandInternalTextEmbeddingServiceSettings.class);
+        var mockServiceSettings = mock(ElasticsearchInternalTextEmbeddingServiceSettings.class);
         when(mockServiceSettings.modelId()).thenReturn(randomAlphaOfLength(10));
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(areDimensionsSetByUser);
         if (dimensions != null) {

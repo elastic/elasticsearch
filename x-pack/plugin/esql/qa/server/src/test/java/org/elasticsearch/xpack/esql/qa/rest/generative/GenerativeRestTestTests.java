@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.generator.Column;
+
+import java.util.List;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures.
@@ -72,6 +75,27 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testFullTextAfterSubqueryRequiresSubqueryInQuery() {
+        String query = "FROM logs | LOOKUP JOIN message_types_lookup ON message | WHERE qstr(\"text:hello\")";
+        String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testMatchOptionsOnNonIndexMappedFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchOptionsOnIndexMappedFieldIsNotAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), true));
+
+        assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
     public void testFullTextAfterSubqueryMatchesSortMessage() {
         String query = "FROM (FROM languages | SORT language_name | LIMIT 5), alerts | WHERE kql(\"language_name: English\")";
         String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT";
@@ -82,13 +106,6 @@ public class GenerativeRestTestTests extends ESTestCase {
     public void testFullTextAfterSortRequiresSubqueryInQuery() {
         String query = "FROM languages | SORT language_name | LIMIT 5 | WHERE kql(\"language_name: English\")";
         String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT";
-
-        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
-    }
-
-    public void testFullTextAfterSubqueryRequiresSubqueryInQuery() {
-        String query = "FROM logs | LOOKUP JOIN message_types_lookup ON message | WHERE qstr(\"text:hello\")";
-        String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
 
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
@@ -125,31 +142,4 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
-    public void testMatchOptionsOnNonIndexMappedSubqueryFieldIsTolerated() {
-        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
-            + "| WHERE match(title2, \"search\", {\"lenient\": true})";
-        String error = "verification_exception: Found 1 problem\n"
-            + "line 1:88: Options are not supported for [MATCH] function call on non-index-mapped field [title2]";
-
-        assertTrue(GenerativeRestTest.isFullTextOnNonIndexMappedFieldInSubqueryBug(error, query));
-    }
-
-    public void testOptionsForNonMatchFunctionOnNonIndexMappedSubqueryFieldIsNotTolerated() {
-        // The "Options are not supported" shape is pinned to [MATCH]; the same options error for other full-text
-        // functions must not be tolerated (it does not match the "cannot operate on ..." shape either).
-        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
-            + "| WHERE qstr(\"title2:search\", {\"lenient\": true})";
-        String error = "verification_exception: Found 1 problem\n"
-            + "line 1:88: Options are not supported for [QSTR] function call on non-index-mapped field [title2]";
-
-        assertFalse(GenerativeRestTest.isFullTextOnNonIndexMappedFieldInSubqueryBug(error, query));
-    }
-
-    public void testFullTextOnNonIndexMappedSubqueryFieldIsTolerated() {
-        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) | WHERE match_phrase(title2, \"search\")";
-        String error = "verification_exception: Found 1 problem\n"
-            + "line 1:190: [MatchPhrase] function cannot operate on [title2], which is not a field from an index mapping";
-
-        assertTrue(GenerativeRestTest.isFullTextOnNonIndexMappedFieldInSubqueryBug(error, query));
-    }
 }

@@ -92,6 +92,13 @@ public class TestAnalyzer {
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
+    // EnrichResolution is keyed by the Source of the specific ENRICH occurrence it resolves, but addEnrichPolicy/addEnrichError
+    // are called before the query is parsed (builder pattern), so a Source isn't available yet. Registrations are queued here
+    // by policy name + mode and matched against the actual Enrich occurrences once the plan is known, see resolveEnrichResolution.
+    private final List<PendingEnrich> pendingEnrichResolutions = new ArrayList<>();
+
+    private record PendingEnrich(String policyName, Enrich.Mode mode, ResolvedEnrichPolicy resolved, String error) {}
+
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
@@ -388,7 +395,7 @@ public class TestAnalyzer {
      * Add an error resolving enrich indices.
      */
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
-        enrichResolution.addError(policyName, mode, reason);
+        pendingEnrichResolutions.add(new PendingEnrich(policyName, mode, null, reason));
         return this;
     }
 
@@ -460,8 +467,29 @@ public class TestAnalyzer {
      * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
      */
     public TestAnalyzer addEnrichPolicy(Enrich.Mode mode, String policy, ResolvedEnrichPolicy resolved) {
-        enrichResolution.addResolvedPolicy(policy, mode, resolved);
+        pendingEnrichResolutions.add(new PendingEnrich(policy, mode, resolved, null));
         return this;
+    }
+
+    /**
+     * Matches pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations (queued by policy name + mode before the
+     * query was known) against the actual {@link Enrich} occurrences in the now-parsed plan, and registers each match into the
+     * real {@link #enrichResolution} keyed by that occurrence's {@code Source} - mirroring how {@code EnrichPolicyResolver}
+     * keys production resolutions. If several occurrences share the same policy name and mode, every one of them is
+     * registered with the same resolution.
+     */
+    private void resolveEnrichResolution(LogicalPlan plan) {
+        plan.forEachUp(Enrich.class, enrich -> {
+            for (PendingEnrich pending : pendingEnrichResolutions) {
+                if (pending.policyName().equals(enrich.resolvedPolicyName()) && pending.mode() == enrich.mode()) {
+                    if (pending.resolved() != null) {
+                        enrichResolution.addResolvedPolicy(enrich.source(), pending.resolved());
+                    } else {
+                        enrichResolution.addError(enrich.source(), pending.error());
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -883,9 +911,20 @@ public class TestAnalyzer {
     /**
      * Build an {@link Analyzer} for advanced usage.
      * Prefer {@link #query} or {@link #error} if possible.
+     * <p>
+     * The returned {@link Analyzer} resolves pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations against
+     * whatever plan it's asked to analyze, right before analyzing it - see {@link #resolveEnrichResolution}. This covers both
+     * {@link #query}/{@link #error} (which call this internally) and advanced usage where callers hold onto the returned
+     * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier);
+        return new Analyzer(buildContext(), verifier) {
+            @Override
+            public LogicalPlan analyze(LogicalPlan plan) {
+                resolveEnrichResolution(plan);
+                return super.analyze(plan);
+            }
+        };
     }
 
     /**

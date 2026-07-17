@@ -43,6 +43,14 @@ public class FromGenerator implements CommandGenerator {
      */
     public static final String HAS_UNION_ALL = "hasUnionAll";
 
+    /**
+     * Context key for a {@code Map<String, Boolean>} that maps column names produced by any subquery
+     * in the FROM clause to their {@code indexMapped} flag. When the same column name appears in
+     * multiple subqueries the flags are AND-ed together. Only present when at least one subquery was
+     * generated; absent when FROM references only plain index patterns.
+     */
+    public static final String SUBQUERY_COLUMNS = "subqueryColumns";
+
     public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
 
     public static final String SET_APPROXIMATION_PREFIX = "SET approximation=";
@@ -111,17 +119,25 @@ public class FromGenerator implements CommandGenerator {
         Map<String, Object> commandContext
     ) {
         result.append("from ");
-        int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         boolean canHaveSubquery = context.isFeatureEnabled(GenerativeFeature.SUBQUERIES) && context.isWithinASubquery() == false;
+        // When subqueries are enabled, always generate at least 2 sources and force the first to be a subquery
+        // so that the feature is exercised on every iteration. The subquery goes first so that hasSubquery=true
+        // before any index pattern is processed, preventing hasViewInFrom from being set.
+        int items = randomIntBetween(canHaveSubquery ? 2 : 1, 3);
         boolean hasSubquery = false;
         boolean hasViewInFrom = false;
+        Map<String, Boolean> subqueryColumns = new HashMap<>();
         for (int i = 0; i < items; i++) {
             if (i > 0) {
                 result.append(",");
             }
-            if (canHaveSubquery && hasViewInFrom == false && randomDouble() < SUBQUERY_PROBABILITY) {
-                result.append(SubqueryGenerator.build(context, schema, executor).queryText());
+            if (canHaveSubquery && hasViewInFrom == false && (i == 0 || randomDouble() < SUBQUERY_PROBABILITY)) {
+                SubqueryGenerator.SubqueryResult subResult = SubqueryGenerator.build(context, schema, executor);
+                result.append(subResult.queryText());
+                for (Column col : subResult.outputSchema()) {
+                    subqueryColumns.merge(col.name(), col.indexMapped(), Boolean::logicalAnd);
+                }
                 hasSubquery = true;
             } else {
                 String idxName = availableIndices.get(randomIntBetween(0, availableIndices.size() - 1));
@@ -143,6 +159,9 @@ public class FromGenerator implements CommandGenerator {
             }
         }
         commandContext.put(HAS_UNION_ALL, hasSubquery || hasViewInFrom);
+        if (subqueryColumns.isEmpty() == false) {
+            commandContext.put(SUBQUERY_COLUMNS, subqueryColumns);
+        }
     }
 
     protected String randomQueryApproximationSettings() {

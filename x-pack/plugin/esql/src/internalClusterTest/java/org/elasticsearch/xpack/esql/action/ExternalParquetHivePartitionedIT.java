@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -43,8 +44,57 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
     }
 
     /**
+     * A capitalized boolean partition folder ({@code flag=True/}, {@code flag=False/}, the casing common data
+     * writers emit) must type the {@code flag} column as {@code BOOLEAN} and be queryable rather than failing
+     * partition-value casting. Partition-value casting is format-agnostic ({@code HivePartitionDetector.castValue}),
+     * so a single format end-to-end guard suffices; the detector-level coverage (any casing, hive/template
+     * delegation, null-sentinel mix) lives in {@code HivePartitionDetectorTests} / {@code TemplatePartitionDetectorTests}.
+     */
+    public void testCapitalizedBooleanPartitionFolderQueryable() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        Path root = createTempDir().resolve("hive_parquet_bool");
+        writeSingleColumnIdParquet(root.resolve("flag=True"), 3); // ids 0,1,2
+        writeSingleColumnIdParquet(root.resolve("flag=False"), 2); // ids 0,1
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("hive_parquet_bool", glob, Map.of("hive_partitioning", true));
+
+        var request = syncEsqlQueryRequest("FROM " + dataset + " | SORT flag, id");
+        request.profile(true);
+        try (var response = run(request)) {
+            assertFalse("external scan must run on a data node", externalScanNodeNames(response).isEmpty());
+
+            int flagIdx = response.columns().stream().map(ColumnInfoImpl::name).toList().indexOf("flag");
+            assertThat(
+                "path-derived boolean partition types as BOOLEAN",
+                response.columns().get(flagIdx).type(),
+                equalTo(DataType.BOOLEAN)
+            );
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("all five rows return across both boolean partitions", rows.size(), equalTo(5));
+            long trueRows = rows.stream().filter(r -> Boolean.TRUE.equals(r.get(flagIdx))).count();
+            long falseRows = rows.stream().filter(r -> Boolean.FALSE.equals(r.get(flagIdx))).count();
+            assertThat("flag=True folder contributes 3 rows typed boolean true", trueRows, equalTo(3L));
+            assertThat("flag=False folder contributes 2 rows typed boolean false", falseRows, equalTo(2L));
+        }
+
+        // Typed boolean equality over the path-derived column keeps only the flag=False rows.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE flag == false"))) {
+            int flagIdx = response.columns().stream().map(ColumnInfoImpl::name).toList().indexOf("flag");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("WHERE flag == false keeps exactly the two flag=False rows", rows.size(), equalTo(2));
+            assertTrue(
+                "every kept row is flag=false, not just the right count",
+                rows.stream().allMatch(r -> Boolean.FALSE.equals(r.get(flagIdx)))
+            );
+        }
+    }
+
+    /**
      * Two partitions ({@code p=a}: 3 rows, {@code p=b}: 2 rows). {@code COUNT(p)} must SAFE-MISS to a scan on the
-     * data node — proving the partition-column signal reaches the data-node fold via the serialized
+     * data node, proving the partition-column signal reaches the data-node fold via the serialized
      * {@code _partition.columns} metadata (the coordinator-only {@code FileList} is {@code UNRESOLVED} there), not
      * just the coordinator gate. Without the serialized stamp the data-node fold warm-folds {@code COUNT(p)} to 0
      * (a {@code LocalSourceExec} with no scan operator).

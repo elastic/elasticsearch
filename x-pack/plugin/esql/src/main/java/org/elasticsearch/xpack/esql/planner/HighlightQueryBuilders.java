@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -217,37 +215,7 @@ public final class HighlightQueryBuilders {
         @Nullable String analyzerName,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        return translate(queryExpr, fieldNames, resolveAnalyzer(analyzerName, analysisRegistry));
-    }
-
-    /** Resolves the analyzer override, or returns {@code null} when none was provided. */
-    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
-        if (analyzerName == null) {
-            return null;
-        }
-        if (analysisRegistry == null) {
-            throw new InvalidArgumentException(
-                "Invalid value for option [analyzer] in HIGHLIGHT: analyzer cannot be resolved without an analysis registry"
-            );
-        }
-        Analyzer analyzer;
-        try {
-            analyzer = analysisRegistry.getAnalyzer(analyzerName);
-        } catch (IOException e) {
-            throw new InvalidArgumentException(
-                e,
-                "Invalid value for option [analyzer] in HIGHLIGHT: failed to load analyzer [{}]: {}",
-                analyzerName,
-                e.getMessage()
-            );
-        }
-        if (analyzer == null) {
-            throw new InvalidArgumentException(
-                "Invalid value [{}] for option [analyzer] in HIGHLIGHT, expected a registered analyzer",
-                analyzerName
-            );
-        }
-        return analyzer;
+        return translate(queryExpr, fieldNames, PlannerUtils.resolveAnalyzer(analyzerName, analysisRegistry));
     }
 
     /** Runtime query state produced by {@link #translate}. */

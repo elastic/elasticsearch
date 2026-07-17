@@ -4660,7 +4660,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testHighlightAnalyzerOption() {
         assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
-        assertInvalidHighlightOption("analyzer", "not_a_real_analyzer");
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
             containsString("Invalid query [fox AND] in HIGHLIGHT:")
@@ -4668,10 +4671,7 @@ public class VerifierTests extends ESTestCase {
         // Do not report a query error when its analyzer is unknown.
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
-            allOf(
-                containsString("Invalid value [not_a_real_analyzer] for option [analyzer] in HIGHLIGHT, expected a registered analyzer"),
-                not(containsString("Invalid query"))
-            )
+            allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
         );
     }
 

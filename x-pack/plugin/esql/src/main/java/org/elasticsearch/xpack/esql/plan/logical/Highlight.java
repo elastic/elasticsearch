@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -246,30 +247,31 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
     }
 
-    /** Checks the analyzer name before validating the query. */
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-        resolveAnalyzerAndVerifyQuery(analysisRegistry, failures);
-    }
-
-    private void resolveAnalyzerAndVerifyQuery(AnalysisRegistry analysisRegistry, Failures failures) {
-        Expression value = options == null ? null : foldableOption(ANALYZER);
-        Analyzer analyzer = null;
+        Analyzer analyzer;
         try {
-            if (value != null) {
-                String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
-                analyzer = HighlightQueryBuilders.resolveAnalyzer(name, analysisRegistry);
-            }
+            analyzer = resolveAnalyzer(analysisRegistry);
         } catch (InvalidArgumentException e) {
+            // The analyzer name is a valid string but doesn't resolve.
             failures.add(fail(this, "{}", e.getMessage()));
             return;
         } catch (IllegalArgumentException e) {
-            // Type errors have already been reported by verifyValue.
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue.
             verifyQuery(null, failures);
             return;
         }
         verifyQuery(analyzer, failures);
+    }
+
+    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        if (value == null) {
+            return null;
+        }
+        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
     }
 
     private void verifyQuery(Analyzer analyzer, Failures failures) {

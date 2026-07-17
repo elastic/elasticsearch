@@ -114,7 +114,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             estimatedPerRowSortSize,
             true, // scoring
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

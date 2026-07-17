@@ -258,7 +258,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             scoring,
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 
@@ -467,7 +467,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 scoring,
                 () -> 0L,
                 LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-                new QueryWarnings()
+                QueryWarnings.EMIT
             );
             DriverContext ctx = driverContext();
             LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);

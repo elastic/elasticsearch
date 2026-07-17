@@ -1297,7 +1297,7 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
-        QueryWarnings singleValueQueryWarnings = new QueryWarnings();
+        QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
@@ -1469,7 +1469,7 @@ public class ComputeService {
                             hookExecInfo.removeStopHook(hook);
                         }
                     }
-                    Releasables.close(Releasables.wrap(drivers), singleValueQueryWarnings);
+                    Releasables.close(drivers);
                 })
             );
         } catch (Exception e) {

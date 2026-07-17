@@ -371,7 +371,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             randomLongBetween(10, 20),
             needsScore,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

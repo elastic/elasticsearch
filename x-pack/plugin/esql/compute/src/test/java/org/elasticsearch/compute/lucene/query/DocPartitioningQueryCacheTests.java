@@ -306,7 +306,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             Limiter.NO_LIMIT,
             false,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
         var op2 = new LuceneSourceOperator(
             shardContexts,
@@ -317,7 +317,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             Limiter.NO_LIMIT,
             false,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
         try {
             Thread thread1 = new Thread(() -> {

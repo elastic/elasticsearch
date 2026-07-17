@@ -144,7 +144,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
      * binds a non-shared query to its bridge, but scopes the binding to the action's lifetime.
      */
     private void withBoundQuery(IndexFieldData<?> fieldData, IOConsumer<SingleValueMatchQuery> action) throws IOException {
-        QueryWarnings bridge = new QueryWarnings();
+        QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery query = new SingleValueMatchQuery(
             fieldData,
             bridge,

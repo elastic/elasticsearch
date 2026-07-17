@@ -122,7 +122,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             estimatedPerRowSortSize,
             scoring,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 
@@ -266,7 +266,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 estimatedPerRowSortSize,
                 scoring,
                 () -> 0L,
-                new QueryWarnings()
+                QueryWarnings.EMIT
             );
             DriverContext ctx = driverContext();
             LuceneTopNSourceOperator sourceOperator = (LuceneTopNSourceOperator) factory.get(ctx);

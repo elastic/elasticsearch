@@ -90,7 +90,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             between(10, 100),
             between(1, 100),
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

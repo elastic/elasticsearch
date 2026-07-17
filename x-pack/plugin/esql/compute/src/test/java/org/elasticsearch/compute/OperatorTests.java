@@ -515,7 +515,7 @@ public class OperatorTests extends MapperServiceTestCase {
             false, // no scoring
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 
@@ -535,7 +535,7 @@ public class OperatorTests extends MapperServiceTestCase {
             LuceneOperator.NO_LIMIT,
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 }

@@ -9851,7 +9851,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 null,
                 PlannerSettings.DEFAULTS,
                 () -> 0L,
-                new QueryWarnings()
+                QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             null,  // parallelWorkerExecutor - not needed for these tests

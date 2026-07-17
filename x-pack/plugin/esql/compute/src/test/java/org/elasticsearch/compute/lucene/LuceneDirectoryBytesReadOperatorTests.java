@@ -182,7 +182,7 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
             false,
             directoryBytesRead,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

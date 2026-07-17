@@ -294,7 +294,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             scoring,
             () -> 0L,
             LuceneSliceQueue.MIN_DOCS_PER_SLICE,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

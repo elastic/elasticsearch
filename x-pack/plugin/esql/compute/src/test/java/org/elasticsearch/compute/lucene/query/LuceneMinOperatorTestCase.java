@@ -128,7 +128,7 @@ public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
             getNumberType(),
             limit,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

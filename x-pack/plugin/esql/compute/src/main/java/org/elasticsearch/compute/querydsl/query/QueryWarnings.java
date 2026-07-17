@@ -10,7 +10,6 @@ package org.elasticsearch.compute.querydsl.query;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -28,11 +27,21 @@ import java.util.Map;
  *     ESQL attaches warnings to the {@link Driver}, so each {@link Warnings} has to be
  *     created from a {@link Driver}. Lucene's {@link Query}/{@link Weight}/{@link BulkScorer}
  *     don't give us a good way to bind anything per-{@link Driver} <strong>and</strong>
- *     properly cache {@link Weight}s. So this wedges them into place using a very contained
- *     {@link CloseableThreadLocal}.
+ *     properly cache {@link Weight}s: a shard's {@link Weight}/{@link org.apache.lucene.search.Scorer}
+ *     is built once and shared across every driver/slice that scores that shard, and Lucene gives no
+ *     other channel to correlate "which driver is calling right now". So this wedges that information
+ *     into place using thread identity.
+ * </p>
+ * <p>
+ *     There are exactly two eternal instances of this class for the whole JVM: {@link #NOOP}, which
+ *     discards everything, and {@link #EMIT}, which does the thread-based bind/dispatch described
+ *     above. Neither is ever constructed per-request; both live for the process lifetime, exactly like
+ *     any other static singleton. Because of that, a plain {@link ThreadLocal} is fine for
+ *     {@link #perThreadWarnings}: there's no per-instance lifecycle to leak, since bind/unbind is
+ *     always tightly scoped around one synchronous call and the singleton itself is never discarded.
  * </p>
  */
-public class QueryWarnings implements Releasable {
+public class QueryWarnings {
     /**
      * A no-op instance that silently discards all warnings. Use this when a
      * {@link SearchExecutionContext} must carry a {@link QueryWarnings} but
@@ -52,10 +61,13 @@ public class QueryWarnings implements Releasable {
 
         @Override
         void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {}
-
-        @Override
-        public void close() {}
     };
+
+    /**
+     * The singleton bridge used everywhere warnings actually need to be emitted; see the class
+     * Javadoc for why there's exactly one of these.
+     */
+    public static final QueryWarnings EMIT = new QueryWarnings();
 
     /**
      * Per-thread binding: the {@link DriverContext} (for lazy {@link Warnings} creation) and the
@@ -65,7 +77,9 @@ public class QueryWarnings implements Releasable {
      */
     private record ThreadState(@Nullable DriverContext dc, IdentityHashMap<Query, Warnings> map) {}
 
-    private final CloseableThreadLocal<ThreadState> perThreadWarnings = new CloseableThreadLocal<>();
+    private final ThreadLocal<ThreadState> perThreadWarnings = new ThreadLocal<>();
+
+    private QueryWarnings() {}
 
     /**
      * Bind this driver's warnings map and its {@link DriverContext} to the calling thread. Returns a
@@ -88,9 +102,7 @@ public class QueryWarnings implements Releasable {
     /**
      * Bind a pre-built {@code warnings} map to the calling thread, without a {@link DriverContext}.
      * Used when the caller has already constructed the per-query {@link Warnings} instances and
-     * needs no lazy creation -- for example,
-     * {@link org.elasticsearch.compute.operator.lookup.QueryList} which builds a private, one-off
-     * bridge for a single non-shared query.
+     * needs no lazy creation.
      *
      * @throws IllegalStateException if this thread already has a binding
      */
@@ -103,7 +115,7 @@ public class QueryWarnings implements Releasable {
             throw new IllegalStateException("QueryWarnings is already bound on thread [" + Thread.currentThread().getName() + "]");
         }
         perThreadWarnings.set(state);
-        return () -> perThreadWarnings.set(null);
+        return perThreadWarnings::remove;
     }
 
     /**
@@ -130,10 +142,5 @@ public class QueryWarnings implements Releasable {
             return state.dc().createWarnings(query.source());
         });
         w.registerException(exceptionClass, message);
-    }
-
-    @Override
-    public void close() {
-        perThreadWarnings.close();
     }
 }

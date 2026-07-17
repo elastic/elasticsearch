@@ -103,7 +103,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -225,7 +225,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -259,7 +259,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));

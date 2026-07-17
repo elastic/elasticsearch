@@ -858,7 +858,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            new QueryWarnings()
+            QueryWarnings.EMIT
         );
     }
 

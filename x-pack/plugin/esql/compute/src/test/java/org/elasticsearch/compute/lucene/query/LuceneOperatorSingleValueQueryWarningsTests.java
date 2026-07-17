@@ -14,10 +14,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -106,7 +106,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
             "single-value function encountered multi-value"
         );
         // AND-composed with the "real" pushdown query, mirroring SingleValueQuery.AbstractBuilder#simple.
-        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
+        return new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
             .add(singleValueMatchQuery, BooleanClause.Occur.FILTER)
             .build();
     }
@@ -177,7 +177,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
      * {@code LuceneSliceQueue.create}. Each must end up with its own {@link Warnings} for that node.
      */
     public void testTwoDriversOnOneShardGetIndependentWarnings() throws IOException {
-        QueryWarnings warnings = new QueryWarnings();
+        QueryWarnings warnings = QueryWarnings.EMIT;
         Query query = pushdownQuery(warnings, "mv");
         SingleValueMatchQuery matchQueryNode = findSingleValueMatchQuery(query);
 
@@ -244,7 +244,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
      * guard in {@link QueryWarnings#bind} and fail for a completely unrelated reason.
      */
     public void testThreadLocalClearedEvenWhenOperatorThrows() throws IOException {
-        QueryWarnings warnings = new QueryWarnings();
+        QueryWarnings warnings = QueryWarnings.EMIT;
         Query query = pushdownQuery(warnings, "mv");
 
         Directory dir0 = newDirectory();

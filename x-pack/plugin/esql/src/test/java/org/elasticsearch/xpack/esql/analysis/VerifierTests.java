@@ -4592,21 +4592,17 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
-    public void testHighlightRejectsInvalidEnumOptions() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+    public void testHighlightRejectsInvalidOptionEnums() {
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");
-    }
-
-    public void testHighlightEncoderIsCaseSensitive() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // boundary_scanner and order are case-insensitive, but encoder mirrors Query DSL and is case-sensitive.
         assertInvalidHighlightOption("encoder", "HTML");
     }
 
-    public void testHighlightRejectsWrongValueTypesAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+    public void testHighlightRejectsInvalidOptionValues() {
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
         assertInvalidHighlightOptionValue(
@@ -4616,10 +4612,6 @@ public class VerifierTests extends ESTestCase {
         );
         assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Option [boundary_chars] must be a string"));
         assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Option [boundary_max_scan] must be numeric"));
-    }
-
-    public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4628,17 +4620,9 @@ public class VerifierTests extends ESTestCase {
                 containsString("[en_US] is not a valid language tag")
             )
         );
-    }
-
-    public void testHighlightRejectsDecimalNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Option [number_of_fragments] must be an integer"));
         assertInvalidHighlightOptionValue("fragment_size", "10.5", containsString("Option [fragment_size] must be an integer"));
         assertInvalidHighlightOptionValue("max_analyzed_offset", "10.9", containsString("Option [max_analyzed_offset] must be an integer"));
-    }
-
-    public void testHighlightRejectsOutOfRangeNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));
@@ -4652,6 +4636,82 @@ public class VerifierTests extends ESTestCase {
             "max_analyzed_offset",
             "-2",
             containsString("Option [max_analyzed_offset] must be a positive integer, or -1")
+        );
+    }
+
+    public void testHighlightRejectsNonStringOnField() {
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON salary",
+            containsString("HIGHLIGHT ON field [salary] must be [text] or [keyword], found [integer]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON still_hired",
+            containsString("HIGHLIGHT ON field [still_hired] must be [text] or [keyword], found [boolean]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON hire_date",
+            containsString("HIGHLIGHT ON field [hire_date] must be [text] or [keyword], found [datetime]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON emp_no WITH { \"number_of_fragments\": 2 }",
+            containsString("HIGHLIGHT ON field [emp_no] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testHighlightAcceptsValidQueries() {
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
+        defaultAnalyzer().query("FROM test | HIGHLIGHT \"\\\"quick fox\\\" OR (ca* AND jump~) OR /f[ao]x/\" ON first_name");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT title : \"fox\" ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") OR MATCH(body, \"bar\") ON title, body");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
+        fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
+    }
+
+    public void testHighlightSurfacesQueryTranslationFailures() {
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name",
+            containsString("Invalid query [fox AND] in HIGHLIGHT: Failed to parse query [fox AND]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT category > 5 ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
+        );
+        // The runtime context only registers its default analyzer.
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // KQL syntax is checked while building the query.
+        fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
+    }
+
+    public void testHighlightExpressionAfterStatsFailsFieldResolution() {
+        assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
+        fullText().error(
+            "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",
+            containsString("Unknown column [title]")
         );
     }
 

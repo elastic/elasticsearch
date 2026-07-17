@@ -99,10 +99,11 @@ public void testMultiTypeField() {
 }
 ```
 
-- `expectationChangesAt("tv_name")` **splits** coverage: both shapes stay verified, each range's
-  files in a subdirectory named by the label that starts it, `base/` before the first label —
-  `testMultiTypeField/base/analysis.expected`,
-  `testMultiTypeField/compact_multi_type_es_field/analysis.expected`.
+- `expectationChangesAt("tv_name")` **splits** coverage: both shapes stay verified. The current
+  shape's files stay directly in the test directory, exactly like an unlabeled test; each older
+  range's files live in a subdirectory named by the version that ends the range —
+  `testMultiTypeField/analysis.expected` (current),
+  `testMultiTypeField/before_compact_multi_type_es_field/analysis.expected` (older).
 - `since("tv_name")` **removes** coverage below the version. Use it on a new feature's tests with
   the feature's own transport version — plans below it never existed. The two words exist so a
   reviewer sees which of the two happened.
@@ -141,11 +142,12 @@ range, at a random released version inside it. The two names mute independently:
 - `{historical}` flaky on an unlabeled test: you found an undeclared fork; the failure diff shows
   both shapes. Declare it (label or `since`) and regenerate.
 - Warning about a dead range: the compatibility floor (advances at major releases) passed a label.
-  Harmless, but clean up as the message says; a weekly CI sweep (`-Dtests.golden.gc.strict=true`)
-  auto-files leftovers as tickets.
+  Harmless, but clean up as the message says — delete the `before_<label>` directory and remove
+  the declaration; nothing else moves. A weekly CI sweep (`-Dgolden.gc.strict=true`) auto-files
+  leftovers as tickets.
 - Error that a declaration no longer resolves: the transport version name was retired, meaning the
-  code path it gated is gone. Remove the declaration; for a label, also delete or fold its
-  directory (its files described planning that no longer exists).
+  code path it gated is gone. Remove the declaration; for a label, also delete its
+  `before_<label>` directory (its files described planning that no longer exists).
 
 ## How do I run **all** the golden tests?
 ```sh

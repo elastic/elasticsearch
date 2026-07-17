@@ -44,13 +44,14 @@ public class GoldenVersionRangesTests extends ESTestCase {
             List.of(v(1000), v(2000), v(3000), v(4000), v(5000), v(6000))
         );
         assertThat(ranges, hasSize(3));
-        assertThat(ranges.get(0).dir(), equalTo("base"));
+        assertThat(ranges.get(0).dir(), equalTo("before_l1"));
         assertThat(ranges.get(0).start(), equalTo(v(1000)));
         assertThat(ranges.get(0).sampled(), contains(v(1000), v(2000)));
-        assertThat(ranges.get(1).dir(), equalTo("l1"));
+        assertThat(ranges.get(1).dir(), equalTo("before_l2"));
         assertThat(ranges.get(1).start(), equalTo(v(3000)));
         assertThat(ranges.get(1).sampled(), contains(v(3000), v(4000)));
-        assertThat(ranges.get(2).dir(), equalTo("l2"));
+        // the newest range's files live directly in the test directory
+        assertThat(ranges.get(2).dir(), nullValue());
         assertThat(ranges.get(2).start(), equalTo(v(5000)));
         assertThat(ranges.get(2).sampled(), contains(v(5000), v(6000)));
     }

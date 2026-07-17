@@ -300,8 +300,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 throw new IllegalStateException(
                     Strings.format(
                         "golden version declaration [%s] no longer resolves — its transport version was retired, so the planning "
-                            + "path it covered no longer exists. Remove this declaration; for a label, also delete or fold its "
-                            + "[%s] directory. See GoldenTestsReadme.MD.",
+                            + "path it covered no longer exists. Remove this declaration; for a label, also delete its "
+                            + "[before_%s] directory. See GoldenTestsReadme.MD.",
                         transportVersionName,
                         transportVersionName
                     ),
@@ -363,9 +363,6 @@ public abstract class GoldenTestCase extends ESTestCase {
                         written.add(String.valueOf(range.dir()));
                     }
                 }
-                if (written.isEmpty() == false && labels.isEmpty() == false) {
-                    deleteStaleFlatFiles(testName);
-                }
                 List<String> failures = new ArrayList<>();
                 for (Tuple<VersionRange, TransportVersion> check : checkPlan(ranges)) {
                     if (written.contains(String.valueOf(check.v1().dir()))) {
@@ -406,18 +403,15 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private void reportDeadRange(String testName, VersionRange range, String nextLabel) {
             String message = Strings.format(
-                "test [%s]: golden range [%s] is dead — every version that can be sampled is past label [%s]. "
-                    + "Remove expectationChangesAt(\"%s\"), delete the [%s] directory, and rename the [%s] directory to [%s] "
-                    + "(or flatten it into the test directory if it was the last label). See GoldenTestsReadme.MD.",
+                "test [%s]: golden range [%s] is dead — every version that can be sampled is past [%s]. "
+                    + "Remove expectationChangesAt(\"%s\") and delete the [%s] directory. See GoldenTestsReadme.MD.",
                 testName,
                 range.dir(),
                 nextLabel,
                 nextLabel,
-                range.dir(),
-                nextLabel,
                 range.dir()
             );
-            if (System.getProperty("tests.golden.gc.strict") != null) {
+            if (System.getProperty("golden.gc.strict") != null) {
                 fail(message);
             } else {
                 logger.warn(message);
@@ -470,22 +464,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             return List.of(randomFrom(union));
         }
 
-        /** A test that gained its first label leaves its flat files behind — unread, they would linger in the diff. */
-        private void deleteStaleFlatFiles(String testName) throws IOException {
-            Path testDir = outputDir(testName, null);
-            if (Files.notExists(testDir)) {
-                return;
-            }
-            List<Path> stale;
-            try (var files = Files.list(testDir)) {
-                stale = files.filter(f -> f.getFileName().toString().endsWith(".expected")).toList();
-            }
-            for (Path file : stale) {
-                logger.info("Deleting [{}] — superseded by per-range directories", file);
-                Files.delete(file);
-            }
-        }
-
         private Test test(String testName, String rangeDir, TransportVersion version, boolean writeReference) {
             return new Test(
                 baseFile,
@@ -535,7 +513,10 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     record Label(String name, TransportVersion version) {}
 
-    /** {@code dir} is null for tests without labels (flat layout); {@code sampled} is in ascending id order. */
+    /**
+     * {@code dir} is null for the newest range and for tests without labels — their files live directly in the test
+     * directory. {@code sampled} is in ascending id order.
+     */
     record VersionRange(String dir, TransportVersion start, List<TransportVersion> sampled) {}
 
     /**
@@ -577,7 +558,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
         List<VersionRange> ranges = new ArrayList<>(cuts.size());
         for (int i = 0; i < cuts.size(); i++) {
-            String dir = labels.isEmpty() ? null : i == 0 ? "base" : labels.get(i - 1).name();
+            // named by the exclusive upper bound: when the floor passes a label, [before_<label>] is exactly what dies
+            String dir = i < labels.size() ? "before_" + labels.get(i).name() : null;
             sampled.get(i).sort(Comparator.naturalOrder());
             ranges.add(new VersionRange(dir, cuts.get(i), List.copyOf(sampled.get(i))));
         }

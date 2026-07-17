@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -215,7 +216,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
 
     private static DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        return new DriverContext(bigArrays, BlockFactory.getInstance(new NoopCircuitBreaker("noop"), bigArrays));
     }
 
     /**
@@ -236,8 +237,8 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         @Override
         protected Page process(Page page) {
             if (warned.compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), TEST_SOURCE_LOCATION);
-                warnings.registerException(IllegalArgumentException.class, warningMessage);
+                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), 1, 1, "test");
+                warnings.registerException(new IllegalArgumentException(warningMessage));
             }
             return page;
         }
@@ -251,28 +252,6 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         public void close() {
 
         }
-
-        private static final WarningSourceLocation TEST_SOURCE_LOCATION = new WarningSourceLocation() {
-            @Override
-            public int lineNumber() {
-                return 1;
-            }
-
-            @Override
-            public int columnNumber() {
-                return 1;
-            }
-
-            @Override
-            public String viewName() {
-                return null;
-            }
-
-            @Override
-            public String text() {
-                return "test";
-            }
-        };
     }
 
     /**
@@ -297,8 +276,8 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         protected Page process(Page page) {
             Warning warning = warningsByPageIndex.get(pageIndex.getAndIncrement());
             if (warning != null && warning.warned().compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
-                warnings.registerException(IllegalArgumentException.class, warning.message());
+                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), 1, 1, "test");
+                warnings.registerException(new IllegalArgumentException(warning.message()));
             }
             return page;
         }

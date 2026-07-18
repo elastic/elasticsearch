@@ -45,7 +45,7 @@ dependencies {
   // jar is NOT bundled into the plugin distribution. Bundling HikariCP's slf4j-api (1.7.x) collides with the
   // slf4j-api (2.0.x) already shipped by x-pack-core and trips the module jar-hell check at node boot. slf4j-api is
   // declared compileOnly below so HikariCP still compiles and thirdPartyAudit resolves org.slf4j.*; at runtime the
-  // node's own slf4j-api (from x-pack-core, visible via the extended-plugin classloader) provides it.
+  // node's own slf4j-api (from x-pack-core, visible via the extended-plugin classloader) provides the binding.
   implementation('com.zaxxer:HikariCP:5.1.0') {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }

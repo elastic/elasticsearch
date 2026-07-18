@@ -35,11 +35,11 @@ public abstract class SearchProgressListener {
     /**
      * Executed when shards are ready to be queried.
      *
-     * @param shards                The list of shards to query.
+     * @param shards The list of shards to query.
      * @param skippedByClusterAlias The number of skipped shards per cluster.
-     * @param clusters              The statistics for remote clusters included in the search.
-     * @param fetchPhase            <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
-     * @param timeProvider          absolute and relative time provider for this search
+     * @param clusters The statistics for remote clusters included in the search.
+     * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
+     * @param timeProvider absolute and relative time provider for this search
      **/
     protected void onListShards(
         List<SearchShard> shards,
@@ -224,7 +224,7 @@ public abstract class SearchProgressListener {
         try {
             onPhaseFailure(exc);
         } catch (Exception e) {
-            logger.warn(() -> "Failed to execute progress listener on phase failure", e);
+            logger.warn("Failed to execute progress listener on phase failure", e);
         }
     }
 

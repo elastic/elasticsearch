@@ -19,19 +19,15 @@ import java.util.List;
  * Applies the out-of-band request {@code filter} to external-source (dataset) leaves of an analyzed plan.
  *
  * <p>This is the request-filter <em>policy</em> over the source-agnostic {@link FilterRewriter} mechanism: it targets
- * {@link ExternalRelation} leaves, version-gates the rewrite (below), and turns each clause the translator could not
- * apply into a response-header warning. {@code FilterRewriter} does the actual work — translating the DSL against each
- * targeted node's schema and wrapping it as an ordinary {@code Filter}, so from there the existing optimizer pushes it
- * down and the engine evaluates it, indistinguishable from a user-written {@code WHERE}. Extending the request filter
- * to other source boundaries (a view, say) is a change of the target predicate here, not of the mechanism. Index leaves
- * keep their existing (pre-analysis) request-filter path and are not touched.
+ * {@link ExternalRelation} leaves and version-gates the rewrite (below). {@code FilterRewriter} does the actual work —
+ * translating the DSL against each targeted node's schema and wrapping it as an ordinary {@code Filter}, so from there
+ * the existing optimizer pushes it down and the engine evaluates it, indistinguishable from a user-written {@code WHERE}.
+ * Extending the request filter to other source boundaries (a view, say) is a change of the target predicate here, not of
+ * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
- * <p>A construct outside the supported subset is dropped per-clause with a superset substitution (partial application):
- * every supported clause of the filter still applies, and the unsupported clause is skipped in the direction that
- * <em>widens</em> the result — a relaxed restriction returns more rows, a relaxed exclusion returns previously-excluded
- * rows — so the source over-matches rather than silently dropping a row it should have returned. A response-header
- * warning names the source, the construct, and that direction. A filter with no supported clause folds to a no-op and
- * the relation is read unfiltered.
+ * <p>The translation is <em>fail-closed</em>: a construct outside the supported subset fails the whole query with a 400
+ * ({@link IllegalArgumentException}) naming the construct, rather than silently applying a widened superset. A filter
+ * that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
  * <p>The rewrite is version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do not
  * have; the inserted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
@@ -61,27 +57,14 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
-        return FilterRewriter.rewrite(
-            analyzed,
-            ExternalRelation.class::isInstance,
-            requestFilter,
-            nowInMillis,
-            (node, clause) -> warnDropped((ExternalRelation) node, clause)
-        );
-    }
-
-    /**
-     * Warns that one clause of the request filter could not be applied to a dataset and was skipped, naming the
-     * construct and the direction of the resulting over-match: a relaxed restriction returns more rows, a relaxed
-     * exclusion returns previously-excluded rows. The supported clauses of the same filter still applied.
-     */
-    private static void warnDropped(ExternalRelation relation, QueryDslTranslator.DroppedClause clause) {
-        HeaderWarning.addWarning(
-            "The request filter on external dataset [{}] could not apply [{}]; it was skipped, so {} may be returned",
-            name(relation),
-            clause.construct(),
-            clause.positive() ? "more rows" : "previously-excluded rows"
-        );
+        // Translation is fail-closed: an unsupported construct throws out of FilterRewriter and becomes a 400.
+        try {
+            return FilterRewriter.rewrite(analyzed, ExternalRelation.class::isInstance, requestFilter, nowInMillis);
+        } catch (TranslationUnsupportedException e) {
+            throw new IllegalArgumentException(
+                "The request filter uses a Query DSL construct not supported on external datasets: [" + e.construct() + "]"
+            );
+        }
     }
 
     /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */

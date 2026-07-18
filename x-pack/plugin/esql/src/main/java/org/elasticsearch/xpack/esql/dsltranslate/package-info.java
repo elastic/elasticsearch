@@ -29,8 +29,9 @@
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset consumer. For each
  *     external leaf it binds the filter against that leaf's own schema (present field &rarr; its attribute, missing
  *     field &rarr; {@link org.elasticsearch.xpack.esql.core.expression.Literal#NULL}) and wraps the result as a
- *     {@code Filter} above the leaf, degrading a leaf per-source (with a warning) on an unsupported clause. It is
- *     version-gated because the translated predicate can contain expressions older nodes cannot deserialize.</li>
+ *     {@code Filter} above the leaf. It is fail-closed: an unsupported clause fails the whole query with a 400 naming
+ *     the construct, rather than silently applying a widened superset. It is version-gated because the translated
+ *     predicate can contain expressions older nodes cannot deserialize.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

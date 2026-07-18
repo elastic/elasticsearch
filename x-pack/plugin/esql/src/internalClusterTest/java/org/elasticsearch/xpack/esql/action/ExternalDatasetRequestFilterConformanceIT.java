@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,7 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
@@ -309,17 +310,14 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     /**
-     * Partial application: a filter mixing a supported {@code term} with an unsupported {@code wildcard} drops only the
-     * wildcard on the dataset — the term still carves its subset (the source is NOT read wholly unfiltered). On the
-     * dataset the mixed filter therefore selects exactly what the term alone selects, a superset of the index's result.
+     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} fails the whole query
+     * with a 400 naming the construct — the supported clause does not rescue it, and no widened superset is applied.
      */
-    public void testPartialApplicationKeepsTheSupportedClause() {
+    public void testUnsupportedConstructFailsTheQuery() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
             .must(QueryBuilders.wildcardQuery("tags", "t*"));
-        List<Object> viaMixed = selectedIds(dataset, mixed);
-        List<Object> viaTermOnly = selectedIds(dataset, QueryBuilders.termQuery("status", 300));
-        assertEquals("the unsupported wildcard is dropped; the supported term still applies", viaTermOnly, viaMixed);
-        assertThat("the term really filtered — the source was not read unfiltered", viaMixed.size(), lessThan(ROWS));
+        Exception e = expectThrows(Exception.class, () -> selectedIds(dataset, mixed));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("[wildcard]"));
     }
 }

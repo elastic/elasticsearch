@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 /**
  * Thrown by {@link QueryDslTranslator} when a Query DSL construct is outside the supported subset and has no faithful
- * ES|QL equivalent. The <em>consumer</em> owns the policy for what to do next: the out-of-band request filter degrades
- * the clause to a per-source no-op, while a query-text function such as {@code KQL()} errors loudly. The translator only
- * reports; it never decides.
+ * ES|QL equivalent. Translation is fail-closed: the <em>consumer</em> turns this into a query error rather than guessing
+ * — {@link RequestFilterRewriter} maps it to a 400 naming the construct, and a query-text function such as {@code KQL()}
+ * errors the same way. The translator only reports which construct it could not translate; the consumer decides the
+ * error shape.
  */
 public class TranslationUnsupportedException extends RuntimeException {
 

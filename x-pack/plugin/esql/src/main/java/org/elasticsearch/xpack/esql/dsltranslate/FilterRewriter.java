@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -34,10 +33,9 @@ import java.util.function.Predicate;
  * ordinary optimizer pipeline — the existing filter-pushdown rules push it toward the source and prune with it wherever
  * the source and the translated predicate allow, indistinguishable from a hand-written filter.
  *
- * <p>Partial application: a construct outside the supported subset is dropped per-clause with a superset substitution
- * (so the result over-matches rather than silently dropping a row it should have returned) and reported to
- * {@code onDropped}, while every supported clause still applies. A filter with no supported clause folds to a no-op and
- * the node is left unwrapped.
+ * <p>Translation is fail-closed: a construct outside the supported subset raises {@link TranslationUnsupportedException},
+ * which propagates out of {@code rewrite} for the caller to turn into an error. A filter that translates to a supported
+ * no-op ({@code match_all}) leaves the node unwrapped.
  */
 public final class FilterRewriter {
 
@@ -54,16 +52,10 @@ public final class FilterRewriter {
      *                    ancestor.
      * @param filter      the Query DSL to translate; must not be null (callers gate an absent filter themselves).
      * @param nowInMillis the query's start time, epoch millis, anchoring {@code now} date math in the translated filter.
-     * @param onDropped   invoked once per clause the translator could not apply at a given target node, so the caller can
-     *                    surface it (e.g. a response-header warning); the node is the one the clause was dropped for.
+     * @throws TranslationUnsupportedException if {@code filter} contains a construct outside the supported subset — the
+     *                    translation is fail-closed, so this propagates for the caller to turn into an error.
      */
-    public static LogicalPlan rewrite(
-        LogicalPlan plan,
-        Predicate<? super LogicalPlan> target,
-        QueryBuilder filter,
-        long nowInMillis,
-        BiConsumer<LogicalPlan, QueryDslTranslator.DroppedClause> onDropped
-    ) {
+    public static LogicalPlan rewrite(LogicalPlan plan, Predicate<? super LogicalPlan> target, QueryBuilder filter, long nowInMillis) {
         Objects.requireNonNull(filter, "filter must not be null");
         LogicalPlan rewritten = plan.transformUp(LogicalPlan.class, node -> {
             if (target.test(node) == false) {
@@ -76,15 +68,10 @@ public final class FilterRewriter {
             QueryDslTranslator translator = new QueryDslTranslator(name -> {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
-            }, byName.keySet(), nowInMillis, true);
-            // Partial application: an unsupported clause is not fatal — the translator drops it with a superset
-            // substitution (so the result over-matches, never silently dropping rows) and records it, while every
-            // supported clause still applies. Each dropped clause is handed to the caller to surface.
+            }, byName.keySet(), nowInMillis);
+            // Fail-closed: an unsupported construct throws TranslationUnsupportedException out of transformUp.
             Expression condition = translator.translate(filter);
-            for (QueryDslTranslator.DroppedClause clause : translator.droppedClauses()) {
-                onDropped.accept(node, clause);
-            }
-            // A wholly-unsupported filter folds to TRUE (a no-op); leave the node unwrapped rather than wrap it.
+            // A filter that translates to a supported no-op (match_all -> TRUE) leaves the node unwrapped.
             return condition == Literal.TRUE ? node : new Filter(node.source(), node, condition);
         });
         // The inserted Filter and the rebuilt spine above it are fresh nodes at stage NEW; the plan was already

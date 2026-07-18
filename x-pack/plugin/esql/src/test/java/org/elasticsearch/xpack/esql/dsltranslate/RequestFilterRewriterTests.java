@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -57,32 +58,32 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertThat(((Filter) result).child(), sameInstance(relation));
     }
 
-    public void testWhollyUnsupportedFilterLeavesTheRelationUnfiltered() {
+    /** Fail-closed: a wholly-unsupported filter fails the whole query with a 400 (IllegalArgumentException) naming the construct. */
+    public void testWhollyUnsupportedFilterFailsTheQuery() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
-        assertSame(relation, result); // the filter folds to a no-op, so the relation is untouched
-        assertWarnings(
-            "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so more rows may be returned"
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT)
         );
+        assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 
     /**
-     * Partial application: a filter mixing a supported term with an unsupported wildcard still installs the term (the
-     * source is NOT left wholly unfiltered), and warns only about the dropped wildcard.
+     * Fail-closed: a filter that mixes a supported term with an unsupported wildcard fails the whole query — the
+     * supported clause does not rescue it, and no widened superset is silently applied.
      */
-    public void testPartialFilterRewritersTheSupportedClauseAndWarnsOnTheRest() {
+    public void testMixedFilterWithAnUnsupportedClauseFailsTheQuery() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(
-            relation,
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
-            NOW,
-            CURRENT
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RequestFilterRewriter.rewrite(
+                relation,
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
+                NOW,
+                CURRENT
+            )
         );
-        assertThat(result, instanceOf(Filter.class));
-        assertThat(((Filter) result).child(), sameInstance(relation));
-        assertWarnings(
-            "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so more rows may be returned"
-        );
+        assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 
     /** The critical version gate: below the feature version the rewrite is skipped, so no plan an old node can't read ships. */
@@ -120,14 +121,19 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertThat("the index branch is left untouched", children.get(false), sameInstance(index));
     }
 
-    /** The complement of the existing "more rows" test: a dropped clause under must_not relaxes an exclusion. */
-    public void testMustNotDroppedClauseWarnsPreviouslyExcludedRows() {
+    /** Fail-closed: an unsupported clause under must_not fails the whole query too — the polarity does not matter. */
+    public void testUnsupportedClauseUnderMustNotFailsTheQuery() {
         ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
-        RequestFilterRewriter.rewrite(relation, QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")), NOW, CURRENT);
-        assertWarnings(
-            "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so "
-                + "previously-excluded rows may be returned"
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RequestFilterRewriter.rewrite(
+                relation,
+                QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
+                NOW,
+                CURRENT
+            )
         );
+        assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 
     /** The version-gate warning names every distinct dataset once. */
@@ -167,7 +173,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         // no assertWarnings: the datasets.isEmpty() guard means nothing is emitted
     }
 
-    /** When a dataset has no name, the warning falls back to its source path. */
+    /** When a dataset has no name, the version-gate warning falls back to its source path. */
     public void testWarningFallsBackToSourcePathWhenDatasetNameIsNull() {
         List<Attribute> output = List.of(attr("a", DataType.INTEGER));
         SourceMetadata metadata = new SimpleSourceMetadata(output, "test", "file:///data.csv");
@@ -180,25 +186,25 @@ public class RequestFilterRewriterTests extends ESTestCase {
             Map.of(),
             null
         );
-        RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
         assertWarnings(
-            "The request filter on external dataset [file:///data.csv] could not apply [wildcard]; it was skipped, "
-                + "so more rows may be returned"
+            "The request filter was not applied to external dataset(s) [file:///data.csv] because the cluster contains a node "
+                + "too old to evaluate the translated filter; they were read unfiltered"
         );
     }
 
-    /** A dropped clause warns once per dataset it was dropped for. */
-    public void testDropWarningFiresPerDataset() {
+    /** Fail-closed: an unsupported clause fails the query even when several datasets are queried together. */
+    public void testUnsupportedClauseFailsTheQueryAcrossDatasets() {
         UnionAll union = new UnionAll(
             Source.EMPTY,
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
-        assertWarnings(
-            "The request filter on external dataset [dsA] could not apply [wildcard]; it was skipped, so more rows may be returned",
-            "The request filter on external dataset [dsB] could not apply [wildcard]; it was skipped, so more rows may be returned"
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT)
         );
+        assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 
     /**

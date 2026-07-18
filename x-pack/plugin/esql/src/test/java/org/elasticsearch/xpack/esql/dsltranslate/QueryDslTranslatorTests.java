@@ -67,65 +67,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
         return new QueryDslTranslator(BINDER, FIELDS, NOW).translate(qb);
     }
 
-    private static QueryDslTranslator partialTranslator() {
-        return new QueryDslTranslator(BINDER, FIELDS, NOW, true);
-    }
-
-    /**
-     * Partial mode: an unsupported clause under a conjunction is dropped as TRUE (removing that restriction), the
-     * supported siblings still apply, and the drop is recorded as positive-polarity (a relaxed restriction → more rows).
-     */
-    public void testPartialDropsUnsupportedConjunctKeepsRest() {
-        QueryDslTranslator t = partialTranslator();
-        Expression e = t.translate(
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.wildcardQuery("tags", "a*"))
-        );
-        // status=200 survives; the wildcard folds to TRUE and the AND simplifies to just the survivor at build time
-        assertThat(e, instanceOf(And.class));
-        assertThat(((And) e).left(), instanceOf(MvContains.class));
-        assertEquals(Literal.TRUE, ((And) e).right());
-        assertEquals(1, t.droppedClauses().size());
-        assertEquals("wildcard", t.droppedClauses().get(0).construct());
-        assertTrue(t.droppedClauses().get(0).positive());
-    }
-
-    /**
-     * Partial mode under must_not flips polarity: an unsupported EXCLUSION is dropped as FALSE, so {@code NOT FALSE} =
-     * TRUE re-admits the excluded rows (a superset), and the drop is recorded as negative-polarity.
-     */
-    public void testPartialDropsUnsupportedExclusionAsNegativePolarity() {
-        QueryDslTranslator t = partialTranslator();
-        Expression e = t.translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("tags", "a*")));
-        assertThat(e, instanceOf(Not.class));
-        assertEquals(Literal.FALSE, ((Not) e).field());
-        assertEquals(1, t.droppedClauses().size());
-        assertFalse(t.droppedClauses().get(0).positive()); // an exclusion was relaxed
-    }
-
-    /** A wholly-unsupported filter folds to TRUE (a no-op) in partial mode, recording the single drop. */
-    public void testPartialWhollyUnsupportedFoldsToTrue() {
-        QueryDslTranslator t = partialTranslator();
-        assertEquals(Literal.TRUE, t.translate(QueryBuilders.wildcardQuery("tags", "a*")));
-        assertEquals(1, t.droppedClauses().size());
-    }
-
-    /** An unsupported bool option (minimum_should_match=2) drops the WHOLE bool before recursing — one drop, not many. */
-    public void testPartialUnsupportedMsmDropsWholeBoolOnce() {
-        QueryDslTranslator t = partialTranslator();
-        Expression e = t.translate(
-            QueryBuilders.boolQuery()
-                .should(QueryBuilders.termQuery("status", 200))
-                .should(QueryBuilders.termQuery("status", 300))
-                .should(QueryBuilders.wildcardQuery("tags", "a*"))
-                .minimumShouldMatch(2)
-        );
-        assertEquals(Literal.TRUE, e);
-        assertEquals(1, t.droppedClauses().size());
-        assertThat(t.droppedClauses().get(0).construct(), org.hamcrest.Matchers.containsString("minimum_should_match"));
-    }
-
-    /** Fail-closed mode is unchanged: an unsupported construct still throws (a query function's contract). */
-    public void testFailClosedStillThrows() {
+    /** Fail-closed: an unsupported construct throws — the caller (a query function, the request filter) turns it into an error. */
+    public void testFailClosedThrowsOnUnsupportedConstruct() {
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.wildcardQuery("tags", "a*")));
     }
 

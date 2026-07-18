@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
-import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator.DroppedClause;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -31,27 +30,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for the source-agnostic {@link FilterRewriter} mechanism — the generic "install a bound {@code Filter} at any
  * node the target predicate selects" primitive, exercised independently of the request-filter policy (no
- * {@code HeaderWarning}, dropped clauses collected through the {@code onDropped} callback). {@link RequestFilterRewriterTests}
- * covers the policy on top of this (targeting {@code ExternalRelation}, version-gating, warning wording).
+ * {@code HeaderWarning}). Translation is fail-closed: an unsupported construct throws {@link
+ * TranslationUnsupportedException} out of {@code rewrite}. {@link RequestFilterRewriterTests} covers the policy on top of
+ * this (targeting {@code ExternalRelation}, version-gating, turning the throw into a 400).
  */
 public class FilterRewriterTests extends ESTestCase {
 
     private static final long NOW = 1_600_000_000_000L;
-    private static final BiConsumer<LogicalPlan, DroppedClause> IGNORE_DROPS = (node, clause) -> {};
 
     private static ReferenceAttribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
@@ -68,7 +65,7 @@ public class FilterRewriterTests extends ESTestCase {
     public void testInstallsAboveAnArbitraryNonSourceNode() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         Limit limit = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
-        LogicalPlan result = FilterRewriter.rewrite(limit, node -> node == limit, QueryBuilders.termQuery("a", 1), NOW, IGNORE_DROPS);
+        LogicalPlan result = FilterRewriter.rewrite(limit, node -> node == limit, QueryBuilders.termQuery("a", 1), NOW);
         assertThat(result, instanceOf(Filter.class));
         Filter filter = (Filter) result;
         assertThat("installs above the chosen node, not the leaf", filter.child(), sameInstance(limit));
@@ -81,13 +78,7 @@ public class FilterRewriterTests extends ESTestCase {
         ExternalRelation rel = relation("ds", a, x);
         // Project drops x from its output; installing above the Project must bind x to NULL (absent from THAT node).
         Project project = new Project(Source.EMPTY, rel, List.of(a));
-        LogicalPlan aboveProject = FilterRewriter.rewrite(
-            project,
-            node -> node == project,
-            QueryBuilders.termQuery("x", "v"),
-            NOW,
-            IGNORE_DROPS
-        );
+        LogicalPlan aboveProject = FilterRewriter.rewrite(project, node -> node == project, QueryBuilders.termQuery("x", "v"), NOW);
         assertThat(
             "x is absent from the Project's output -> NULL-bound -> no references",
             ((Filter) aboveProject).condition().references().names(),
@@ -95,29 +86,21 @@ public class FilterRewriterTests extends ESTestCase {
         );
 
         // Installing above the relation, where x is present, binds the real attribute.
-        LogicalPlan aboveRelation = FilterRewriter.rewrite(rel, node -> node == rel, QueryBuilders.termQuery("x", "v"), NOW, IGNORE_DROPS);
+        LogicalPlan aboveRelation = FilterRewriter.rewrite(rel, node -> node == rel, QueryBuilders.termQuery("x", "v"), NOW);
         assertThat(((Filter) aboveRelation).condition().references().names(), contains("x"));
     }
 
     public void testPredicateMatchingNothingReturnsThePlanUntouched() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterRewriter.rewrite(rel, node -> false, QueryBuilders.termQuery("a", 1), NOW, (n, c) -> drops.add(c));
+        LogicalPlan result = FilterRewriter.rewrite(rel, node -> false, QueryBuilders.termQuery("a", 1), NOW);
         assertThat(result, sameInstance(rel));
-        assertThat(drops, empty());
     }
 
     public void testEveryMatchingNodeIsWrappedOnce() {
         ExternalRelation relA = relation("dsA", attr("id", DataType.INTEGER));
         ExternalRelation relB = relation("dsB", attr("id", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relA, relB), List.of());
-        LogicalPlan result = FilterRewriter.rewrite(
-            union,
-            ExternalRelation.class::isInstance,
-            QueryBuilders.termQuery("id", 1),
-            NOW,
-            IGNORE_DROPS
-        );
+        LogicalPlan result = FilterRewriter.rewrite(union, ExternalRelation.class::isInstance, QueryBuilders.termQuery("id", 1), NOW);
         List<Filter> filters = new ArrayList<>();
         result.forEachDown(Filter.class, filters::add);
         assertThat("one Filter per matching leaf", filters, hasSize(2));
@@ -125,19 +108,17 @@ public class FilterRewriterTests extends ESTestCase {
         filters.forEach(f -> assertThat(f.child(), instanceOf(ExternalRelation.class)));
     }
 
-    // --- per-node schema binding and the onDropped callback ---
+    // --- per-node schema binding ---
 
     public void testMultipleTargetsEachBindTheirOwnSchema() {
         ExternalRelation relA = relation("dsA", attr("id", DataType.INTEGER), attr("region", DataType.KEYWORD));
         ExternalRelation relB = relation("dsB", attr("id", DataType.INTEGER)); // no region
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relA, relB), List.of());
-        List<DroppedClause> drops = new ArrayList<>();
         LogicalPlan result = FilterRewriter.rewrite(
             union,
             ExternalRelation.class::isInstance,
             QueryBuilders.termQuery("region", "eu"),
-            NOW,
-            (n, c) -> drops.add(c)
+            NOW
         );
         Map<String, Filter> byDataset = new HashMap<>();
         result.forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetName(), f));
@@ -148,68 +129,42 @@ public class FilterRewriterTests extends ESTestCase {
             contains("region")
         );
         assertThat(
-            "dsB lacks region -> NULL-bound (runtime-false), still installed",
+            "dsB lacks region -> NULL-bound (runtime-false), still installed -- a missing field is leniency, not a throw",
             byDataset.get("dsB").condition().references().names(),
             empty()
         );
-        assertThat("a missing field is leniency, not a dropped clause -> no warning", drops, empty());
     }
 
-    public void testOnDroppedFiresPerClausePerNode() {
+    public void testUnsupportedClauseThrowsAtTheOffendingNode() {
         ExternalRelation relKeyword = relation("dsKw", attr("status", DataType.KEYWORD));
         ExternalRelation relInteger = relation("dsInt", attr("status", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relKeyword, relInteger), List.of());
-        Map<String, List<DroppedClause>> byDataset = new HashMap<>();
-        FilterRewriter.rewrite(
-            union,
-            ExternalRelation.class::isInstance,
-            QueryBuilders.termQuery("status", "active"), // valid keyword, but not an integral value
-            NOW,
-            (node, clause) -> byDataset.computeIfAbsent(((ExternalRelation) node).datasetName(), k -> new ArrayList<>()).add(clause)
+        // A non-integral value is a valid keyword but has no integral translation; fail-closed, the whole rewrite throws.
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> FilterRewriter.rewrite(union, ExternalRelation.class::isInstance, QueryBuilders.termQuery("status", "active"), NOW)
         );
-        assertThat("keyword status applies exactly, nothing dropped", byDataset.getOrDefault("dsKw", List.of()), empty());
-        assertThat("a non-integral value on an integer field is dropped for THAT node only", byDataset.get("dsInt"), hasSize(1));
     }
 
-    // --- fold-to-no-op vs installed-false ---
+    // --- fail-closed vs supported-no-op vs installed-false ---
 
-    public void testWhollyUnsupportedFilterLeavesNodeUnwrapped() {
+    public void testWhollyUnsupportedFilterThrows() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterRewriter.rewrite(
-            rel,
-            ExternalRelation.class::isInstance,
-            QueryBuilders.wildcardQuery("a", "x*"),
-            NOW,
-            (n, c) -> drops.add(c)
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.wildcardQuery("a", "x*"), NOW)
         );
-        assertThat("folds to the TRUE singleton -> node left unwrapped", result, sameInstance(rel));
-        assertThat(drops, hasSize(1));
     }
 
     public void testMatchAllLeavesNodeUnwrapped() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        List<DroppedClause> drops = new ArrayList<>();
-        LogicalPlan result = FilterRewriter.rewrite(
-            rel,
-            ExternalRelation.class::isInstance,
-            QueryBuilders.matchAllQuery(),
-            NOW,
-            (n, c) -> drops.add(c)
-        );
-        assertThat(result, sameInstance(rel));
-        assertThat("match_all is a supported no-op, not a drop", drops, empty());
+        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.matchAllQuery(), NOW);
+        assertThat("match_all is a supported no-op -> node left unwrapped", result, sameInstance(rel));
     }
 
     public void testMatchNoneInstallsAFalseFilter() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterRewriter.rewrite(
-            rel,
-            ExternalRelation.class::isInstance,
-            new MatchNoneQueryBuilder(),
-            NOW,
-            IGNORE_DROPS
-        );
+        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, new MatchNoneQueryBuilder(), NOW);
         assertThat(result, instanceOf(Filter.class));
         assertThat(
             "match_none is an exact FALSE, installed (not folded to a no-op)",
@@ -218,18 +173,17 @@ public class FilterRewriterTests extends ESTestCase {
         );
     }
 
-    public void testMustNotDropIsRecordedWithNegativePolarity() {
+    public void testUnsupportedClauseUnderMustNotThrows() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        List<DroppedClause> drops = new ArrayList<>();
-        FilterRewriter.rewrite(
-            rel,
-            ExternalRelation.class::isInstance,
-            QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
-            NOW,
-            (n, c) -> drops.add(c)
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> FilterRewriter.rewrite(
+                rel,
+                ExternalRelation.class::isInstance,
+                QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
+                NOW
+            )
         );
-        assertThat(drops, hasSize(1));
-        assertThat("a drop under must_not relaxes an exclusion -> previously-excluded rows", drops.get(0).positive(), is(false));
     }
 
     // --- nowInMillis threading and analyzed-marking ---
@@ -237,20 +191,14 @@ public class FilterRewriterTests extends ESTestCase {
     public void testNowInMillisIsThreadedIntoTheTranslation() {
         ExternalRelation rel = relation("ds", attr("ts", DataType.DATETIME));
         QueryBuilder filter = QueryBuilders.rangeQuery("ts").gte("now-15m");
-        Filter early = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, NOW, IGNORE_DROPS);
-        Filter later = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, NOW + 3_600_000L, IGNORE_DROPS);
+        Filter early = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, NOW);
+        Filter later = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, NOW + 3_600_000L);
         assertThat("different query start times resolve now-math to different bounds", early.condition(), not(equalTo(later.condition())));
     }
 
     public void testInstalledTreeIsMarkedAnalyzed() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterRewriter.rewrite(
-            rel,
-            ExternalRelation.class::isInstance,
-            QueryBuilders.termQuery("a", 1),
-            NOW,
-            IGNORE_DROPS
-        );
+        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.termQuery("a", 1), NOW);
         result.forEachDown(LogicalPlan.class, node -> assertTrue("every node incl. the fresh Filter is marked analyzed", node.analyzed()));
     }
 }

@@ -20,7 +20,8 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
- * Generic mechanism that rewrites a logical plan to apply a Query DSL {@code filter} as an ordinary {@link Filter}.
+ * Rewrites a (logical plan, Query DSL {@code filter}) pair into an equivalent logical plan, by installing the filter as
+ * an ordinary {@link Filter}.
  *
  * <p>The mechanism is source-agnostic: it installs the filter above <em>every node the {@code target} predicate
  * selects</em> — a dataset relation, a view boundary, or any point in the tree — and translates the DSL against

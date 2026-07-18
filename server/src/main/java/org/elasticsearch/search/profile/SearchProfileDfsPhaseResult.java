@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject {
@@ -110,17 +111,27 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
         long totalRewriteTime = 0;
         long totalCollectionTime = 0;
         List<ProfileResult> profileResults = new ArrayList<>();
+        List<Map<String, Object>> knnProfiles = new ArrayList<>();
         for (QueryProfileShardResult queryProfiler : queryProfileShardResult) {
             totalRewriteTime += queryProfiler.getRewriteTime();
             profileResults.addAll(queryProfiler.getQueryResults());
             subCollectorResults.add(queryProfiler.getCollectorResult());
             totalCollectionTime += queryProfiler.getCollectorResult().getTime();
+            if (queryProfiler.getKnnProfileBreakdown() != null) {
+                knnProfiles.add(queryProfiler.getKnnProfileBreakdown());
+            }
+        }
+        Map<String, Object> combinedKnnProfile = null;
+        if (knnProfiles.isEmpty() == false) {
+            combinedKnnProfile = new java.util.LinkedHashMap<>();
+            combinedKnnProfile.put("knn_queries", knnProfiles);
         }
         return new QueryProfileShardResult(
             profileResults,
             totalRewriteTime,
             new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults),
-            null
+            null,
+            combinedKnnProfile
         );
     }
 }

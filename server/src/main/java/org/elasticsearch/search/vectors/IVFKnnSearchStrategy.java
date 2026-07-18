@@ -20,12 +20,26 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
+    private final KnnSearchProfileData profileData;
 
     public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
+        this(visitRatio, numCands, k, accumulator, null);
+    }
+
+    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator, KnnSearchProfileData profileData) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.accumulator = accumulator;
+        this.profileData = profileData;
+    }
+
+    /**
+     * Returns the profiling accumulator threaded down to the codec, or {@code null} when detailed
+     * profiling is not enabled for this query.
+     */
+    public KnnSearchProfileData getProfileData() {
+        return profileData;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {

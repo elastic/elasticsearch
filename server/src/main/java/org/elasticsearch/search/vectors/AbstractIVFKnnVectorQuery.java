@@ -60,6 +60,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final Query filter;
     protected int vectorOpsCount;
     protected final IvfQueryConfigResolver ivfQueryConfigResolver;
+    protected KnnSearchProfileData profileData;
+    protected String quantization;
+    private boolean profilingSuppressed;
 
     protected AbstractIVFKnnVectorQuery(
         String field,
@@ -111,10 +114,35 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     @Override
+    public void enableProfiling() {
+        profileData = new KnnSearchProfileData();
+        profileData.setAlgorithmType("ivf");
+        profileData.setQuantization(quantization);
+    }
+
+    @Override
+    public void setQuantization(String quantization) {
+        this.quantization = quantization;
+    }
+
+    @Override
+    public void setProfilingSuppressed(boolean suppressed) {
+        this.profilingSuppressed = suppressed;
+    }
+
+    @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        // Self-enable when a profiler is attached to the searcher, so profiling works in both the DFS and
+        // query phases without an explicit enableProfiling() call. Suppressed when driven by PostFilterKnnQuery.
+        QueryProfiler profiler = QueryProfilerProvider.activeProfiler(indexSearcher);
+        if (profiler != null && profilingSuppressed == false && profileData == null) {
+            enableProfiling();
+        }
+        long rewriteStartNs = profileData != null ? System.nanoTime() : 0;
         vectorOpsCount = 0;
         IndexReader reader = indexSearcher.getIndexReader();
 
+        long filterStartNs = profileData != null ? System.nanoTime() : 0;
         final Weight filterWeight;
         if (filter != null) {
             BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
@@ -127,6 +155,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             filterWeight = indexSearcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
         } else {
             filterWeight = null;
+        }
+        if (profileData != null) {
+            profileData.setFilterTimeNs(System.nanoTime() - filterStartNs);
         }
 
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
@@ -165,8 +196,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
         int mergeK = tasks.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        long mergeStartNs = profileData != null ? System.nanoTime() : 0;
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
+        if (profileData != null) {
+            profileData.setMergeTimeNs(System.nanoTime() - mergeStartNs);
+            profileData.setEarlyTerminated(topK.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+            profileData.setTotalSearchTimeNs(System.nanoTime() - rewriteStartNs);
+        }
+        // Self-publish before the branching returns; an auto-rescore query (below) later merges its
+        // rescore section onto this breakdown. rewrite() runs once per query instance.
+        if (profiler != null && profilingSuppressed == false) {
+            profile(profiler);
+        }
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
@@ -255,6 +297,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     @Override
     public final void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
+        if (profileData != null) {
+            queryProfiler.setKnnProfileBreakdown(profileData.toMap());
+        }
     }
 
     static class IVFCollectorManager implements KnnCollectorManager {

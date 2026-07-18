@@ -23,7 +23,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.vectors.KnnQueryUtils.applyFilter;
@@ -86,6 +90,12 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
+        // When profiling is on, this query is the single authority for its subtree's knn_profile: each
+        // post-filter round is profiled in isolation and captured here, rather than letting the rounds
+        // clobber the shared breakdown. See PostFilterProfiler.
+        QueryProfiler profiler = QueryProfilerProvider.activeProfiler(searcher);
+        PostFilterProfiler postFilterProfiler = profiler != null ? new PostFilterProfiler() : null;
+
         var filterResult = createFilterWeight(searcher, filter, field);
         if (filterResult == KnnQueryUtils.FilterWeight.MATCH_NO_DOCS) {
             return MatchNoDocsQuery.INSTANCE;
@@ -96,14 +106,28 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         if (rewriteMeta != null) {
             assert rewriteMeta.postFilterQuery() instanceof PostFilterableKnnQuery
                 : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
+            if (postFilterProfiler != null) {
+                postFilterProfiler.selectivity = rewriteMeta.selectivity();
+                postFilterProfiler.threshold = postFilterSelectivityThreshold;
+            }
             var rewritten = postFilterRewrite(
                 searcher,
                 (PostFilterableKnnQuery) rewriteMeta.postFilterQuery(),
                 filterWeight,
-                rewriteMeta.selectivity()
+                rewriteMeta.selectivity(),
+                postFilterProfiler
             );
             if (rewritten != null) {
+                if (postFilterProfiler != null) {
+                    pushPostFilterProfile(profiler, postFilterProfiler);
+                }
                 return rewritten;
+            }
+            // Post-filtering engaged but fell short; the bare inner query below produces the final result.
+            // Suppress its self-publish so it does not overwrite our post_filter breakdown, and record it as
+            // a final fallthrough round instead.
+            if (postFilterProfiler != null) {
+                PostFilterProfiler.prepare((Query) innerQuery);
             }
         }
         // We fall back to the bare inner query either when the filter does not meet the
@@ -111,24 +135,52 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // produced zero results (so no docs were available to seed the augmented fallback).
         Query rewritten = ((Query) innerQuery).rewrite(searcher);
         this.totalVectorOps += innerQuery.totalVectorOps();
+        if (rewriteMeta != null && postFilterProfiler != null) {
+            // Engaged path fell through: the bare inner search was suppressed above; capture it as the final
+            // round and publish the accumulated post_filter breakdown.
+            postFilterProfiler.record("fallthrough", (Query) innerQuery, -1, null, innerQuery.totalVectorOps());
+            pushPostFilterProfile(profiler, postFilterProfiler);
+        }
+        // When post-filtering never engaged (rewriteMeta == null), the bare inner query self-publishes a
+        // normal (non post_filter) breakdown during its own rewrite above, so nothing more to do here.
         return rewritten;
     }
 
-    private Query postFilterRewrite(IndexSearcher searcher, PostFilterableKnnQuery postFilterQuery, Weight filterWeight, float selectivity)
-        throws IOException {
+    private void pushPostFilterProfile(QueryProfiler profiler, PostFilterProfiler postFilterProfiler) {
+        profiler.addVectorOpsCount(totalVectorOps);
+        profiler.setKnnProfileBreakdown(postFilterProfiler.toBreakdown(totalVectorOps));
+    }
+
+    private Query postFilterRewrite(
+        IndexSearcher searcher,
+        PostFilterableKnnQuery postFilterQuery,
+        Weight filterWeight,
+        float selectivity,
+        PostFilterProfiler postFilterProfiler
+    ) throws IOException {
         Query delegate = (Query) postFilterQuery;
 
         // first pass: initial post-filter search. delegateK is the scaled K already baked into the
         // delegate by createPostFilterDelegate.
         int delegateK = postFilterQuery.k();
+        if (postFilterProfiler != null) {
+            PostFilterProfiler.prepare(delegate);
+        }
         TopDocs topDocs = searcher.search(delegate, delegateK);
         long vectorOps = postFilterQuery.totalVectorOps();
         ScoreDoc[] passingDocs = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
         ScoreDoc[] scoreDocs = dedupAndSelectTopK(passingDocs, searcher.getIndexReader(), parentsFilter, k);
+        if (postFilterProfiler != null) {
+            postFilterProfiler.record("initial", delegate, topDocs.scoreDocs.length, passingDocs.length, vectorOps);
+        }
 
         // Exit early when the filter is negatively correlated to the knn query and further rounds are unlikely
         // to recover. Zero passers always exits.
-        if (scoreDocs.length == 0 || shouldExitEarly(scoreDocs.length, selectivity)) {
+        boolean earlyExit = scoreDocs.length > 0 && shouldExitEarly(scoreDocs.length, selectivity);
+        if (postFilterProfiler != null) {
+            postFilterProfiler.earlyExit = earlyExit;
+        }
+        if (scoreDocs.length == 0 || earlyExit) {
             return null;
         }
 
@@ -146,11 +198,20 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             int[] seenDocs = trackedDocs((PostFilterableKnnQuery) delegate, topDocs);
             int remaining = k - scoreDocs.length;
             Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), sortedDocIds(scoreDocs), seenDocs, remaining);
+            if (postFilterProfiler != null) {
+                PostFilterProfiler.prepare(retry);
+            }
             TopDocs retryDocs = searcher.search(retry, remaining);
+            long retryVectorOps = ((PostFilterableKnnQuery) retry).totalVectorOps();
+            Integer retryPassingCount = null;
             if (retryDocs.scoreDocs.length > 0) {
-                vectorOps += ((PostFilterableKnnQuery) retry).totalVectorOps();
+                vectorOps += retryVectorOps;
                 ScoreDoc[] retryPassing = applyFilter(retryDocs.scoreDocs, filterWeight, searcher);
+                retryPassingCount = retryPassing.length;
                 scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), searcher.getIndexReader(), parentsFilter, k);
+            }
+            if (postFilterProfiler != null) {
+                postFilterProfiler.record("retry", retry, retryDocs.scoreDocs.length, retryPassingCount, retryVectorOps);
             }
         }
 
@@ -174,8 +235,15 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
             int[] excludedDocs = sortedDocIds(scoreDocs);
             Query fallback = innerQuery.createFallbackQuery(searcher.getIndexReader(), excludedDocs, remaining);
+            if (postFilterProfiler != null) {
+                PostFilterProfiler.prepare(fallback);
+            }
             TopDocs fallbackDocs = searcher.search(fallback, remaining);
-            vectorOps += ((PostFilterableKnnQuery) fallback).totalVectorOps();
+            long fallbackVectorOps = ((PostFilterableKnnQuery) fallback).totalVectorOps();
+            vectorOps += fallbackVectorOps;
+            if (postFilterProfiler != null) {
+                postFilterProfiler.record("fallback", fallback, fallbackDocs.scoreDocs.length, null, fallbackVectorOps);
+            }
             // No applyFilter() - the fallback already pre-filtered with the original filter.
             scoreDocs = dedupAndSelectTopK(
                 mergeScoreDocArrays(scoreDocs, fallbackDocs.scoreDocs),
@@ -198,6 +266,74 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
         return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
+    }
+
+    /**
+     * Collects a structured {@code post_filter} breakdown across the post-filter rounds (initial, retry,
+     * fallback, and a bare fallthrough). Each round's inner kNN query is profiled in isolation: we suppress
+     * its auto-publish (so it does not clobber the shared breakdown) but enable its own collection via
+     * {@link #prepare}, then harvest it in {@link #record}. This keeps {@link PostFilterKnnQuery} the single
+     * authority for its subtree's {@code knn_profile} and avoids double-counting vector ops.
+     */
+    private static final class PostFilterProfiler {
+        private final List<Map<String, Object>> rounds = new ArrayList<>();
+        private float selectivity;
+        private float threshold;
+        private boolean earlyExit;
+
+        /** Let a round's inner query collect its own breakdown without publishing it to the shared profiler. */
+        static void prepare(Query roundQuery) {
+            if (roundQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setProfilingSuppressed(true);
+                queryProfilerProvider.enableProfiling();
+            }
+        }
+
+        void record(String name, Query roundQuery, int docsFound, Integer docsPassingFilter, long vectorOps) {
+            Map<String, Object> round = new LinkedHashMap<>();
+            round.put("name", name);
+            if (docsFound >= 0) {
+                round.put("docs_found", docsFound);
+            }
+            if (docsPassingFilter != null) {
+                round.put("docs_passing_filter", docsPassingFilter);
+            }
+            round.put("vector_ops", vectorOps);
+            if (roundQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                QueryProfiler roundProfiler = new QueryProfiler();
+                queryProfilerProvider.profile(roundProfiler);
+                Map<String, Object> inner = roundProfiler.getKnnProfileBreakdown();
+                if (inner != null) {
+                    round.put("inner", inner);
+                }
+            }
+            rounds.add(round);
+        }
+
+        Map<String, Object> toBreakdown(long totalVectorOps) {
+            Map<String, Object> postFilter = new LinkedHashMap<>();
+            postFilter.put("selectivity", selectivity);
+            postFilter.put("threshold", threshold);
+            postFilter.put("early_exit", earlyExit);
+            postFilter.put("rounds", rounds);
+            postFilter.put("total_vector_ops", totalVectorOps);
+            Map<String, Object> breakdown = new LinkedHashMap<>();
+            String algorithm = firstRoundAlgorithm();
+            if (algorithm != null) {
+                breakdown.put("algorithm", algorithm);
+            }
+            breakdown.put("post_filter", postFilter);
+            return breakdown;
+        }
+
+        private String firstRoundAlgorithm() {
+            for (Map<String, Object> round : rounds) {
+                if (round.get("inner") instanceof Map<?, ?> inner && inner.get("algorithm") != null) {
+                    return inner.get("algorithm").toString();
+                }
+            }
+            return null;
+        }
     }
 
     /**

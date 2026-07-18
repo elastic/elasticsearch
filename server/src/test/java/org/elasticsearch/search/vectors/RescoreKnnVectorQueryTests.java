@@ -291,6 +291,64 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
 
         assertThat(queryProfiler.getVectorOpsCount(), equalTo(expectedVectorOpsCount));
+
+        Map<String, Object> breakdown = queryProfiler.getKnnProfileBreakdown();
+        assertNotNull("knnProfileBreakdown should be set", breakdown);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rescore = (Map<String, Object>) breakdown.get("rescore");
+        assertNotNull("rescore section should be present", rescore);
+        assertThat((long) rescore.get("time_ns"), greaterThan(0L));
+        assertThat((int) rescore.get("doc_count"), greaterThan(0));
+    }
+
+    public void testRescoreProfileInlineType() throws Exception {
+        int numDocs = 20;
+        int numDims = 8;
+        int k = 5;
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                float[] queryVector = randomFloatVector(numDims);
+                Query innerQuery = new KnnFloatVectorQuery(FIELD_NAME, randomFloatVector(numDims), k);
+                var rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
+                IndexSearcher searcher = newSearcher(reader, true, false);
+                searcher.search(rescoreQuery, numDocs);
+
+                QueryProfiler profiler = new QueryProfiler();
+                rescoreQuery.profile(profiler);
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> rescore = (Map<String, Object>) profiler.getKnnProfileBreakdown().get("rescore");
+                assertThat(rescore.get("type"), equalTo("InlineRescoreQuery"));
+                assertFalse("inline rescore should not have inner_query_time_ns", rescore.containsKey("inner_query_time_ns"));
+            }
+        }
+    }
+
+    public void testRescoreProfileLateType() throws Exception {
+        int numDocs = 20;
+        int numDims = 8;
+        int k = 5;
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                float[] queryVector = randomFloatVector(numDims);
+                var rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, Queries.ALL_DOCS_INSTANCE);
+                IndexSearcher searcher = newSearcher(reader, true, false);
+                searcher.search(rescoreQuery, numDocs);
+
+                QueryProfiler profiler = new QueryProfiler();
+                rescoreQuery.profile(profiler);
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> rescore = (Map<String, Object>) profiler.getKnnProfileBreakdown().get("rescore");
+                assertThat(rescore.get("type"), equalTo("LateRescoreQuery"));
+                assertThat((long) rescore.get("inner_query_time_ns"), greaterThan(0L));
+            }
+        }
     }
 
     /**

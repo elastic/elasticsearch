@@ -17,13 +17,19 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnnQuery {
+/**
+ * Test double that behaves like a real ES kNN query for post-filtering: it is both a
+ * {@link PostFilterableKnnQuery} (so {@link PostFilterKnnQuery} can drive its retry/fallback rounds) and a
+ * {@link QueryProfilerProvider} (so those rounds can be profiled), mirroring the production HNSW/IVF queries.
+ */
+class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnnQuery, QueryProfilerProvider {
 
     /**
      * Mutable record of which {@code PostFilterableKnnQuery} hooks fired across the lifetime of a
@@ -100,6 +106,7 @@ class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnn
     private final float postFilterScale;
     private final PostFilterMeta postFilterMeta;
     private long vectorOpsCount;
+    private KnnSearchProfileData profileData;
 
     AssertingKnnQuery(String field, float[] target, int k, int numCands, Query filter, float postFilterScale) {
         this(field, target, k, numCands, filter, postFilterScale, new PostFilterMeta());
@@ -130,6 +137,20 @@ class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnn
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
+    }
+
+    @Override
+    public void enableProfiling() {
+        profileData = new KnnSearchProfileData();
+        profileData.setAlgorithmType("hnsw");
+    }
+
+    @Override
+    public void profile(QueryProfiler queryProfiler) {
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
+        if (profileData != null) {
+            queryProfiler.setKnnProfileBreakdown(profileData.toMap());
+        }
     }
 
     @Override

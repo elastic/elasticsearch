@@ -36,7 +36,6 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -283,17 +282,15 @@ public class DfsPhase {
             topDocs = searcher.search(knnQuery, topDocsCollectorManager);
         } else {
             QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler();
-            // Set the current searcher profiler to gather query profiling information for gathering top K docs
+            // Set the current searcher profiler to gather query profiling information for gathering top K docs.
+            // The kNN query self-enables and self-publishes its knn_profile breakdown during rewrite() by
+            // discovering this profiler on the searcher — the same mechanism the query phase relies on.
             searcher.setProfiler(knnProfiler);
             ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(
                 topDocsCollectorManager,
                 CollectorResult.REASON_SEARCH_TOP_HITS
             );
             topDocs = searcher.search(knnQuery, ipcm);
-
-            if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-                queryProfilerProvider.profile(knnProfiler);
-            }
 
             knnProfiler.setCollectorResult(ipcm.getCollectorTree());
         }

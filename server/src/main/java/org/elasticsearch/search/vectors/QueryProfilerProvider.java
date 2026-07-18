@@ -10,6 +10,8 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 /**
@@ -25,4 +27,41 @@ public interface QueryProfilerProvider {
      * @param queryProfiler an instance of  {@link KnnFloatVectorField}.
      */
     void profile(QueryProfiler queryProfiler);
+
+    /**
+     * Enables detailed profiling data collection for this query, allocating the timing breakdown state.
+     * <p>
+     * On the normal search path this does not need to be called explicitly: a kNN query auto-enables when
+     * it discovers a {@link QueryProfiler} on the {@link org.elasticsearch.search.internal.ContextIndexSearcher}
+     * during {@code rewrite()}. This method remains the explicit entry point for direct callers and tests
+     * that run against a plain {@code IndexSearcher}, and for {@link PostFilterKnnQuery} which enables its
+     * inner per-round queries by hand. Must be called before {@code rewrite()} to take effect.
+     */
+    default void enableProfiling() {}
+
+    /**
+     * Records the vector quantization / index-options type (e.g. {@code bbq_hnsw}, {@code int8_hnsw},
+     * {@code bbq_disk}) for this query so it can be surfaced in the profile output. Supplied by the field
+     * mapper at query-build time, since only it knows the configured index options. No-op by default.
+     */
+    default void setQuantization(String quantization) {}
+
+    /**
+     * When {@code true}, this query must not auto-publish its breakdown to the profiler attached to the
+     * searcher during {@code rewrite()}. Used by {@link PostFilterKnnQuery}, which drives its inner
+     * per-round searches (initial / retry / fallback) itself and captures each round's breakdown
+     * explicitly, so those inner searches must not overwrite the shared {@code knn_profile} slot. No-op
+     * by default.
+     */
+    default void setProfilingSuppressed(boolean suppressed) {}
+
+    /**
+     * Returns the {@link QueryProfiler} attached to the given searcher, or {@code null} when the searcher is
+     * not a {@link ContextIndexSearcher} or profiling is off. kNN queries call this at the head and tail of
+     * their {@code rewrite()} to self-enable and self-publish their {@code knn_profile} breakdown, which is
+     * what makes profiling behave identically in the DFS and query phases.
+     */
+    static QueryProfiler activeProfiler(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher contextIndexSearcher ? contextIndexSearcher.getProfiler() : null;
+    }
 }

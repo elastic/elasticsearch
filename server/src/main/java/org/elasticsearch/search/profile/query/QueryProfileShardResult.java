@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -35,6 +37,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public static final String QUERY_ARRAY = "query";
 
     public static final String VECTOR_OPERATIONS_COUNT = "vector_operations_count";
+    public static final String KNN_PROFILE = "knn_profile";
 
     private final List<ProfileResult> queryProfileResults;
 
@@ -44,22 +47,39 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
     private final Long vectorOperationsCount;
 
+    @Nullable
+    private final Map<String, Object> knnProfileBreakdown;
+
     public QueryProfileShardResult(
         List<ProfileResult> queryProfileResults,
         long rewriteTime,
         CollectorResult profileCollector,
         @Nullable Long vectorOperationsCount
     ) {
+        this(queryProfileResults, rewriteTime, profileCollector, vectorOperationsCount, null);
+    }
+
+    public QueryProfileShardResult(
+        List<ProfileResult> queryProfileResults,
+        long rewriteTime,
+        CollectorResult profileCollector,
+        @Nullable Long vectorOperationsCount,
+        @Nullable Map<String, Object> knnProfileBreakdown
+    ) {
         assert (profileCollector != null);
         this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
         this.vectorOperationsCount = vectorOperationsCount;
+        this.knnProfileBreakdown = knnProfileBreakdown;
     }
 
     /**
      * Read from a stream.
      */
+    private static final TransportVersion KNN_PROFILE_BREAKDOWN_VERSION = TransportVersion.fromName("knn_profile_breakdown");
+
+    @SuppressWarnings("unchecked")
     public QueryProfileShardResult(StreamInput in) throws IOException {
         int profileSize = in.readVInt();
         queryProfileResults = new ArrayList<>(profileSize);
@@ -70,6 +90,11 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
         vectorOperationsCount = in.readOptionalLong();
+        if (in.getTransportVersion().supports(KNN_PROFILE_BREAKDOWN_VERSION)) {
+            knnProfileBreakdown = (Map<String, Object>) in.readGenericValue();
+        } else {
+            knnProfileBreakdown = null;
+        }
     }
 
     @Override
@@ -81,6 +106,9 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
         out.writeOptionalLong(vectorOperationsCount);
+        if (out.getTransportVersion().supports(KNN_PROFILE_BREAKDOWN_VERSION)) {
+            out.writeGenericValue(knnProfileBreakdown);
+        }
     }
 
     public List<ProfileResult> getQueryResults() {
@@ -100,6 +128,9 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         builder.startObject();
         if (vectorOperationsCount != null) {
             builder.field(VECTOR_OPERATIONS_COUNT, vectorOperationsCount);
+        }
+        if (knnProfileBreakdown != null && knnProfileBreakdown.isEmpty() == false) {
+            builder.field(KNN_PROFILE, knnProfileBreakdown);
         }
         builder.startArray(QUERY_ARRAY);
         for (ProfileResult p : queryProfileResults) {
@@ -122,17 +153,24 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         QueryProfileShardResult other = (QueryProfileShardResult) obj;
         return queryProfileResults.equals(other.queryProfileResults)
             && profileCollector.equals(other.profileCollector)
-            && rewriteTime == other.rewriteTime;
+            && rewriteTime == other.rewriteTime
+            && Objects.equals(vectorOperationsCount, other.vectorOperationsCount)
+            && Objects.equals(knnProfileBreakdown, other.knnProfileBreakdown);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryProfileResults, profileCollector, rewriteTime);
+        return Objects.hash(queryProfileResults, profileCollector, rewriteTime, vectorOperationsCount, knnProfileBreakdown);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Nullable
+    public Map<String, Object> getKnnProfileBreakdown() {
+        return knnProfileBreakdown;
     }
 
     public Long getVectorOperationsCount() {

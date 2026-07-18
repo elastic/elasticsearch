@@ -103,6 +103,7 @@ import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.PostFilterKnnQuery;
+import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -3497,6 +3498,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
             }
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
+            }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -3534,6 +3538,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
+            }
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3650,6 +3657,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
+            }
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(

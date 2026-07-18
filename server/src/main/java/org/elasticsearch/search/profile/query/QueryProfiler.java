@@ -13,6 +13,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
 import org.elasticsearch.search.profile.Timer;
 
+import java.util.Map;
+
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -35,6 +37,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
 
     private long vectorOpsCount;
 
+    private Map<String, Object> knnProfileBreakdown;
+
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
@@ -53,6 +57,20 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      */
     public long getVectorOpsCount() {
         return this.vectorOpsCount;
+    }
+
+    /**
+     * Sets the KNN profile breakdown data for this query.
+     */
+    public void setKnnProfileBreakdown(Map<String, Object> knnProfileBreakdown) {
+        this.knnProfileBreakdown = knnProfileBreakdown;
+    }
+
+    /**
+     * Returns the KNN profile breakdown data, or null if not set.
+     */
+    public Map<String, Object> getKnnProfileBreakdown() {
+        return knnProfileBreakdown;
     }
 
     /** Set the collector result that is associated with this profiler. */

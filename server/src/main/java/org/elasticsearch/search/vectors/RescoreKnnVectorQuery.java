@@ -34,7 +34,9 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -57,6 +59,10 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     protected final int k;
     protected final Query innerQuery;
     protected long vectorOperations = 0;
+    protected long innerQueryTimeNs;
+    protected long rescoreTimeNs;
+    protected int rescoreDocCount;
+    protected boolean profilingSuppressed;
 
     private RescoreKnnVectorQuery(String fieldName, float[] floatTarget, int k, Query innerQuery) {
         this.fieldName = fieldName;
@@ -92,12 +98,73 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     }
 
     @Override
+    public void enableProfiling() {
+        if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.enableProfiling();
+        }
+    }
+
+    @Override
+    public void setQuantization(String quantization) {
+        if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.setQuantization(quantization);
+        }
+    }
+
+    @Override
+    public void setProfilingSuppressed(boolean suppressed) {
+        this.profilingSuppressed = suppressed;
+        if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.setProfilingSuppressed(suppressed);
+        }
+    }
+
+    @Override
     public void profile(QueryProfiler queryProfiler) {
+        // Explicit path (direct/test callers on a plain IndexSearcher): the inner query has not
+        // self-published, so drive it here, then merge our rescore section.
         if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
             queryProfilerProvider.profile(queryProfiler);
         }
+        mergeRescoreInto(queryProfiler);
+    }
 
+    /**
+     * Self-publishes the rescore section at the tail of {@code rewrite()} when a profiler is attached to
+     * the searcher. By this point the inner query has already self-published its own breakdown during its
+     * own rewrite, so we only merge the rescore section on top (we must not call {@code innerQuery.profile}
+     * again here or its vector-op count would be added twice).
+     */
+    protected void pushRescoreProfile(IndexSearcher searcher) {
+        if (profilingSuppressed) {
+            return;
+        }
+        QueryProfiler queryProfiler = QueryProfilerProvider.activeProfiler(searcher);
+        if (queryProfiler != null) {
+            mergeRescoreInto(queryProfiler);
+        }
+    }
+
+    /**
+     * Attaches a rescore sub-section to the current breakdown and adds this query's vector-op count. When
+     * the inner query produced its own breakdown (the usual case, where it is an ES vector query) we merge
+     * into it; otherwise the rescore section stands alone so its timing is never lost.
+     */
+    private void mergeRescoreInto(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOperations);
+
+        Map<String, Object> rescore = new LinkedHashMap<>();
+        rescore.put("type", getClass().getSimpleName());
+        rescore.put("time_ns", rescoreTimeNs);
+        if (innerQueryTimeNs > 0) {
+            rescore.put("inner_query_time_ns", innerQueryTimeNs);
+        }
+        rescore.put("doc_count", rescoreDocCount);
+
+        Map<String, Object> existing = queryProfiler.getKnnProfileBreakdown();
+        Map<String, Object> merged = existing == null ? new LinkedHashMap<>() : new LinkedHashMap<>(existing);
+        merged.put("rescore", rescore);
+        queryProfiler.setKnnProfileBreakdown(merged);
     }
 
     @Override
@@ -146,8 +213,12 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         @Override
         public Query rewrite(IndexSearcher searcher) throws IOException {
             var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, innerQuery);
+            long rescoreStart = System.nanoTime();
             var topDocs = searcher.search(rescoreQuery, k);
+            rescoreTimeNs = System.nanoTime() - rescoreStart;
+            rescoreDocCount = topDocs.scoreDocs.length;
             vectorOperations = topDocs.totalHits.value();
+            pushRescoreProfile(searcher);
             return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
         }
 
@@ -176,13 +247,19 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         public Query rewrite(IndexSearcher searcher) throws IOException {
             final TopDocs topDocs;
             // Retrieve top `rescoreK` documents from the inner query
+            long innerStart = System.nanoTime();
             topDocs = searcher.search(innerQuery, rescoreK);
+            innerQueryTimeNs = System.nanoTime() - innerStart;
             vectorOperations = topDocs.totalHits.value();
 
             // Retrieve top `k` documents from the top `rescoreK` query
             var topDocsQuery = new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
             var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, topDocsQuery);
+            long rescoreStart = System.nanoTime();
             var rescoreTopDocs = searcher.search(rescoreQuery.rewrite(searcher), k);
+            rescoreTimeNs = System.nanoTime() - rescoreStart;
+            rescoreDocCount = rescoreTopDocs.scoreDocs.length;
+            pushRescoreProfile(searcher);
             return new KnnScoreDocQuery(rescoreTopDocs.scoreDocs, searcher.getIndexReader());
         }
 

@@ -1110,6 +1110,95 @@ One of the `dfs.knn` sections for a shard looks like the following:
 
 In the `dfs.knn` portion of the response we can see the output the of timings for [query](search-profile.md#query-section), [rewrite](search-profile.md#rewrite-section), and [collector](search-profile.md#collectors-section). Unlike many other queries, kNN search does the bulk of the work during the query rewrite. This means `rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 
+Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
+
+For an HNSW (the default for `dense_vector` fields) search, `knn_profile` looks like the following:
+
+```js
+"knn_profile" : {
+    "algorithm" : "hnsw",
+    "quantization" : "bbq_hnsw",
+    "total_time_ns" : 1275732,
+    "segments_searched" : 1,
+    "early_terminated" : false,
+    "approximate_search_time_ns" : 950000,
+    "merge_time_ns" : 12000,
+    "hnsw" : {
+        "k" : 10,
+        "num_candidates" : 100,
+        "has_filter" : false,
+        "leaf_searches" : 1,
+        "nodes_visited" : 342,
+        "results_found_before_merge" : 10,
+        "timings" : {
+            "avg_leaf_search_ns" : 950000,
+            "max_leaf_search_ns" : 950000,
+            "min_leaf_search_ns" : 950000,
+            "filter_and_overhead_ns" : 313732
+        }
+    }
+}
+```
+
+For an IVF (`bbq_disk`) search, an `ivf` section is included instead, with per-stage timing collected from the codec:
+
+```js
+"knn_profile" : {
+    "algorithm" : "ivf",
+    "quantization" : "bbq_disk",
+    "scorer" : "panama",
+    "total_time_ns" : 2100000,
+    "segments_searched" : 1,
+    "early_terminated" : false,
+    "approximate_search_time_ns" : 1800000,
+    "merge_time_ns" : 15000,
+    "ivf" : {
+        "visit_ratio_used" : 0.1,
+        "centroids_evaluated" : 32,
+        "postings_scored" : 4096,
+        "expected_docs_visited" : 8192,
+        "timings" : {
+            "centroid_iterator_create_ns" : 120000,
+            "centroid_read_ns" : 90000,
+            "reset_postings_scorer_ns" : 60000,
+            "posting_visit_ns" : 1500000,
+            "doc_id_read_ns" : 200000,
+            "query_quantization_ns" : 40000,
+            "scoring_ns" : 1100000
+        }
+    }
+}
+```
+
+When the kNN search performs exact rescoring (for example when an `oversample` factor is configured), a `rescore` sub-section is added to `knn_profile`:
+
+```js
+"rescore" : {
+    "type" : "LateRescoreQuery",
+    "time_ns" : 450000,
+    "inner_query_time_ns" : 1650000,
+    "doc_count" : 10
+}
+```
+
+The common `knn_profile` fields are:
+
+* `algorithm`: the vector search algorithm used, either `hnsw` or `ivf`.
+* `quantization`: the configured `index_options.type` for the field (for example `bbq_hnsw`, `int8_hnsw`, or `bbq_disk`).
+* `scorer`: for IVF, the vector scorer implementation that actually ran — `native`, `panama` (JDK Vector API), or `scalar`. Absent for HNSW, whose scoring is handled by Lucene.
+* `total_time_ns`: total time spent on the kNN search for this query, in nanoseconds.
+* `segments_searched`: the number of segments (or, for IVF sliced search, per-leaf searches) that were searched.
+* `early_terminated`: whether the search terminated early because enough competitive results were collected.
+* `approximate_search_time_ns`: time spent in the per-segment approximate search, summed across segments.
+* `merge_time_ns`: time spent merging per-segment results into the final top-k.
+
+The `hnsw` and `ivf` sections contain algorithm-specific counters and a `timings` sub-object with a finer-grained breakdown. The IVF codec-level timings are only collected when profiling is enabled, so they add no overhead to non-profiled searches.
+
+Where the `knn_profile` object appears depends on how the kNN search was expressed, because that determines which phase runs it:
+
+* The top-level `knn` search option and the `knn` retriever both run in the DFS phase, so their breakdown appears under `profile.shards[].dfs.knn[].knn_profile`, as shown above.
+* A `knn` query used inside the query DSL (`"query": { "knn": { ... } }`) runs in the query phase instead. Its breakdown — together with `vector_operations_count` — appears under `profile.shards[].searches[].knn_profile`, next to the `query` array. The object has the same shape in both cases.
+
 
 
 ### Profiling considerations [profiling-considerations]

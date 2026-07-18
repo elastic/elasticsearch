@@ -90,12 +90,21 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
 
-        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
+            visitRatio,
+            numCands,
+            k,
+            knnCollectorManager.longAccumulator,
+            profileData
+        );
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
+        if (profileData != null) {
+            profileData.addSegmentSearched();
+        }
 
         final SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
         if (sortedDocValues == null) {
@@ -145,6 +154,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             docIdIteratorSupplier = null;
             costSupplier = null;
         }
+        long leafSearchStart = profileData != null ? System.nanoTime() : 0;
         if (ords != null) {
             for (int i = 0; i < ords.length; i++) {
                 assert i == 0 || ords[i - 1] < ords[i];
@@ -177,6 +187,9 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
                     leafQuery
                 );
             }
+        }
+        if (profileData != null) {
+            profileData.addApproximateSearchTimeNs(System.nanoTime() - leafSearchStart);
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

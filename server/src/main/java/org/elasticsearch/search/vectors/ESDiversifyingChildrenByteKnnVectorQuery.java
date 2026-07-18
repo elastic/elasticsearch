@@ -18,6 +18,8 @@ import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
+import java.io.IOException;
+
 public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements QueryProfilerProvider {
     private final int kParam;
     private long vectorOpsCount;
@@ -55,6 +57,18 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query result = super.rewrite(searcher);
+        // Self-publish the vector-op count when a profiler is attached, so it surfaces in both the DFS and
+        // query phases without an explicit profile() call. This query carries no detailed breakdown.
+        QueryProfiler profiler = QueryProfilerProvider.activeProfiler(searcher);
+        if (profiler != null) {
+            profile(profiler);
+        }
+        return result;
     }
 
     @Override

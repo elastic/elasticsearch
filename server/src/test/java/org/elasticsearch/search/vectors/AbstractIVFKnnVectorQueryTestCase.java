@@ -1083,4 +1083,75 @@ public abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         }
     }
 
+    public void testProfileDataCollected() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            IndexSearcher searcher = newSearcher(reader);
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0, 0 }, 3);
+            query.enableProfiling();
+            searcher.rewrite(query);
+
+            assertNotNull("profileData should be set after rewrite", query.profileData);
+            assertEquals("ivf", query.profileData.toMap().get("algorithm"));
+            assertTrue("total_time_ns should be > 0", (long) query.profileData.toMap().get("total_time_ns") > 0);
+            assertTrue("segments_searched should be > 0", (int) query.profileData.toMap().get("segments_searched") > 0);
+            assertNotNull("ivf section should be present", query.profileData.toMap().get("ivf"));
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> ivf = (java.util.Map<String, Object>) query.profileData.toMap().get("ivf");
+            assertTrue("centroids_evaluated should be > 0", (int) ivf.get("centroids_evaluated") > 0);
+            assertTrue("postings_scored should be > 0", (long) ivf.get("postings_scored") > 0);
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> timings = (java.util.Map<String, Object>) ivf.get("timings");
+            assertNotNull("timings should be present", timings);
+            assertTrue("posting_visit_ns should be > 0", (long) timings.get("posting_visit_ns") > 0);
+            assertTrue("scoring_ns should be > 0", (long) timings.get("scoring_ns") > 0);
+
+            String scorer = (String) query.profileData.toMap().get("scorer");
+            assertNotNull("scorer implementation should be captured", scorer);
+            assertTrue(
+                "scorer should be native/panama/scalar, got: " + scorer,
+                scorer.equals("native") || scorer.equals("panama") || scorer.equals("scalar")
+            );
+        }
+    }
+
+    public void testProfileDataWithFilter() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            IndexSearcher searcher = newSearcher(reader);
+            Query filter = new TermQuery(new Term("id", "id1"));
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0, 0 }, 3, filter);
+            query.enableProfiling();
+            searcher.rewrite(query);
+
+            assertNotNull("profileData should be set after rewrite", query.profileData);
+            java.util.Map<String, Object> map = query.profileData.toMap();
+            assertTrue("filter_time_ns should be > 0", (long) map.get("filter_time_ns") > 0);
+        }
+    }
+
+    public void testProfileDataTransferredToProfiler() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            IndexSearcher searcher = newSearcher(reader);
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0, 0 }, 3);
+            query.enableProfiling();
+            searcher.rewrite(query);
+
+            org.elasticsearch.search.profile.query.QueryProfiler profiler = new org.elasticsearch.search.profile.query.QueryProfiler();
+            query.profile(profiler);
+
+            assertNotNull("knnProfileBreakdown should be set on profiler", profiler.getKnnProfileBreakdown());
+            assertEquals("ivf", profiler.getKnnProfileBreakdown().get("algorithm"));
+            assertTrue("vectorOpsCount should be > 0", profiler.getVectorOpsCount() > 0);
+        }
+    }
 }

@@ -178,13 +178,20 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float[] leafQuery
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator, profileData);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
+        if (profileData != null) {
+            profileData.addSegmentSearched();
+        }
+        long leafSearchStart = profileData != null ? System.nanoTime() : 0;
         reader.searchNearestVectors(field, leafQuery, knnCollector, acceptDocs);
+        if (profileData != null) {
+            profileData.addApproximateSearchTimeNs(System.nanoTime() - leafSearchStart);
+        }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()
             : knnCollector.topDocs();
@@ -194,6 +201,11 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
         Query topDocsQuery = new KnnScoreDocQuery(topOversampled.scoreDocs, indexSearcher.getIndexReader());
-        return RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
+        RescoreKnnVectorQuery rescore = RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
+        // The IVF query has already published its own breakdown; the auto-calibrate rescore is an internal
+        // step that is not separately profiled (mirrors the DFS path, where only the IVF query is profiled),
+        // so suppress its self-push to avoid adding a rescore section and double-counting vector ops.
+        rescore.setProfilingSuppressed(true);
+        return rescore;
     }
 }

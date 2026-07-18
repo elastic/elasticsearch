@@ -26,9 +26,19 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PostFilterKnnQueryTests extends ESTestCase {
 
@@ -399,6 +409,80 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 assertEquals(0, meta.postFilterDelegateCalls());
                 assertEquals(0, meta.retryCalls());
                 assertEquals(0, meta.fallbackCalls());
+            }
+        }
+    }
+
+    /**
+     * With a profiler attached, the post-filter rounds are captured into a single structured
+     * {@code post_filter} breakdown (no round clobbers another), and the vector-op count is published exactly
+     * once as the aggregate. Uses the same retry-closes-the-gap setup as {@link #testRetryClosesTheGap}.
+     */
+    public void testPostFilterProfileCapturesRounds() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 4; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            for (int i = 0; i < 4; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { 10f + i }));
+                doc.add(new KeywordField("tag", "fail", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    TrivialQueryCachingPolicy.ALWAYS,
+                    true
+                );
+                QueryProfiler profiler = new QueryProfiler();
+                searcher.setProfiler(profiler);
+
+                int k = 4;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 0.5f);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                // No explicit enableProfiling()/profile(): the query self-publishes during rewrite() by
+                // discovering the profiler on the ContextIndexSearcher.
+                searcher.search(pfq, k);
+
+                Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+                assertThat(breakdown, notNullValue());
+                // The post_filter section is present (i.e. no inner round clobbered the shared breakdown).
+                assertThat(breakdown, hasKey("post_filter"));
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> postFilter = (Map<String, Object>) breakdown.get("post_filter");
+                assertThat(postFilter, hasKey("selectivity"));
+                assertThat(postFilter, hasKey("threshold"));
+                assertThat(postFilter, hasKey("early_exit"));
+
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> rounds = (List<Map<String, Object>>) postFilter.get("rounds");
+                assertThat(rounds, notNullValue());
+                List<String> names = rounds.stream().map(r -> (String) r.get("name")).toList();
+                // Round 0 returns top-2={0,1}; a retry fires to reach k=4.
+                assertThat(names, hasItem("initial"));
+                assertThat(names, hasItem("retry"));
+                // Each round captured its inner breakdown (the delegate is a QueryProfilerProvider).
+                for (Map<String, Object> round : rounds) {
+                    assertThat(round, hasKey("vector_ops"));
+                    assertThat(round, hasKey("inner"));
+                }
+
+                // Vector ops are published exactly once as the aggregate: getVectorOpsCount() equals the
+                // breakdown's total_vector_ops (a second push would double one but not the other).
+                long total = ((Number) postFilter.get("total_vector_ops")).longValue();
+                assertThat(profiler.getVectorOpsCount(), equalTo(total));
             }
         }
     }

@@ -173,6 +173,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.profiler = profiler;
     }
 
+    /**
+     * The {@link QueryProfiler} currently attached to this searcher, or {@code null} when profiling is off.
+     * kNN vector queries use this during {@code rewrite()} to publish their {@code knn_profile} breakdown,
+     * so that profiling works identically whether the query runs in the DFS phase or the query phase.
+     */
+    public QueryProfiler getProfiler() {
+        return profiler;
+    }
+
     public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
         this.circuitBreaker = circuitBreaker;
     }

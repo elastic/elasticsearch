@@ -135,3 +135,78 @@ setup:
 
   # We expect the knn search ops + rescoring k * oversample (for rescoring) per shard
   - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 6 }
+
+---
+"Detailed knn_profile breakdown":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ knn_search_profile ]
+      reason: "detailed knn_profile breakdown requires the knn_search_profile capability"
+
+  - do:
+      search:
+        index: bbq_hnsw
+        body:
+          profile: true
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+            "rescore_vector":
+              "oversample": 2.0
+
+  # The detailed knn_profile breakdown is present alongside vector_operations_count
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.algorithm: hnsw }
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.quantization: bbq_hnsw }
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.hnsw
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.rescore
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.total_time_ns: 0 }
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments_searched: 1 }
+
+---
+"Detailed knn_profile breakdown for a knn query in the query DSL":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ knn_search_profile ]
+      reason: "detailed knn_profile breakdown requires the knn_search_profile capability"
+
+  # A `knn` clause inside `query` runs in the QUERY phase (not the DFS phase used by the top-level
+  # `knn` search option), so its breakdown must surface under searches[].knn_profile.
+  - do:
+      search:
+        index: bbq_hnsw
+        body:
+          profile: true
+          query:
+            knn:
+              field: vector
+              query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                             0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                             0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                             -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                             -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                             -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                             -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                             -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+              k: 3
+              num_candidates: 3
+
+  - match: { profile.shards.0.searches.0.knn_profile.algorithm: hnsw }
+  - match: { profile.shards.0.searches.0.knn_profile.quantization: bbq_hnsw }
+  - exists: profile.shards.0.searches.0.knn_profile.hnsw
+  - gte: { profile.shards.0.searches.0.knn_profile.total_time_ns: 0 }
+  - gte: { profile.shards.0.searches.0.vector_operations_count: 1 }

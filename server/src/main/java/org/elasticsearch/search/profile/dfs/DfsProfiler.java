@@ -73,7 +73,8 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
                         queryProfiler.getTree(),
                         queryProfiler.getRewriteTime(),
                         queryProfiler.getCollectorResult(),
-                        queryProfiler.getVectorOpsCount()
+                        queryProfiler.getVectorOpsCount(),
+                        queryProfiler.getKnnProfileBreakdown()
                     )
                 );
             }

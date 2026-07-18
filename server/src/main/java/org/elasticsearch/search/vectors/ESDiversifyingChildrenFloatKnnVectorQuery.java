@@ -9,12 +9,15 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+
+import java.io.IOException;
 
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery implements QueryProfilerProvider {
     private final int kParam;
@@ -38,6 +41,18 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query result = super.rewrite(searcher);
+        // Self-publish the vector-op count when a profiler is attached, so it surfaces in both the DFS and
+        // query phases without an explicit profile() call. This query carries no detailed breakdown.
+        QueryProfiler profiler = QueryProfilerProvider.activeProfiler(searcher);
+        if (profiler != null) {
+            profile(profiler);
+        }
+        return result;
     }
 
     @Override

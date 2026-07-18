@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -32,10 +33,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
- * predicates grafted above the dataset leaf, where the same filter on an index is applied as a Lucene query on the
+ * predicates inserted above the dataset leaf, where the same filter on an index is applied as a Lucene query on the
  * index fragment. Those are two entirely different evaluation paths; this suite is the differential proof that they
  * <em>mean the same thing</em>.
  *
@@ -318,6 +320,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             .must(QueryBuilders.termQuery("status", 300))
             .must(QueryBuilders.wildcardQuery("tags", "t*"));
         Exception e = expectThrows(Exception.class, () -> selectedIds(dataset, mixed));
-        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("[wildcard]"));
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        assertThat(cause.getMessage(), containsString("[wildcard]"));
+        assertThat("an unsupported construct is a 400, not a 500", ExceptionsHelper.status(cause), equalTo(RestStatus.BAD_REQUEST));
     }
 }

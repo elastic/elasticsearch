@@ -353,7 +353,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * The out-of-band request {@code filter} (Query DSL) is applied to a dataset: a {@code term} filter on emp_no=2
-     * returns only Bob. Before the graft, the filter was dropped and all three rows came back.
+     * returns only Bob. Before the rewrite, the filter was dropped and all three rows came back.
      */
     public void testRequestFilterOnDatasetTerm() throws Exception {
         registerDataSource("local_ds", Map.of());

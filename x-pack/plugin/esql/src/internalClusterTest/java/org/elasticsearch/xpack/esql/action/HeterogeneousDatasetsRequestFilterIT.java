@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.empty;
 
 /**
  * The experience of applying an out-of-band request {@code filter} to <em>several datasets with different schemas queried
- * at once</em> ({@code FROM dsA, dsB}). The filter is grafted independently above each dataset leaf and bound against that
+ * at once</em> ({@code FROM dsA, dsB}). The filter is inserted independently above each dataset leaf and bound against that
  * leaf's own schema, so a field present on one dataset and absent on another is filtered on the first and treated as null
  * on the second — exactly how co-queried indices with heterogeneous mappings behave.
  *

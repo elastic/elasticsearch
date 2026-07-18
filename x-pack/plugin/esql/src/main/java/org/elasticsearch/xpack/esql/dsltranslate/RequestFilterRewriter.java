@@ -62,7 +62,8 @@ public final class RequestFilterRewriter {
             return FilterRewriter.rewrite(analyzed, ExternalRelation.class::isInstance, requestFilter, nowInMillis);
         } catch (TranslationUnsupportedException e) {
             throw new IllegalArgumentException(
-                "The request filter uses a Query DSL construct not supported on external datasets: [" + e.construct() + "]"
+                "The request filter uses a Query DSL construct not supported on external datasets: [" + e.construct() + "]",
+                e
             );
         }
     }

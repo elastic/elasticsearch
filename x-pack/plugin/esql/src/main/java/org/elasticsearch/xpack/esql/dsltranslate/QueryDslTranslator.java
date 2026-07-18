@@ -97,18 +97,14 @@ public final class QueryDslTranslator {
         this.nowInMillis = nowInMillis;
     }
 
-    /** Translate a DSL query into an ES|QL boolean predicate. The top level sits in positive (conjunctive) polarity. */
+    /** Translate a DSL query into an ES|QL boolean predicate. */
     public Expression translate(QueryBuilder query) {
-        return translate(query, true);
+        return dispatch(query);
     }
 
-    private Expression translate(QueryBuilder query, boolean positive) {
-        return dispatch(query, positive);
-    }
-
-    private Expression dispatch(QueryBuilder query, boolean positive) {
+    private Expression dispatch(QueryBuilder query) {
         if (query instanceof BoolQueryBuilder bool) {
-            return bool(bool, positive);
+            return bool(bool);
         }
         if (query instanceof TermQueryBuilder term) {
             return term(term);
@@ -317,7 +313,7 @@ public final class QueryDslTranslator {
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
     }
 
-    private Expression bool(BoolQueryBuilder bool, boolean positive) {
+    private Expression bool(BoolQueryBuilder bool) {
         // How many should-clauses must match. Only two values have a faithful image as a plain OR: 1 (at least one
         // should clause is required) and 0 (should is optional, so in a filter context it drops out). Anything else
         // ("2", "50%", ...) needs real n-of-m counting, which an OR cannot express.
@@ -348,23 +344,22 @@ public final class QueryDslTranslator {
             throw new TranslationUnsupportedException("bool[adjust_pure_negative=false]");
         }
 
-        // Polarity threads down alongside the recursion: must/filter/should keep the parent's polarity; a must_not
-        // child sits under a NOT, so its polarity flips.
+        // must/filter are conjuncts; each must_not child sits under a NOT; should folds to an OR (required per msm below).
         List<Expression> conjuncts = new ArrayList<>();
         for (QueryBuilder q : bool.must()) {
-            conjuncts.add(translate(q, positive));
+            conjuncts.add(dispatch(q));
         }
         for (QueryBuilder q : bool.filter()) {
-            conjuncts.add(translate(q, positive));
+            conjuncts.add(dispatch(q));
         }
         for (QueryBuilder q : bool.mustNot()) {
-            conjuncts.add(new Not(Source.EMPTY, translate(q, positive == false)));
+            conjuncts.add(new Not(Source.EMPTY, dispatch(q)));
         }
 
         if (bool.should().isEmpty() == false) {
             Expression or = null;
             for (QueryBuilder q : bool.should()) {
-                Expression e = translate(q, positive);
+                Expression e = dispatch(q);
                 or = or == null ? e : new Or(Source.EMPTY, or, e);
             }
             // The DSL default is 1 when the bool carries no must/filter, and 0 otherwise — must_not does NOT count

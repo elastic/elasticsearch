@@ -156,7 +156,7 @@ public class ExternalDistributionTests extends ESTestCase {
         );
     }
 
-    // --- integrateEsFilterIntoFragment behavior (the DSL request filter now applies to datasets via the graft, so the
+    // --- integrateEsFilterIntoFragment behavior (the DSL request filter now applies to datasets via the rewrite, so the
     // former "filter not applied to external dataset" warning was removed) ---
 
     public void testIntegrateEsFilterNoWarningWithoutEsFilter() {

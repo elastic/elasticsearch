@@ -16,16 +16,15 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.sourcebatch.SliceableColumn;
+import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
 
 /**
- * A {@link SliceableColumn} that binds an {@link EscfLongColumn} to a Lucene {@link LongColumn}.
+ * A {@link LuceneColumn} that binds an {@link EscfLongColumn} to a Lucene {@link LongColumn}.
  *
  * <p>The {@code byte[]} is wrapped in a {@link BytesArray} (a live, single-contiguous-page view),
  * so engine writes made after registration are immediately visible to the column's cursors —
@@ -36,7 +35,7 @@ import java.util.List;
  *
  * <p>Currently this column implementation is always dense.
  */
-public final class EscfLuceneColumn implements SliceableColumn {
+public final class EscfLuceneColumn implements LuceneColumn {
 
     private final EscfColumn values;
     private final String name;
@@ -62,28 +61,25 @@ public final class EscfLuceneColumn implements SliceableColumn {
     }
 
     @Override
-    public SliceableColumn slice(int from, int count) {
-        // Safe cast: EscfColumn.sliceInternal always returns an EscfColumn subtype.
+    public EscfLuceneColumn slice(int from, int count) {
         EscfColumn sliced = values.sliceInternal(from, count);
         return new EscfLuceneColumn(sliced, name, fieldType, kind);
     }
 
     @Override
-    public RowFieldCursor rowFieldCursor() {
-        // EscfLuceneColumn is always DENSE (no absent set): every doc in [0, docCount) has a value.
+    public LuceneColumn.RowFieldCursor rowFieldCursor() {
+        // EscfLuceneColumn is always DENSE (no absent set): every row in [0, docCount) has a value.
         final ColumnLongField field = new ColumnLongField(name, fieldType, kind);
-        final int docCount = values.docCount;
-        return new RowFieldCursor() {
-            private int doc = -1;
-
+        final EscfLongColumn.LongCursor cursor = ((EscfLongColumn) values).longCursor();
+        return new LuceneColumn.RowFieldCursor() {
             @Override
             public int nextDoc() {
-                return ++doc < docCount ? doc : DocIdSetIterator.NO_MORE_DOCS;
+                return cursor.nextRow();
             }
 
             @Override
             public void appendCurrentFields(List<? super IndexableField> out) {
-                field.setDocValue(values.getLongValue(doc));
+                field.setDocValue(cursor.longValue());
                 out.add(field);
             }
         };
@@ -91,28 +87,27 @@ public final class EscfLuceneColumn implements SliceableColumn {
 
     @Override
     public Column toLuceneColumn() {
-        final int docCount = values.docCount;
+        final EscfLongColumn longValues = (EscfLongColumn) values;
         return new LongColumn(name, fieldType, LongColumn.Density.DENSE, kind) {
             @Override
             public LongTupleCursor tuples() {
+                final EscfLongColumn.LongCursor cursor = longValues.longCursor();
                 return new LongTupleCursor() {
-                    private int doc = -1;
-
                     @Override
                     public int nextDoc() {
-                        return ++doc < docCount ? doc : DocIdSetIterator.NO_MORE_DOCS;
+                        return cursor.nextRow();
                     }
 
                     @Override
                     public long longValue() {
-                        return values.getLongValue(doc);
+                        return cursor.longValue();
                     }
                 };
             }
 
             @Override
             public LongValuesCursor values() {
-                return new LongValuesCursor(docCount) {
+                return new LongValuesCursor(longValues.docCount) {
                     private int pos;
 
                     @Override
@@ -120,7 +115,7 @@ public final class EscfLuceneColumn implements SliceableColumn {
                         if (pos >= size()) {
                             throw new IllegalStateException("nextLong() called more than size()=" + size() + " times");
                         }
-                        return values.getLongValue(pos++);
+                        return longValues.getLongValue(pos++);
                     }
 
                     @Override
@@ -129,7 +124,7 @@ public final class EscfLuceneColumn implements SliceableColumn {
                             throw new IllegalStateException("fill of " + length + " from pos " + pos + " exceeds size()=" + size());
                         }
                         for (int i = 0; i < length; i++) {
-                            dst[offset + i] = values.getLongValue(pos++);
+                            dst[offset + i] = longValues.getLongValue(pos++);
                         }
                     }
                 };

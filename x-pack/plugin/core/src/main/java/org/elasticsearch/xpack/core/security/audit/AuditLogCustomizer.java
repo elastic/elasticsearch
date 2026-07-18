@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.audit;
 
+import org.elasticsearch.xpack.core.security.audit.data.DataObject;
+
 /**
  * Extension point for customizing how {@code LoggingAuditTrail} processes events.
  * <p>
@@ -37,8 +39,22 @@ public interface AuditLogCustomizer {
      * @param ctx   read-only context describing the event
      * @param entry the mutable entry to enrich
      */
-    default void enrich(AuditEventContext ctx, AuditEntry entry) {
+    default void enrich(AuditEventContext ctx, DataObject entry) {
         // no-op
+    }
+
+    /**
+     * Optionally supplies the {@link AuditLogMessageConverter} used to render each audit entry into the log4j message that
+     * {@code LoggingAuditTrail} writes, giving an implementation full control over the emitted message shape (for example to render
+     * nested structures).
+     * <p>
+     * The default implementation returns {@code null}, which signals {@code LoggingAuditTrail} to fall back to its standard,
+     * byte-for-byte back-compatible rendering of each entry as a flat {@code String}-valued message.
+     *
+     * @return the converter to use, or {@code null} to use the audit trail's default rendering
+     */
+    default AuditLogMessageConverter messageConverter() {
+        return null;
     }
 
     /**

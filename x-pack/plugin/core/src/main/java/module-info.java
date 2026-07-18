@@ -186,6 +186,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
     exports org.elasticsearch.xpack.core.security.audit;
+    exports org.elasticsearch.xpack.core.security.audit.data;
     exports org.elasticsearch.xpack.core.security.operator;
     exports org.elasticsearch.xpack.core.security.support;
     exports org.elasticsearch.xpack.core.security.user;

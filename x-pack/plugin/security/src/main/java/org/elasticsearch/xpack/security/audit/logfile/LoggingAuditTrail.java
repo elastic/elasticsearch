@@ -13,7 +13,6 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +40,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
@@ -98,6 +96,11 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
+import org.elasticsearch.xpack.core.security.audit.AuditLogMessageConverter;
+import org.elasticsearch.xpack.core.security.audit.data.DataArray;
+import org.elasticsearch.xpack.core.security.audit.data.DataObject;
+import org.elasticsearch.xpack.core.security.audit.data.DataValues;
+import org.elasticsearch.xpack.core.security.audit.data.XContentData;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -1140,7 +1143,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private class LogEntryBuilder {
 
-        private final StringMapMessage logEntry;
+        private final DataObject logEntry;
         private AuditEventContext eventContext = AuditEventContext.EMPTY;
         private boolean includeThreadContext = true;
 
@@ -1149,7 +1152,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder(boolean showOrigin) {
-            logEntry = new StringMapMessage(LoggingAuditTrail.this.entryCommonFields.commonFields);
+            logEntry = DataValues.objectFromMap(LoggingAuditTrail.this.entryCommonFields.commonFields);
             if (false == showOrigin) {
                 logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
                 logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
@@ -1182,7 +1185,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             builder.endObject() // user
                 .endObject();
-            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(PUT_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1196,7 +1199,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .endObject() // user
                 .endObject() // password
                 .endObject();
-            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CHANGE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1216,7 +1219,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             withRoleDescriptor(builder, roleDescriptor);
             builder.endObject() // role
                 .endObject();
-            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(PUT_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1238,7 +1241,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             builder.endObject() // role_mapping
                 .endObject();
-            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(PUT_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1264,7 +1267,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .endObject();
                 logEntry.with(EVENT_ACTION_FIELD_NAME, "change_disable_user");
             }
-            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CHANGE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1275,7 +1278,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 // toXContent of {@code ApplicationPrivilegeDescriptor} does a good job
                 .field("privileges", putPrivilegesRequest.getPrivileges())
                 .endObject();
-            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(PUT_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1285,7 +1288,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject();
             withRequestBody(builder, abstractCreateApiKeyRequest);
             builder.endObject();
-            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CREATE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1297,7 +1300,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Grant grant = grantApiKeyRequest.getGrant();
             withGrant(builder, grant);
             builder.endObject();
-            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CREATE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1307,7 +1310,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject();
             withRequestBody(builder, cloneApiKeyRequest);
             builder.endObject();
-            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CREATE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1317,7 +1320,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject();
             withRequestBody(builder, baseSingleUpdateApiKeyRequest);
             builder.endObject();
-            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CHANGE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1327,7 +1330,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject();
             withRequestBody(builder, bulkUpdateApiKeyRequest);
             builder.endObject();
-            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CHANGE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1471,7 +1474,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", deleteUserRequest.username())
                 .endObject() // user
                 .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(DELETE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1487,7 +1490,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", deleteRoleMappingRequest.getName())
                 .endObject() // role_mapping
                 .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(DELETE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1510,7 +1513,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             builder.endObject() // apikeys
                 .endObject();
-            logEntry.with(INVALIDATE_API_KEYS_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(INVALIDATE_API_KEYS_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1523,7 +1526,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .array("privileges", deletePrivilegesRequest.privileges())
                 .endObject() // privileges
                 .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(DELETE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1537,7 +1540,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", createServiceAccountTokenRequest.getTokenName())
                 .endObject() // service_token
                 .endObject();
-            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CREATE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1551,7 +1554,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", deleteServiceAccountTokenRequest.getTokenName())
                 .endObject() // service_token
                 .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(DELETE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1562,7 +1565,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Grant grant = activateProfileRequest.getGrant();
             withGrant(builder, grant);
             builder.endObject();
-            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(PUT_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1574,7 +1577,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("labels", updateProfileDataRequest.getLabels())
                 .field("data", updateProfileDataRequest.getData())
                 .endObject();
-            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(PUT_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1595,7 +1598,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .endObject();
                 logEntry.with(EVENT_ACTION_FIELD_NAME, "change_disable_user_profile");
             }
-            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(CHANGE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1607,7 +1610,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", roleName)
                 .endObject() // role
                 .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            logEntry.put(DELETE_CONFIG_FIELD_NAME, XContentData.fromBuilder(builder));
             return this;
         }
 
@@ -1664,7 +1667,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRestOrigin(ThreadContext threadContext) {
-            assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
+            assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.getString(ORIGIN_TYPE_FIELD_NAME)); // this is the default
             final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
             if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
@@ -1675,7 +1678,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRestOrTransportOrigin(TransportRequest transportRequest, ThreadContext threadContext) {
-            assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
+            assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.getString(ORIGIN_TYPE_FIELD_NAME)); // this is the default
             final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
             if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
@@ -1727,7 +1730,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+        static void addAuthenticationFieldsToLogEntry(DataObject logEntry, Authentication authentication) {
             assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
@@ -1752,18 +1755,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
                         .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-                    final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    final DataObject crossClusterAccessLogEntry = new DataObject();
                     addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
-                    try {
-                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(crossClusterAccessLogEntry.getData());
-                        logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
-                    } catch (IOException e) {
-                        throw new ElasticsearchSecurityException(
-                            "Unexpected error while serializing cross cluster access authentication data",
-                            e
-                        );
-                    }
+                    // store sorted by field name so the terminally-flattened JSON stays stable (historically key-sorted)
+                    final DataObject sortedCrossClusterAccess = new DataObject();
+                    new TreeMap<>(crossClusterAccessLogEntry.view()).forEach(sortedCrossClusterAccess::put);
+                    logEntry.put(CROSS_CLUSTER_ACCESS_FIELD_NAME, sortedCrossClusterAccess);
                 }
             } else {
                 final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
@@ -1814,14 +1811,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder with(String key, String[] values) {
             if (values != null) {
-                logEntry.with(key, toQuotedJsonArray(values));
+                logEntry.put(key, toDataArray(values));
             }
             return this;
         }
 
         LogEntryBuilder withIndices(String[] values) {
             if (values != null) {
-                logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(values));
+                logEntry.put(INDICES_FIELD_NAME, toDataArray(values));
             }
             return this;
         }
@@ -1835,9 +1832,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             for (Entry<String, Object> entry : map.entrySet()) {
                 Object value = entry.getValue();
                 if (value.getClass().isArray()) {
-                    logEntry.with(entry.getKey(), toQuotedJsonArray((Object[]) value));
+                    logEntry.put(entry.getKey(), toDataArray((Object[]) value));
                 } else {
-                    logEntry.with(entry.getKey(), value);
+                    logEntry.put(entry.getKey(), String.valueOf(value));
                 }
             }
             return this;
@@ -1847,27 +1844,29 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (includeThreadContext) {
                 withThreadContext();
             }
-            customizer.enrich(eventContext, new StringMapAuditEntry(logEntry));
-            logger.info(AUDIT_MARKER, logEntry);
+            customizer.enrich(eventContext, logEntry);
+            AuditLogMessageConverter converter = customizer.messageConverter();
+            if (converter == null) {
+                converter = StringMapMessageConverter.INSTANCE;
+            }
+            logger.info(AUDIT_MARKER, converter.convert(logEntry));
         }
 
-        static String toQuotedJsonArray(Object[] values) {
+        /**
+         * Captures an array as a {@link DataArray} of strings, preserving the audit trail's long-standing semantics:
+         * {@code null} elements are skipped and every retained element is recorded via its {@code toString()}. Encoding
+         * this array as JSON is deferred to the terminal {@link StringMapMessageConverter}, keeping array (and object)
+         * serialization in one place.
+         */
+        static DataArray toDataArray(Object[] values) {
             assert values != null;
-            final StringBuilder stringBuilder = new StringBuilder();
-            final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
-            stringBuilder.append("[");
+            final DataArray array = new DataArray();
             for (final Object value : values) {
                 if (value != null) {
-                    if (stringBuilder.length() > 1) {
-                        stringBuilder.append(",");
-                    }
-                    stringBuilder.append("\"");
-                    jsonStringEncoder.quoteAsString(value.toString(), stringBuilder);
-                    stringBuilder.append("\"");
+                    array.add(value.toString());
                 }
             }
-            stringBuilder.append("]");
-            return stringBuilder.toString();
+            return array;
         }
     }
 

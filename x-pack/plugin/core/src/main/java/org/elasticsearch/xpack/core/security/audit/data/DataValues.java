@@ -1,0 +1,157 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.core.security.audit.data;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Converts a generic Java "JSON tree", the shape produced by
+ * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToMap}, into the type-safe {@link DataValue}
+ * model.
+ * <p>
+ * The supported inputs are exactly the value types that XContent map parsing yields: {@code null}, {@link CharSequence},
+ * {@link Boolean}, the standard {@link Number} types, {@link Map} (object), and {@link Iterable}/{@code Object[]}
+ * (array). Any other type is rejected with an {@link IllegalArgumentException} rather than being silently coerced, which
+ * preserves the model's guarantee that it never holds arbitrary {@code Object} values. Rejecting unknown types also
+ * matches the existing audit behavior, where a request payload carrying a type the serializer does not understand is
+ * allowed to fail rather than be logged in a degraded form.
+ * <p>
+ * Field and element order is preserved, so converting an ordered map (one parsed with the {@code ordered} flag set)
+ * yields a {@link DataObject} whose iteration order matches the source. This keeps downstream encoding deterministic.
+ */
+public final class DataValues {
+
+    private DataValues() {}
+
+    /**
+     * Converts a single generic Java value into a {@link DataValue}.
+     *
+     * @param value a value from a parsed JSON tree, or {@code null}
+     * @return the corresponding {@link DataValue} ({@link DataNull#INSTANCE} for {@code null})
+     * @throws IllegalArgumentException if {@code value} is of a type that has no JSON representation in this model
+     */
+    public static DataValue fromJava(Object value) {
+        return switch (value) {
+            case null -> DataNull.INSTANCE;
+            // idempotent: allow already-converted values to pass through, which also covers nested DataObject/DataArray
+            case DataValue dataValue -> dataValue;
+            case CharSequence charSequence -> new DataString(charSequence.toString());
+            case Boolean bool -> new DataBoolean(bool);
+            case BigInteger bigInteger -> DataValue.of(bigInteger);
+            case BigDecimal bigDecimal -> DataValue.of(bigDecimal);
+            case Byte b -> DataValue.of(b.longValue());
+            case Short s -> DataValue.of(s.longValue());
+            case Integer i -> DataValue.of(i.longValue());
+            case Long l -> DataValue.of(l);
+            case Float f -> DataValue.of(f.doubleValue());
+            case Double d -> DataValue.of(d);
+            case Map<?, ?> map -> objectFromMap(map);
+            case Object[] array -> arrayFrom(Arrays.asList(array));
+            case Iterable<?> iterable -> arrayFrom(iterable);
+            default -> throw new IllegalArgumentException(
+                "Cannot convert value of type [" + value.getClass().getName() + "] to a DataValue"
+            );
+        };
+    }
+
+    /**
+     * Converts a map into a {@link DataObject}, preserving the map's iteration order.
+     *
+     * @param map a map whose keys are strings and whose values are convertible via {@link #fromJava(Object)}
+     * @return the corresponding {@link DataObject}
+     * @throws IllegalArgumentException if any key is not a {@link String}, or any value has no JSON representation
+     */
+    public static DataObject objectFromMap(Map<?, ?> map) {
+        DataObject object = new DataObject();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            Object key = entry.getKey();
+            if (key instanceof String name) {
+                object.put(name, fromJava(entry.getValue()));
+            } else {
+                throw new IllegalArgumentException(
+                    "DataObject field names must be strings but found [" + (key == null ? "null" : key.getClass().getName()) + "]"
+                );
+            }
+        }
+        return object;
+    }
+
+    /**
+     * Converts a sequence into a {@link DataArray}, preserving order.
+     *
+     * @param values elements convertible via {@link #fromJava(Object)}
+     * @return the corresponding {@link DataArray}
+     * @throws IllegalArgumentException if any element has no JSON representation
+     */
+    public static DataArray arrayFrom(Iterable<?> values) {
+        DataArray array = new DataArray();
+        for (Object value : values) {
+            array.add(fromJava(value));
+        }
+        return array;
+    }
+
+    /**
+     * Converts a {@link DataValue} back into the generic Java "JSON tree" representation, the inverse of
+     * {@link #fromJava(Object)}.
+     * <p>
+     * Scalars map to {@code String}/{@code Boolean}/{@code Long}/{@code Double} (or {@code BigInteger}/{@code BigDecimal}
+     * for out-of-range numbers, or {@code null} for {@link DataNull}), objects to an insertion-ordered {@link Map} and
+     * arrays to a {@link List}. The result is suitable for serialization through {@code XContentBuilder#map}; the numeric
+     * types all render as bare JSON number tokens.
+     *
+     * @param value the value to convert
+     * @return the corresponding generic Java value, or {@code null} for {@link DataNull}
+     */
+    public static Object toJava(DataValue value) {
+        return switch (value) {
+            case DataNull ignored -> null;
+            case DataString dataString -> dataString.value();
+            case DataBoolean dataBoolean -> dataBoolean.value();
+            case DataLong dataLong -> dataLong.value();
+            case DataDouble dataDouble -> dataDouble.value();
+            case DataInteger dataInteger -> dataInteger.value();
+            case DataDecimal dataDecimal -> dataDecimal.value();
+            case DataObject object -> toMap(object);
+            case DataArray array -> toList(array);
+        };
+    }
+
+    /**
+     * Converts a {@link DataObject} into an insertion-ordered {@link Map} of generic Java values, the inverse of
+     * {@link #objectFromMap(Map)}.
+     *
+     * @param object the object to convert
+     * @return a mutable, insertion-ordered map
+     */
+    public static Map<String, Object> toMap(DataObject object) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        object.forEach((name, value) -> map.put(name, toJava(value)));
+        return map;
+    }
+
+    /**
+     * Converts a {@link DataArray} into a {@link List} of generic Java values, the inverse of
+     * {@link #arrayFrom(Iterable)}.
+     *
+     * @param array the array to convert
+     * @return a mutable list preserving element order
+     */
+    public static List<Object> toList(DataArray array) {
+        List<Object> list = new ArrayList<>(array.size());
+        for (DataValue value : array) {
+            list.add(toJava(value));
+        }
+        return list;
+    }
+}

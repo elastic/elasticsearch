@@ -97,9 +97,9 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
-import org.elasticsearch.xpack.core.security.audit.AuditEntry;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
+import org.elasticsearch.xpack.core.security.audit.data.DataObject;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -2096,10 +2096,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext,
             new AuditLogCustomizer() {
                 @Override
-                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                public void enrich(AuditEventContext ctx, DataObject entry) {
                     // enrich runs last in build(), so it can read and override fields already set by the builder
-                    assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
-                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+                    assertThat(entry.getString(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
+                    entry.with(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
                 }
             }
         );
@@ -2121,9 +2121,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext,
             new AuditLogCustomizer() {
                 @Override
-                public void enrich(AuditEventContext ctx, AuditEntry entry) {
-                    assertThat(entry.get(addedField), nullValue());
-                    entry.set(addedField, addedValue);
+                public void enrich(AuditEventContext ctx, DataObject entry) {
+                    assertThat(entry.getString(addedField), nullValue());
+                    entry.with(addedField, addedValue);
                 }
             }
         );
@@ -2187,8 +2187,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext,
             new AuditLogCustomizer() {
                 @Override
-                public void enrich(AuditEventContext ctx, AuditEntry entry) {
-                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, ctx.realm() + ":" + ctx.indices().length);
+                public void enrich(AuditEventContext ctx, DataObject entry) {
+                    entry.with(LoggingAuditTrail.ACTION_FIELD_NAME, ctx.realm() + ":" + ctx.indices().length);
                 }
             }
         );

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 154343
+summary: Introduce type-safe data model for audit logging
+type: enhancement

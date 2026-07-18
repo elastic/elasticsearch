@@ -1611,3 +1611,21 @@ from employees | eval p = concat("Eber", ".*") | where first_name rlike p | keep
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
 ;
+
+
+likeRowEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+row abc = "demo" | eval filter = concat("demo", "*") | where abc like filter | keep abc;
+
+abc:keyword
+demo
+;
+
+
+rlikeRowEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+row abc = "demo" | eval filter = concat("demo", ".*") | where abc rlike filter | keep abc;
+
+abc:keyword
+demo
+;

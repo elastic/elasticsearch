@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -840,5 +841,30 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name rlike p"));
         assertThat(err, containsString("second argument of [RLIKE] cannot be null, received [null]"));
+    }
+
+    /**
+     * ROW provides the data, EVAL computes the pattern, WHERE filters via LIKE.
+     * PropagateEvalFoldables substitutes both the ROW field and the EVAL pattern into
+     * the filter condition; ResolveRegexPattern then resolves it. Since "demo" matches
+     * "demo*", the condition constant-folds to {@code true} and PruneFilters removes it.
+     * ReplaceRowAsLocalRelation converts the Row source to a LocalRelation.
+     */
+    public void testLikeRowEvalPropagatedConcat() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \"*\") | where abc like filter"));
+        // The filter folds to true and is pruned; the Row source becomes a LocalRelation
+        assertFalse(plan.anyMatch(p -> p instanceof Filter));
+        assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
+    }
+
+    /**
+     * Same as {@link #testLikeRowEvalPropagatedConcat} for RLIKE.
+     */
+    public void testRLikeRowEvalPropagatedConcat() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \".*\") | where abc rlike filter"));
+        assertFalse(plan.anyMatch(p -> p instanceof Filter));
+        assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
     }
 }

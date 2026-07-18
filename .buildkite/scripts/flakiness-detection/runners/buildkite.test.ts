@@ -34,7 +34,7 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
     expect(step.command).toContain(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 '-Dtests.timeoutSuite=3600000!' :server:test --tests org.elasticsearch.index.IndexTests"
     );
     expect(step.command).toContain("exit 0");
     // Inner timeout fires 2m before outer timeout_in_minutes so the wrapper

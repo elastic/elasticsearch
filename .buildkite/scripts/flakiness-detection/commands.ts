@@ -4,6 +4,19 @@ import type { BatchingConfig, ClassifiedTest, RunnableCommand, TestKind } from "
 
 import { KIND_KEYS, KIND_LABELS, KIND_ORDER } from "./domain.ts";
 
+const SAFE_SHELL_ARG = /^[A-Za-z0-9_./:=,+@%-]+$/;
+
+function shellQuote(arg: string): string {
+  if (arg.length > 0 && SAFE_SHELL_ARG.test(arg)) {
+    return arg;
+  }
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+function joinShellArgs(args: string[]): string {
+  return args.map(shellQuote).join(" ");
+}
+
 export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   const seen = new Set<string>();
   const result: ClassifiedTest[] = [];
@@ -84,10 +97,10 @@ export function deduplicateYamlRunners(tests: ClassifiedTest[]): ClassifiedTest[
 function tasksWithFilters(
   batch: ClassifiedTest[],
   taskName: string,
-  toFilter: (t: ClassifiedTest) => string,
+  toFilter: (t: ClassifiedTest) => string[],
   perTaskSuffix?: string,
-): string {
-  const byTask = new Map<string, string[]>();
+): string[] {
+  const byTask = new Map<string, string[][]>();
   for (const t of batch) {
     const task = `${t.gradleProject}:${taskName}`;
     const filters = byTask.get(task);
@@ -98,8 +111,7 @@ function tasksWithFilters(
     }
   }
   return [...byTask.entries()]
-    .map(([task, filters]) => [task, ...filters, ...(perTaskSuffix ? [perTaskSuffix] : [])].join(" "))
-    .join(" ");
+    .flatMap(([task, filters]) => [task, ...filters.flat(), ...(perTaskSuffix ? [perTaskSuffix] : [])]);
 }
 
 export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfig): string {
@@ -111,19 +123,30 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
 
   switch (kind) {
     case "test": {
-      const tasks = tasksWithFilters(batch, "test", (t) => `--tests ${t.fqcn}`);
-      return `${gradle} -Dtests.iters=${cfg.itersByKind.test} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
+      const tasks = tasksWithFilters(batch, "test", (t) => ["--tests", t.fqcn!]);
+      return joinShellArgs([gradle, `-Dtests.iters=${cfg.itersByKind.test}`, `-Dtests.timeoutSuite=${cfg.suiteTimeoutMs}!`, ...tasks]);
     }
     case "internalClusterTest": {
-      const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => `--tests ${t.fqcn}`);
-      return `${gradle} -Dtests.iters=${cfg.itersByKind.internalClusterTest} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
+      const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => ["--tests", t.fqcn!]);
+      return joinShellArgs([
+        gradle,
+        `-Dtests.iters=${cfg.itersByKind.internalClusterTest}`,
+        `-Dtests.timeoutSuite=${cfg.suiteTimeoutMs}!`,
+        ...tasks,
+      ]);
     }
     case "javaRestTest": {
-      const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${tasks}`;
+      const tasks = tasksWithFilters(batch, "javaRestTest", (t) => ["--tests", t.fqcn!], "--rerun");
+      return joinShellArgs([".ci/scripts/repeat-rest-test.sh", String(cfg.restIters), gradle, ...tasks]);
     }
     case "yamlRestTestRunner": {
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${batch[0].gradleProject}:yamlRestTest --rerun`;
+      return joinShellArgs([
+        ".ci/scripts/repeat-rest-test.sh",
+        String(cfg.restIters),
+        gradle,
+        `${batch[0].gradleProject}:yamlRestTest`,
+        "--rerun",
+      ]);
     }
     case "yamlRestTestSuite": {
       // `tests.rest.suite` is a JVM system property, not a Gradle task option,
@@ -141,18 +164,17 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
           byTask.set(task, [t.suitePath!]);
         }
       }
-      const tasks = [...byTask.keys()].map((task) => `${task} --rerun`).join(" ");
+      const tasks = [...byTask.keys()].flatMap((task) => [task, "--rerun"]);
       const suiteProps = [...byTask.entries()]
-        .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`)
-        .join(" ");
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${tasks} ${suiteProps}`;
+        .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`);
+      return joinShellArgs([".ci/scripts/repeat-rest-test.sh", String(cfg.restIters), gradle, ...tasks, ...suiteProps]);
     }
     case "yamlRestTestCase": {
       // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
       // form, so multiple cases can be batched into one gradle invocation and
       // share agent and cluster setup.
-      const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${tasks}`;
+      const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => ["--tests", `${t.fqcn}.${t.yamlTest}`], "--rerun");
+      return joinShellArgs([".ci/scripts/repeat-rest-test.sh", String(cfg.restIters), gradle, ...tasks]);
     }
   }
 }

@@ -151,7 +151,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests",
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 '-Dtests.timeoutSuite=3600000!' :server:test --tests org.elasticsearch.index.IndexTests",
     );
   });
 
@@ -161,7 +161,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests",
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 '-Dtests.timeoutSuite=3600000!' :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests",
     );
   });
 
@@ -171,7 +171,21 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests",
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 '-Dtests.timeoutSuite=3600000!' :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests",
+    );
+  });
+
+  test("shell-quotes Java test filters with shell metacharacters", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":server",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.index.Foo Tests'$(echo $HOME)`whoami`;|()",
+      },
+    ];
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 '-Dtests.timeoutSuite=3600000!' :server:test --tests 'org.elasticsearch.index.Foo Tests'\\''$(echo $HOME)`whoami`;|()'",
     );
   });
 
@@ -185,7 +199,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT",
+      ".ci/scripts/run-gradle.sh -Dtests.iters=20 '-Dtests.timeoutSuite=3600000!' :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT",
     );
   });
 
@@ -276,6 +290,20 @@ describe("generateBatchCommand", () => {
     );
   });
 
+  test("shell-quotes YAML suite tasks and per-task suite properties with shell metacharacters", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x pack:plugin:ml;|(`whoami`)",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/suite path'$(echo $HOME)`date`;|()",
+      },
+    ];
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ':x pack:plugin:ml;|(`whoami`):yamlRestTest' --rerun '-Dtests.rest.suite.:x pack:plugin:ml;|(`whoami`):yamlRestTest=ml/suite path'\\''$(echo $HOME)`date`;|()'",
+    );
+  });
+
   test("YAML REST test case targets the exact parameterized test", () => {
     const batch: ClassifiedTest[] = [
       {
@@ -287,7 +315,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun',
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests 'org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}' --rerun",
     );
   });
 
@@ -309,7 +337,22 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun',
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests 'org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}' --rerun :x-pack:plugin:ml:yamlRestTest --tests 'org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}' --rerun",
+    );
+  });
+
+  test("shell-quotes YAML test case descriptors with shell metacharacters", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
+        yamlTest: "test {yaml=ml/quoted 'case' $(echo $HOME) `date`;|()}",
+      },
+    ];
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests 'org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/quoted '\\''case'\\'' $(echo $HOME) `date`;|()}' --rerun",
     );
   });
 
@@ -318,7 +361,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
     ];
     expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, target: "local" })).toBe(
-      "./gradlew -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests",
+      "./gradlew -Dtests.iters=100 '-Dtests.timeoutSuite=3600000!' :server:test --tests org.elasticsearch.FooTests",
     );
   });
 
@@ -358,7 +401,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun',
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests 'org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}' --tests 'org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}' --rerun",
     );
   });
 });

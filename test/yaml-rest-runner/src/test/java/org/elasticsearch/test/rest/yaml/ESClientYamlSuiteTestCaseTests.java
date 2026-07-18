@@ -172,6 +172,32 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("does not exist in any YAML test root"));
     }
 
+    /**
+     * A per-task scoped {@code tests.rest.suite.<task>} property (set by build tooling such as the
+     * flakiness-detection re-run pipeline) must not fail a suite that declares explicit test paths - it
+     * is logged and ignored so all of the suite's paths run.
+     */
+    public void testScopedSuitePropertyIsIgnoredForExplicitPaths() {
+        // scoped set, no global -> ignored, no throw
+        ESClientYamlSuiteTestCase.checkRestTestsSuiteProperty("painless", null);
+        // scoped takes precedence over a global value too
+        ESClientYamlSuiteTestCase.checkRestTestsSuiteProperty("painless", "watcher");
+        // neither set -> nothing to do
+        ESClientYamlSuiteTestCase.checkRestTestsSuiteProperty(null, null);
+    }
+
+    /**
+     * A bare, unscoped {@code tests.rest.suite} on an explicit-paths suite is still a hard error: the
+     * requested value would otherwise be silently dropped.
+     */
+    public void testGlobalSuitePropertyStillRejectedForExplicitPaths() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ESClientYamlSuiteTestCase.checkRestTestsSuiteProperty(null, "watcher")
+        );
+        assertThat(e.getMessage(), containsString("not supported with explicit test paths"));
+    }
+
     private static void assertSingleFile(Map<String, Set<Path>> yamlSuites, String dirName, String fileName) {
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(1));

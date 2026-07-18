@@ -252,9 +252,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths      list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters, String... testPaths) throws Exception {
-        if (resolveRestTestsSuiteProperty() != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
-        }
+        checkRestTestsSuiteProperty();
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
     }
 
@@ -263,9 +261,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
-        if (resolveRestTestsSuiteProperty() != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
-        }
+        checkRestTestsSuiteProperty();
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
     }
 
@@ -278,9 +274,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... testPaths)
         throws Exception {
-        if (resolveRestTestsSuiteProperty() != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
-        }
+        checkRestTestsSuiteProperty();
         return createParameters(executeableSectionRegistry, Map.of(), testPaths);
     }
 
@@ -447,6 +441,43 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
         }
         return System.getProperty(REST_TESTS_SUITE);
+    }
+
+    /**
+     * Guards the explicit-paths {@link #createParameters} overloads against the {@link #REST_TESTS_SUITE}
+     * system property, which a suite that declares its own paths cannot honor.
+     *
+     * <p>The per-task scoped form ({@code tests.rest.suite.<task path>}) is set by build tooling that
+     * targets one task among many - for example the flakiness-detection re-run pipeline, which re-runs a
+     * single changed suite by scoping the property to that task. An explicit-paths suite cannot restrict
+     * itself to the requested suite, but failing the whole run is hostile to such tooling, so the scoped
+     * property is logged and ignored (all of the suite's explicit paths run).
+     *
+     * <p>A bare, unscoped {@code tests.rest.suite} is almost always a mistake on an explicit-paths suite -
+     * the requested value would be silently dropped - so that still fails loudly.
+     */
+    private static void checkRestTestsSuiteProperty() {
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        checkRestTestsSuiteProperty(scoped, System.getProperty(REST_TESTS_SUITE));
+    }
+
+    // Visible for testing. `scopedValue` is the value of the per-task scoped property
+    // (tests.rest.suite.<task>) or null; `globalValue` is the bare tests.rest.suite or null.
+    static void checkRestTestsSuiteProperty(String scopedValue, String globalValue) {
+        if (scopedValue != null) {
+            Logger logger = LogManager.getLogger(ESClientYamlSuiteTestCase.class);
+            logger.warn(
+                "Ignoring the scoped '{}.<task>' system property [{}]: this suite declares explicit test paths, "
+                    + "so all of them run regardless of the requested suite.",
+                REST_TESTS_SUITE,
+                scopedValue
+            );
+            return;
+        }
+        if (globalValue != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
     }
 
     private static String[] resolveRestTestsSuitePaths() {

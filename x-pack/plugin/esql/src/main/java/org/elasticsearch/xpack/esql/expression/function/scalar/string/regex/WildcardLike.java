@@ -43,7 +43,6 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         "WildcardLike",
         WildcardLike::new
     );
-
     public static final String NAME = "LIKE";
 
     @FunctionInfo(

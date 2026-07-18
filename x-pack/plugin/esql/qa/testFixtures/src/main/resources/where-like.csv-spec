@@ -1569,20 +1569,20 @@ hello
 
 likeConstantExpressionNested
 required_capability: like_rlike_constant_expression
-from employees | where first_name like concat(to_lower("EBER"), "*") | keep emp_no, first_name;
+row x = "eberhardt" | where x like concat(to_lower("EBER"), "*");
 
-emp_no:integer | first_name:keyword
-10013          | Eberhardt
+x:keyword
+eberhardt
 ;
 
 
 rlikeConstantExpressionToUpper
 required_capability: like_rlike_constant_expression
-// (?-i) is the default; RLIKE is case-sensitive so matching the uppercase prefix after TO_UPPER
-from employees | where first_name rlike concat("(?i)", to_lower("EBER"), ".*") | keep emp_no, first_name;
+// to_upper folds at optimization time; the resulting pattern matches the uppercase string case-sensitively
+row x = "EBERHARDT" | where x rlike concat(to_upper("eber"), ".*");
 
-emp_no:integer | first_name:keyword
-10013          | Eberhardt
+x:keyword
+EBERHARDT
 ;
 
 

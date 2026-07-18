@@ -20,11 +20,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link Match}.
+ * {@link ExpressionEvaluator} implementation for {@link RuntimeSearch}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MatchBytesRefEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MatchBytesRefEvaluator.class);
+public final class RuntimeSearchBytesRefEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RuntimeSearchBytesRefEvaluator.class);
 
   private final Source source;
 
@@ -38,7 +38,7 @@ public final class MatchBytesRefEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public MatchBytesRefEvaluator(Source source, ExpressionEvaluator fieldBlock,
+  public RuntimeSearchBytesRefEvaluator(Source source, ExpressionEvaluator fieldBlock,
       BytesRef queryStringBytesRef, BytesRef scratch, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
@@ -64,7 +64,7 @@ public final class MatchBytesRefEvaluator implements ExpressionEvaluator {
   public BooleanBlock eval(int positionCount, BytesRefBlock fieldBlockBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(Match.processBytesRef(p, fieldBlockBlock, this.queryStringBytesRef, this.scratch));
+        result.appendBoolean(RuntimeSearch.processBytesRef(p, fieldBlockBlock, this.queryStringBytesRef, this.scratch));
       }
       return result.build();
     }
@@ -72,7 +72,7 @@ public final class MatchBytesRefEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MatchBytesRefEvaluator[" + "fieldBlock=" + fieldBlock + ", queryStringBytesRef=" + queryStringBytesRef + "]";
+    return "RuntimeSearchBytesRefEvaluator[" + "fieldBlock=" + fieldBlock + ", queryStringBytesRef=" + queryStringBytesRef + "]";
   }
 
   @Override
@@ -105,13 +105,13 @@ public final class MatchBytesRefEvaluator implements ExpressionEvaluator {
     }
 
     @Override
-    public MatchBytesRefEvaluator get(DriverContext context) {
-      return new MatchBytesRefEvaluator(source, fieldBlock.get(context), queryStringBytesRef, scratch.apply(context), context);
+    public RuntimeSearchBytesRefEvaluator get(DriverContext context) {
+      return new RuntimeSearchBytesRefEvaluator(source, fieldBlock.get(context), queryStringBytesRef, scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "MatchBytesRefEvaluator[" + "fieldBlock=" + fieldBlock + ", queryStringBytesRef=" + queryStringBytesRef + "]";
+      return "RuntimeSearchBytesRefEvaluator[" + "fieldBlock=" + fieldBlock + ", queryStringBytesRef=" + queryStringBytesRef + "]";
     }
   }
 }

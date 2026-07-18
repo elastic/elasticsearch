@@ -29,6 +29,11 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | match foo", "match");
     }
 
+    public void testDevelopmentLambda() throws Exception {
+        // outside of dev mode, ARROW never lexes, so `->` falls back to today's MINUS/GT tokens
+        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
+    }
+
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));

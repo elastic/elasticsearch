@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -841,6 +842,68 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name rlike p"));
         assertThat(err, containsString("second argument of [RLIKE] cannot be null, received [null]"));
+    }
+
+    /**
+     * RLIKE pattern ".*" via EVAL matches every non-null string; ResolveRegexPattern
+     * detects {@code matchesAll()} and produces {@link IsNotNull} instead of {@link RLike}.
+     * Symmetric to {@link #testLikeEvalPropagatedMatchesAll}.
+     */
+    public void testRLikeEvalPropagatedMatchesAll() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \".*\" | where first_name rlike p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    /**
+     * RLIKE pattern with no regex metacharacters ("Anna") via EVAL has only one accepted
+     * string; ResolveRegexPattern detects {@code exactMatch()} and produces {@link Equals}.
+     * Symmetric to {@link #testLikeEvalPropagatedExactMatch}.
+     */
+    public void testRLikeEvalPropagatedExactMatch() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \"Anna\" | where first_name rlike p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    /**
+     * A foldable-but-non-string arithmetic expression used as an RLIKE pattern must be
+     * rejected at post-optimization verification. Symmetric to
+     * {@link #testLikeFoldedIntegerPatternReportsTypeError}.
+     */
+    public void testRLikeFoldedIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike (1 + 2)"));
+        assertThat(err, containsString("second argument of [RLIKE] must be [string]"));
+    }
+
+    /**
+     * NOT LIKE with a constant expression: the parser wraps the UnresolvedRegexExpression in
+     * Not; ResolveRegexPattern descends into it and resolves the inner node normally.
+     */
+    public void testLikeNotConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name not like concat(\"Anna\", \"*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        WildcardLike like = as(not.field(), WildcardLike.class);
+        assertEquals("Anna*", like.pattern().pattern());
+    }
+
+    /**
+     * Same as {@link #testLikeNotConstantExpression} for RLIKE.
+     */
+    public void testRLikeNotConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name not rlike concat(\"Anna\", \".*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        RLike rlike = as(not.field(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
     }
 
     /**

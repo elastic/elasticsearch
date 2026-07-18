@@ -1629,3 +1629,52 @@ row abc = "demo" | eval filter = concat("demo", ".*") | where abc rlike filter |
 abc:keyword
 demo
 ;
+
+
+rlikeEvalPropagatedLiteral
+required_capability: like_rlike_constant_expression
+from employees | eval p = "Eber.*" | where first_name rlike p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeMultiLevelEvalChain
+required_capability: like_rlike_constant_expression
+from employees | eval suffix = "*" | eval p = concat("Eber", suffix) | where first_name like p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+rlikeMultiLevelEvalChain
+required_capability: like_rlike_constant_expression
+from employees | eval suffix = ".*" | eval p = concat("Eber", suffix) | where first_name rlike p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeNotConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+from employees | where first_name not like concat("Eber", "*") | keep emp_no, first_name | sort emp_no | limit 3;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+
+rlikeNotConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+from employees | where first_name not rlike concat("Eber", ".*") | keep emp_no, first_name | sort emp_no | limit 3;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;

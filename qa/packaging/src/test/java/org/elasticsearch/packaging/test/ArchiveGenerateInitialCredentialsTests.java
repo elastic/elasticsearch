@@ -90,10 +90,13 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         Shell.Result result = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of(), OUTPUT_MATCH, false)
         );
-        assertThat(parseElasticPassword(result.stdout()), notNullValue());
-        assertThat(parseKibanaToken(result.stdout()), notNullValue());
-        assertThat(parseFingerprint(result.stdout()), notNullValue());
-        String response = makeRequestAsElastic("https://localhost:9200", parseElasticPassword(result.stdout()));
+        String stdout = result.stdout();
+        assertAutoConfigBannerPresent(stdout);
+        String elasticPassword = parseElasticPassword(stdout);
+        assertBannerValueParsed("elastic user password", elasticPassword, stdout);
+        assertBannerValueParsed("Kibana enrollment token", parseKibanaToken(stdout), stdout);
+        assertBannerValueParsed("HTTP CA certificate fingerprint", parseFingerprint(stdout), stdout);
+        String response = makeRequestAsElastic("https://localhost:9200", elasticPassword);
         assertThat(response, containsString("You Know, for Search"));
         stopElasticsearch();
     }
@@ -112,6 +115,37 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
 
     private static String stripAnsi(String output) {
         return ANSI_ESCAPE_REGEX.matcher(output).replaceAll("");
+    }
+
+    /**
+     * Fails with the full startup output when the auto-configuration banner is absent. When the console is not
+     * detected as a terminal (for example a zero-width pty, see #132878) auto-config suppresses the banner
+     * entirely, so this distinguishes a console-detection regression from a banner-wording change that would
+     * instead break the individual value regexes.
+     */
+    private static void assertAutoConfigBannerPresent(String stdout) {
+        assertThat(
+            "auto-configuration banner not found in startup output; the console was likely not detected as a "
+                + "terminal (see #132878). ANSI-stripped stdout was:\n"
+                + stripAnsi(stdout),
+            stripAnsi(stdout),
+            containsString("Password for the elastic user")
+        );
+    }
+
+    /**
+     * Fails with the full startup output when a banner value could not be parsed. With the banner present, a
+     * null value means the banner wording has drifted from the parse regex; the dumped output shows the current
+     * wording so the regex can be updated quickly rather than leaving an opaque {@code was null} failure.
+     */
+    private static void assertBannerValueParsed(String label, String value, String stdout) {
+        assertThat(
+            "failed to parse the " + label + " from the auto-configuration banner; its wording may have changed. "
+                + "ANSI-stripped stdout was:\n"
+                + stripAnsi(stdout),
+            value,
+            notNullValue()
+        );
     }
 
     private String parseElasticPassword(String output) {

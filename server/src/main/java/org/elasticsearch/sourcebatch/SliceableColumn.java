@@ -10,9 +10,9 @@
 package org.elasticsearch.sourcebatch;
 
 /**
- * A column that carries its own window ({@code [from, from + count)}) over backing data in an
- * Arrow-compatible layout. Slicing yields a new instance sharing the same backing data but adjusted
- * to a sub-range — no copying occurs.
+ * A column that carries its own window ({@code [from, from + count)}) over backing data.
+ * Slicing yields a new instance sharing the same backing data but adjusted to a
+ * sub-range — no copying occurs.
  *
  * <p>Implementations that can also produce Lucene fields for indexing should extend
  * {@link LuceneColumn}.

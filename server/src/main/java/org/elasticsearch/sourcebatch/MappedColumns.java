@@ -228,11 +228,11 @@ public final class MappedColumns {
 
         @Override
         public LuceneColumn.RowFieldCursor rowFieldCursor() {
-            // A reusable mutable field whose bytes value is updated per row. Using the public
+            // A reusable mutable field whose bytes value is updated per document. Using the public
             // Field(String, BytesRef, IndexableFieldType) constructor sets fieldsData to the given
             // BytesRef; subsequent setBytesValue calls update fieldsData in place. The IndexWriter
             // reads binaryValue() synchronously during addDocument, so the same field object is safe
-            // to reuse across rows.
+            // to reuse across documents.
             final BytesRef sentinel = new BytesRef(); // placeholder; overwritten in appendCurrentFields
             final Field field = new Field(name(), sentinel, fieldType);
             return new LuceneColumn.RowFieldCursor() {

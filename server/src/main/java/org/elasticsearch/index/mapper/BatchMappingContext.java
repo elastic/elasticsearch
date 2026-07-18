@@ -25,9 +25,9 @@ import java.util.List;
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
  * {@link ShardBatchMapper}). Deliberately flat: unlike the row-major path's
  * {@link BatchDocumentParserContext}, there is no per-document parser context or {@link LuceneDocument}
- * here — a columnar mapper is invoked once for the whole batch, reads the per-row
+ * here — a columnar mapper is invoked once for the whole batch, reads the per-document
  * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one
- * {@link LuceneColumn} spanning every row via {@link #addColumn}.
+ * {@link SliceableColumn} spanning every document via {@link #addColumn}.
  */
 public final class BatchMappingContext {
 

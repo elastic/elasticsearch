@@ -18,11 +18,6 @@ import java.util.List;
 /**
  * A {@link SliceableColumn} that can also produce Lucene fields for both the columnar
  * ({@code IndexWriter.addBatch}) and row-oriented ({@code IndexWriter.addDocument}) indexing paths.
- *
- * <p>ESCF columns ({@link SliceableColumn}) hold data in a windowed, Arrow-compatible layout.
- * Implementations of this interface are thin adapters that wrap an ESCF column and bridge it to the
- * two Lucene indexing paths. The {@link #slice} override is covariant so that
- * {@link MappedColumns#slice} can collect sliced {@code LuceneColumn} instances without casting.
  */
 public interface LuceneColumn extends SliceableColumn {
 

@@ -156,6 +156,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertStats(response, 6, new ModelStats(huggingFaceElser, TaskType.SPARSE_EMBEDDING, 2, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 7, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 1, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
+        assertThat(response.getValue(InferenceFeatureSetUsage.CONFIG_SIZES_FIELD + ".inference_id.count"), equalTo(6L));
     }
 
     public void testGivenFieldRefersToMissingInferenceEndpoint() throws Exception {

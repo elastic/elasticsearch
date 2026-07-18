@@ -110,7 +110,10 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
             NUM_CANDS_LIMIT
         );
-        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, numCandsParam, null, searchStrategy, earlyTermination, null);
+        // numCands (the HNSW beam width) must be at least scaledK so round 1 can actually
+        // surface scaledK candidates, and must not exceed the overall candidate limit.
+        int scaledNumCands = Math.clamp(numCandsParam, scaledK, NUM_CANDS_LIMIT);
+        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override

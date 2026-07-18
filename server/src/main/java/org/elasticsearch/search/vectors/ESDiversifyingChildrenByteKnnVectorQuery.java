@@ -128,9 +128,9 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
             NUM_CANDS_LIMIT
         );
-        // maintain the configured numCands/k ratio so HNSW exploration scales with K.
-        // todo: do we actually need scaling numCands?
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
+        // numCands (the HNSW beam width) must be at least scaledK so round 1 can actually
+        // surface scaledK candidates, and must not exceed the overall candidate limit.
+        int scaledNumCands = Math.clamp(numCandsParam, scaledK, NUM_CANDS_LIMIT);
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),

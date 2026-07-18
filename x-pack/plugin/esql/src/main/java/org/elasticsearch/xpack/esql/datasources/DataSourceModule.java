@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -494,16 +493,6 @@ public final class DataSourceModule implements Closeable {
         @Override
         public FilterPushdownSupport filterPushdownSupport() {
             return resolveDelegate().filterPushdownSupport();
-        }
-
-        /**
-         * Delegate split-provider selection to the resolved connector factory so a connector that declares a
-         * non-default {@link SplitProvider} is honored through the lazy bridge rather than defaulting to
-         * {@link SplitProvider#SINGLE}.
-         */
-        @Override
-        public SplitProvider splitProvider() {
-            return resolveDelegate().splitProvider();
         }
 
         private ConnectorFactory resolveDelegate() {

@@ -22,7 +22,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.escf.EscfLuceneColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -184,7 +184,7 @@ public final class MappedColumns {
     }
 
     public static LuceneColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
-        return EscfLuceneColumn.longColumn(values, name, fieldType, kind);
+        return LuceneLongColumn.longColumn(values, name, fieldType, kind);
     }
 
     public static LuceneColumn binaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {

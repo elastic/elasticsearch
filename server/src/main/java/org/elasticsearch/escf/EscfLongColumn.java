@@ -59,6 +59,7 @@ final class EscfLongColumn extends AbstractFixed64Column {
 
             @Override
             public int nextRow() {
+                // TODO: does not support sparse yet. Need to iterate bitset too.
                 return ++row < rowCount ? row : DocIdSetIterator.NO_MORE_DOCS;
             }
 

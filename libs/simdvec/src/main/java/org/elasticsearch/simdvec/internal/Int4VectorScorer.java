@@ -138,7 +138,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final long vectorPitch;
         private final Int4Corrections.SingleCorrection correction;
         private final Int4Corrections.BulkCorrection bulkCorrection;
-        private byte[] scratch;
+        private final BufferScratch bufferScratch = new BufferScratch();
         private final AddressesScratch addrsScratch = new AddressesScratch();
         private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -164,13 +164,6 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             if (ord < 0 || ord >= values.size()) {
                 throw new IllegalArgumentException("illegal ordinal: " + ord);
             }
-        }
-
-        private byte[] getScratch(int len) {
-            if (scratch == null || scratch.length < len) {
-                scratch = new byte[len];
-            }
-            return scratch;
         }
 
         private float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException {
@@ -205,7 +198,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             checkOrdinal(node);
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
-            return IndexInputUtils.withSlice(input, packedDims, this::getScratch, packedTarget -> {
+            return IndexInputUtils.withSlice(input, packedDims, bufferScratch::get, packedTarget -> {
                 int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), packedTarget, packedDims);
                 return applyCorrections(rawScore, node, query);
             });

@@ -1477,8 +1477,8 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_TS,
 
         /**
-         * Fixed a bug where a FORK preceding a WHERE IN subquery would fail with "Unknown column" because the early-exit tree traversal
-         * triggered by FORK skipped the subquery's right child during field-caps resolution.
+         * Fixed a bug where a FORK or UnionAll preceding a WHERE IN subquery would fail with "Unknown column" because the early-exit tree
+         * traversal triggered by FORK skipped the subquery's right child during field-caps resolution.
          */
         WHERE_IN_SUBQUERY_FORK_FIX,
 

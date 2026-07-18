@@ -27,7 +27,7 @@ import java.util.List;
  * {@link BatchDocumentParserContext}, there is no per-document parser context or {@link LuceneDocument}
  * here — a columnar mapper is invoked once for the whole batch, reads the per-document
  * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one
- * {@link SliceableColumn} spanning every document via {@link #addColumn}.
+ * {@link LuceneColumn} spanning every document via {@link #addColumn}.
  */
 public final class BatchMappingContext {
 

@@ -30,20 +30,31 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
     );
 
     /**
+     * All JDBC registration is gated behind {@link JdbcDataSourcePlugin#ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG}.
+     * The flag is auto-on in snapshot builds and off in release builds ({@code -Dbuild.snapshot=false}), where the
+     * plugin registers nothing on purpose. Tests that assert on registered schemes/connectors therefore only make
+     * sense with the flag on; they are skipped (not failed) when it is off.
+     */
+    private static void assumeJdbcFlagEnabled() {
+        assumeTrue(
+            "requires the esql_external_datasources_jdbc feature flag (off in release builds)",
+            JdbcDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG.isEnabled()
+        );
+    }
+
+    /**
      * With the JDBC feature flag ENABLED -- the default in snapshot test builds -- every registration SPI method must
      * contribute the full set of compound schemes. This guards the gate wiring: none of the four methods may
      * short-circuit to empty while the flag is on.
      * <p>
      * We deliberately do NOT attempt to force the flag OFF in-process: {@link org.elasticsearch.common.util.FeatureFlag}
      * is auto-on in snapshot builds and its value is fixed at construction from the build type + system property, so it
-     * cannot be flipped per-test. The off/release behavior (empty registration, {@code jdbc:} resolving to the generic
-     * unsupported-scheme rejection) is guaranteed by {@code FeatureFlag}'s release semantics, not exercised here.
+     * cannot be flipped per-test. In release builds ({@code -Dbuild.snapshot=false}) the flag is off, so this test is
+     * skipped; the off/release behavior (empty registration, {@code jdbc:} resolving to the generic unsupported-scheme
+     * rejection) is guaranteed by {@code FeatureFlag}'s release semantics, not exercised here.
      */
     public void testRegistrationNonEmptyWhenFeatureFlagEnabled() {
-        assertTrue(
-            "JDBC feature flag must be on in snapshot test builds",
-            JdbcDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG.isEnabled()
-        );
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             assertEquals(COMPOUND_SCHEMES, plugin.supportedSchemes());
             assertEquals(COMPOUND_SCHEMES, plugin.supportedConnectorSchemes());
@@ -57,6 +68,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
     }
 
     public void testSupportedConnectorSchemes() {
+        assumeJdbcFlagEnabled();
         // the connector must enumerate the COMPOUND schemes, not the bare "jdbc". DataSourceCapabilities.supportsScheme
         // (exact match) and DataSourceModule.LazyConnectorFactory.canHandle both key off the full compound scheme.
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
@@ -68,6 +80,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
     }
 
     public void testSupportedSchemes() {
+        assumeJdbcFlagEnabled();
         // the storage stub must be registered under the SAME compound schemes as the connector.
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             assertEquals(COMPOUND_SCHEMES, plugin.supportedSchemes());
@@ -78,6 +91,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
     }
 
     public void testConnectorsReturnsJdbcKey() {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             Map<String, ConnectorFactory> connectors = plugin.connectors(Settings.EMPTY);
             assertEquals(1, connectors.size());
@@ -89,6 +103,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
     }
 
     public void testStorageProvidersReturnsCompoundSchemeKeys() {
+        assumeJdbcFlagEnabled();
         // one storage-stub entry per compound scheme so ExternalSourceResolver can build a FileList for a
         // jdbc:<vendor>:// path (the storage registry matches the exact compound scheme StoragePath parses out).
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
@@ -110,6 +125,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
      * by Elasticsearch bootstrap.
      */
     public void testConnectorsClassloaderFallbackWhenPathHomeMissing() throws Exception {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             ConnectorFactory factory = plugin.connectors(Settings.EMPTY).get("jdbc");
             assertNotNull(factory);
@@ -126,6 +142,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
      * proving the directory path is wired and the registry is functional. This mirrors the production wiring.
      */
     public void testConnectorsLoadsFromPluginsDriversDirectoryWhenPathHomeSet() throws Exception {
+        assumeJdbcFlagEnabled();
         Path home = createTempDir();
         Path driversDir = home.resolve("plugins").resolve(JdbcDataSourcePlugin.DRIVERS_SUBDIR_RELATIVE_TO_PLUGINS);
         Files.createDirectories(driversDir);
@@ -146,6 +163,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
      * each canHandle/resolveMetadata cycle would re-scan the drivers dir and re-instantiate URLClassLoaders.
      */
     public void testConnectorsCachesRegistryAcrossCalls() throws Exception {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             ConnectorFactory first = plugin.connectors(Settings.EMPTY).get("jdbc");
             ConnectorFactory second = plugin.connectors(Settings.EMPTY).get("jdbc");
@@ -176,6 +194,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
      * factory must reflect it.
      */
     public void testKillSwitchFalseFromSettingsRejectsCanHandle() throws Exception {
+        assumeJdbcFlagEnabled();
         Settings settings = Settings.builder().put(JdbcRuntimeConfig.ENABLED.getKey(), false).build();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             ConnectorFactory factory = plugin.connectors(settings).get("jdbc");
@@ -194,6 +213,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
      * releases only its own registry.
      */
     public void testTwoInstancesDoNotShareOrClobberState() throws Exception {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin a = new JdbcDataSourcePlugin(); JdbcDataSourcePlugin b = new JdbcDataSourcePlugin()) {
             ConnectorFactory fa = a.connectors(Settings.EMPTY).get("jdbc");
             ConnectorFactory fb = b.connectors(Settings.EMPTY).get("jdbc");
@@ -229,6 +249,7 @@ public class JdbcDataSourcePluginTests extends ESTestCase {
      * an error.
      */
     public void testCloseIsIdempotent() throws Exception {
+        assumeJdbcFlagEnabled();
         JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin();
         assertNotNull(plugin.connectors(Settings.EMPTY).get("jdbc"));
         assertNotNull("registry built lazily by connectors()", plugin.driverRegistryOrNull());

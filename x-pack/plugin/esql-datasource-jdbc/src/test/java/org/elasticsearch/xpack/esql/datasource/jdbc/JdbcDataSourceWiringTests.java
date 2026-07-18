@@ -48,6 +48,18 @@ public class JdbcDataSourceWiringTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
+    /**
+     * JDBC registration is gated behind {@link JdbcDataSourcePlugin#ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG}, which
+     * is off in release builds ({@code -Dbuild.snapshot=false}). Wiring assertions that depend on registered schemes
+     * only make sense with the flag on, so they are skipped (not failed) when it is off.
+     */
+    private static void assumeJdbcFlagEnabled() {
+        assumeTrue(
+            "requires the esql_external_datasources_jdbc feature flag (off in release builds)",
+            JdbcDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG.isEnabled()
+        );
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -56,6 +68,7 @@ public class JdbcDataSourceWiringTests extends ESTestCase {
 
     /** the aggregated capability allow-list (built exactly as the node builds it) must contain every compound scheme. */
     public void testCapabilitiesAllowlistUsesCompoundSchemes() throws Exception {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin()) {
             DataSourceCapabilities capabilities = DataSourceCapabilities.build(List.of(plugin));
             assertTrue(capabilities.supportsScheme("jdbc:postgresql"));
@@ -70,6 +83,7 @@ public class JdbcDataSourceWiringTests extends ESTestCase {
 
     /** through the module's lazy connector wrapper, a {@code jdbc:postgresql://} URL must be claimed. */
     public void testLazyConnectorClaimsPostgresUrl() throws Exception {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin(); DataSourceModule module = newModule(plugin)) {
             ExternalSourceFactory factory = module.sourceFactories().get("jdbc:postgresql");
             assertNotNull("a lazy connector must be registered under the compound scheme jdbc:postgresql", factory);
@@ -86,6 +100,7 @@ public class JdbcDataSourceWiringTests extends ESTestCase {
      * time. A bare-"jdbc" sourceType would miss the map (keyed on the compound schemes) and fail the query.
      */
     public void testSourceTypeResolvesBackToTheConnector() throws Exception {
+        assumeJdbcFlagEnabled();
         String jdbcUrl = "jdbc:h2:mem:" + randomAlphaOfLength(10) + ";DB_CLOSE_DELAY=-1";
         try (Connection conn = DriverManager.getConnection(jdbcUrl); Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE TABLE EMPLOYEES (ID INTEGER, NAME VARCHAR(100))");

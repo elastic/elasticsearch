@@ -41,6 +41,19 @@ public class JdbcHikariPoolTests extends ESTestCase {
     private final List<JdbcHikariPool> poolsToClose = new ArrayList<>();
     private final List<Connection> keepAlives = new ArrayList<>();
 
+    /**
+     * The two ownership tests construct a {@link JdbcDataSourcePlugin} and drive it through {@code connectors()}, which
+     * only builds the pool when {@link JdbcDataSourcePlugin#ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG} is on. That
+     * flag is off in release builds ({@code -Dbuild.snapshot=false}), so those tests are skipped (not failed) there.
+     * The direct-{@link JdbcHikariPool} tests below do not touch the plugin and run unconditionally.
+     */
+    private static void assumeJdbcFlagEnabled() {
+        assumeTrue(
+            "requires the esql_external_datasources_jdbc feature flag (off in release builds)",
+            JdbcDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_JDBC_FEATURE_FLAG.isEnabled()
+        );
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -646,6 +659,7 @@ public class JdbcHikariPoolTests extends ESTestCase {
     // -- ownership: the plugin owns the pool as an INSTANCE field, released on close(), not a static ------
 
     public void testPluginOwnsPoolAsInstanceFieldReleasedOnClose() throws Exception {
+        assumeJdbcFlagEnabled();
         try (JdbcDataSourcePlugin a = new JdbcDataSourcePlugin(); JdbcDataSourcePlugin b = new JdbcDataSourcePlugin()) {
             assertNotNull(a.connectors(Settings.EMPTY).get("jdbc"));
             assertNotNull(b.connectors(Settings.EMPTY).get("jdbc"));
@@ -666,6 +680,7 @@ public class JdbcHikariPoolTests extends ESTestCase {
     }
 
     public void testPluginCloseTearsDownUnderlyingHikariDataSource() throws Exception {
+        assumeJdbcFlagEnabled();
         JdbcDataSourcePlugin plugin = new JdbcDataSourcePlugin();
         try {
             assertNotNull(plugin.connectors(Settings.EMPTY).get("jdbc"));

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
-import java.io.IOException;
 import java.util.concurrent.Executor;
 
 /**
@@ -297,7 +296,12 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     private void closeConnectorQuietly() {
         try {
             connector.close();
-        } catch (IOException ignored) {}
+        } catch (Exception ignored) {
+            // A "quiet" close must never propagate: this runs from the completion listener's runAfter, so any exception
+            // escaping here reaches expectNoException and is treated as a fatal node error. Connector close() can throw
+            // a RuntimeException as well as IOException (e.g. a connector whose client was never opened NPEs on close,
+            // or a pool close fails), so swallow all of them, mirroring closeCursorQuietly below.
+        }
     }
 
     private static void closeCursorQuietly(@Nullable ResultCursor cursor) {

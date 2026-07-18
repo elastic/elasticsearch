@@ -4,6 +4,7 @@ import { resolve } from "path";
 
 import { classifyChangedFiles } from "../detectors/changed-files.ts";
 import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes.ts";
+import { defaultFileReader, reclassifyExplicitYamlSuites } from "../detectors/yaml-explicit-paths.ts";
 import { buildCommands, dedupeTests } from "../commands.ts";
 import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain.ts";
@@ -39,7 +40,26 @@ export function resolveMergeBaseTarget(
 // timeout_in_minutes budget.
 const GIT_COMMAND_TIMEOUT_MS = 60_000;
 
-function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
+// List the repo's tracked files once (git ls-files); shared by unmute detection
+// and the yaml explicit-paths reclassification.
+function listRepoFiles(projectRoot: string): string[] {
+  console.log("  Listing tracked files...");
+  const repoFilesOutput = execSync("git ls-files", {
+    cwd: projectRoot,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: GIT_COMMAND_TIMEOUT_MS,
+    maxBuffer: 256 * 1024 * 1024,
+    encoding: "utf8",
+  });
+  const repoFiles = repoFilesOutput
+    .split("\n")
+    .map((f) => f.trim())
+    .filter((f) => f !== "");
+  console.log(`  Indexed ${repoFiles.length} tracked files`);
+  return repoFiles;
+}
+
+function detectUnmutedTests(mergeBase: string, projectRoot: string, repoFiles: string[]): UnmuteDetectionResult {
   console.log(`  Reading muted-tests.yml at ${mergeBase}...`);
   let oldYaml = "";
   try {
@@ -63,20 +83,6 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     // File was deleted in the PR; treat as empty.
   }
 
-  console.log("  Listing tracked files...");
-  const repoFilesOutput = execSync("git ls-files", {
-    cwd: projectRoot,
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: GIT_COMMAND_TIMEOUT_MS,
-    maxBuffer: 256 * 1024 * 1024,
-    encoding: "utf8",
-  });
-  const repoFiles = repoFilesOutput
-    .split("\n")
-    .map((f) => f.trim())
-    .filter((f) => f !== "");
-  console.log(`  Indexed ${repoFiles.length} tracked files`);
-
   return findUnmutedTests(oldYaml, newYaml, repoFiles);
 }
 
@@ -98,8 +104,10 @@ export function run(): void {
   const changedTests = classifyChangedFiles(changedFiles);
   console.log(`Found ${changedTests.length} changed test files`);
 
+  const repoFiles = listRepoFiles(PROJECT_ROOT);
+
   console.log("Detecting unmuted tests...");
-  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT);
+  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT, repoFiles);
   console.log(`Found ${unmuted.located.length} unmuted tests`);
   if (unmuted.unlocated.length > 0) {
     console.log(`Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`);
@@ -108,7 +116,14 @@ export function run(): void {
     }
   }
 
-  const tests = dedupeTests([...changedTests, ...unmuted.located]);
+  // Projects whose yamlRestTest runner uses explicit suite paths reject the
+  // `tests.rest.suite` property the yamlRestTestSuite command sets; re-run their
+  // whole task instead (yamlRestTestRunner).
+  const tests = reclassifyExplicitYamlSuites(
+    dedupeTests([...changedTests, ...unmuted.located]),
+    repoFiles,
+    defaultFileReader(PROJECT_ROOT),
+  );
   console.log(`Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`);
 
   if (tests.length === 0) {

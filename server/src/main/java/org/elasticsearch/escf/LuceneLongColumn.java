@@ -105,6 +105,7 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
                 if (pos + length > size()) {
                     throw new IllegalStateException("fill of " + length + " from pos " + pos + " exceeds size()=" + size());
                 }
+                // TODO: implement based on the BytesRefIterator to remove most bounds checks
                 for (int i = 0; i < length; i++) {
                     dst[offset + i] = data.getLongValue(pos++);
                 }

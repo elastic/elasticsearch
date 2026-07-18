@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.junit.Before;

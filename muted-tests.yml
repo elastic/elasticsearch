@@ -406,9 +406,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
   issue: https://github.com/elastic/elasticsearch/issues/151732
-- class: org.elasticsearch.xpack.stateless.CorruptionIT
-  method: testConcurrentOperations
-  issue: https://github.com/elastic/elasticsearch/issues/151779
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793

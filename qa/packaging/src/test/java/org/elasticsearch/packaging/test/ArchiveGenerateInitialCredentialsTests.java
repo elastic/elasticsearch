@@ -140,7 +140,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
      */
     private static void assertBannerValueParsed(String label, String value, String stdout) {
         assertThat(
-            "failed to parse the " + label + " from the auto-configuration banner; its wording may have changed. "
+            "failed to parse the "
+                + label
+                + " from the auto-configuration banner; its wording may have changed. "
                 + "ANSI-stripped stdout was:\n"
                 + stripAnsi(stdout),
             value,

@@ -863,7 +863,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      */
     public void testRLikeRowEvalPropagatedConcat() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \".*\") | where abc rlike filter"));
+        var plan = optimize(
+            defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \".*\") | where abc rlike filter")
+        );
         assertFalse(plan.anyMatch(p -> p instanceof Filter));
         assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
     }

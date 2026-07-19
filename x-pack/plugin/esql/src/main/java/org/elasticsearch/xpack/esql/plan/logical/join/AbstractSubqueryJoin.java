@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -30,24 +29,19 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -66,10 +60,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
  * boolean mark attribute with three-valued logic.
  */
-public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator {
+public abstract class AbstractSubqueryJoin extends AbstractHashJoin {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        super(source, left, right, config, ExecuteLocation.ANY);
+        super(source, left, right, config);
     }
 
     protected AbstractSubqueryJoin(
@@ -80,17 +74,38 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.ANY);
+        super(source, left, right, type, leftFields, rightFields);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
+    private LogicalPlan inlineSubPlanResult(
+        LocalRelation subPlanResult,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        return inlineData(this, subPlanResult, hashJoinThreshold, blockFactory, pageHolder);
     }
 
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
+    /**
+     * Rebuilds the main plan after the right-side subquery has been materialized, applying the IN-subquery rewrite resources to the
+     * matching subquery join.
+     */
+    public static LogicalPlan newMainPlan(
+        LogicalPlan optimizedPlan,
+        LogicalPlanTuple subPlans,
+        LocalRelation resultWrapper,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        LogicalPlan newPlan = optimizedPlan.transformUp(
+            AbstractSubqueryJoin.class,
+            join -> join.right() == subPlans.originalSubPlan()
+                ? join.inlineSubPlanResult(resultWrapper, hashJoinThreshold, blockFactory, pageHolder)
+                : join
+        );
+        newPlan.setOptimized();
+        return newPlan;
     }
 
     @Override
@@ -170,49 +185,11 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
-     * Build the terminal plan for the large-dedup "hash-join" path. The deduplicated key column has already been wrapped in a
-     * {@link LocalRelation} alongside a constant TRUE sentinel column. SEMI/ANTI add a sentinel filter and Project that drops the
-     * right-side column; MarkJoin instead computes the mark via a CASE expression and projects the mark column out alongside the original
-     * left output.
-     */
-    protected LogicalPlan buildHashJoinPathPlan(
-        LogicalPlan leftSide,
-        LocalRelation deduplicatedData,
-        JoinConfig leftJoinConfig,
-        Attribute sentinelAttr,
-        Source source,
-        boolean rightHadNulls
-    ) {
-        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, ExecuteLocation.ANY);
-        Filter filter = new Filter(source, leftJoin, sentinelFilterCondition(source, sentinelAttr));
-        List<NamedExpression> leftOutput = new ArrayList<>(left().output());
-        return new Project(source, filter, leftOutput);
-    }
-
-    /**
      * Wraps the {@code In} expression built from the dedup keys for the inline-filter path. SEMI returns it as-is; ANTI wraps it in
      * {@code Not}.
      */
     protected Expression wrapInExpression(Source source, Expression in) {
         return in;
-    }
-
-    /**
-     * Sentinel-column filter that drives the hash-join path. SEMI keeps matched rows ({@code IS NOT NULL} on the sentinel); ANTI keeps
-     * unmatched rows ({@code IS NULL}).
-     */
-    protected Expression sentinelFilterCondition(Source source, Attribute sentinel) {
-        return new IsNotNull(source, sentinel);
-    }
-
-    /**
-     * Whether the hash-join path needs to drop NULL-keyed left rows before the join. SEMI/ANTI filter on the sentinel after the join;
-     * ANTI in particular would otherwise keep NULL-keyed rows (sentinel NULL → "no match") even though {@code NULL NOT IN (...)} should
-     * yield NULL. MARK keeps every left row and handles the NULL-key case explicitly inside the CASE expression that produces the mark,
-     * so it suppresses the filter.
-     */
-    protected boolean filterNullLeftKeysBeforeHashJoin() {
-        return true;
     }
 
     @Override
@@ -667,50 +644,4 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         }
         return input.filter(false, positions);
     }
-
-    /**
-     * Finds the first subquery join in the plan whose right side has not yet been replaced with results. Unlike InlineJoin, the right
-     * side is an independent subquery that doesn't use StubRelation, no replaceStub is needed, deep copy is not required.
-     */
-    public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
-        Holder<LogicalPlan> subPlanHolder = new Holder<>();
-        optimizedPlan.forEachUp(AbstractSubqueryJoin.class, sj -> {
-            if (subPlanHolder.get() == null) {
-                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return;
-                }
-                subPlanHolder.set(sj.right());
-            }
-        });
-        LogicalPlan subPlan = subPlanHolder.get();
-        if (subPlan == null) {
-            return null;
-        }
-        subPlan.setOptimized();
-        // Unlike InlineJoin there is no StubRelation deep copy here, so the node executed as the subplan is the very same instance held
-        // on the join's right side. It therefore doubles as the identity key that newMainPlan matches against, hence both tuple slots are
-        // the same.
-        return new LogicalPlanTuple(subPlan, subPlan);
-    }
-
-    public static LogicalPlan newMainPlan(
-        LogicalPlan optimizedPlan,
-        LogicalPlanTuple subPlans,
-        LocalRelation resultWrapper,
-        int hashJoinThreshold,
-        BlockFactory blockFactory,
-        AtomicReference<Page> pageHolder
-    ) {
-        LogicalPlan newPlan = optimizedPlan.transformUp(
-            AbstractSubqueryJoin.class,
-            sj -> sj.right() == subPlans.originalSubPlan() ? inlineData(sj, resultWrapper, hashJoinThreshold, blockFactory, pageHolder) : sj
-        );
-        newPlan.setOptimized();
-        return newPlan;
-    }
-
-    /**
-     * Tuple holding the subplan to execute and the original plan node for identity matching.
-     */
-    public record LogicalPlanTuple(LogicalPlan subPlan, LogicalPlan originalSubPlan) {}
 }

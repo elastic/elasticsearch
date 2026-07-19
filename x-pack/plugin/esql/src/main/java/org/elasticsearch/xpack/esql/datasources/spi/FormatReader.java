@@ -288,6 +288,42 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
+     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
+     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
+     * all, must still bind by name.
+     * <p>
+     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
+     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
+     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
+     * positionally would never look at the physical names it was handed, so the same mapping could read a different
+     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
+     * <p>
+     * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
+     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
+     * A declared name the file does not supply reads null with a warning, never a silent positional fallback.
+     *
+     * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
+     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
+     */
+    default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
+        return this;
+    }
+
+    /**
+     * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
+     * unsplittable: every split past the first would have no way to resolve the binding.
+     *
+     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
+     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
+     * throughput-sensitive reads actually use.
+     */
+    default boolean declaredNameBindingNeedsFileStart() {
+        return false;
+    }
+
+    /**
      * Returns the filter pushdown support for this format, or null if not supported.
      * <p>
      * When non-null, the optimizer can translate ESQL filter expressions into format-specific

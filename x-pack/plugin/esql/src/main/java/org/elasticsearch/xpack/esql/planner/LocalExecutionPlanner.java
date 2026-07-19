@@ -23,7 +23,9 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -160,6 +162,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -450,6 +453,8 @@ public class LocalExecutionPlanner {
             return planEnrich(enrich, context);
         } else if (node instanceof HashJoinExec join) {
             return planHashJoin(join, context);
+        } else if (node instanceof EqJoinExec join) {
+            return planEqJoin(join, context);
         } else if (node instanceof LookupJoinExec join) {
             return planLookupJoin(join, context);
         }
@@ -1461,6 +1466,115 @@ public class LocalExecutionPlanner {
         IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
         IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
         return source.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    /**
+     * Ephemeral coordinator-only INNER equi-join for PromQL vector matching. Expands into a chain of
+     * existing operators: probe -&gt; {@link RowInTableLookupOperator} (append match ordinal) -&gt;
+     * [1:1 {@link org.elasticsearch.compute.operator.DistinctByOperator} guard] -&gt;
+     * {@link org.elasticsearch.compute.operator.FilterOperator} (drop unmatched) -&gt;
+     * {@link ColumnLoadOperator} (gather build columns) -&gt; drop the ordinal. Mirrors
+     * {@link #planHashJoin} plus the uniqueness guard and the inner-drop filter.
+     */
+    private PhysicalOperation planEqJoin(EqJoinExec join, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(join.left(), context);
+        int positionsChannel = source.layout.numberOfChannels();
+
+        Layout.Builder layoutBuilder = source.layout.builder();
+        for (Attribute f : join.output()) {
+            if (join.left().outputSet().contains(f)) {
+                continue;
+            }
+            layoutBuilder.append(f);
+        }
+        Layout layout = layoutBuilder.build();
+        LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
+        Page localData = localSourceExec.supplier().get();
+
+        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
+        int[] blockMapping = new int[join.leftFields().size()];
+        for (int k = 0; k < join.leftFields().size(); k++) {
+            Attribute left = join.leftFields().get(k);
+            Attribute right = join.rightFields().get(k);
+            Block localField = null;
+            List<Attribute> output = join.joinData().output();
+            for (int l = 0; l < output.size(); l++) {
+                if (output.get(l).name().equals(right.name())) {
+                    localField = localData.getBlock(l);
+                }
+            }
+            if (localField == null) {
+                throw new IllegalArgumentException("can't find local data for [" + right + "]");
+            }
+
+            keys[k] = new RowInTableLookupOperator.Key(left.name(), localField);
+            Layout.ChannelAndType input = source.layout.get(left.id());
+            blockMapping[k] = input.channel();
+        }
+
+        // Append the match ordinal of each probe row (null for a miss).
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+
+        // 1:1 matching: throw if a build row is matched by more than one probe row.
+        if (join.unique()) {
+            source = source.with(new DistinctByOperator.OrdinalIntKeyFactory(positionsChannel, false), layout);
+        }
+
+        // INNER join: drop probe rows that did not match (null ordinal).
+        source = source.with(new FilterOperatorFactory(notNullChannel(positionsChannel)), layout);
+
+        // Load the "values" from each match
+        var joinDataOutput = join.joinData().output();
+        for (Attribute f : join.addedFields()) {
+            Block localField = null;
+            for (int l = 0; l < joinDataOutput.size(); l++) {
+                if (joinDataOutput.get(l).name().equals(f.name())) {
+                    localField = localData.getBlock(l);
+                }
+            }
+            if (localField == null) {
+                throw new IllegalArgumentException("can't find local data for [" + f + "]");
+            }
+            source = source.with(
+                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel),
+                layout
+            );
+        }
+
+        // Drop the "positions" (ordinal) of the match
+        List<Integer> projection = new ArrayList<>();
+        IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
+        return source.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    /**
+     * A boolean condition, true where block {@code channel} is non-null. Used to drop unmatched
+     * (null-ordinal) probe rows in {@link #planEqJoin}. The ordinal is a synthetic channel (not a
+     * plan attribute), so this reads it directly rather than through {@code EvalMapper}.
+     */
+    private static ExpressionEvaluator.Factory notNullChannel(int channel) {
+        return driverContext -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                IntBlock ordinals = page.getBlock(channel);
+                int positions = page.getPositionCount();
+                try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positions)) {
+                    for (int p = 0; p < positions; p++) {
+                        builder.appendBoolean(p, ordinals.isNull(p) == false);
+                    }
+                    return builder.build().asBlock();
+                }
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {

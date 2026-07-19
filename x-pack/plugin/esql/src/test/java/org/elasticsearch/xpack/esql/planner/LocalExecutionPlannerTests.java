@@ -22,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -29,12 +31,19 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.ColumnLoadOperator;
+import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -81,9 +90,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.physical.EqJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -103,6 +115,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -795,6 +809,256 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 }
             };
         };
+    }
+
+    public void testPlanEqJoinManyToOne() throws IOException {
+        // group_left: no uniqueness guard, just lookup -> inner-drop filter -> column load -> drop ordinal.
+        assertThat(
+            planEqJoinFactories(false),
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ColumnLoadOperator.Factory.class,
+                ProjectOperator.ProjectOperatorFactory.class
+            )
+        );
+    }
+
+    public void testPlanEqJoinOneToOneAddsUniquenessGuard() throws IOException {
+        // 1:1: the DistinctByOperator guard is inserted right after the lookup.
+        assertThat(
+            planEqJoinFactories(true),
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                DistinctByOperator.OrdinalIntKeyFactory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ColumnLoadOperator.Factory.class,
+                ProjectOperator.ProjectOperatorFactory.class
+            )
+        );
+    }
+
+    public void testEqJoinManyToOneGathersAndDropsMisses() throws IOException {
+        // group_left: many probe rows per build row; the miss (99) is dropped by the inner-join filter.
+        List<Page> results = runEqJoin(
+            eqJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        );
+        assertEqJoinOutput(results, List.of(10L, 20L, 10L, 30L), List.of(100L, 200L, 100L, 300L));
+    }
+
+    public void testEqJoinOneToOneUniqueProbe() throws IOException {
+        List<Page> results = runEqJoin(
+            eqJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        );
+        assertEqJoinOutput(results, List.of(10L, 20L, 30L), List.of(100L, 200L, 300L));
+    }
+
+    public void testEqJoinOneToOneDuplicateProbeThrows() {
+        // Two probe rows map to build ordinal 0 -> the 1:1 guard throws (a many-to-one match where 1:1 was declared).
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> runEqJoin(eqJoinExec(true, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 }))
+        );
+        assertThat(e.getMessage(), containsString("found a duplicate key"));
+    }
+
+    public void testEqJoinDuplicateBuildKeyThrows() {
+        // A duplicate key on the build ("one") side is rejected when the lookup table is built.
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> runEqJoin(eqJoinExec(false, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+        );
+        assertThat(e.getMessage(), containsString("found a duplicate row"));
+    }
+
+    public void testEqJoinManyToOneFanOutAllowsProbeDuplicates() throws IOException {
+        // group_left: several probe rows share one build key. Unlike 1:1 there is no guard, so probe
+        // duplicates are allowed and each row fans out carrying the same build value.
+        List<Page> results = runEqJoin(eqJoinExec(false, new long[] { 10, 10, 10, 20 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertEqJoinOutput(results, List.of(10L, 10L, 10L, 20L), List.of(100L, 100L, 100L, 200L));
+    }
+
+    public void testEqJoinMultiColumnKey() throws IOException {
+        // The real join key spans (labels..., step): a match requires equality on BOTH key columns.
+        // Probe (10, 2) matches only the first column of build (10, 1) -> miss, dropped.
+        EqJoinExec eqJoin = eqJoinExec(
+            true,
+            List.of(new long[] { 10, 20, 10 }, new long[] { 1, 1, 2 }), // probe (k0, k1)
+            List.of(new long[] { 10, 20, 30 }, new long[] { 1, 1, 1 }), // build (k0, k1)
+            List.of(new long[] { 100, 200, 300 })                       // build v0
+        );
+        assertEqJoinRows(runEqJoin(eqJoin), List.of(List.of(10L, 1L, 100L), List.of(20L, 1L, 200L)));
+    }
+
+    public void testEqJoinCopiesMultipleBuildColumns() throws IOException {
+        // group_left(l1, l2): more than one build column is gathered onto each surviving probe row.
+        EqJoinExec eqJoin = eqJoinExec(
+            false,
+            List.of(new long[] { 10, 20, 10 }),                        // probe (k0)
+            List.of(new long[] { 10, 20 }),                            // build (k0)
+            List.of(new long[] { 100, 200 }, new long[] { 111, 222 })  // build (v0, v1)
+        );
+        assertEqJoinRows(runEqJoin(eqJoin), List.of(List.of(10L, 100L, 111L), List.of(20L, 200L, 222L), List.of(10L, 100L, 111L)));
+    }
+
+    public void testEqJoinEmptyBuildProducesNoRows() throws IOException {
+        // Empty "one" side -> every probe row misses -> the inner join drops everything.
+        List<Page> results = runEqJoin(eqJoinExec(false, new long[] { 10, 20 }, new long[] {}, new long[] {}));
+        assertEqJoinOutput(results, List.of(), List.of());
+    }
+
+    public void testEqJoinEmptyProbeProducesNoRows() throws IOException {
+        List<Page> results = runEqJoin(eqJoinExec(false, new long[] {}, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertEqJoinOutput(results, List.of(), List.of());
+    }
+
+    public void testEqJoinAllProbeRowsMissProduceNoRows() throws IOException {
+        // Non-empty build, but no probe key exists on the build side -> empty inner-join result.
+        List<Page> results = runEqJoin(eqJoinExec(false, new long[] { 1, 2, 3 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertEqJoinOutput(results, List.of(), List.of());
+    }
+
+    public void testEqJoinMultivaluedBuildKeyThrows() {
+        // The lookup table only supports single-valued keys; a multivalued build key is rejected.
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "v0", DataType.LONG);
+        LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(2);
+        keyBuilder.beginPositionEntry().appendLong(10).appendLong(20).endPositionEntry(); // multivalued key
+        keyBuilder.appendLong(30);
+        LocalSourceExec build = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(buildKey, buildValue),
+            LocalSupplier.of(new Page(keyBuilder.build(), blockFactory.newLongArrayVector(new long[] { 100, 200 }, 2).asBlock()))
+        );
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(probeKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10 }, 1).asBlock()))
+        );
+        EqJoinExec eqJoin = new EqJoinExec(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), false);
+        var e = expectThrows(IllegalArgumentException.class, () -> runEqJoin(eqJoin));
+        assertThat(e.getMessage(), containsString("only single valued keys are supported"));
+    }
+
+    /**
+     * Builds an {@link EqJoinExec} over a materialized build ("one") side with a single {@code LONG} key
+     * column and a single copied {@code LONG} value column.
+     */
+    private EqJoinExec eqJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
+        return eqJoinExec(unique, List.of(probeKeys), List.of(buildKeys), List.of(buildValues));
+    }
+
+    /**
+     * Builds an {@link EqJoinExec} over a materialized build ("one") side. The join key may span several
+     * columns (the real join key is {@code (labels..., step)}) and any number of build columns may be
+     * copied onto the probe rows (as {@code group_left(...)} does). All columns are {@code LONG}; each
+     * {@code long[]} is one column's values, and every column on a side must have the same length.
+     */
+    private EqJoinExec eqJoinExec(boolean unique, List<long[]> probeKeyCols, List<long[]> buildKeyCols, List<long[]> buildValueCols) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+
+        List<Attribute> buildKeyAttrs = new ArrayList<>();
+        for (int c = 0; c < buildKeyCols.size(); c++) {
+            buildKeyAttrs.add(new ReferenceAttribute(Source.EMPTY, "k" + c, DataType.LONG));
+        }
+        List<Attribute> buildValueAttrs = new ArrayList<>();
+        for (int c = 0; c < buildValueCols.size(); c++) {
+            buildValueAttrs.add(new ReferenceAttribute(Source.EMPTY, "v" + c, DataType.LONG));
+        }
+        List<Block> buildBlocks = new ArrayList<>();
+        for (long[] col : buildKeyCols) {
+            buildBlocks.add(blockFactory.newLongArrayVector(col, col.length).asBlock());
+        }
+        for (long[] col : buildValueCols) {
+            buildBlocks.add(blockFactory.newLongArrayVector(col, col.length).asBlock());
+        }
+        List<Attribute> buildOutput = new ArrayList<>(buildKeyAttrs);
+        buildOutput.addAll(buildValueAttrs);
+        LocalSourceExec build = new LocalSourceExec(
+            Source.EMPTY,
+            buildOutput,
+            LocalSupplier.of(new Page(buildBlocks.toArray(new Block[0])))
+        );
+
+        List<Attribute> probeKeyAttrs = new ArrayList<>();
+        for (int c = 0; c < probeKeyCols.size(); c++) {
+            probeKeyAttrs.add(new ReferenceAttribute(Source.EMPTY, "k" + c, DataType.LONG));
+        }
+        List<Block> probeBlocks = new ArrayList<>();
+        for (long[] col : probeKeyCols) {
+            probeBlocks.add(blockFactory.newLongArrayVector(col, col.length).asBlock());
+        }
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            probeKeyAttrs,
+            LocalSupplier.of(new Page(probeBlocks.toArray(new Block[0])))
+        );
+
+        return new EqJoinExec(Source.EMPTY, probe, build, probeKeyAttrs, buildKeyAttrs, buildValueAttrs, unique);
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan planEqJoin(EqJoinExec eqJoin) throws IOException {
+        return planner().plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, eqJoin, EmptyIndexedByShardId.instance());
+    }
+
+    /**
+     * Classes of the intermediate operator factories, i.e. the chain that {@code planEqJoin} expands to.
+     */
+    private List<Class<?>> planEqJoinFactories(boolean unique) throws IOException {
+        EqJoinExec eqJoin = eqJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
+        List<Class<?>> factories = new ArrayList<>();
+        for (var factory : planEqJoin(eqJoin).driverFactories.get(0).driverSupplier().physicalOperation().intermediateOperatorFactories) {
+            factories.add(factory.getClass());
+        }
+        return factories;
+    }
+
+    /**
+     * Plans then runs an {@link EqJoinExec} end to end, returning the (deep-copied) result pages.
+     */
+    private List<Page> runEqJoin(EqJoinExec eqJoin) throws IOException {
+        var op = planEqJoin(eqJoin).driverFactories.get(0).driverSupplier().physicalOperation();
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(op.sourceOperatorFactory.get(driverContext));
+        return runner.run(op.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
+    }
+
+    private void assertEqJoinOutput(List<Page> results, List<Long> expectedKeys, List<Long> expectedValues) {
+        List<Long> keys = new ArrayList<>();
+        List<Long> values = new ArrayList<>();
+        for (Page page : results) {
+            LongBlock keyBlock = page.getBlock(0);
+            LongBlock valueBlock = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                keys.add(keyBlock.getLong(keyBlock.getFirstValueIndex(p)));
+                values.add(valueBlock.getLong(valueBlock.getFirstValueIndex(p)));
+            }
+        }
+        assertThat(keys, equalTo(expectedKeys));
+        assertThat(values, equalTo(expectedValues));
+    }
+
+    /**
+     * Asserts the full output rows of an {@link EqJoinExec} whose output is entirely {@code LONG} columns
+     * (probe key columns followed by the copied build columns), in output order.
+     */
+    private void assertEqJoinRows(List<Page> results, List<List<Long>> expectedRows) {
+        List<List<Long>> rows = new ArrayList<>();
+        for (Page page : results) {
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                List<Long> row = new ArrayList<>();
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    LongBlock block = page.getBlock(b);
+                    row.add(block.getLong(block.getFirstValueIndex(p)));
+                }
+                rows.add(row);
+            }
+        }
+        assertThat(rows, equalTo(expectedRows));
     }
 
     private LocalExecutionPlanner planner() throws IOException {

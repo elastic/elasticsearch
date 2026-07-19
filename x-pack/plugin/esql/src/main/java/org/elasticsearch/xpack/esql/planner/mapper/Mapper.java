@@ -30,9 +30,11 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.EqJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.physical.EqJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
@@ -202,6 +204,24 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
+        // EqJoin is an INNER Join subtype, so it must be matched before the generic Join branch below (which only supports LEFT). Its
+        // right ("build") side is materialized to a LocalRelation by the coordinator phase loop before it reaches here.
+        if (bp instanceof EqJoin eqJoin) {
+            PhysicalPlan left = mapInner(bp.left());
+            PhysicalPlan right = mapInner(bp.right());
+            if (right instanceof LocalSourceExec localData) {
+                return new EqJoinExec(
+                    eqJoin.source(),
+                    left,
+                    localData,
+                    eqJoin.leftFields(),
+                    eqJoin.rightFields(),
+                    eqJoin.addedFields(),
+                    eqJoin.unique()
+                );
+            }
+            return MapperUtils.unsupported(bp);
+        }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
             if (config.type() != JoinTypes.LEFT) {

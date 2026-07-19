@@ -217,6 +217,9 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchPhraseEvalColumn() {
+        assumeRuntimeMatchPhraseEnabled();
+        // to_upper produces a keyword, so runtime match_phrase compares the whole value exactly: the phrase-like
+        // "BROWN FOX" query matches nothing, only the complete value does.
         var query = """
             FROM test
             | EVAL upper_content = to_upper(content)
@@ -224,26 +227,55 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MatchPhrase] function cannot operate on [upper_content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), Collections.emptyList());
+        }
+
+        query = """
+            FROM test
+            | EVAL upper_content = to_upper(content)
+            | WHERE match_phrase(upper_content, "THIS IS A BROWN FOX")
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
     }
 
     public void testWhereMatchPhraseOverWrittenColumn() {
+        assumeRuntimeMatchPhraseEnabled();
         var query = """
             FROM test
             | DROP content
             | EVAL content = CONCAT("document with ID ", to_str(id))
             | WHERE match_phrase(content, "document content")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), Collections.emptyList());
+        }
+
+        query = """
+            FROM test
+            | DROP content
+            | EVAL content = CONCAT("document with ID ", to_str(id))
+            | WHERE match_phrase(content, "document with ID 3")
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(3)));
+        }
     }
 
     public void testWhereMatchPhraseAfterStats() {
@@ -273,16 +305,29 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchPhraseWithRow() {
+        assumeRuntimeMatchPhraseEnabled();
+        // A ROW string literal is a keyword: runtime match_phrase requires the exact value, not a phrase within it.
         var query = """
             ROW content = "a brown fox"
             | WHERE match_phrase(content, "brown fox")
             """;
 
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:22: [MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("keyword"));
+            assertValues(resp.values(), Collections.emptyList());
+        }
+
+        query = """
+            ROW content = "a brown fox"
+            | WHERE match_phrase(content, "a brown fox")
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("keyword"));
+            assertValues(resp.values(), List.of(List.of("a brown fox")));
+        }
     }
 
     public void testMatchPhraseWithStats() {
@@ -471,6 +516,24 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(resp.values(), List.of(List.of("a brown fox")));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseKeyword() {
+        assumeRuntimeMatchPhraseEnabled();
+        // concat produces a keyword: runtime match_phrase preserves the pushed-down term-query semantics and
+        // matches on the exact value.
+        var query = """
+            FROM test
+            | EVAL suffixed = concat(content, " extra")
+            | WHERE match_phrase(suffixed, "There is also a white cat extra")
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
         }
     }
 

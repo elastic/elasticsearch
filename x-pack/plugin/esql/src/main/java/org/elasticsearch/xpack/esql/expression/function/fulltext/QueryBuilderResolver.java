@@ -98,15 +98,11 @@ public final class QueryBuilderResolver {
         public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            LogicalPlan newPlan = plan.transformDown(p -> {
-                // HIGHLIGHT runs MATCH and MATCH_PHRASE against a per-row MemoryIndex keyed by the ON column names,
-                // not against the target indices, so the index-context rewrite would produce builders the
-                // highlighter cannot run - most notably inference queries for semantic_text fields. They get the
-                // lexical builder the highlighter executes instead, which also carries the function options across
-                // plan serialization. QSTR and KQL resolve against the indices as usual.
-                boolean highlight = p instanceof Highlight;
-                return p.transformExpressionsOnly(Expression.class, expr -> {
-                    if (highlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
+            LogicalPlan newPlan = plan.transformDown(logicalPlan -> {
+                // HIGHLIGHT evaluates MATCH and MATCH_PHRASE against its ON columns, not the index mappings.
+                boolean isHighlight = logicalPlan instanceof Highlight;
+                return logicalPlan.transformExpressionsOnly(Expression.class, expr -> {
+                    if (isHighlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
                         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(expr);
                         updated.set(updated.get() || resolved != expr);
                         return resolved;

@@ -251,15 +251,11 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(mustNot.query(), instanceOf(TermQuery.class));
     }
 
-    // QueryBuilderResolver resolves the lexical builder for MATCH / MATCH_PHRASE on the coordinator instead of the
-    // index-context rewrite; the function options only survive plan serialization inside it. The next tests resolve
-    // the builder, then rebuild the function the way it looks on a remote node: options gone, builder planted.
-
     public void testMatchResolvedLexicalBuilderKeepsOptionsAfterSerialization() {
         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match("title", "quick fox", options("operator", "AND")));
-        MatchQueryBuilder planted = asInstanceOf(MatchQueryBuilder.class, asInstanceOf(Match.class, resolved).queryBuilder());
-        assertThat(planted.fieldName(), equalTo("title"));
-        Match deserialized = new Match(EMPTY, getFieldAttribute("title", KEYWORD), of("quick fox"), null, planted);
+        MatchQueryBuilder lexicalBuilder = asInstanceOf(MatchQueryBuilder.class, asInstanceOf(Match.class, resolved).queryBuilder());
+        assertThat(lexicalBuilder.fieldName(), equalTo("title"));
+        Match deserialized = new Match(EMPTY, getFieldAttribute("title", KEYWORD), of("quick fox"), null, lexicalBuilder);
         BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(deserialized, TITLE));
         assertThat(bq.clauses(), hasSize(2));
         for (BooleanClause clause : bq.clauses()) {
@@ -269,11 +265,11 @@ public class HighlightQueryBuildersTests extends ESTestCase {
 
     public void testMatchPhraseResolvedLexicalBuilderKeepsOptionsAfterSerialization() {
         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(matchPhrase("title", "quick fox", options("slop", 2)));
-        MatchPhraseQueryBuilder planted = asInstanceOf(
+        MatchPhraseQueryBuilder lexicalBuilder = asInstanceOf(
             MatchPhraseQueryBuilder.class,
             asInstanceOf(MatchPhrase.class, resolved).queryBuilder()
         );
-        MatchPhrase deserialized = new MatchPhrase(EMPTY, getFieldAttribute("title", KEYWORD), of("quick fox"), null, planted);
+        MatchPhrase deserialized = new MatchPhrase(EMPTY, getFieldAttribute("title", KEYWORD), of("quick fox"), null, lexicalBuilder);
         PhraseQuery phrase = asInstanceOf(PhraseQuery.class, translate(deserialized, TITLE));
         assertThat(phrase.getSlop(), equalTo(2));
     }

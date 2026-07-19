@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -148,12 +147,9 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Resolves the query builder for a MATCH or MATCH_PHRASE inside a HIGHLIGHT query: the lexical query on the ON
-     * column, with the function options baked in. {@link QueryBuilderResolver} plants it on the coordinator instead
-     * of running the index-context rewrite, which would produce builders the highlighter cannot run - an inference
-     * query for a {@code semantic_text} field, or one keyed by a union type's concrete field instead of the ON
-     * column. The planted builder is also the only place the options survive plan serialization. Other expressions
-     * are returned unchanged.
+     * Returns a MATCH or MATCH_PHRASE with a lexical query builder for its ON column. The normal index rewrite may
+     * produce an inference query or use a mapped field name that differs from the ON column. Storing the lexical
+     * builder also preserves function options across plan serialization.
      */
     public static Expression resolveLexicalQueryBuilder(Expression expr) {
         return switch (expr) {
@@ -167,12 +163,7 @@ public final class HighlightQueryBuilders {
         };
     }
 
-    /**
-     * Builds the query used by HIGHLIGHT. MATCH and MATCH_PHRASE use the lexical builder planted by
-     * {@link #resolveLexicalQueryBuilder} when present; rebuilding covers the paths that run before the resolver -
-     * verification and runtime-only plans - where the options expression is still available locally. QSTR and KQL
-     * resolve their own fields and use the standard translation path.
-     */
+    /** Builds a query against HIGHLIGHT's per-row index. */
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));

@@ -246,12 +246,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
-    /**
-     * Builds a lexical query for the supplied field name without using the {@link #queryBuilder()} set by the
-     * coordinator. For {@code semantic_text}, that builder is an inference query. Options are only serialized as
-     * part of that builder, so this method cannot restore them after plan deserialization. Callers should use the
-     * existing builder when it is a lexical query for the requested field.
-     */
+    /** Builds a lexical query for {@code fieldName}, including the function options. */
     public QueryBuilder asLexicalQueryBuilder(String fieldName) {
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions()).toQueryBuilder();
     }

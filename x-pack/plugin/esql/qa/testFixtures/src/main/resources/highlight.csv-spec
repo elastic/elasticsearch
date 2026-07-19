@@ -947,8 +947,7 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# MATCH uses the semantic query to select rows, while HIGHLIGHT looks for literal terms in the returned text.
-# Only the row that contains "prosper" is highlighted.
+# WHERE MATCH is semantic; HIGHLIGHT MATCH is lexical over the returned text.
 highlightMatchOnSemanticText
 required_capability: highlight_semantic_text
 

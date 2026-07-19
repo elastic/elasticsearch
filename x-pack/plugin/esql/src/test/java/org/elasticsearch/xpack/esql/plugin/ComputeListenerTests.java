@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -318,6 +319,68 @@ public class ComputeListenerTests extends ESTestCase {
         // Warnings from successful sub-tasks must not be lost just because the overall query failed
         Map<String, Set<String>> actual = new HashMap<>();
         capturedOnFailureHeaders.get().forEach((k, vs) -> actual.put(k, new HashSet<>(vs)));
+        assertThat(actual, equalTo(expectedWarnings));
+    }
+
+    /**
+     * Regression test for a bug where {@code responseHeaders.finish()} ran on a transport-response
+     * thread with a blank {@link ThreadContext}, discarding all collected warnings. This happens when
+     * the last {@link ComputeListener} ref is an {@link ComputeListener#acquireAvoid()} listener that
+     * fires on a thread that has had its context stashed — exactly what
+     * {@code ExchangeSourceHandler.RemoteSinkFetcher} does when the remote sink's
+     * {@code fetchPageAsync} callback fires on the transport response executor.
+     */
+    public void testCollectWarningsWhenLastRefIsAvoidOnBlankContext() throws Exception {
+        final String warningKey = "warning-key";
+        final String warningValue = "warning-value";
+        Map<String, Set<String>> expectedWarnings = Map.of(warningKey, Set.of(warningValue));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Map<String, List<String>>> capturedHeaders = new AtomicReference<>();
+
+        ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
+            @Override
+            public void onResponse(DriverCompletionInfo result) {
+                capturedHeaders.set(threadPool.getThreadContext().getResponseHeaders());
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        final ActionListener<DriverCompletionInfo> computeSubListener;
+        final ActionListener<Void> avoidSubListener;
+        try (var computeListener = new ComputeListener(threadPool, () -> {}, rootListener)) {
+            computeSubListener = computeListener.acquireCompute();
+            avoidSubListener = computeListener.acquireAvoid();
+        }
+
+        // Fire the compute sub-listener first on a thread that adds a response header, simulating a
+        // driver sub-task that emits a warning. Wait until it finishes so that the avoid listener
+        // is guaranteed to be the final ref.
+        CountDownLatch computeDone = new CountDownLatch(1);
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            threadPool.getThreadContext().addResponseHeader(warningKey, warningValue);
+            computeSubListener.onResponse(randomCompletionInfo());
+            computeDone.countDown();
+        });
+        assertTrue(computeDone.await(10, TimeUnit.SECONDS));
+
+        // Fire the avoid sub-listener last on a thread with a stashed (blank) context, mimicking the
+        // transport response thread in ExchangeSourceHandler.RemoteSinkFetcher. Without the fix,
+        // responseHeaders.finish() runs here with blank context and the collected warning is lost.
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+                avoidSubListener.onResponse(null);
+            }
+        });
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNotNull(capturedHeaders.get());
+        Map<String, Set<String>> actual = new HashMap<>();
+        capturedHeaders.get().forEach((k, vs) -> actual.put(k, new HashSet<>(vs)));
         assertThat(actual, equalTo(expectedWarnings));
     }
 }

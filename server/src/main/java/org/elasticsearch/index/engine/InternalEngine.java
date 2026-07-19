@@ -3532,6 +3532,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    // for testing
+    protected ElasticsearchMergeScheduler getMergeScheduler() {
+        return mergeScheduler;
+    }
+
     private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
         EngineThreadPoolMergeScheduler(
             ShardId shardId,

@@ -24,6 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -32,6 +33,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -504,6 +506,67 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             verify(statelessCommitService, never()).ensureMaxGenerationToUploadForFlush(any(), anyLong());
             verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
             assertThat(safeGet(flushListener), equalTo(generation));
+        }
+    }
+
+    /**
+     * Verifies that indexing throttling activates when the number of active (queued + running) merges exceeds
+     * {@code MERGE_BACKLOG_THROTTLE_FACTOR * maxConcurrentMerges}, and deactivates once the count falls back to or below
+     * that threshold.
+     */
+    public void testMergeBacklogThrottling() throws IOException {
+        // Force the thread-pool merge scheduler on: the backlog throttle is only wired up through
+        // StatelessThreadPoolMergeScheduler callbacks, so the test requires it to be active.
+        Settings forceScheduler = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .build();
+
+        // factor=1: throttle when activeMerges > maxConcurrentMerges
+        Settings nodeSettings = Settings.builder().put(forceScheduler).put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), 1).build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
+            int threshold = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertFalse("should not be throttled initially", engine.isThrottled());
+
+            for (int i = 0; i < threshold; i++) {
+                scheduler.mergeQueued(null);
+                assertFalse("active merges before threshold should not throttle", engine.isThrottled());
+            }
+
+            scheduler.mergeQueued(null); // now activeMerges = threshold + 1 → throttle ON
+            assertTrue("active merges exceeding threshold should throttle", engine.isThrottled());
+
+            scheduler.mergeExecutedOrAborted(null); // back to threshold → throttle OFF
+            assertFalse("returning to threshold should deactivate throttle", engine.isThrottled());
+
+            for (int i = 0; i < threshold; i++) {
+                scheduler.mergeExecutedOrAborted(null);
+                assertFalse(engine.isThrottled());
+            }
+        }
+
+        // factor=2: throttle when activeMerges > 2 * maxConcurrentMerges
+        nodeSettings = Settings.builder().put(forceScheduler).put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), 2).build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
+            int threshold = 2 * engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertFalse(engine.isThrottled());
+
+            for (int i = 0; i < threshold; i++) {
+                scheduler.mergeQueued(null);
+                assertFalse("active merges before threshold should not throttle", engine.isThrottled());
+            }
+
+            scheduler.mergeQueued(null); // now activeMerges = threshold + 1 → throttle ON
+            assertTrue("active merges exceeding threshold should throttle", engine.isThrottled());
+
+            scheduler.mergeExecutedOrAborted(null); // back to threshold → throttle OFF
+            assertFalse("returning to threshold should deactivate throttle", engine.isThrottled());
+
+            for (int i = 0; i < threshold; i++) {
+                scheduler.mergeExecutedOrAborted(null);
+                assertFalse(engine.isThrottled());
+            }
         }
     }
 

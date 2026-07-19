@@ -141,6 +141,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return this;
     }
 
+    protected ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
+        return threadPoolMergeExecutorService;
+    }
+
     @Override
     public void refreshConfig() {
         // if maxMergeCount changed, maybe we need to toggle merge task throttling

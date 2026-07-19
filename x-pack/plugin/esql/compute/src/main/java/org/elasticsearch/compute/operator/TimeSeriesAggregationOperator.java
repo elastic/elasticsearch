@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
@@ -33,9 +35,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -540,11 +540,18 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 nextGroupIds.fill(0, numGroups, -1);
                 prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 prevGroupIds.fill(0, numGroups, -1);
-                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                LongLongHashMap nextTimestamps = new LongLongHashMap(); // cached the rounded up timestamps
                 for (int groupId = 0; groupId < numGroups; groupId++) {
                     long tsid = tsBlockHash.tsidForGroup(groupId);
                     long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
+                    int cacheIndex = nextTimestamps.indexOf(bucketTs);
+                    long nextBucketTs;
+                    if (cacheIndex >= 0) {
+                        nextBucketTs = nextTimestamps.indexGet(cacheIndex);
+                    } else {
+                        nextBucketTs = fastRounding.nextRoundingValue(bucketTs);
+                        nextTimestamps.put(bucketTs, nextBucketTs);
+                    }
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
                         // https://github.com/elastic/elasticsearch/issues/152758

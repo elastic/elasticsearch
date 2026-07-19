@@ -930,6 +930,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                     objectStoreService.copyCommit(virtualBcc, targetShardId);
                                     break;
                                 } catch (Exception e) {
+                                    if (commitState.isClosed()) {
+                                        cleanup();
+                                        return;
+                                    }
                                     logger.warn(
                                         () -> format(
                                             "%s failed to copy commit [%s] to split target [%s], retrying",

@@ -913,10 +913,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
-                        externalSink.addCompletionListener(ActionListener.running(() -> {
-                            exchangeService.finishSinkHandler(sessionId, null);
-                            driverCompletionListener.onResponse(resp);
-                        }));
+                        // don't return until all pages are fetched; preserve the current thread context (which holds the
+                        // external-source compute driver's warnings) because the completion listener may fire on a different
+                        // thread (the transport thread that processes the coordinator's fetchPageAsync call)
+                        externalSink.addCompletionListener(
+                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
+                                exchangeService.finishSinkHandler(sessionId, null);
+                                driverCompletionListener.onResponse(resp);
+                            }), threadPool.getThreadContext())
+                        );
                     }, e -> {
                         LOGGER.warn(
                             "external source compute failed on data node [{}] with {} splits, session [{}]",

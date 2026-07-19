@@ -31,11 +31,13 @@ final class ComputeListener implements Releasable {
     ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
-        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
+        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed;
+        // responseHeaders.finish() must run on both success and failure paths so that warnings collected by
+        // successful sub-tasks are not discarded when the overall query fails
+        this.refs = new EsqlRefCountingListener(ActionListener.runBefore(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
             delegate.onResponse(completionInfoAccumulator.finish());
-        }));
+        }), responseHeaders::finish));
     }
 
     /**

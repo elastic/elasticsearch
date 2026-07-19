@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -265,5 +266,58 @@ public class ComputeListenerTests extends ESTestCase {
         }
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertThat(onFailure.get(), equalTo(0));
+    }
+
+    /**
+     * Regression test for a bug where {@code ResponseHeadersCollector.finish()} was only called on the
+     * success path of {@link ComputeListener}. When the overall query fails (even after some sub-tasks
+     * succeeded and emitted warnings), {@code finish()} was never invoked, so all collected warnings
+     * were silently discarded and never written to the HTTP response.
+     */
+    public void testCollectWarningsOnFailure() throws Exception {
+        Map<String, Set<String>> expectedWarnings = new HashMap<>();
+        AtomicReference<Map<String, List<String>>> capturedOnFailureHeaders = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
+            @Override
+            public void onResponse(DriverCompletionInfo result) {
+                fail("expected failure, got response");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                capturedOnFailureHeaders.set(threadPool.getThreadContext().getResponseHeaders());
+                latch.countDown();
+            }
+        };
+
+        try (var computeListener = new ComputeListener(threadPool, () -> {}, rootListener)) {
+            int successTasks = between(1, 5);
+            for (int t = 0; t < successTasks; t++) {
+                final String key = "warning-key-" + t;
+                final String value = "warning-value-" + t;
+                expectedWarnings.computeIfAbsent(key, k -> new HashSet<>()).add(value);
+                ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
+                threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
+                    threadPool.getThreadContext().addResponseHeader(key, value);
+                    l.onResponse(randomCompletionInfo());
+                }), TimeValue.timeValueNanos(between(0, 100)), threadPool.generic());
+            }
+            // One sub-task fails, causing the overall ComputeListener to fail
+            ActionListener<DriverCompletionInfo> failingListener = computeListener.acquireCompute();
+            threadPool.schedule(
+                ActionRunnable.wrap(failingListener, l -> { l.onFailure(new RuntimeException("simulated sub-task failure")); }),
+                TimeValue.timeValueNanos(between(0, 100)),
+                threadPool.generic()
+            );
+        }
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNotNull(capturedOnFailureHeaders.get());
+        // Warnings from successful sub-tasks must not be lost just because the overall query failed
+        Map<String, Set<String>> actual = new HashMap<>();
+        capturedOnFailureHeaders.get().forEach((k, vs) -> actual.put(k, new HashSet<>(vs)));
+        assertThat(actual, equalTo(expectedWarnings));
     }
 }

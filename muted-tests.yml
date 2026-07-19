@@ -316,9 +316,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
   issue: https://github.com/elastic/elasticsearch/issues/151732
-- class: org.elasticsearch.xpack.stateless.CorruptionIT
-  method: testConcurrentOperations
-  issue: https://github.com/elastic/elasticsearch/issues/151779
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
@@ -649,3 +646,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
+- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
+  method: testMatchInLookupJoinWithKeywordJoinField
+  issue: https://github.com/elastic/elasticsearch/issues/154357
+- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
+  method: testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError
+  issue: https://github.com/elastic/elasticsearch/issues/154359
+- class: org.elasticsearch.index.rankeval.RankEvalRequestIT
+  method: testIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/154360
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/151923
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testClusterDetailsAfterCCSWithFailuresOnOneShardOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/154363

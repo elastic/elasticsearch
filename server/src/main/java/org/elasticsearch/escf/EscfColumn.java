@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -35,6 +36,11 @@ abstract class EscfColumn implements SliceableColumn {
     final FixedBitSet absent;
 
     EscfColumn(int docCount, FixedBitSet absent) {
+        if (docCount >= DocIdSetIterator.NO_MORE_DOCS) {
+            throw new IllegalArgumentException(
+                "docCount " + docCount + " must be less than DocIdSetIterator.NO_MORE_DOCS (" + DocIdSetIterator.NO_MORE_DOCS + ")"
+            );
+        }
         this.docCount = docCount;
         this.absent = absent;
     }

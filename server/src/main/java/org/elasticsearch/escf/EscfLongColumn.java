@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -35,6 +36,11 @@ final class EscfLongColumn extends AbstractFixed64Column {
         return rawLong(row);
     }
 
+    /** Returns a new dense {@link LongCursor} positioned before the first row of this column's window. */
+    LongCursor longCursor() {
+        return new LongCursor(docCount, this);
+    }
+
     @Override
     EscfColumn sliceInternal(int from, int count) {
         return new EscfLongColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
@@ -43,5 +49,34 @@ final class EscfLongColumn extends AbstractFixed64Column {
     @Override
     EscfColumnData toColumnData() {
         return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
+    }
+
+    /**
+     * A forward-only cursor over this column's long values, in row order. Dense-only: every row in
+     * {@code [0, docCount)} has a value; no absent-set check is performed.
+     */
+    static final class LongCursor {
+        private final int rowCount;
+        private final EscfLongColumn column;
+        private int row = -1;
+
+        LongCursor(int rowCount, EscfLongColumn column) {
+            this.rowCount = rowCount;
+            this.column = column;
+        }
+
+        /**
+         * Advances to the next row and returns its 0-based row-id, or
+         * {@link DocIdSetIterator#NO_MORE_DOCS} when the column is exhausted.
+         */
+        int nextRow() {
+            // TODO: does not support sparse yet. Need to iterate bitset too.
+            return ++row < rowCount ? row : DocIdSetIterator.NO_MORE_DOCS;
+        }
+
+        /** Returns the long value for the current row. Valid only after a successful {@link #nextRow()}. */
+        long longValue() {
+            return column.getLongValue(row);
+        }
     }
 }

@@ -1947,9 +1947,14 @@ public class VerifierTests extends ESTestCase {
 
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
-        // MATCH_PHRASE supports runtime search (snapshot-only for now) on text expressions only; substring/concat
-        // produce keyword, so these non-indexed columns are still rejected until keyword runtime support lands.
-        checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
+        // MATCH_PHRASE supports runtime search (snapshot-only for now) on text and keyword expressions
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
+            fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
+            fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
+        } else {
+            checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
+        }
         checkFieldBasedFunctionNotAllowedAfterCommands(
             "MatchPhrase",
             "function",
@@ -2414,25 +2419,35 @@ public class VerifierTests extends ESTestCase {
             );
         }
 
-        // MATCH_PHRASE runtime search does not support keyword expressions yet (concat, grok, dissect and
-        // substring all produce keyword), so these still require a field from an index mapping
-        fullText().error(
-            "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
-        );
-
+        // MATCH_PHRASE runtime search also covers keyword expressions (concat, grok, dissect and substring all
+        // produce keyword); in release builds these still require a field from an index mapping
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            fullText().query(
+                "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")"
+            );
+            fullText().query("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
+            fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
+            fullText().query(
+                "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")"
+            );
+        } else {
+            fullText().error(
+                "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
+            );
+            fullText().error(
+                "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            );
+            fullText().error(
+                "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            );
+            fullText().error(
+                "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
+            );
+        }
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {

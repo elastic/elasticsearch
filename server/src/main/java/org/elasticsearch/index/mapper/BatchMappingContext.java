@@ -14,8 +14,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
-import org.elasticsearch.sourcebatch.SliceableColumn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +26,7 @@ import java.util.List;
  * {@link BatchDocumentParserContext}, there is no per-document parser context or {@link LuceneDocument}
  * here — a columnar mapper is invoked once for the whole batch, reads the per-document
  * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one
- * {@link SliceableColumn} spanning every document via {@link #addColumn}.
+ * {@link LuceneColumn} spanning every document via {@link #addColumn}.
  */
 public final class BatchMappingContext {
 
@@ -35,7 +35,7 @@ public final class BatchMappingContext {
     private final int docCount;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
-    private final List<SliceableColumn> columns = new ArrayList<>();
+    private final List<LuceneColumn> columns = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
     // Will go in translog
@@ -74,8 +74,8 @@ public final class BatchMappingContext {
         return requests[doc];
     }
 
-    /** Attaches a fully-assembled {@link SliceableColumn} covering all {@code docCount} documents. */
-    public void addColumn(SliceableColumn column) {
+    /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
+    public void addColumn(LuceneColumn column) {
         assert frozen == false;
         columns.add(column);
     }

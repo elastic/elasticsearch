@@ -9,7 +9,6 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.document.column.Column;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -143,32 +142,6 @@ abstract class EscfColumn implements SliceableColumn {
     @Override
     public final SliceableColumn slice(int from, int count) {
         return sliceInternal(from, count);
-    }
-
-    /**
-     * Throws {@link UnsupportedOperationException} — direct ESCF→Lucene column conversion is not
-     * yet implemented. Use {@link EscfLuceneColumn} for engine-metadata long columns.
-     */
-    @Override
-    public Column toLuceneColumn() {
-        throw new UnsupportedOperationException(
-            "Direct ESCF-to-Lucene column conversion is not yet implemented for kind "
-                + EscfColumnKind.name(kind())
-                + "; wrap with EscfLuceneColumn for engine-metadata columns"
-        );
-    }
-
-    /**
-     * Throws {@link UnsupportedOperationException} — ESCF user-data column → per-doc Lucene field
-     * conversion is not yet implemented. Use {@link EscfLuceneColumn} for engine-metadata longs.
-     */
-    @Override
-    public RowFieldCursor rowFieldCursor() {
-        throw new UnsupportedOperationException(
-            "ESCF user-data column to row-field cursor is not yet implemented for kind "
-                + EscfColumnKind.name(kind())
-                + "; use EscfLuceneColumn for engine-metadata columns"
-        );
     }
 
     abstract EscfColumn sliceInternal(int from, int count);

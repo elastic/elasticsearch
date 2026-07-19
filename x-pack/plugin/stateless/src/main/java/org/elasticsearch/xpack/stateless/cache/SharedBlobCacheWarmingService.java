@@ -74,6 +74,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -604,7 +605,18 @@ public class SharedBlobCacheWarmingService {
 
                 for (SegmentCommitInfo segmentCommitInfo : segmentsToMerge) {
                     try {
-                        filesToWarm.addAll(segmentCommitInfo.files());
+                        try {
+                            filesToWarm.addAll(segmentCommitInfo.files());
+                        } catch (ConcurrentModificationException e) {
+                            // SegmentCommitInfo.files() iterates over internal HashMaps (e.g. dvUpdatesFiles) that
+                            // can be concurrently modified by IndexWriter (e.g. when applying soft-delete DV updates
+                            // during refresh). The modification is very brief so a retry is very likely to succeed.
+                            try {
+                                filesToWarm.addAll(segmentCommitInfo.files());
+                            } catch (ConcurrentModificationException e2) {
+                                filesToWarm.addAll(segmentCommitInfo.info.files());
+                            }
+                        }
                     } catch (IOException e) {
                         listener.onFailure(e);
                         return;

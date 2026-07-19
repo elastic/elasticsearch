@@ -9,6 +9,8 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +43,10 @@ final class EscfLongColumn extends AbstractFixed64Column {
         return new LongCursor(docCount, this);
     }
 
+    LongValuesCursor longValuesCursor() {
+        return new DenseLongValuesCursor(docCount, this);
+    }
+
     @Override
     EscfColumn sliceInternal(int from, int count) {
         return new EscfLongColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
@@ -51,11 +57,36 @@ final class EscfLongColumn extends AbstractFixed64Column {
         return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
     }
 
-    /**
-     * A forward-only cursor over this column's long values, in row order. Dense-only: every row in
-     * {@code [0, docCount)} has a value; no absent-set check is performed.
-     */
-    static final class LongCursor {
+    private static final class DenseLongValuesCursor extends LongValuesCursor {
+        private final EscfLongColumn column;
+        private int pos;
+
+        DenseLongValuesCursor(int count, EscfLongColumn column) {
+            super(count);
+            this.column = column;
+        }
+
+        @Override
+        public long nextLong() {
+            if (pos >= size()) {
+                throw new IllegalStateException("nextLong() called more than size()=" + size() + " times");
+            }
+            return column.getLongValue(pos++);
+        }
+
+        @Override
+        public void fillDocValues(long[] dst, int offset, int length) {
+            if (pos + length > size()) {
+                throw new IllegalStateException("fill of " + length + " from pos " + pos + " exceeds size()=" + size());
+            }
+            // TODO: implement based on the BytesRefIterator to remove most bounds checks
+            for (int i = 0; i < length; i++) {
+                dst[offset + i] = column.getLongValue(pos++);
+            }
+        }
+    }
+
+    private static final class LongCursor extends LongTupleCursor {
         private final int rowCount;
         private final EscfLongColumn column;
         private int row = -1;
@@ -65,17 +96,14 @@ final class EscfLongColumn extends AbstractFixed64Column {
             this.column = column;
         }
 
-        /**
-         * Advances to the next row and returns its 0-based row-id, or
-         * {@link DocIdSetIterator#NO_MORE_DOCS} when the column is exhausted.
-         */
-        int nextRow() {
+        @Override
+        public int nextDoc() {
             // TODO: does not support sparse yet. Need to iterate bitset too.
             return ++row < rowCount ? row : DocIdSetIterator.NO_MORE_DOCS;
         }
 
-        /** Returns the long value for the current row. Valid only after a successful {@link #nextRow()}. */
-        long longValue() {
+        @Override
+        public long longValue() {
             return column.getLongValue(row);
         }
     }

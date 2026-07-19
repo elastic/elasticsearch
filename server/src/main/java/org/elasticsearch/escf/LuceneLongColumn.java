@@ -55,11 +55,11 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
         final ColumnLongField field = new ColumnLongField(name(), fieldType(), numericKind());
-        final EscfLongColumn.LongCursor cursor = data.longCursor();
+        final LongTupleCursor cursor = data.longCursor();
         return new LuceneColumn.RowFieldCursor() {
             @Override
             public int nextDoc() {
-                return cursor.nextRow();
+                return cursor.nextDoc();
             }
 
             @Override
@@ -72,45 +72,12 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
     @Override
     public LongTupleCursor tuples() {
-        final EscfLongColumn.LongCursor cursor = data.longCursor();
-        return new LongTupleCursor() {
-            @Override
-            public int nextDoc() {
-                return cursor.nextRow();
-            }
-
-            @Override
-            public long longValue() {
-                return cursor.longValue();
-            }
-        };
+        return data.longCursor();
     }
 
     @Override
     public LongValuesCursor values() {
-        int count = data.docCount;
-        return new LongValuesCursor(count) {
-            private int pos;
-
-            @Override
-            public long nextLong() {
-                if (pos >= count) {
-                    throw new IllegalStateException("nextLong() called more than size()=" + size() + " times");
-                }
-                return data.getLongValue(pos++);
-            }
-
-            @Override
-            public void fillDocValues(long[] dst, int offset, int length) {
-                if (pos + length > size()) {
-                    throw new IllegalStateException("fill of " + length + " from pos " + pos + " exceeds size()=" + size());
-                }
-                // TODO: implement based on the BytesRefIterator to remove most bounds checks
-                for (int i = 0; i < length; i++) {
-                    dst[offset + i] = data.getLongValue(pos++);
-                }
-            }
-        };
+        return data.longValuesCursor();
     }
 
     private static final class ColumnLongField extends Field {

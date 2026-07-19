@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -133,6 +134,10 @@ abstract class EscfColumn implements SliceableColumn {
 
     KeyValueReader getKeyValue(int row) {
         throw notA("key-value");
+    }
+
+    ObjectTupleCursor<BytesRef> bytesRefCursor() {
+        throw notA("binary");
     }
 
     private IllegalStateException notA(String what) {

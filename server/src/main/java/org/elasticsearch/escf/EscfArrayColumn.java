@@ -9,6 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.sourcebatch.ArrayReader;
@@ -61,6 +64,51 @@ final class EscfArrayColumn extends EscfColumn {
     /** Returns the child element column. Element indices are absolute (the child is never sliced). */
     EscfColumn child() {
         return child;
+    }
+
+    /**
+     * Returns an element-granular {@link ObjectTupleCursor}{@code <BytesRef>} over the child
+     * column's byte-string values, delegating value reads to the child's own cursor. The child must
+     * be a var-width (STRING or BINARY) column; throws {@link UnsupportedOperationException}
+     * otherwise.
+     *
+     * <p>For multi-valued rows the same row-id is returned for each element. Empty rows
+     * (zero-width offset range) and absent rows are skipped.
+     */
+    @Override
+    ObjectTupleCursor<BytesRef> bytesRefCursor() {
+        if (!(child instanceof AbstractVarColumn varChild)) {
+            throw new UnsupportedOperationException(
+                "bytesRefCursor() requires a var-width child column, got: " + EscfColumnKind.name(child.kind())
+            );
+        }
+        final int numRows = docCount;
+        final int startElem = rowElemFrom(0);
+        final ObjectTupleCursor<BytesRef> childCursor = varChild.bytesRefCursor();
+        // Pre-advance the child cursor to the element just before this window's first element so
+        // that the first nextDoc() call below lands exactly on startElem.
+        for (int i = 0; i < startElem; i++) {
+            childCursor.nextDoc();
+        }
+        return new ObjectTupleCursor<>() {
+            private int elemPos = startElem - 1;
+            private int currentDoc = 0;
+
+            @Override
+            public int nextDoc() {
+                elemPos++;
+                childCursor.nextDoc();
+                while (currentDoc < numRows && rowElemTo(currentDoc) <= elemPos) {
+                    currentDoc++;
+                }
+                return currentDoc < numRows ? currentDoc : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public BytesRef value() {
+                return childCursor.value();
+            }
+        };
     }
 
     @Override

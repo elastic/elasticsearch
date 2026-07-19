@@ -9,6 +9,8 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -32,6 +34,29 @@ abstract class AbstractVarColumn extends EscfColumn {
     }
 
     abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets);
+
+    /**
+     * Returns a forward-only dense {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first row of this
+     * column's window. Dense-only: every row in {@code [0, docCount)} is yielded in order; the
+     * absent bitset is not consulted.
+     */
+    @Override
+    final ObjectTupleCursor<BytesRef> bytesRefCursor() {
+        return new ObjectTupleCursor<>() {
+            private int row = -1;
+
+            @Override
+            public int nextDoc() {
+                // TODO: does not support sparse yet. Need to iterate bitset too.
+                return ++row < docCount ? row : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public BytesRef value() {
+                return getBinaryValue(row);
+            }
+        };
+    }
 
     @Override
     final BytesRef getBinaryValue(int row) {

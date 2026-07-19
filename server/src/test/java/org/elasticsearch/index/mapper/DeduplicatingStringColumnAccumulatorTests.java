@@ -13,8 +13,8 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.escf.EscfStringArrayColumn;
-import org.elasticsearch.sourcebatch.SliceableColumn;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 
@@ -34,13 +34,13 @@ public class DeduplicatingStringColumnAccumulatorTests extends ESTestCase {
     }
 
     /**
-     * Drains the accumulator into an {@link EscfStringArrayColumn} via the
+     * Drains the accumulator into a {@link LuceneBinaryColumn} via the
      * {@link FieldNamesFieldMapper#NAME} field name and a non-stored string field type. We use the
      * same wrapping that {@link FieldNamesFieldMapper#postColumnarParse} applies, so the assertions
      * exercise the exact same column.
      */
-    private static EscfStringArrayColumn drain(DeduplicatingStringColumnAccumulator acc) {
-        return EscfStringArrayColumn.fieldNamesColumn(
+    private static LuceneBinaryColumn drain(DeduplicatingStringColumnAccumulator acc) {
+        return LuceneBinaryColumn.arrayColumn(
             acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE),
             FieldNamesFieldMapper.NAME,
             StringField.TYPE_NOT_STORED
@@ -49,9 +49,9 @@ public class DeduplicatingStringColumnAccumulatorTests extends ESTestCase {
 
     /**
      * Drains the row cursor into a {@code docId → [values]} map. Mirrors the pattern used in
-     * {@link org.elasticsearch.escf.EscfStringArrayColumnTests}.
+     * {@link org.elasticsearch.escf.LuceneBinaryColumnTests}.
      */
-    private static Map<Integer, List<String>> drainRowCursor(SliceableColumn.RowFieldCursor cursor) {
+    private static Map<Integer, List<String>> drainRowCursor(LuceneColumn.RowFieldCursor cursor) {
         Map<Integer, List<String>> result = new LinkedHashMap<>();
         int doc = cursor.nextDoc();
         while (doc != DocIdSetIterator.NO_MORE_DOCS) {

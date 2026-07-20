@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.recovery.metering;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -185,14 +184,11 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
     }
 
     private static Map<String, Object> recoveryMetricLabels(IndexShard indexShard) {
-        return Maps.copyMapWithAddedEntry(
-            commonMetricLabels(indexShard),
+        return Map.of(
+            "es_is_primary",
+            indexShard.routingEntry().primary(),
             "es_recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
-    }
-
-    public static Map<String, Object> commonMetricLabels(IndexShard indexShard) {
-        return Map.of("primary", indexShard.routingEntry().primary());
     }
 }

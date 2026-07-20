@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
@@ -80,7 +79,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -1118,24 +1116,17 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // block split application on stale search node
         final CountDownLatch completedSearch = new CountDownLatch(1);
         final var searchClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
-        final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNode);
-        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
-                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
-
-                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
-                    try {
-                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
-                            // wait for search shard cluster block to be in place before releasing SPLIT
-                            searchClusterService.getClusterApplierService()
-                                .runOnApplierThread("get", Priority.IMMEDIATE, state -> safeAwait(completedSearch), ActionListener.noop());
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+        // Register an applier that blocks the search node from committing the SPLIT cluster state
+        searchClusterService.addStateApplier(event -> {
+            final var indexMetadata = event.state().getMetadata().findIndex(index).orElse(null);
+            if (indexMetadata != null) {
+                final var resharding = indexMetadata.getReshardingMetadata();
+                if (resharding != null
+                    && resharding.getSplit() != null
+                    && resharding.getSplit().getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                    safeAwait(completedSearch);
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
         });
 
         // reshard up to split attempt

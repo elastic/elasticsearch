@@ -251,7 +251,7 @@ public final class WriterConstants {
         long.class
     );
 
-    /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates_dynamic} estimator's result. */
+    /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
     public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);
 
     /** {@link AllocationGuard#checkDefConcatAlloc(PainlessScript, Object, Object)} — charges a {@code def} {@code +} string concat. */

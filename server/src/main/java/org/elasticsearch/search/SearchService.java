@@ -291,6 +291,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
 
+    /**
+     * The buffer size to accumulate source bytes locally before checking the circuit breaker during fetch.
+     * Checked periodically to bound the overhead of circuit breaker calls.
+     */
+    public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
+        "search.memory_accounting_buffer_size",
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
@@ -314,6 +327,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final RankFeatureShardPhase rankFeatureShardPhase;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
+    private volatile long memoryAccountingBufferSize;
 
     private volatile long defaultKeepAlive;
 
@@ -423,6 +437,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
+        memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
     }
 
     public CircuitBreaker getCircuitBreaker() {
@@ -658,13 +675,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
-        ActionListener<SearchPhaseResult> finalListener = wrapListenerForErrorHandling(
-            listener,
-            request.getChannelVersion(),
-            clusterService.localNode().getId(),
-            request.shardId(),
-            task.getId(),
-            threadPool
+        ActionListener<SearchPhaseResult> finalListener = releaseCircuitBreakerOnResponse(
+            wrapListenerForErrorHandling(
+                listener,
+                request.getChannelVersion(),
+                clusterService.localNode().getId(),
+                request.shardId(),
+                task.getId(),
+                threadPool
+            ),
+            result -> result instanceof QueryFetchSearchResult qfr ? qfr.fetchResult() : null
         );
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
@@ -1101,7 +1121,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result.fetchResult()), readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1140,7 +1160,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(l, readerContext, markAsUsed));
+            }, wrapFailureListener(releaseCircuitBreakerOnResponse(l, result -> result), readerContext, markAsUsed));
         }));
     }
 
@@ -1351,6 +1371,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice,
+                memoryAccountingBufferSize,
                 circuitBreaker
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -2135,6 +2156,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public IndicesService getIndicesService() {
         return indicesService;
+    }
+
+    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
+        ActionListener<T> listener,
+        Function<T, FetchSearchResult> fetchResultExtractor
+    ) {
+        return ActionListener.wrap(response -> {
+            try {
+                listener.onResponse(response);
+            } finally {
+                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+                if (fetchResult != null) {
+                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+                }
+            }
+        }, listener::onFailure);
     }
 
     /**

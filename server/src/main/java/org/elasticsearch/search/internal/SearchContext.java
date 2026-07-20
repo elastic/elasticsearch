@@ -12,6 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -418,4 +419,27 @@ public abstract class SearchContext implements Releasable {
     public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
 
     public abstract IdLoader newIdLoader();
+
+    /**
+     * Returns the circuit breaker for this search context, used to track memory usage during fetch.
+     */
+    public abstract CircuitBreaker circuitBreaker();
+
+    /**
+     * Returns the buffer size (in bytes) to accumulate locally before submitting to the circuit breaker.
+     */
+    public abstract long memAccountingBufferSize();
+
+    /**
+     * Checks whether the locally accumulated bytes exceed the buffer size and, if so, submits them
+     * to the circuit breaker. The caller is responsible for releasing any bytes added to the breaker.
+     * @return true if the circuit breaker was called, false otherwise
+     */
+    public final boolean checkCircuitBreaker(int locallyAccumulatedBytes, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(locallyAccumulatedBytes, label);
+            return true;
+        }
+        return false;
+    }
 }

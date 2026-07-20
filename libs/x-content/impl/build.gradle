@@ -13,7 +13,7 @@ base {
   archivesName = "x-content-impl"
 }
 
-String jacksonVersion = "2.17.2"
+String jacksonVersion = "2.18.8"
 
 dependencies {
   compileOnly project(':libs:core')

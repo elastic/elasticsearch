@@ -16,6 +16,8 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
+import java.util.Objects;
+
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
 final class EscfLongColumn extends AbstractFixed64Column {
 
@@ -68,17 +70,13 @@ final class EscfLongColumn extends AbstractFixed64Column {
 
         @Override
         public long nextLong() {
-            if (pos >= size()) {
-                throw new IllegalStateException("nextLong() called more than size()=" + size() + " times");
-            }
+            Objects.checkIndex(pos, size());
             return column.getLongValue(pos++);
         }
 
         @Override
         public void fillDocValues(long[] dst, int offset, int length) {
-            if (pos + length > size()) {
-                throw new IllegalStateException("fill of " + length + " from pos " + pos + " exceeds size()=" + size());
-            }
+            Objects.checkFromIndexSize(pos, length, size());
             // TODO: implement based on the BytesRefIterator to remove most bounds checks
             for (int i = 0; i < length; i++) {
                 dst[offset + i] = column.getLongValue(pos++);

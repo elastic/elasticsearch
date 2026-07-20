@@ -11,10 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -188,15 +190,43 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             final FieldType ft = new FieldType(column.fieldType());
             ft.freeze();
             final String name = column.name();
+            // Sparse columns must use tuples() (values() is undefined for absent rows).
+            // For dense columns, randomly choose between the tuples and values cursor families
+            // so both get exercised. Since tuples() is already verified against x-content, any
+            // divergence between the two families will surface as a test failure.
+            boolean isSparse = column.density() == Column.Density.SPARSE;
             if (column instanceof LongColumn longColumn) {
-                final LongTupleCursor cursor = longColumn.tuples();
-                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                    perDoc.get(doc).add(new FieldDescriptor(name, ft, cursor.longValue(), null));
+                if (isSparse || randomBoolean()) {
+                    final LongTupleCursor cursor = longColumn.tuples();
+                    for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                        perDoc.get(doc).add(new FieldDescriptor(name, ft, cursor.longValue(), null));
+                    }
+                } else {
+                    final LongValuesCursor cursor = longColumn.values();
+                    final int size = cursor.size();
+                    if (randomBoolean()) {
+                        for (int doc = 0; doc < size; doc++) {
+                            perDoc.get(doc).add(new FieldDescriptor(name, ft, cursor.nextLong(), null));
+                        }
+                    } else {
+                        final long[] vals = new long[size];
+                        cursor.fillDocValues(vals, 0, size);
+                        for (int doc = 0; doc < size; doc++) {
+                            perDoc.get(doc).add(new FieldDescriptor(name, ft, vals[doc], null));
+                        }
+                    }
                 }
             } else if (column instanceof BinaryColumn binaryColumn) {
-                final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
-                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                    perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                if (isSparse || randomBoolean()) {
+                    final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+                    for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                    }
+                } else {
+                    final BytesRefValuesCursor cursor = binaryColumn.values();
+                    for (int doc = 0; doc < cursor.size(); doc++) {
+                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
+                    }
                 }
             } else {
                 throw new AssertionError("unsupported column type in test harness: " + column.getClass());

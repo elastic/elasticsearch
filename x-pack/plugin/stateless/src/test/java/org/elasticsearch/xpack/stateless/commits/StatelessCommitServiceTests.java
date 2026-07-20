@@ -397,82 +397,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
      * generation listener (used for flush) fires only after the copy completes.
      */
     public void testNextUploadProceedsWhileCopyToSplitTargetIsSlow() throws Exception {
-        CountDownLatch copyBlocker = new CountDownLatch(1);
-        CountDownLatch gen2BccWritten = new CountDownLatch(1);
-        AtomicReference<String> gen2BccNameRef = new AtomicReference<>();
-
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-                class WrappedContainer extends FilterBlobContainer {
-                    WrappedContainer(BlobContainer delegate) {
-                        super(delegate);
-                    }
-
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return new WrappedContainer(child);
-                    }
-
-                    @Override
-                    public void writeBlob(
-                        OperationPurpose purpose,
-                        String blobName,
-                        InputStream inputStream,
-                        long blobSize,
-                        boolean failIfAlreadyExists
-                    ) throws IOException {
-                        super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                    }
-
-                    @Override
-                    public void writeBlobAtomic(
-                        OperationPurpose purpose,
-                        String blobName,
-                        InputStream inputStream,
-                        long blobSize,
-                        boolean failIfAlreadyExists
-                    ) throws IOException {
-                        super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                        if (blobName.equals(gen2BccNameRef.get())) {
-                            gen2BccWritten.countDown();
-                        }
-                    }
-
-                    @Override
-                    public void writeBlobAtomic(
-                        OperationPurpose purpose,
-                        String blobName,
-                        BytesReference bytes,
-                        boolean failIfAlreadyExists
-                    ) {
-                        throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
-                    }
-
-                    @Override
-                    public void copyBlob(
-                        OperationPurpose purpose,
-                        BlobContainer sourceBlobContainer,
-                        String sourceBlobName,
-                        String blobName,
-                        long blobSize
-                    ) throws IOException {
-                        safeAwait(copyBlocker);
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
-                    }
-                }
-                return new WrappedContainer(innerContainer);
-            }
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
-            }
-        }) {
+        try (var testHarness = new SplitCopyObservingNode()) {
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
             StatelessCommitRef commit1 = commitRefs.get(0);
             StatelessCommitRef commit2 = commitRefs.get(1);
-            gen2BccNameRef.set(blobNameFromGeneration(commit2.getGeneration()));
+            testHarness.bccWrittenRef.set(blobNameFromGeneration(commit2.getGeneration()));
+            // Block commit1's copy. Commit2's copy cannot start until commit1's finishes (single-slot
+            // splitTargetCopyExecutor), so commit2 also stays blocked without needing an explicit guard.
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
 
             ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
             testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
@@ -485,15 +417,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Wait for commit2's BCC blob to be written. This means commit2's local upload finished
             // concurrently with commit1's copy (which is blocked). The key property being tested: the
             // second upload does not wait for the first copy to complete.
-            safeAwait(gen2BccWritten);
+            safeAwait(testHarness.bccWrittenLatch);
 
-            // The fully-uploaded listener for commit2 should not have fired yet — copies are still blocked.
+            // The fully-uploaded listener for commit2 should not have fired yet — commit1's copy is blocked,
+            // and commit2's copy is serialised behind it so it cannot start either.
             PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
             assertFalse("commit2 should not be fully uploaded while copies are blocked", commit2FullyUploaded.isDone());
 
             // Unblock copies; both commits should now become fully uploaded.
-            copyBlocker.countDown();
+            testHarness.copyBlocker.countDown();
             safeGet(commit2FullyUploaded);
         }
     }
@@ -506,76 +439,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
      * ThrottledTaskRunner so gen N+1's copy only starts after gen N's copy is done.
      */
     public void testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes() throws Exception {
-        CountDownLatch gen1CopyBlocker = new CountDownLatch(1);
-        CountDownLatch gen2BccWritten = new CountDownLatch(1);
         CountDownLatch gen1ListenerFiredLatch = new CountDownLatch(1);
-        AtomicReference<String> gen1BccNameRef = new AtomicReference<>();
-        AtomicReference<String> gen2BccNameRef = new AtomicReference<>();
-
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-                class WrappedContainer extends FilterBlobContainer {
-                    WrappedContainer(BlobContainer delegate) {
-                        super(delegate);
-                    }
-
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return new WrappedContainer(child);
-                    }
-
-                    @Override
-                    public void writeBlobAtomic(
-                        OperationPurpose purpose,
-                        String blobName,
-                        InputStream inputStream,
-                        long blobSize,
-                        boolean failIfAlreadyExists
-                    ) throws IOException {
-                        super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                        if (blobName.equals(gen2BccNameRef.get())) {
-                            gen2BccWritten.countDown();
-                        }
-                    }
-
-                    @Override
-                    public void writeBlobAtomic(
-                        OperationPurpose purpose,
-                        String blobName,
-                        BytesReference bytes,
-                        boolean failIfAlreadyExists
-                    ) {
-                        throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
-                    }
-
-                    @Override
-                    public void copyBlob(
-                        OperationPurpose purpose,
-                        BlobContainer sourceBlobContainer,
-                        String sourceBlobName,
-                        String blobName,
-                        long blobSize
-                    ) throws IOException {
-                        if (blobName.equals(gen1BccNameRef.get())) {
-                            safeAwait(gen1CopyBlocker);
-                        }
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
-                    }
-                }
-                return new WrappedContainer(innerContainer);
-            }
-
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
-            }
-        }) {
+        try (var testHarness = new SplitCopyObservingNode()) {
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
             StatelessCommitRef commit1 = commitRefs.get(0);
             StatelessCommitRef commit2 = commitRefs.get(1);
-            gen1BccNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
-            gen2BccNameRef.set(blobNameFromGeneration(commit2.getGeneration()));
+            testHarness.bccWrittenRef.set(blobNameFromGeneration(commit2.getGeneration()));
+            // Block only gen1's copy; gen2's copy is allowed to proceed so we can test ordering.
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
 
             ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
             testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
@@ -593,7 +464,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2.getGeneration());
 
             // Wait for gen2's BCC blob to be written (gen2 local upload done while gen1's copy is blocked).
-            safeAwait(gen2BccWritten);
+            safeAwait(testHarness.bccWrittenLatch);
 
             try {
                 // Give gen2's copy up to 500ms to run to ensure ordering works, i.e., we only notify
@@ -601,8 +472,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 boolean gen1ListenerFiredEarly = gen1ListenerFiredLatch.await(500, TimeUnit.MILLISECONDS);
                 assertFalse("gen1's fully-uploaded listener fired before its own copy completed", gen1ListenerFiredEarly);
             } finally {
-                // Always unblock gen1's copy so background threads can exit cleanly.
-                gen1CopyBlocker.countDown();
+                // Always unblock copy so background threads can exit cleanly.
+                testHarness.copyBlocker.countDown();
             }
 
             PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
@@ -3639,5 +3510,87 @@ public class StatelessCommitServiceTests extends ESTestCase {
         );
         assertThat(span.isPresent(), is(true));
         assertThat(span.getAsDouble(), closeTo(((double) Long.MAX_VALUE - (double) (Long.MIN_VALUE + 1)) / 60_000d, 1.0));
+    }
+
+    /**
+     * A {@link FakeStatelessNode} subclass shared by copy-blocking tests. It intercepts blob writes and
+     * copies to allow tests to observe and control copy timing without duplicating the anonymous-class
+     * boilerplate.
+     *
+     * <p>Fields the test body can configure (before calling {@code onCommitCreation}):
+     * <ul>
+     *   <li>{@link #bccWrittenRef} — set to the blob name to watch; {@link #bccWrittenLatch} counts
+     *       down once that blob is written atomically.</li>
+     *   <li>{@link #copyBlockedNameRef} — set to the blob name whose copy should block on
+     *       {@link #copyBlocker} until it is counted down.</li>
+     * </ul>
+     */
+    private class SplitCopyObservingNode extends FakeStatelessNode {
+        final AtomicReference<String> bccWrittenRef = new AtomicReference<>();
+        final CountDownLatch bccWrittenLatch = new CountDownLatch(1);
+        final AtomicReference<String> copyBlockedNameRef = new AtomicReference<>();
+        final CountDownLatch copyBlocker = new CountDownLatch(1);
+
+        SplitCopyObservingNode() throws IOException {
+            super(
+                StatelessCommitServiceTests.this::newEnvironment,
+                StatelessCommitServiceTests.this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm
+            );
+        }
+
+        @Override
+        public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+            class WrappedContainer extends FilterBlobContainer {
+                WrappedContainer(BlobContainer delegate) {
+                    super(delegate);
+                }
+
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    return new WrappedContainer(child);
+                }
+
+                @Override
+                public void writeBlobAtomic(
+                    OperationPurpose purpose,
+                    String blobName,
+                    InputStream inputStream,
+                    long blobSize,
+                    boolean failIfAlreadyExists
+                ) throws IOException {
+                    super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    if (blobName.equals(bccWrittenRef.get())) {
+                        bccWrittenLatch.countDown();
+                    }
+                }
+
+                @Override
+                public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+                    throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
+                }
+
+                @Override
+                public void copyBlob(
+                    OperationPurpose purpose,
+                    BlobContainer sourceBlobContainer,
+                    String sourceBlobName,
+                    String blobName,
+                    long blobSize
+                ) throws IOException {
+                    if (blobName.equals(copyBlockedNameRef.get())) {
+                        safeAwait(copyBlocker);
+                    }
+                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                }
+            }
+            return new WrappedContainer(innerContainer);
+        }
+
+        @Override
+        protected Settings nodeSettings() {
+            return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
+        }
     }
 }

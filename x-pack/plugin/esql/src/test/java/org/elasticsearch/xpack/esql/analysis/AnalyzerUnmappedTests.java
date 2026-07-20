@@ -1505,6 +1505,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertTwoLeggedPunkResolution(plan, "partial_double", DataType.DOUBLE);
     }
 
+    public void testNullifyAllowsScoreKnnWithPartiallyMappedDenseVector() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_dense", denseVectorField("partial_dense")), Set.of("partial_dense"));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedNullify("FROM idx* | EVAL score = score(knn(partial_dense, [1, 2, 3])) | KEEP score"));
+        assertThat(plan, not(nullValue()));
+    }
+
     /**
      * An EVAL referencing both a partially unmapped non-keyword field and a field with a genuine type conflict
      * should report errors for both fields.
@@ -2057,6 +2066,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             // The raw (uncast) field reaches the default output and falls back to null where unmapped.
             assertWarnings(nonLoadablePunkWarning(smallTypeField, dt.typeName()));
         }
+    }
+
+    private static EsField denseVectorField(String name) {
+        return new EsField(name, DataType.DENSE_VECTOR, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
     public void testUnmappedFieldsDefaultWithQueryStringFullTextFunctionsDoesNotLoadUnmappedFields() {

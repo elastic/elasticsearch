@@ -12,23 +12,23 @@ package org.elasticsearch.painless.spi.annotation;
 import java.util.Map;
 
 /**
- * Parses {@code @allocates_dynamic[class="fully.qualified.Class", method="methodName"]}. Only the shape is validated here;
- * resolution happens at allowlist load time so a missing estimator fails loudly.
+ * Parses {@code @allocates[class="fully.qualified.Class", method="estimate"]}. Only the shape is validated here; the estimator
+ * is resolved at allowlist load time so a missing one fails loudly.
  */
-public class AllocatesDynamicAnnotationParser implements WhitelistAnnotationParser {
+public class AllocatesAnnotationParser implements WhitelistAnnotationParser {
 
     public static final String CLASS = "class";
     public static final String METHOD = "method";
 
-    public static final AllocatesDynamicAnnotationParser INSTANCE = new AllocatesDynamicAnnotationParser();
+    public static final AllocatesAnnotationParser INSTANCE = new AllocatesAnnotationParser();
 
-    private AllocatesDynamicAnnotationParser() {}
+    private AllocatesAnnotationParser() {}
 
     @Override
     public Object parse(Map<String, String> arguments) {
         if (arguments.size() != 2 || arguments.containsKey(CLASS) == false || arguments.containsKey(METHOD) == false) {
             throw new IllegalArgumentException(
-                "[@" + AllocatesDynamicAnnotation.NAME + "] requires [" + CLASS + "] and [" + METHOD + "] arguments"
+                "[@" + AllocatesAnnotation.NAME + "] requires [" + CLASS + "] and [" + METHOD + "] arguments"
             );
         }
 
@@ -36,13 +36,12 @@ public class AllocatesDynamicAnnotationParser implements WhitelistAnnotationPars
         String methodName = arguments.get(METHOD).trim();
 
         if (className.isEmpty()) {
-            throw new IllegalArgumentException("[@" + AllocatesDynamicAnnotation.NAME + "] [" + CLASS + "] must not be empty");
+            throw new IllegalArgumentException("[@" + AllocatesAnnotation.NAME + "] [" + CLASS + "] must not be empty");
         }
-
         if (methodName.isEmpty()) {
-            throw new IllegalArgumentException("[@" + AllocatesDynamicAnnotation.NAME + "] [" + METHOD + "] must not be empty");
+            throw new IllegalArgumentException("[@" + AllocatesAnnotation.NAME + "] [" + METHOD + "] must not be empty");
         }
 
-        return new AllocatesDynamicAnnotation(className, methodName);
+        return new AllocatesAnnotation(className, methodName);
     }
 }

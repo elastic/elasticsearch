@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.invalidTypeErrorMsg;
 
 public final class NumberParser {
@@ -45,6 +47,20 @@ public final class NumberParser {
             );
         }
     }
-
+    /**
+     * Validates that an optional integer service setting, when present, is higher than the max value, throwing an
+     * {@link IllegalArgumentException} otherwise.
+     */
+    public static void validatePositiveIntegerLessThanOrEqualToMax(
+        @Nullable Integer value,
+        String settingName,
+        int maxValue
+    ) {
+        if (value != null && value > maxValue) {
+            throw new IllegalArgumentException(
+                mustBeLessThanOrEqualNumberErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value, maxValue)
+            );
+        }
+    }
     private NumberParser() {}
 }

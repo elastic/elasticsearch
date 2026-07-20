@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
 
 public final class ElasticInferenceServiceSettingsUtils {
@@ -25,16 +26,6 @@ public final class ElasticInferenceServiceSettingsUtils {
     public static final TransportVersion INFERENCE_API_EIS_MAX_BATCH_SIZE = TransportVersion.fromName("inference_api_eis_max_batch_size");
 
     private ElasticInferenceServiceSettingsUtils() {}
-
-    public static Integer parseMaxBatchSize(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return extractOptionalPositiveIntegerLessThanOrEqualToMax(
-            serviceSettings,
-            MAX_BATCH_SIZE,
-            MAX_BATCH_SIZE_UPPER_BOUND,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-    }
 
     public static void ensureEmptyTaskSettingsInRequestContext(
         @Nullable Map<String, Object> taskSettings,

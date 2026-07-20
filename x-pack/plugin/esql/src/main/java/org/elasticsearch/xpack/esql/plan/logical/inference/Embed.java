@@ -42,11 +42,7 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        LogicalPlan.class,
-        "Embed",
-        Embed::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Embed", Embed::new);
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
 
@@ -56,17 +52,10 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
     private List<Attribute> lazyOutput;
 
     public Embed(Source source, LogicalPlan p, Expression rowLimit, Expression input, Attribute targetField) {
-        this(source, p, Literal.NULL, rowLimit, input, targetField,  null);
+        this(source, p, Literal.NULL, rowLimit, input, targetField, null);
     }
 
-    public Embed(
-        Source source,
-        LogicalPlan child,
-        Expression inferenceId,
-        Expression rowLimit,
-        Expression input,
-        Attribute targetField
-    ) {
+    public Embed(Source source, LogicalPlan child, Expression inferenceId, Expression rowLimit, Expression input, Attribute targetField) {
         this(source, child, inferenceId, rowLimit, input, targetField, null);
     }
 
@@ -168,15 +157,7 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
     @Override
     public Embed withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Embed(
-            source(),
-            child(),
-            inferenceId(),
-            rowLimit(),
-            input,
-            this.renameTargetField(newNames.get(0)),
-            timeout()
-        );
+        return new Embed(source(), child(), inferenceId(), rowLimit(), input, this.renameTargetField(newNames.get(0)), timeout());
     }
 
     private Attribute renameTargetField(String newName) {
@@ -221,8 +202,7 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
         if (super.equals(o) == false) return false;
         Embed embed = (Embed) o;
 
-        return Objects.equals(input, embed.input)
-            && Objects.equals(targetField, embed.targetField);
+        return Objects.equals(input, embed.input) && Objects.equals(targetField, embed.targetField);
     }
 
     @Override

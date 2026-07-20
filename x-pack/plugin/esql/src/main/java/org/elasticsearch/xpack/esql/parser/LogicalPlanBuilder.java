@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Embed;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -1489,6 +1490,50 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
         return h.withOptions(options);
+    }
+
+    public PlanFactory visitEmbedCommand(EsqlBaseParser.EmbedCommandContext ctx) {
+        Source source = source(ctx);
+
+        Expression input = expression(ctx.input);
+        Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Embed.DEFAULT_OUTPUT_FIELD_NAME));
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
+        // Reuse the completion row limit
+        // TODO: Change to own limit
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
+        return p -> applyEmbedOptions(new Embed(source, p, rowLimit, input, targetField), ctx.commandNamedParameters());
+    }
+
+    private Embed applyEmbedOptions(Embed embed, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression optionsExpression = (ctx == null) ? null : visitCommandNamedParameters(ctx);
+
+        if (optionsExpression == null || optionsExpression.containsKey(Embed.INFERENCE_ID_OPTION_NAME) == false) {
+            throw new ParsingException(embed.source(), "Missing mandatory option [{}] in EMBED", Embed.INFERENCE_ID_OPTION_NAME);
+        }
+
+        Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+        Expression inferenceId = optionsMap.remove(Embed.INFERENCE_ID_OPTION_NAME);
+        if (inferenceId != null) {
+            embed = applyInferenceId(embed, inferenceId);
+        }
+
+        Expression timeoutExpr = optionsMap.remove(Embed.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            embed = embed.withTimeout(parseTimeoutOption(timeoutExpr, Embed.TIMEOUT_OPTION_NAME, "EMBED"));
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Invalid option [{}] in EMBED, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                embed.validOptionNames()
+            );
+        }
+
+        return embed;
     }
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {

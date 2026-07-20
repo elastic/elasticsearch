@@ -68,7 +68,8 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings);
+        boolean retainBinary = randomBoolean();
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, retainBinary);
     }
 
     public static Map<String, Object> generateRandomChunkingSettings() {

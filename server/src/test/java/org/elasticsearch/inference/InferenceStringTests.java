@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.inference.InferenceString.DESCRIPTION_FIELD;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
-import static org.elasticsearch.inference.InferenceString.INFERENCE_STRING_DESCRIPTION_ADDED;
+import static org.elasticsearch.inference.InferenceString.INFERENCE_FIELD_METADATA_RETAIN_BINARY;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
 import static org.elasticsearch.inference.InferenceString.fromStringList;
@@ -440,7 +440,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
      * video or pdf content, so we filter those out of the bwc versions to avoid test failures.
      * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible}.
      * <p>
-     * Descriptions are similarly not backwards compatible before {@link InferenceString#INFERENCE_STRING_DESCRIPTION_ADDED}, but rather
+     * Descriptions are similarly not backwards compatible before {@link InferenceString#INFERENCE_FIELD_METADATA_RETAIN_BINARY}, but rather
      * than filtering versions here (which would reduce audio/video/pdf coverage) the randomized instances simply never carry a
      * description; that path is tested directly by {@link #testDescriptionIsNotBackwardsCompatible}.
      */
@@ -461,7 +461,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testDescriptionWireRoundTrip() throws IOException {
         for (int i = 0; i < 20; i++) {
-            TransportVersion version = TransportVersionUtils.randomVersionSupporting(INFERENCE_STRING_DESCRIPTION_ADDED);
+            TransportVersion version = TransportVersionUtils.randomVersionSupporting(INFERENCE_FIELD_METADATA_RETAIN_BINARY);
             var description = randomAlphanumericOfLength(10);
             var instance = new InferenceString(randomDataTypeSupportingBase64(), DataFormat.BASE64, TEST_DATA_URI, description);
             var deserialized = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
@@ -474,7 +474,12 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         var instance = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI, randomAlphanumericOfLength(10));
         var statusException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersionUtils.getPreviousVersion(INFERENCE_STRING_DESCRIPTION_ADDED))
+            () -> copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersionUtils.getPreviousVersion(INFERENCE_FIELD_METADATA_RETAIN_BINARY)
+            )
         );
         assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
         assertThat(
@@ -505,7 +510,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         DataFormat format = randomBoolean() ? randomFrom(dataType.getSupportedFormats()) : null;
         var value = convertToDataURIIfNeeded(dataType, format, randomAlphanumericOfLength(10));
         // Descriptions are not randomized here so the shared instances stay serializable to versions before
-        // INFERENCE_STRING_DESCRIPTION_ADDED (see testDescriptionIsNotBackwardsCompatible). Description round-tripping is covered by
+        // INFERENCE_FIELD_METADATA_RETAIN_BINARY (see testDescriptionIsNotBackwardsCompatible). Description round-tripping is covered by
         // testDescriptionWireRoundTrip, mutateInstance, and the xcontent tests.
         return new InferenceString(dataType, format, value);
     }

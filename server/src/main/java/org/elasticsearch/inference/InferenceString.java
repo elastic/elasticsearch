@@ -40,9 +40,9 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
     );
-    public static final TransportVersion INFERENCE_STRING_DESCRIPTION_ADDED = TransportVersion.fromName(
-        "inference_string_description_added"
-    );
+    public static final TransportVersion INFERENCE_FIELD_METADATA_RETAIN_BINARY = TransportVersion.fromName(
+        "inference_field_metadata_retain_binary"
+    ); // TODO: Use separate transport version for this change
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
     static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
@@ -116,11 +116,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     private void validateDescription() {
         if (description != null && isText()) {
-            throw new IllegalArgumentException(Strings.format(
-                "Data type [%s] does not support [%s], descriptions may only be set for non-text inputs",
-                dataType,
-                DESCRIPTION_FIELD
-            ));
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Data type [%s] does not support [%s], descriptions may only be set for non-text inputs",
+                    dataType,
+                    DESCRIPTION_FIELD
+                )
+            );
         }
     }
 
@@ -156,7 +158,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
             in.readEnum(DataType.class),
             in.readEnum(DataFormat.class),
             in.readString(),
-            in.getTransportVersion().supports(INFERENCE_STRING_DESCRIPTION_ADDED) ? in.readOptionalString() : null
+            in.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) ? in.readOptionalString() : null
         );
     }
 
@@ -239,7 +241,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                 RestStatus.BAD_REQUEST
             );
         }
-        if (out.getTransportVersion().supports(INFERENCE_STRING_DESCRIPTION_ADDED) == false && description != null) {
+        if (out.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) == false && description != null) {
             throw new ElasticsearchStatusException(
                 "Cannot send an inference request with a description to an older node. "
                     + "Please wait until all nodes are upgraded before using descriptions",
@@ -249,7 +251,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
         out.writeString(value);
-        if (out.getTransportVersion().supports(INFERENCE_STRING_DESCRIPTION_ADDED)) {
+        if (out.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY)) {
             out.writeOptionalString(description);
         }
     }

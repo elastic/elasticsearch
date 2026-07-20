@@ -226,6 +226,7 @@ public class RecoveryDirectCancellationService {
     }
 
     private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+        assert shardRouting.initializing() : "calling recoveryCanBeCancelledIfStarted for non-initializing shard " + shardRouting;
         if (shardRouting.primary()) {
             return shardRouting.relocatingNodeId() != null;
         }
@@ -234,7 +235,6 @@ public class RecoveryDirectCancellationService {
         }
         return routingNodes.assignedShards(shardRouting.shardId())
             .stream()
-            .filter(s -> s != shardRouting)
             .filter(ShardRouting::started)
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }

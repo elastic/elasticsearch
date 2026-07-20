@@ -462,9 +462,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             // The source node's tracked commitment (10, 5) is smaller than the shard's own requirement (30, 10). This simulates
             // stale or incomplete initial commitment data. Subtracting the full requirement must not drive it negative.
             .withNodeCacheSizeAndCommitments(CACHE_FROM_NODE_ID, 500, 10, 5)
-            // The target node's cacheSizeInBytes (40) reflects its actual, currently observed cache size. It is not a configured
-            // commitment limit. Adding the requirement legitimately pushes the commitment total over that value, and that
-            // over-commit must not be clamped.
+            // The target node's cacheSizeInBytes (40) reflects its cache size. Adding the requirement legitimately pushes the commitment
+            // total over that value, and that over-commit must not be clamped.
             .withNodeCacheSizeAndCommitments(CACHE_TO_NODE_ID, 40, 50, 20)
             .withShardCacheRequirement(shard, 30, 10)
             .build();

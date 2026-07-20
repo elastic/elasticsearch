@@ -226,12 +226,9 @@ public class ClusterInfoSimulator {
             nodeId,
             new NodeCacheSizeAndCommitments(
                 current.cacheSizeInBytes(),
-                // cacheSizeInBytes reflects the node's actual, currently observed cache size. It is not a configured commitment
-                // limit. It is not a valid upper bound for commitments here. We only clamp at 0. This guards against a shard's
-                // requirement being subtracted from a node whose commitment never accounted for it, such as with stale or
-                // incomplete initial collector data.
-                Math.max(0L, current.boostedCacheCommitmentInBytes() + boostedDelta),
-                Math.max(0L, current.unboostedCacheCommitmentInBytes() + unboostedDelta)
+                // Do not allow negative values when subtracting
+                Math.max(0L, Math.addExact(current.boostedCacheCommitmentInBytes(), boostedDelta)),
+                Math.max(0L, Math.addExact(current.unboostedCacheCommitmentInBytes(), unboostedDelta))
             )
         );
     }

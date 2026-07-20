@@ -143,8 +143,8 @@ range, at a random released version inside it. The two names mute independently:
   both shapes. Declare it (label or `since`) and regenerate.
 - Warning about a dead range: the compatibility floor (advances at major releases) passed a label.
   Harmless, but clean up as the message says — delete the `before_<label>` directory and remove
-  the declaration; nothing else moves. A weekly CI sweep (`-Dgolden.gc.strict=true`) auto-files
-  leftovers as tickets.
+  the declaration; nothing else moves. `-Dgolden.gc.strict` escalates the warning to a failure,
+  for scheduled cleanup sweeps.
 - Error that a declaration no longer resolves: the transport version name was retired, meaning the
   code path it gated is gone. Remove the declaration; for a label, also delete its
   `before_<label>` directory (its files described planning that no longer exists).

@@ -45,7 +45,9 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         .binary(Repeat::new)
         .capabilities(
             // Empty input used to pass the byte-size guard (0 * count == 0) and still loop `count` times.
-            "fix_empty_string_loop"
+            "fix_empty_string_loop",
+            // int length*count overflow used to bypass the size guard.
+            "fix_length_overflow"
         )
         .name("repeat");
 

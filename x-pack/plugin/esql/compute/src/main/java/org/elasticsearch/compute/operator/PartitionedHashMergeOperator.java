@@ -399,29 +399,21 @@ public class PartitionedHashMergeOperator implements Operator {
                 output = new ConcatenatingPageIterator(parts);
             }
         } else {
-            // Non-promoted path: single FINAL worker, merge NONE's INTERMEDIATE output into it.
-            Table finalTable = newTable(workerAggFactories);
-            boolean success = false;
-            try {
-                try (ReleasableIterator<Page> nonePages = evaluateTable(noneTable)) {
-                    while (nonePages.hasNext()) {
-                        try (Page p = nonePages.next()) {
-                            mergeIntermediateIntoTable(finalTable, p);
-                        }
-                    }
+            // Non-promoted path: rewrap NONE aggregators with FINAL mode and evaluate directly.
+            // The underlying aggregatorFunction state is identical between INTERMEDIATE and FINAL
+            // mode; only what evaluate() emits differs. This skips the evaluate-then-re-ingest
+            // round trip that would otherwise be needed to convert to final output format.
+            Table table = noneTable;
+            noneTable = null;
+            if (table.blockHash.numKeys() > 0) {
+                List<GroupingAggregator> finalAggregators = new ArrayList<>(table.aggregators.size());
+                for (GroupingAggregator a : table.aggregators) {
+                    finalAggregators.add(new GroupingAggregator(a.aggregatorFunction(), AggregatorMode.FINAL));
                 }
-                success = true;
-            } finally {
-                noneTable.close();
-                noneTable = null;
-                if (success == false) {
-                    finalTable.close();
-                }
-            }
-            if (finalTable.blockHash.numKeys() > 0) {
-                output = closeTableOnClose(evaluateTable(finalTable), finalTable);
+                var pageBuilder = new GroupingAggregatorPageBuilder(table.blockHash, finalAggregators, maxPageSize, NO_CUSTOMIZATION);
+                output = closeTableOnClose(pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext)), table);
             } else {
-                finalTable.close();
+                table.close();
             }
         }
     }

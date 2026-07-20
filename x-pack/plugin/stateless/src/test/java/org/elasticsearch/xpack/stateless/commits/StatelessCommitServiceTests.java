@@ -467,10 +467,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             safeAwait(testHarness.bccWrittenLatch);
 
             try {
-                // Give gen2's copy up to 500ms to run to ensure ordering works, i.e., we only notify
-                // when all prior copies have completed.
-                boolean gen1ListenerFiredEarly = gen1ListenerFiredLatch.await(500, TimeUnit.MILLISECONDS);
-                assertFalse("gen1's fully-uploaded listener fired before its own copy completed", gen1ListenerFiredEarly);
+                // check ordering
+                assertFalse(
+                    "gen1's fully-uploaded listener fired before its own copy completed",
+                    gen1ListenerFiredLatch.await(50, TimeUnit.MILLISECONDS)
+                );
             } finally {
                 // Always unblock copy so background threads can exit cleanly.
                 testHarness.copyBlocker.countDown();

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.search.ccs;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.junit.Before;
@@ -44,6 +46,16 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     );
 
     boolean clustersConfigured = false;
+    private final boolean ccsMinimizeRoundTrips;
+
+    public KnnVectorQueryBuilderCrossClusterSearchIT(@Name("minimizeRoundTrips") boolean ccsMinimizeRoundTrips) {
+        this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @Override
     protected boolean reuseClusters() {
@@ -60,131 +72,131 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
-    public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {
-        knnQueryBaseTestCases(true);
+    /**
+     * Test to check that omitting the inference ID when querying a remote dense vector field leads to the expected failures
+     * @throws Exception on failure
+     */
+    public void testKnnQueryWithNullInferenceId() throws Exception {
+        var knnQVB = new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null);
 
-        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
-        assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
-            QUERY_INDICES,
-            List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
-            new ClusterFailure(
-                SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must be specified"))
-            ),
-            null
-        );
-    }
+        if (ccsMinimizeRoundTrips) {
+            // For ccsMinimizeRoundTrips = true case, the query is expected to generate partial failure
+            assertSearchResponse(
+                knnQVB,
+                QUERY_INDICES,
+                List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
+                new ClusterFailure(
+                    SearchResponse.Cluster.Status.SKIPPED,
+                    Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must be specified"))
+                ),
+                null
+            );
+        } else {
+            // For ccsMinimizeRoundTrips = false case, the query is expected to fail entirely.
+            assertSearchFailure(
+                knnQVB,
+                QUERY_INDICES,
+                IllegalArgumentException.class,
+                "[model_id] must be specified",
+                s -> s.setCcsMinimizeRoundtrips(false)
+            );
 
-    public void testKnnQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
-        knnQueryBaseTestCases(false);
-
-        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected failure
-        assertSearchFailure(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
-            QUERY_INDICES,
-            IllegalArgumentException.class,
-            "[model_id] must be specified",
-            s -> s.setCcsMinimizeRoundtrips(false)
-        );
-        assertSearchFailure(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
-            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
-            IllegalArgumentException.class,
-            "[model_id] must be specified",
-            s -> s.setCcsMinimizeRoundtrips(false)
-        );
+            assertSearchFailure(
+                knnQVB,
+                List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
+                IllegalArgumentException.class,
+                "[model_id] must be specified",
+                s -> s.setCcsMinimizeRoundtrips(false)
+            );
+        }
     }
 
     public void testBlankQueryHandling() throws Exception {
-        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
-        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
-            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
-            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+        final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "   "), 10, 100, 10f, null),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
-                ),
-                null,
-                searchRequestModifier
-            );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "   "), 10, 100, 10f, null),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
 
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(
-                    VARIABLE_INFERENCE_ID_FIELD,
-                    new TextEmbeddingQueryVectorBuilder(null, "   "),
-                    10,
-                    100,
-                    10f,
-                    null
-                ),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
-                ),
-                null,
-                searchRequestModifier
-            );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                VARIABLE_INFERENCE_ID_FIELD,
+                new TextEmbeddingQueryVectorBuilder(null, "   "),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
 
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(
-                    MIXED_TYPE_FIELD_1,
-                    new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "   "),
-                    10,
-                    100,
-                    10f,
-                    null
-                ),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
-                ),
-                null,
-                searchRequestModifier
-            );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_1,
+                new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "   "),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+            ),
+            null,
+            searchRequestModifier
+        );
 
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(
-                    MIXED_TYPE_FIELD_2,
-                    new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "   "),
-                    10,
-                    100,
-                    10f,
-                    null
-                ),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
-                ),
-                null,
-                searchRequestModifier
-            );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "   "),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            searchRequestModifier
+        );
 
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(
-                    DENSE_VECTOR_FIELD,
-                    new TextEmbeddingQueryVectorBuilder(COMMON_INFERENCE_ID, "   "),
-                    10,
-                    100,
-                    10f,
-                    null
-                ),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD))
-                ),
-                null,
-                searchRequestModifier
-            );
-        }
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                DENSE_VECTOR_FIELD,
+                new TextEmbeddingQueryVectorBuilder(COMMON_INFERENCE_ID, "   "),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
     }
 
     public void testGenericQueryVectorBuilderReturnsVector() throws Exception {
@@ -285,7 +297,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
-    private void knnQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
+    public void testKnnVectorQueryMixedInference() throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
         final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
@@ -312,6 +324,11 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             null,
             searchRequestModifier
         );
+    }
+
+    public void testKnnVectorQueryIndexPatterns() throws Exception {
+        final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
         // Query using index patterns
         assertSearchResponse(
@@ -324,6 +341,12 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             null,
             searchRequestModifier
         );
+    }
+
+
+    public void testKnnVectorQueryOnlyDenseVector() throws Exception {
+        final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
         // Validate that a CCS knn query functions when only dense vector fields are queried
         assertSearchResponse(

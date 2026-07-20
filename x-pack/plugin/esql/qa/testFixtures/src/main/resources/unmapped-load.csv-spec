@@ -588,9 +588,7 @@ colors               | green      | [0.0, 128.0, 0.0]
 colors_unmapped      | green      | null
 ;
 
-# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152196
-# KNN over a partially unmapped dense_vector should null-fill where unmapped, but instead errors that the field does not exist.
-knnOnDenseVectorPunkUnderLoad-Ignore
+knnOnDenseVectorPunkUnderLoad
 required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: knn_function_v5
 
@@ -601,6 +599,8 @@ FROM colors, employees METADATA _index, _score
 | KEEP _index, color
 | LIMIT 1
 ;
+warning:Field [color] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [rgb_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword | color:text
 colors         | green

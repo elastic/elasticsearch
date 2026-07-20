@@ -64,7 +64,8 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  */
 public abstract class StringFieldType extends TermBasedFieldType {
 
-    private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
+    // DOTALL so an escape (\X) is recognised even when X is a line terminator, matching Lucene which escapes any code point.
+    private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)", Pattern.DOTALL);
 
     public StringFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         super(name, indexType, isStored, textSearchInfo, meta);
@@ -123,30 +124,64 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (normalizer == null) {
             return value;
         }
-        // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
-        // is a char_filter that would otherwise remove them
+        // Normalize the literal parts of the pattern but keep the ? and * operators, e.g. F?o Ba* to f?o ba*. Escapes
+        // (\X) are literal data, so we gather each contiguous literal run (across plain text and escapes) and normalize
+        // it as a whole; context-sensitive normalizers need the full run. Operators the normalizer emits are re-escaped.
         Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
         BytesRefBuilder sb = new BytesRefBuilder();
+        StringBuilder literal = new StringBuilder();
         int last = 0;
 
         while (wildcardMatcher.find()) {
-            if (wildcardMatcher.start() > 0) {
-                String chunk = value.substring(last, wildcardMatcher.start());
-
-                BytesRef normalized = normalizer.normalize(fieldname, chunk);
-                sb.append(normalized);
+            if (wildcardMatcher.start() > last) {
+                literal.append(value, last, wildcardMatcher.start());
             }
-            // append the matched group - without normalizing
-            sb.append(new BytesRef(wildcardMatcher.group()));
-
+            String escape = wildcardMatcher.group(1);
+            if (escape != null) {
+                // \X is an escape: the escaped character is literal data, so drop the backslash and keep X
+                literal.append(escape, 1, escape.length());
+            } else {
+                // operators: flush the accumulated literal run, then keep them verbatim
+                appendNormalizedLiteral(sb, normalizer, fieldname, literal.toString());
+                literal.setLength(0);
+                sb.append(new BytesRef(wildcardMatcher.group()));
+            }
             last = wildcardMatcher.end();
         }
         if (last < value.length()) {
-            String chunk = value.substring(last);
-            BytesRef normalized = normalizer.normalize(fieldname, chunk);
-            sb.append(normalized);
+            literal.append(value, last, value.length());
         }
+        appendNormalizedLiteral(sb, normalizer, fieldname, literal.toString());
         return sb.toBytesRef().utf8ToString();
+    }
+
+    /** Normalizes one literal run and appends it, re-escaping any {@code *}, {@code ?}, or backslash the normalizer produced. */
+    private static void appendNormalizedLiteral(BytesRefBuilder sb, Analyzer normalizer, String fieldname, String chunk) {
+        if (chunk.isEmpty()) {
+            return;
+        }
+        BytesRef normalized = normalizer.normalize(fieldname, chunk);
+        // The operators are ASCII and UTF-8 never uses bytes below 0x80 inside a multi-byte sequence, so scanning the
+        // raw bytes is safe. In the common case the normalizer emits no operator and the bytes are appended as-is.
+        int operators = 0;
+        for (int i = 0; i < normalized.length; i++) {
+            byte b = normalized.bytes[normalized.offset + i];
+            if (b == '*' || b == '?' || b == '\\') {
+                operators++;
+            }
+        }
+        if (operators == 0) {
+            sb.append(normalized);
+            return;
+        }
+        sb.grow(sb.length() + normalized.length + operators);
+        for (int i = 0; i < normalized.length; i++) {
+            byte b = normalized.bytes[normalized.offset + i];
+            if (b == '*' || b == '?' || b == '\\') {
+                sb.append((byte) '\\');
+            }
+            sb.append(b);
+        }
     }
 
     @Override

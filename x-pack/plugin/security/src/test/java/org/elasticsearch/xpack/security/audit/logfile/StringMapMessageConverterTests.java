@@ -8,16 +8,18 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.audit.data.DataArray;
+import org.elasticsearch.xpack.core.security.audit.data.DataDecimal;
+import org.elasticsearch.xpack.core.security.audit.data.DataDouble;
 import org.elasticsearch.xpack.core.security.audit.data.DataInteger;
 import org.elasticsearch.xpack.core.security.audit.data.DataNull;
 import org.elasticsearch.xpack.core.security.audit.data.DataObject;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class StringMapMessageConverterTests extends ESTestCase {
 
@@ -32,8 +34,8 @@ public class StringMapMessageConverterTests extends ESTestCase {
         assertThat(data.get("s"), equalTo("v"));
         assertThat(data.get("b"), equalTo("true"));
         assertThat(data.get("i"), equalTo("7"));
-        assertThat(data.containsKey("n"), is(true));
-        assertThat(data.get("n"), nullValue());
+        // A DataNull field is dropped rather than emitted as a null-valued entry
+        assertThat(data.containsKey("n"), is(false));
     }
 
     public void testNestedObjectRendersCompactJsonInOrder() {
@@ -68,5 +70,32 @@ public class StringMapMessageConverterTests extends ESTestCase {
 
         Map<String, String> data = StringMapMessageConverter.INSTANCE.convert(entry).getData();
         assertThat(data.get("metadata"), equalTo("{\"huge\":12345678901234567890}"));
+    }
+
+    public void testDoubleAndDecimalScalarsRenderAsStrings() {
+        DataObject entry = new DataObject();
+        entry.put("d", new DataDouble(1.5d));
+        entry.put("bd", new DataDecimal(new BigDecimal("3.14159265358979323846")));
+
+        Map<String, String> data = StringMapMessageConverter.INSTANCE.convert(entry).getData();
+        assertThat(data.get("d"), equalTo("1.5"));
+        assertThat(data.get("bd"), equalTo("3.14159265358979323846"));
+    }
+
+    public void testNestedDoubleAndDecimalRenderAsBareJsonNumbers() {
+        DataObject metadata = new DataObject();
+        metadata.put("d", new DataDouble(1.5d));
+        metadata.put("bd", new DataDecimal(new BigDecimal("3.14159265358979323846")));
+        DataObject entry = new DataObject().put("metadata", metadata);
+
+        Map<String, String> data = StringMapMessageConverter.INSTANCE.convert(entry).getData();
+        assertThat(data.get("metadata"), equalTo("{\"d\":1.5,\"bd\":3.14159265358979323846}"));
+    }
+
+    public void testNonStringArrayRendersBareJsonNumbers() {
+        DataObject entry = new DataObject().put("nums", new DataArray().add(1L).add(2L));
+
+        Map<String, String> data = StringMapMessageConverter.INSTANCE.convert(entry).getData();
+        assertThat(data.get("nums"), equalTo("[1,2]"));
     }
 }

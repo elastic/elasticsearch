@@ -8,10 +8,7 @@ package org.elasticsearch.xpack.core.security.audit.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -99,59 +96,5 @@ public final class DataValues {
             array.add(fromJava(value));
         }
         return array;
-    }
-
-    /**
-     * Converts a {@link DataValue} back into the generic Java "JSON tree" representation, the inverse of
-     * {@link #fromJava(Object)}.
-     * <p>
-     * Scalars map to {@code String}/{@code Boolean}/{@code Long}/{@code Double} (or {@code BigInteger}/{@code BigDecimal}
-     * for out-of-range numbers, or {@code null} for {@link DataNull}), objects to an insertion-ordered {@link Map} and
-     * arrays to a {@link List}. The result is suitable for serialization through {@code XContentBuilder#map}; the numeric
-     * types all render as bare JSON number tokens.
-     *
-     * @param value the value to convert
-     * @return the corresponding generic Java value, or {@code null} for {@link DataNull}
-     */
-    public static Object toJava(DataValue value) {
-        return switch (value) {
-            case DataNull ignored -> null;
-            case DataString dataString -> dataString.value();
-            case DataBoolean dataBoolean -> dataBoolean.value();
-            case DataLong dataLong -> dataLong.value();
-            case DataDouble dataDouble -> dataDouble.value();
-            case DataInteger dataInteger -> dataInteger.value();
-            case DataDecimal dataDecimal -> dataDecimal.value();
-            case DataObject object -> toMap(object);
-            case DataArray array -> toList(array);
-        };
-    }
-
-    /**
-     * Converts a {@link DataObject} into an insertion-ordered {@link Map} of generic Java values, the inverse of
-     * {@link #objectFromMap(Map)}.
-     *
-     * @param object the object to convert
-     * @return a mutable, insertion-ordered map
-     */
-    public static Map<String, Object> toMap(DataObject object) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        object.forEach((name, value) -> map.put(name, toJava(value)));
-        return map;
-    }
-
-    /**
-     * Converts a {@link DataArray} into a {@link List} of generic Java values, the inverse of
-     * {@link #arrayFrom(Iterable)}.
-     *
-     * @param array the array to convert
-     * @return a mutable list preserving element order
-     */
-    public static List<Object> toList(DataArray array) {
-        List<Object> list = new ArrayList<>(array.size());
-        for (DataValue value : array) {
-            list.add(toJava(value));
-        }
-        return list;
     }
 }

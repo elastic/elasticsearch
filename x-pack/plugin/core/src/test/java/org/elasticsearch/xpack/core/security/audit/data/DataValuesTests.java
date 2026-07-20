@@ -16,7 +16,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DataValuesTests extends ESTestCase {
@@ -118,45 +117,5 @@ public class DataValuesTests extends ESTestCase {
         map.put(null, "value");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DataValues.objectFromMap(map));
         assertThat(e.getMessage(), equalTo("DataObject field names must be strings but found [null]"));
-    }
-
-    public void testToJavaScalars() {
-        assertThat(DataValues.toJava(DataNull.INSTANCE), nullValue());
-        assertThat(DataValues.toJava(new DataString("x")), equalTo("x"));
-        assertThat(DataValues.toJava(new DataBoolean(true)), equalTo(true));
-        assertThat(DataValues.toJava(new DataLong(5L)), equalTo(5L));
-        assertThat(DataValues.toJava(new DataDouble(1.5d)), equalTo(1.5d));
-        assertThat(
-            DataValues.toJava(new DataInteger(new BigInteger("12345678901234567890"))),
-            equalTo(new BigInteger("12345678901234567890"))
-        );
-        assertThat(
-            DataValues.toJava(new DataDecimal(new BigDecimal("3.14159265358979323846"))),
-            equalTo(new BigDecimal("3.14159265358979323846"))
-        );
-    }
-
-    public void testToMapAndToListPreserveOrder() {
-        DataObject object = new DataObject();
-        object.put("z", "1").put("a", DataValues.arrayFrom(List.of("x", "y")));
-
-        Map<String, Object> map = DataValues.toMap(object);
-        assertThat(map.keySet(), contains("z", "a"));
-        assertThat(map.get("a"), equalTo(List.of("x", "y")));
-    }
-
-    public void testRoundTripFromJavaToJava() {
-        Map<String, Object> original = new LinkedHashMap<>();
-        original.put("name", "role");
-        original.put("count", 3L);
-        original.put("ratio", 1.5d);
-        original.put("enabled", true);
-        original.put("missing", null);
-        original.put("tags", List.of("a", "b"));
-        Map<String, Object> nested = new LinkedHashMap<>();
-        nested.put("k", "v");
-        original.put("meta", nested);
-
-        assertThat(DataValues.toMap(DataValues.objectFromMap(original)), equalTo(original));
     }
 }

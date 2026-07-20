@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.AuditLogMessageConverter;
@@ -22,11 +23,9 @@ import org.elasticsearch.xpack.core.security.audit.data.DataNull;
 import org.elasticsearch.xpack.core.security.audit.data.DataObject;
 import org.elasticsearch.xpack.core.security.audit.data.DataString;
 import org.elasticsearch.xpack.core.security.audit.data.DataValue;
-import org.elasticsearch.xpack.core.security.audit.data.DataValues;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -35,9 +34,8 @@ import java.util.Map;
  * <p>
  * This is the default, byte-for-byte back-compatible rendering that {@link LoggingAuditTrail} applies whenever an
  * {@link AuditLogCustomizer} does not supply its own converter (see {@link AuditLogCustomizer#messageConverter()}): every field is
- * emitted under its name with its string value, matching the flat map the audit trail has always logged. The message is built from
- * a complete map (rather than incremental {@code put} calls) so that fields whose value is {@link DataNull} are preserved as
- * {@code null} entries, matching how the audit trail seeds its common fields.
+ * emitted under its name with its string value, matching the flat map the audit trail has always logged. Fields whose value is
+ * {@link DataNull} are dropped.
  * <p>
  * This flattening is the single terminal point at which the structured entry is collapsed for the pattern layout: scalar fields
  * become their string form, while a field holding a nested {@link DataObject} or {@link DataArray} (for example a security config
@@ -55,6 +53,8 @@ public final class StringMapMessageConverter implements AuditLogMessageConverter
 
     /**
      * Converts the given entry into a flat, {@code String}-valued {@link StringMapMessage}.
+     * <p>
+     * {@link DataNull} fields are dropped rather than emitted as null-valued entries.
      *
      * @param entry the audit entry to render
      * @return the log4j message
@@ -62,9 +62,13 @@ public final class StringMapMessageConverter implements AuditLogMessageConverter
      */
     @Override
     public StringMapMessage convert(DataObject entry) {
-        final Map<String, String> data = new HashMap<>(entry.view().size());
-        entry.forEach((name, value) -> data.put(name, flatString(name, value)));
-        return new StringMapMessage(data);
+        final StringMapMessage message = new StringMapMessage(entry.view().size());
+        entry.forEach((name, value) -> {
+            if (value != DataNull.INSTANCE) {
+                message.with(name, flatString(name, value));
+            }
+        });
+        return message;
     }
 
     private static String flatString(String name, DataValue value) {
@@ -77,19 +81,78 @@ public final class StringMapMessageConverter implements AuditLogMessageConverter
             case DataInteger dataInteger -> dataInteger.value().toString();
             case DataDecimal dataDecimal -> dataDecimal.value().toString();
             case DataObject object -> toJson(name, object);
-            case DataArray array -> toJson(name, array);
+            case DataArray array -> isAllStrings(array) ? stringArrayToJson(array) : toJson(name, array);
         };
     }
 
+    private static boolean isAllStrings(DataArray array) {
+        for (DataValue element : array) {
+            if (element instanceof DataString == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
-     * Serializes a nested value to a compact JSON string, preserving field and element order.
+     * Encodes an array of {@link DataString}s as a compact JSON array, quoting and escaping each element directly into a
+     * {@link StringBuilder}. This mirrors the audit trail's long-standing array rendering and avoids the per-field
+     * {@link XContentBuilder} allocation (and its self-reference bookkeeping) that the general {@link #toJson} path incurs.
+     */
+    private static String stringArrayToJson(DataArray array) {
+        final StringBuilder builder = new StringBuilder();
+        final JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+        builder.append('[');
+        for (DataValue element : array) {
+            if (builder.length() > 1) {
+                builder.append(',');
+            }
+            builder.append('"');
+            encoder.quoteAsString(((DataString) element).value(), builder);
+            builder.append('"');
+        }
+        builder.append(']');
+        return builder.toString();
+    }
+
+    /**
+     * Serializes a nested value to a compact JSON string, preserving field and element order. The {@link DataValue} tree is
+     * written straight into the {@link XContentBuilder}, avoiding an intermediate generic Java tree and the builder's cyclic
+     * reference checks (the model is acyclic by construction).
      */
     private static String toJson(String name, DataValue value) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.value(DataValues.toJava(value));
+            writeValue(builder, value);
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to render audit field [" + name + "] as JSON", e);
+        }
+    }
+
+    private static void writeValue(XContentBuilder builder, DataValue value) throws IOException {
+        switch (value) {
+            case DataNull ignored -> builder.nullValue();
+            case DataString dataString -> builder.value(dataString.value());
+            case DataBoolean dataBoolean -> builder.value(dataBoolean.value());
+            case DataLong dataLong -> builder.value(dataLong.value());
+            case DataDouble dataDouble -> builder.value(dataDouble.value());
+            case DataInteger dataInteger -> builder.value(dataInteger.value());
+            case DataDecimal dataDecimal -> builder.value(dataDecimal.value());
+            case DataObject object -> {
+                builder.startObject();
+                for (Map.Entry<String, DataValue> field : object.view().entrySet()) {
+                    builder.field(field.getKey());
+                    writeValue(builder, field.getValue());
+                }
+                builder.endObject();
+            }
+            case DataArray array -> {
+                builder.startArray();
+                for (DataValue element : array) {
+                    writeValue(builder, element);
+                }
+                builder.endArray();
+            }
         }
     }
 }

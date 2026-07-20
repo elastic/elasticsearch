@@ -62,7 +62,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         IMAGE_URL,
         FILE;
 
-        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(ContentObjectType.class);
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectType.class);
 
         @Override
         public String toString() {

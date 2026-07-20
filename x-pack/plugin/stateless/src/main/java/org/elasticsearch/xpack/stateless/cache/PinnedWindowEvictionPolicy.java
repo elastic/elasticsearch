@@ -96,8 +96,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
             final long timestampMillis = region.timestampMillis();
             if (timestampMillis < 0) {
                 assert timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
-                    || timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP
-                    : "unexpected negative timestamp: " + timestampMillis;
+                    || timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP : "unexpected negative timestamp: " + timestampMillis;
                 return false;
             }
             // TODO: regions of unboosted shards, and of shards with a boost multiplier of less than 1, should be

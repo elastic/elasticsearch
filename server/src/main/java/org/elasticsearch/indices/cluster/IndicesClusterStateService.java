@@ -1280,10 +1280,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(shardRouting.index());
             if (indexMetadata.isEmpty()) {
-                logger.debug(() -> format("Not marking shard %s failed (reason: [%s]): index no longer exists", shardId, message));
+                logger.debug(() -> format("%s not marking shard failed (reason: [%s]): index no longer exists", shardId, message));
                 return;
             }
-            logger.warn(() -> format("Marking and sending shard failed %s due to [%s]", shardId, message), failure);
+            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
             final long primaryTerm = indexMetadata.get().primaryTerm(shardRouting.id());
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);

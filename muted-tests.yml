@@ -2,12 +2,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
-  issue: https://github.com/elastic/elasticsearch/issues/118208
-- class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test51AutoConfigurationWithPasswordProtectedKeystore
-  issue: https://github.com/elastic/elasticsearch/issues/118212
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568

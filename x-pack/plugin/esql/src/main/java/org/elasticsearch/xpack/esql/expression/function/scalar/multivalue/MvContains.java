@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -218,10 +217,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
         var supersetType = PlannerUtils.toElementType(left().dataType());
         var subsetType = PlannerUtils.toElementType(right().dataType());
 
-        if (subsetType == ElementType.NULL) {
-            return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
-        }
-
         if (supersetType != ElementType.NULL && supersetType != subsetType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for MvContains, superset type({}) value({}) and subset type({}) value({}) don't match.",
@@ -334,7 +329,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         // TODO: Add Lucene pushdown for spatial types too
-        // TODO: When the right argument is NULL, we always return true. We should fold early in this case.
         DataType dataType = right().dataType();
         if (dataType.isNumeric() == false
             && DataType.isString(dataType) == false

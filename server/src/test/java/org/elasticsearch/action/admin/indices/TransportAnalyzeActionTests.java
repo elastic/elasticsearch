@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -63,9 +64,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     private int maxTokenCount;
     private int idxMaxTokenCount;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAnalysisRegistry() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
         Settings indexSettings = Settings.builder()
@@ -99,6 +99,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 public TokenStream create(TokenStream tokenStream) {
                     return new MockTokenFilter(tokenStream, this.stopset);
                 }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
+                }
             }
 
             class AppendCharFilterFactory extends AbstractCharFilterFactory {
@@ -113,6 +118,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 @Override
                 public Reader create(Reader reader) {
                     return new AppendCharFilter(reader, suffix);
+                }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
                 }
             }
 

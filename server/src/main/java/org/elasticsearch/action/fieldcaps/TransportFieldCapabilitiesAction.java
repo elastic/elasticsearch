@@ -59,6 +59,7 @@ import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidato
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
@@ -213,11 +214,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         final String[] concreteLocalIndices;
-        final List<ResolvedIndexExpression> resolvedLocallyList;
+        final ResolvedIndexExpressions resolvedIndexExpressions;
         if (request.getResolvedIndexExpressions() != null) {
             // in CPS the Security Action Filter would populate resolvedExpressions for the local project
             // thus we can get the concreteLocalIndices based on the resolvedLocallyList
-            resolvedLocallyList = request.getResolvedIndexExpressions().expressions();
+            resolvedIndexExpressions = request.getResolvedIndexExpressions();
             if (localIndices == null) {
                 concreteLocalIndices = Strings.EMPTY_ARRAY;
             } else {
@@ -226,7 +227,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         } else {
             // In CCS/Local only search we have to populate resolvedLocallyList one by one for each localIndices.indices()
             // only if the request is includeResolvedTo()
-            resolvedLocallyList = new ArrayList<>();
+            List<ResolvedIndexExpression> resolvedLocallyList = new ArrayList<>();
             if (localIndices == null) {
                 // in the case we have one or more remote indices but no local we don't expand to all local indices
                 // in this case resolvedLocallyList will remain empty
@@ -258,6 +259,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                 }
             }
+            resolvedIndexExpressions = new ResolvedIndexExpressions(resolvedLocallyList, null);
         }
 
         if (concreteLocalIndices.length == 0 && remoteClusterIndices.isEmpty()) {
@@ -265,7 +267,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
                     request.indicesOptions(),
                     request.getProjectRouting(),
-                    request.getResolvedIndexExpressions(),
+                    resolvedIndexExpressions,
                     Map.of(),
                     Map.of()
                 );
@@ -277,7 +279,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder();
             responseBuilder.withMinTransportVersion(minTransportVersion.get());
             if (request.includeResolvedTo()) {
-                responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(resolvedLocallyList));
+                responseBuilder.withResolvedLocally(resolvedIndexExpressions);
             }
             listener.onResponse(linkedRequestExecutor.wrapPrimary(responseBuilder.build()));
             return;
@@ -357,12 +359,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                ResolvedIndexExpressions resolvedLocally = new ResolvedIndexExpressions(resolvedLocallyList);
                 if (resolveCrossProject) {
                     final Exception ex = CrossProjectIndexResolutionValidator.validate(
                         request.indicesOptions(),
                         request.getProjectRouting(),
-                        resolvedLocally,
+                        resolvedIndexExpressions,
                         resolvedRemotely,
                         remoteExceptions
                     );
@@ -376,7 +377,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     fieldCapTask,
                     indexResponses,
                     indexFailures,
-                    resolvedLocally,
+                    resolvedIndexExpressions,
                     resolvedRemotely,
                     minTransportVersion,
                     listener.map(linkedRequestExecutor::wrapPrimary)
@@ -504,7 +505,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(Set.of(concreteIndexNames), resolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(Set.of(concreteIndexNames), resolutionResult),
             Collections.emptySet()
         );
     }
@@ -671,6 +672,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder = new HashMap<>();
         int lastPendingIndex = 0;
         for (int i = 1; i <= indexResponses.length; i++) {
+            if (i % 64 == 0) {
+                task.ensureNotCancelled();
+            }
             if (i == indexResponses.length || hasSameMappingHash(indexResponses[lastPendingIndex], indexResponses[i]) == false) {
                 final String[] subIndices;
                 if (lastPendingIndex == 0 && i == indexResponses.length) {
@@ -698,8 +702,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     expression.original(),
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                     ),
                     expression.remoteExpressions()
                 );
@@ -726,7 +729,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .withMinTransportVersion(minTransportVersion.get());
         if (request.includeResolvedTo() && minTransportVersion.get().supports(RESOLVED_FIELDS_CAPS)) {
             // add resolution to response iff includeResolvedTo and all the nodes in the cluster supports it
-            responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(collect)).withResolvedRemotely(resolvedRemotely);
+            responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(collect, null)).withResolvedRemotely(resolvedRemotely);
         }
         return responseBuilder.build();
     }
@@ -935,13 +938,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } catch (TooComplexToDeterminizeException e) {
                     throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
                 }
+                final CancellableTask cancellableTask = (CancellableTask) task;
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
+                    cancellableTask.ensureNotCancelled();
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
-                                (CancellableTask) task,
+                                cancellableTask,
                                 shardId,
                                 fieldNameFilter,
                                 request.filters(),
@@ -961,6 +966,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 unmatched.add(shardId);
                             }
                         } catch (Exception e) {
+                            if (e instanceof TaskCancelledException) {
+                                throw e;
+                            }
+                            cancellableTask.ensureNotCancelled();
                             failures.put(shardId, e);
                         }
                     }

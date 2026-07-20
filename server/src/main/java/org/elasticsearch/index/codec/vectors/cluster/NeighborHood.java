@@ -20,12 +20,20 @@ import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+/**
+ * Contains an array of the nearest centroid to a specific centroid.
+ *
+ * @param neighbors        ordinals of the nearest neighboring centers in distance order
+ * @param maxIntraDistance the squared distance from this center to the farthest center in {@code neighbors}.
+ *                         This can be used as a bound when finding the closest center to a vector.
+ */
 public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
     private static final int M = 8;
@@ -33,14 +41,31 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
     static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
 
+    /**
+     * Computes the neighborhood for each centroid in {@code centers}.
+     *
+     * @param ops          the centroid operations
+     * @param centers      the centroids
+     * @param clustersPerNeighborhood the maximum number of nearest neighbors to compute for each centroid
+     * @return the neighborhoods for each centroid, corresponding to the input centroids in {@code centers}
+     */
     public static <V> NeighborHood[] computeNeighborhoods(CentroidOps<V> ops, V[] centers, int clustersPerNeighborhood) throws IOException {
-        assert centers.length > clustersPerNeighborhood;
         return computeNeighborhoods(ops, null, 1, centers, clustersPerNeighborhood);
     }
 
+    /**
+     * Computes the neighborhood for each centroid in {@code centers}.
+     *
+     * @param ops          the centroid operations
+     * @param executor     the task executor, or null to use a single thread
+     * @param numWorkers   the number of workers to use
+     * @param centers      the centroids
+     * @param clustersPerNeighborhood the maximum number of nearest neighbors to compute for each centroid
+     * @return the neighborhoods for each centroid, corresponding to the input centroids in {@code centers}
+     */
     public static <V> NeighborHood[] computeNeighborhoods(
         CentroidOps<V> ops,
-        TaskExecutor executor,
+        @Nullable TaskExecutor executor,
         int numWorkers,
         V[] centers,
         int clustersPerNeighborhood

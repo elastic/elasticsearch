@@ -132,6 +132,119 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, document, randomBoolean());
     }
 
+    /**
+     * With the time-series doc-values format disabled, a keyword sub-field of a nested field whose values exceed
+     * {@code ignore_above} keeps a copy of the ignored values in a per-document stored field so synthetic source can reconstruct
+     * them. Each nested array entry is a separate Lucene document, but columnar_stored reconstructs them all through one reused
+     * single-document reader that always reports the same doc id, and a reused stored-field loader skips re-reading on an unchanged
+     * doc id - so it used to return the first entry's stored values for every sibling. Verify every entry keeps its own values.
+     */
+    public void testNestedWithIgnoredKeywordPerEntry() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("ignore_above", 4)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // Every value exceeds ignore_above (length 4), so all are stored in the ignored-value fallback. The first entry is
+        // multi-valued to make first-entry-duplication observable if the reused stored-field loader is not read per entry.
+        var document = Map.of("n", List.of(Map.of("kw", List.of("aaaaa", "bbbbb")), Map.of("kw", "ccccc"), Map.of("kw", "ddddd")));
+        // The stored-field fallback (and thus this bug) only occurs with the time-series doc-values format disabled.
+        assertEqualSource(mappingXContent, document, false);
+    }
+
+    /**
+     * A {@code multi_value=false, on_failure=ignore} field that receives two values redirects the extra value to the
+     * {@code ._on_failure} column. Both source modes must reconstruct the same document: {@code synthetic} reads the first
+     * value from its doc-values column and the second from {@code ._on_failure}; {@code columnar_stored} reads it from the
+     * whole-document blob written before the column is pruned.
+     */
+    public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .startObject("doc_values")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // Two values: "a" is indexed normally, "b" is redirected to ._on_failure. Both must appear in _source.
+        assertEqualSource(mappingXContent, Map.of("kw", List.of("a", "b")), randomBoolean());
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    /**
+     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is merely marked ignored rather
+     * than rejecting the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     */
+    public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .startObject("doc_values")
+            .field("nullability", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // field is absent — violation is ignored, field must be omitted from _source in both modes
+        assertEqualSource(mappingXContent, Map.of(), randomBoolean());
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    /**
+     * Asserts reconstructed sources are the same and that the field is stored in _ignored across both source types when normalizer is used.
+     */
+    public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("normalizer", "lowercase")
+            .startObject("doc_values")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertEqualSource(mappingXContent, Map.of("kw", List.of("HELLO", "WORLD")), randomBoolean());
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    private void assertIgnoredContains(String index, String fieldName) {
+        var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
+        try {
+            var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
+            assertNotNull(index + ": violation must populate _ignored", ignoredField);
+            assertTrue(index + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
+        } finally {
+            resp.decRef();
+        }
+    }
+
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();

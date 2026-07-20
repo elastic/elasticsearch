@@ -1,0 +1,565 @@
+withBoolean
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(boolean, ["true", "false"]::boolean)
+| SORT id
+| KEEP id, boolean
+;
+
+id:long | boolean:boolean
+2       | [false, true]
+3       | [false, true]
+4       | [false, true]
+5       | [false, true]
+;
+
+withBooleanAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(boolean, NULL) AND id <=3
+| SORT id
+| KEEP id, boolean
+;
+
+id: long | boolean: boolean
+0        | null
+1        | false
+2        | [false, true]
+3        | [false, true]
+;
+
+withByte
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(byte, [3, 4])
+| SORT id
+| KEEP id, byte
+;
+
+id:long | byte:byte
+4       | ["1", "2", "3", "4"]
+5       | ["1", "2", "3", "4", "5"]
+;
+
+withByteAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(byte, NULL) AND id <=3
+| SORT id
+| KEEP id, byte
+;
+
+id: long | byte: byte
+0        | null
+1        | 1
+2        | ["1", "2"]
+3        | ["1", "2", "3"]
+;
+
+withConstantKeyword
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(`constant_keyword-foo`, ["foo", "foo"])
+| SORT id
+| KEEP id, `constant_keyword-foo`
+;
+
+id:long | constant_keyword-foo:keyword
+0       | foo
+1       | foo
+2       | foo
+3       | foo
+4       | foo
+5       | foo
+;
+
+withConstantKeywordAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(`constant_keyword-foo`, NULL) AND id <=3
+| SORT id
+| KEEP id, `constant_keyword-foo`
+;
+
+id: long | constant_keyword-foo: keyword
+0        | foo
+1        | foo
+2        | foo
+3        | foo
+;
+
+withDate
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(date, ["2024-01-03T00:00:00.000Z", "2024-01-04T00:00:00.000Z"]::date)
+| SORT id
+| KEEP id, date
+;
+
+id:long | date:date
+4       | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z", "2024-01-04T00:00:00.000Z"]
+5       | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z", "2024-01-04T00:00:00.000Z", "2024-01-05T00:00:00.000Z"]
+;
+
+withDateAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(date, NULL) AND id <=3
+| SORT id
+| KEEP id, date
+;
+
+id: long | date: date
+0        | null
+1        | 2024-01-01T00:00:00.000Z
+2        | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z"]
+3        | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z"]
+;
+
+withDateNanos
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(date_nanos, ["2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z"]::date_nanos)
+| SORT id
+| KEEP id, date_nanos
+;
+
+id:long | date_nanos:date_nanos
+4       | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z"]
+5       | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z", "2024-01-05T00:00:00.000000005Z"]
+;
+
+withDateNanosAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(date_nanos, NULL) AND id <=3
+| SORT id
+| KEEP id, date_nanos
+;
+
+id: long | date_nanos: date_nanos
+0        | null
+1        | 2024-01-01T00:00:00.000000001Z
+2        | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z"]
+3        | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z"]
+;
+
+withDouble
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(double, [3.3, 4.4]::double)
+| SORT id
+| KEEP id, double
+;
+
+id:long | double:double
+4       | [1.1, 2.2, 3.3, 4.4]
+5       | [1.1, 2.2, 3.3, 4.4, 5.5]
+;
+
+withDoubleAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(double, NULL) AND id <=3
+| SORT id
+| KEEP id, double
+;
+
+id: long | double: double
+0        | null
+1        | 1.1
+2        | [1.1, 2.2]
+3        | [1.1, 2.2, 3.3]
+;
+
+withFloat
+required_capability: fn_mv_contains_v1
+required_capability: fn_mv_contains_lucene_pushdown
+
+FROM all_types_mv
+| WHERE mv_contains(float, [3.3, 4.4])
+| SORT id
+| KEEP id
+;
+
+id:long
+4
+5
+;
+
+withFloatAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(float, NULL) AND id <=3
+| SORT id
+| KEEP id
+;
+
+id: long
+0
+1
+2
+3
+;
+
+withHalfFloat
+required_capability: fn_mv_contains_v1
+required_capability: fn_mv_contains_lucene_pushdown
+
+FROM all_types_mv
+| WHERE mv_contains(half_float, [3.3, 4.4])
+| SORT id
+| KEEP id
+;
+
+id:long
+4
+5
+;
+
+withHalfFloatAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(half_float, NULL) AND id <=3
+| SORT id
+| KEEP id
+;
+
+id: long
+0
+1
+2
+3
+;
+
+withScaledFloat
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(scaled_float, [3.3, 4.4])
+| SORT id
+| KEEP id, scaled_float
+;
+
+id:long | scaled_float:double
+4       | [1.1, 2.2, 3.3, 4.4]
+5       | [1.1, 2.2, 3.3, 4.4, 5.5]
+;
+
+withScaledFloatAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(scaled_float, NULL) AND id <=3
+| SORT id
+| KEEP id, scaled_float
+;
+
+id: long | scaled_float: double
+0        | null
+1        | 1.1
+2        | [1.1, 2.2]
+3        | [1.1, 2.2, 3.3]
+;
+
+withInteger
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(integer, [3, 4])
+| SORT id
+| KEEP id, integer
+;
+
+id:long | integer:integer
+4       | [1, 2, 3, 4]
+5       | [1, 2, 3, 4, 5]
+;
+
+withIntegerAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(integer, NULL) AND id <=3
+| SORT id
+| KEEP id, integer
+;
+
+id: long | integer: integer
+0        | null
+1        | 1
+2        | [1, 2]
+3        | [1, 2, 3]
+;
+
+withIp
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(ip, ["127.0.0.3", "127.0.0.4"]::ip)
+| SORT id
+| KEEP id, ip
+;
+
+id:long | ip:ip
+4       | ["127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4"]
+5       | ["127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"]
+;
+
+withIpAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(ip, NULL) AND id <=3
+| SORT id
+| KEEP id, ip
+;
+
+id: long | ip: ip
+0        | null
+1        | 127.0.0.1
+2        | ["127.0.0.1", "127.0.0.2"]
+3        | ["127.0.0.1", "127.0.0.2", "127.0.0.3"]
+;
+
+withKeyword
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(keyword, ["key3", "key4"])
+| SORT id
+| KEEP id, keyword
+;
+
+id:long | keyword:keyword
+4       | ["key1", "key2", "key3", "key4"]
+5       | ["key1", "key2", "key3", "key4", "key5"]
+;
+
+withKeywordAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(keyword, NULL) AND id <=3
+| SORT id
+| KEEP id, keyword
+;
+
+id: long | keyword: keyword
+0        | null
+1        | key1
+2        | ["key1", "key2"]
+3        | ["key1", "key2", "key3"]
+;
+
+withLong
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(long, [300, 400]::long)
+| SORT id
+| KEEP id, long
+;
+
+id:long | long:long
+4       | [100, 200, 300, 400]
+5       | [100, 200, 300, 400, 500]
+;
+
+withLongAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(long, NULL) AND id <=3
+| SORT id
+| KEEP id, long
+;
+
+id: long | long: long
+0        | null
+1        | 100
+2        | [100, 200]
+3        | [100, 200, 300]
+;
+
+withUnsignedLong
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(unsigned_long, [300, 400]::unsigned_long)
+| SORT id
+| KEEP id, unsigned_long
+;
+
+id:long | unsigned_long:unsigned_long
+4       | [100, 200, 300, 400]
+5       | [100, 200, 300, 400, 500]
+;
+
+withUnsignedLongAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(unsigned_long, NULL) AND id <=3
+| SORT id
+| KEEP id, unsigned_long
+;
+
+id: long | unsigned_long: unsigned_long
+0        | null
+1        | 100
+2        | [100, 200]
+3        | [100, 200, 300]
+;
+
+withShort
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(short, [30, 40]::integer)
+| SORT id
+| KEEP id, short
+;
+
+id:long | short:integer
+4       | [10, 20, 30, 40]
+5       | [10, 20, 30, 40, 50]
+;
+
+withShortAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(short, NULL) AND id <=3
+| SORT id
+| KEEP id, short
+;
+
+id: long | short: integer
+0        | null
+1        | 10
+2        | [10, 20]
+3        | [10, 20, 30]
+;
+
+withText
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(text, ["text3", "text4"])
+| SORT id
+| KEEP id, text
+;
+
+id:long | text:text
+4       | ["text1", "text2", "text3", "text4"]
+5       | ["text1", "text2", "text3", "text4", "text5"]
+;
+
+withTextAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(text, NULL) AND id <=3
+| SORT id
+| KEEP id, text
+;
+
+id: long | text: text
+0        | null
+1        | text1
+2        | ["text1", "text2"]
+3        | ["text1", "text2", "text3"]
+;
+
+withVersion
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(version, ["3.0.0", "4.0.0"]::version)
+| SORT id
+| KEEP id, version
+;
+
+id:long | version:version
+4       | ["1.0.0", "2.0.0", "3.0.0", "4.0.0"]
+5       | ["1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0"]
+;
+
+withVersionAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(version, NULL) AND id <=3
+| SORT id
+| KEEP id, version
+;
+
+id: long | version: version
+0        | null
+1        | 1.0.0
+2        | ["1.0.0", "2.0.0"]
+3        | ["1.0.0", "2.0.0", "3.0.0"]
+;
+
+withWildcard
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(wildcard, ["wild3", "wild4"])
+| SORT id
+| KEEP id, wildcard
+;
+
+id:long | wildcard:keyword
+4       | ["wild1", "wild2", "wild3", "wild4"]
+5       | ["wild1", "wild2", "wild3", "wild4", "wild5"]
+;
+
+withWildcardAndNull
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(wildcard, NULL) AND id <=3
+| SORT id
+| KEEP id, wildcard
+;
+
+id: long | wildcard: keyword
+0        | null
+1        | wild1
+2        | ["wild1", "wild2"]
+3        | ["wild1", "wild2", "wild3"]
+;
+
+withFoldableEmptyRightArgument
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(keyword, mv_intersection(["foo", "bar"], ["foobar", "abc"]))
+| SORT id
+| KEEP id, keyword
+;
+
+id: long | keyword: keyword
+0        | null
+1        | key1
+2        | ["key1", "key2"]
+3        | ["key1", "key2", "key3"]
+4        | ["key1", "key2", "key3", "key4"]
+5        | ["key1", "key2", "key3", "key4", "key5"]
+;

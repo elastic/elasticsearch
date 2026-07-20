@@ -1,0 +1,39 @@
+#
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Allowlist for @allocates tests: methods paired with deliberately misbehaving estimators.
+
+class org.elasticsearch.painless.AllocationEstimatorTestObject {
+  ()
+  int negativeEstimated() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="negativeEstimate"]
+  int hugeEstimated() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimate"]
+  int constantAllocating() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="constantEstimate"]
+  int zeroAllocating() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="zeroEstimate"]
+  int hugeAllocatingInstance() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimateInstance"]
+  int constantBoxed(Integer) @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="constantBoxedEstimate"]
+  int dynamicBoxed(Integer) @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="boxedEstimate"]
+}
+
+# Annotations live on the interface; the implementation allowlists the same methods unannotated. A def call resolves to the
+# implementation method, so charging must walk to the annotated interface method (allocation annotation inheritance).
+class org.elasticsearch.painless.AllocationInheritanceInterface {
+  int inheritedConstant() @allocates[class="org.elasticsearch.painless.AllocationInheritanceObject", method="inheritedConstantEstimate"]
+  int inheritedDynamic(int) @allocates[class="org.elasticsearch.painless.AllocationInheritanceObject", method="inheritedDynamicEstimate"]
+}
+
+class org.elasticsearch.painless.AllocationInheritanceObject {
+  ()
+  int inheritedConstant()
+  int inheritedDynamic(int)
+}
+
+# An augmented method's estimator matches the underlying Java static signature (receiver first), not the Painless surface.
+class java.lang.String {
+  int org.elasticsearch.painless.AllocationEstimatorTestObject augmentedEstimated(int) @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="augmentedEstimate"]
+}

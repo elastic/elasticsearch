@@ -64,6 +64,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -238,7 +239,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false, // no scoring
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
         return luceneFactory.get(context);
     }
@@ -1559,7 +1561,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false, // no scoring
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
         try (
             Driver driver = TestDriverFactory.create(
@@ -1738,6 +1741,50 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             true,
             between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2)
         );
+    }
+
+    public void testSourceLoadProfileCounters() throws IOException {
+        initMapping();
+        testSourceLoadProfileCounters(fieldInfo(mapperService.fieldType("source_text"), ElementType.BYTES_REF));
+    }
+
+    public void testSourceLoadProfileCountersForUnmappedField() throws IOException {
+        testSourceLoadProfileCounters(
+            fieldInfo(new KeywordFieldMapper.KeywordFieldType("source_text", false, false, Collections.emptyMap()), ElementType.BYTES_REF)
+        );
+    }
+
+    private void testSourceLoadProfileCounters(ValuesSourceReaderOperator.FieldInfo fieldInfo) throws IOException {
+        initMapping();
+        int docCount = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
+        var runner = new TestDriverRunner().builder(driverContext());
+        List<Page> source = CannedSourceOperator.collectPages(simpleInput(runner.context(), docCount, docCount, docCount));
+        assertThat(source, hasSize(1));
+        assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
+        runner.input(source)
+            .run(
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(fieldInfo),
+                    new IndexedByShardIdFromSingleton<>(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            reader,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        )
+                    ),
+                    randomBoolean(),
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
+                )
+            );
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
+        assertThat(status.sourceDocsLoaded(), equalTo((long) docCount));
+        assertThat(status.sourceFieldReads(), equalTo((long) docCount));
+        assertThat(status.sourceBytesLoaded(), greaterThan(0L));
+        assertDriverContext(runner.context());
     }
 
     private void testSequentialStoredFields(boolean sequential, int docCount) throws IOException {
@@ -2228,7 +2275,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 LuceneOperator.NO_LIMIT,
                 false, // no scoring
                 () -> 0L,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

@@ -16,6 +16,7 @@ import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -91,6 +92,15 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         );
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
+    }
+
+    public void testFromMap_ThrowsIllegalArgumentException_WhenModelIdIsMissing() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [model_id]"));
     }
 
     public void testFromMap_ThrowsOnInvalidMaxBatchSize() {
@@ -230,6 +240,18 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 )
             );
         }
+    }
+
+    public void testUpdateServiceSettings_RejectsImmutableAndUnknownFields() {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
+        var immutableOrUnknownField = randomFrom(ServiceFields.MODEL_ID, ServiceFields.MAX_INPUT_TOKENS, "unknown_field");
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> original.updateServiceSettings(new HashMap<>(Map.of(immutableOrUnknownField, "some-value")))
+        );
+
+        assertThat(e.getMessage(), containsString("unknown field [" + immutableOrUnknownField + "]"));
     }
 
     public void testUpdateServiceSettings_KeepsExistingMaxBatchSize_WhenAbsent() {

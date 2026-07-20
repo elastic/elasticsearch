@@ -38,6 +38,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
@@ -112,7 +113,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             if (e.getCause() instanceof IllegalArgumentException iae) {
                 throw new ValidationException().addValidationError(iae.getMessage());
             }
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+            throw e;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
@@ -268,7 +269,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             if (e.getCause() instanceof IllegalArgumentException iae) {
                 throw new ValidationException().addValidationError(iae.getMessage());
             }
-            throw new ElasticsearchParseException("Failed to parse Elastic Inference Sparse Embeddings service settings update", e);
+            throw e;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse Elastic Inference Sparse Embeddings service settings update", e);
         }
@@ -295,6 +296,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         }
 
         public ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
         }
 

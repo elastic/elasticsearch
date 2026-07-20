@@ -784,3 +784,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
   method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
   issue: https://github.com/elastic/elasticsearch/issues/154023
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
+  method: test {csv-spec:conditional.conditionIsNull}
+  issue: https://github.com/elastic/elasticsearch/issues/154473

@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -371,6 +372,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
+
+        // Read the federation kill switch now so the property is validated (fail fast on an invalid value) and
+        // the disabled state is logged at startup, rather than lazily on the first federation operation.
+        Federation.init();
 
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
         // This discovers built-in plugins from this plugin's classloader

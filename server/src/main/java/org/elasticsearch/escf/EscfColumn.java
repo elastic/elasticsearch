@@ -9,7 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -34,6 +36,11 @@ abstract class EscfColumn implements SliceableColumn {
     final FixedBitSet absent;
 
     EscfColumn(int docCount, FixedBitSet absent) {
+        if (docCount >= DocIdSetIterator.NO_MORE_DOCS) {
+            throw new IllegalArgumentException(
+                "docCount " + docCount + " must be less than DocIdSetIterator.NO_MORE_DOCS (" + DocIdSetIterator.NO_MORE_DOCS + ")"
+            );
+        }
         this.docCount = docCount;
         this.absent = absent;
     }
@@ -136,6 +143,18 @@ abstract class EscfColumn implements SliceableColumn {
         throw notA("key-value");
     }
 
+    /**
+     * Returns a forward-only {@link LongTupleCursor} positioned before the first row. Subtypes that
+     * hold long values override this; the default throws.
+     */
+    LongTupleCursor longCursor() {
+        throw notA("long");
+    }
+
+    /**
+     * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
+     * row. Subtypes that hold byte-string values override this; the default throws.
+     */
     ObjectTupleCursor<BytesRef> bytesRefCursor() {
         throw notA("binary");
     }

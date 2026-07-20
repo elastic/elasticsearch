@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -36,26 +37,25 @@ abstract class AbstractVarColumn extends EscfColumn {
     abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets);
 
     /**
-     * Returns a forward-only dense {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first row of this
-     * column's window. Dense-only: every row in {@code [0, docCount)} is yielded in order; the
-     * absent bitset is not consulted.
+     * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
+     * row of this column's window. Absent rows (tracked by the {@link #absent} bitset) are skipped;
+     * present rows are yielded in ascending order. The returned {@link BytesRef} is valid only until
+     * the next {@link ObjectTupleCursor#nextDoc()} call.
      */
     @Override
     final ObjectTupleCursor<BytesRef> bytesRefCursor() {
-        return new ObjectTupleCursor<>() {
-            private int row = -1;
+        return new BytesRefTupleCursor(this);
+    }
 
-            @Override
-            public int nextDoc() {
-                // TODO: does not support sparse yet. Need to iterate bitset too.
-                return ++row < docCount ? row : DocIdSetIterator.NO_MORE_DOCS;
-            }
-
-            @Override
-            public BytesRef value() {
-                return getBinaryValue(row);
-            }
-        };
+    /**
+     * Returns a dense {@link BytesRefValuesCursor} positioned before the first row of this column's
+     * window. The column must be fully present ({@link #absent} {@code == null}); call this only on
+     * dense columns. The returned {@link BytesRef} per {@link BytesRefValuesCursor#nextValue()} is
+     * valid only until the next call to {@code nextValue()}.
+     */
+    final BytesRefValuesCursor bytesRefValuesCursor() {
+        assert absent == null : "values cursor is only valid for dense (fully-present) columns";
+        return new DenseBytesRefValuesCursor(docCount, this);
     }
 
     @Override
@@ -75,5 +75,47 @@ abstract class AbstractVarColumn extends EscfColumn {
         BytesReference newData = sliceData(offsets, data, docCount);
         int[] newOffsets = rebasedOffsets(offsets, docCount);
         return EscfColumnData.ofVarWidth(kind(), docCount, absent, newOffsets, newData);
+    }
+
+    private static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {
+        private final AbstractVarColumn column;
+        private int row = -1;
+
+        BytesRefTupleCursor(AbstractVarColumn column) {
+            this.column = column;
+        }
+
+        @Override
+        public int nextDoc() {
+            while (++row < column.docCount) {
+                if (column.isAbsent(row) == false) {
+                    return row;
+                }
+            }
+            return DocIdSetIterator.NO_MORE_DOCS;
+        }
+
+        @Override
+        public BytesRef value() {
+            return column.getBinaryValue(row);
+        }
+    }
+
+    private static final class DenseBytesRefValuesCursor extends BytesRefValuesCursor {
+        private final AbstractVarColumn column;
+        private int pos;
+
+        DenseBytesRefValuesCursor(int count, AbstractVarColumn column) {
+            super(count);
+            this.column = column;
+        }
+
+        @Override
+        public BytesRef nextValue() {
+            if (pos >= size()) {
+                throw new IllegalStateException("nextValue() called more than size()=" + size() + " times");
+            }
+            return column.getBinaryValue(pos++);
+        }
     }
 }

@@ -90,13 +90,13 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
      * The Hive-partitioned twin of {@link #testCountStarColdThenWarmShortCircuits}: a bare
      * {@code STATS COUNT(*)} over a partitioned CSV dataset. {@code COUNT(*)} projects zero columns, so the
      * source's output attribute list is empty, while the partition stamp keeps the effective
-     * partition-column set non-empty. On {@code main} the per-split virtual-column wrapper gated only on the
+     * partition-column set non-empty. Before this fix, the per-split virtual-column wrapper gated only on the
      * dataset axis and constructed a {@code VirtualColumnIterator} with that empty list as its output,
      * throwing {@code "fullOutput cannot be null or empty"} at construction — so the cold scan crashed and,
      * because the stripe-stats warm cache is populated <em>by</em> that scan, every retry re-crashed. The
      * output-axis guard forwards the reader's position-only pages unchanged, so the cold scan completes (its
      * capture hook fills the cache) and the warm run folds to {@code LocalSourceExec} exactly like the
-     * unpartitioned path. Red on {@code main}.
+     * unpartitioned path. Red without this fix.
      */
     public void testPartitionedCountStarColdThenWarmShortCircuits() throws Exception {
         Path root = createTempDir().resolve("hive_csv_agg");
@@ -122,9 +122,10 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     /**
      * Settles the ticket's disputed claim that {@code KEEP <data-col> | STATS COUNT(*)} sidesteps the crash.
      * {@code CombineProjections} + {@code PruneColumns} collapse the KEEP-then-count shape to the identical
-     * zero-output plan as the bare query (the count references no columns), so this crashes on {@code main}
-     * the same way and must pass after the fix. A fresh dataset guarantees a cold run (a warm serve would
-     * not exercise the scan path at all).
+     * zero-output plan as the bare query (the count references no columns), so before this fix it crashes the
+     * same way and must pass after it. Runs cold then warm, mirroring
+     * {@link #testPartitionedCountStarColdThenWarmShortCircuits}: the cold scan completes and fills the cache,
+     * the warm run folds to {@code LocalSourceExec}.
      */
     public void testPartitionedCountStarWithLeadingKeepIsSamePlan() throws Exception {
         Path root = createTempDir().resolve("hive_csv_keep");
@@ -132,14 +133,18 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
         String dataset = registerDataset("hive_csv_keep", glob, Map.of("hive_partitioning", true));
+        String query = "FROM " + dataset + " | KEEP id | STATS c = COUNT(*)";
 
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id | STATS c = COUNT(*)").profile(true))) {
+        // Cold: reduces to the same zero-output plan as the bare COUNT(*) and scans all 4 rows.
+        try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
             assertCount(response, 4);
-            assertThat(
-                "KEEP id | STATS COUNT(*) reduces to the same zero-output plan and scans cold",
-                response.documentsFound(),
-                equalTo(4L)
-            );
+            assertThat("cold KEEP id | STATS COUNT(*) scans every partitioned row", response.documentsFound(), equalTo(4L));
+        }
+        // Warm: the cold scan filled the cache → LocalSourceExec, no data-node scan.
+        try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertCount(response, 4);
+            assertNoPushdownBypass(response);
+            assertThat("warm KEEP id | STATS COUNT(*) must not scan (LocalSourceExec)", response.documentsFound(), equalTo(0L));
         }
     }
 
@@ -159,9 +164,13 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*) BY month | SORT month").profile(true))) {
             List<List<Object>> rows = getValuesList(response);
             assertThat("two month partitions", rows.size(), equalTo(2));
-            // Each of month=01 and month=02 carries exactly 2 rows; the partition value is attached per row.
+            // Output columns are [c, month]. Each of month=01 and month=02 carries exactly 2 rows; assert both
+            // the count and the injected partition value. month=01/02 cast to INTEGER 1/2 (leading zero stripped,
+            // per HivePartitionDetector.castValue) — pinning it proves the wrap still attaches partition values.
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(0).get(1), equalTo(1));
             assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(1).get(1), equalTo(2));
         }
     }
 

@@ -133,7 +133,7 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
     }
 
     /**
-     * Immune-path regression pin for the partitioned-text {@code COUNT(*)} fix (elastic/esql-planning#1408).
+     * Immune-path regression pin for the partitioned-text {@code COUNT(*)} fix.
      * A bare {@code COUNT(*)} over a Hive-partitioned <em>Parquet</em> dataset is served from footer/stripe
      * row-count stats via {@code ComputeService.canSkipSplitDiscovery} → {@code resolveCount} with no scan
      * operator at all — so unlike partitioned text it never reaches the virtual-column wrapper the fix

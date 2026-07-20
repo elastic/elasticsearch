@@ -49,8 +49,16 @@ final class FileListCompactor {
         }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
-        FileList grouped = pm != null && pm.isEmpty() == false ? verified(tryDirectoryGrouped(normalizedBase, raw), raw) : null;
-        FileList dict = verified(tryDictionary(normalizedBase, raw), raw);
+        // Materialise the listed keys once: both candidates verify against the same strings, so rendering
+        // them per candidate would pay the whole listing's string cost twice.
+        String[] listedPaths = new String[raw.fileCount()];
+        for (int i = 0; i < listedPaths.length; i++) {
+            listedPaths[i] = raw.path(i).toString();
+        }
+        FileList grouped = pm != null && pm.isEmpty() == false
+            ? verified(tryDirectoryGrouped(normalizedBase, raw), raw, listedPaths)
+            : null;
+        FileList dict = verified(tryDictionary(normalizedBase, raw), raw, listedPaths);
         // The directory-grouped encoding stores one string per directory while the dictionary shares path
         // segments across files, so which is smaller depends on the layout; keep whichever weighs less.
         if (grouped != null && (dict == null || grouped.estimatedBytes() <= dict.estimatedBytes())) {
@@ -84,13 +92,15 @@ final class FileListCompactor {
      * produces on the first_file_wins rail. Path is compared as a string; a candidate whose reconstructed
      * key does not even parse is treated as a mismatch rather than allowed to throw. Size and mtime are
      * checked too because an encoding may collapse them per group (see {@link DirectoryGroupedFileList}).
+     * {@code listedPaths} carries the raw listing's keys already rendered, so verifying several candidates
+     * renders them once rather than once per candidate.
      */
-    private static FileList verified(FileList candidate, GenericFileList raw) {
+    private static FileList verified(FileList candidate, GenericFileList raw, String[] listedPaths) {
         if (candidate == null) {
             return null;
         }
         for (int i = 0; i < raw.fileCount(); i++) {
-            String expected = raw.path(i).toString();
+            String expected = listedPaths[i];
             String actual;
             try {
                 actual = candidate.path(i).toString();

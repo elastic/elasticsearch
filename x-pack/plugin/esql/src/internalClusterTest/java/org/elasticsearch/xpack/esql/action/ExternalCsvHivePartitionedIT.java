@@ -247,14 +247,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The exact layout from the public report (elastic/elasticsearch#154289): the standard AWS S3 log tree
+     * The standard AWS S3 log tree
      * {@code AWSLogs/aws-account-id=<id>/aws-service=vpcflowlogs/aws-region=<r>/year=<y>/month=<m>/day=<d>/…}
      * under {@code schema_resolution: first_file_wins}. The registered resource's pattern prefix ends at
-     * {@code aws-service=vpcflowlogs/}, so {@code aws-account-id=} and {@code aws-service=} are BOTH inside
-     * the base path AND claimed as partition columns. On {@code main} the compacted listing re-appended
-     * them, doubling the prefix, and the read hit {@code NoSuchKey}. The zero-padded {@code month=06} also
-     * trips the typed-value sibling defect ({@code month=06} → integer {@code 6} → {@code month=6}), so this
-     * one end-to-end query covers both the prefix-doubling and the value-spelling bugs; red on {@code main}.
+     * {@code aws-service=vpcflowlogs/}, so {@code aws-account-id=} and {@code aws-service=} sit BOTH inside
+     * the base path AND are claimed as partition columns — a compact listing that re-appends partition
+     * columns to the base emits them twice and reads a key that does not exist. The zero-padded
+     * {@code month=06} additionally pins value spelling ({@code month=06} must not come back as
+     * {@code month=6}), so this one end-to-end query covers both duplication and spelling.
      *
      * <p>The glob uses {@code **} so the local provider descends recursively and no {@code key=*} segment is
      * spelled, so {@code WHERE month == 6} must prune from the reconstructed listing's partition values —
@@ -285,9 +285,9 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
     /**
      * A comma-separated resource has no glob metacharacter, so its pattern prefix is the whole comma string
-     * and no listed key starts with it. On {@code main} the compacted listing prepended that base to each
-     * key; the round-trip guard now discards such an encoding and keeps the raw listing, so the reads
-     * succeed. Red on {@code main}. {@code first_file_wins} routes through the compactor (the default
+     * and no listed key starts with it. A compact encoding that prepends that base to each key reads objects
+     * that do not exist; the round-trip guard discards such an encoding and keeps the raw listing, so the
+     * reads succeed. {@code first_file_wins} routes through the compactor (the default
      * {@code union_by_name} never compacts).
      */
     public void testCommaSeparatedResourceFirstFileWinsRoundTrips() throws Exception {

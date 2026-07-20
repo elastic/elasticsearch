@@ -5158,7 +5158,7 @@ public class AnalyzerTests extends ESTestCase {
 
     /**
      * After analysis (before optimization), a constant-expression LIKE pattern remains as
-     * UnresolvedRegexExpression. The optimizer's ConstantFolding + ResolveRegexPattern rule
+     * UnresolvedRegexExpression. The optimizer's ConstantFolding + ReplaceUnresolvedRegex rule
      * converts it to a concrete WildcardLike; see OptimizerVerificationTests.
      */
     public void testLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {

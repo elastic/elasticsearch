@@ -881,83 +881,73 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
-        Source source = source(ctx);
-        Expression left = expression(ctx.valueExpression());
-        Expression right = expression(ctx.primaryExpression());
-        // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
-        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && !(lit.value() instanceof List<?>)) {
-            String patternString = BytesRefs.toString(lit.fold(FoldContext.small()));
-            try {
-                RLike rLike = new RLike(source, left, new RLikePattern(patternString));
-                return ctx.NOT() == null ? rLike : new Not(source, rLike);
-            } catch (InvalidArgumentException e) {
-                throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternString, e.getMessage());
-            }
-        }
-        // For parameters (not inline literals), wrong types must be caught at parse time.
-        // Inline literals like `12` in `WHERE field LIKE 12` are caught later by postOptimizationVerification.
-        // MISSING_PARAMETER is excluded: it signals an unknown param whose error was already deferred.
-        boolean isParam = ctx.primaryExpression() instanceof EsqlBaseParser.ConstantDefaultContext constCtx
-            && constCtx.constant() instanceof EsqlBaseParser.InputParameterContext;
-        if (isParam && right instanceof Literal lit && right != MISSING_PARAMETER) {
-            String paramText = ctx.primaryExpression().getText();
-            if (lit.value() instanceof List<?>) {
-                throw new ParsingException(
-                    source,
-                    "Invalid pattern parameter type for {} [{}]: expected string, found list",
-                    ctx.RLIKE().getText(),
-                    paramText
-                );
-            }
-            if (DataType.isString(lit.dataType()) == false) {
-                throw new ParsingException(
-                    source,
-                    "Invalid pattern parameter type for {} [{}]: expected string, found {}",
-                    ctx.RLIKE().getText(),
-                    paramText,
-                    lit.dataType().typeName()
-                );
-            }
-        }
-        // General constant expression: defer type/foldability checks and folding to the analysis phase
-        UnresolvedRegexExpression rlike = new UnresolvedRegexExpression(
-            source,
-            left,
-            right,
-            false,
+        return regexExpression(
+            ctx,
+            ctx.valueExpression(),
+            ctx.primaryExpression(),
+            ctx.NOT(),
+            ctx.RLIKE().getText(),
             UnresolvedRegexExpression.Variant.RLIKE
         );
-        return ctx.NOT() == null ? rlike : new Not(source, rlike);
     }
 
     @Override
     public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
+        return regexExpression(
+            ctx,
+            ctx.valueExpression(),
+            ctx.primaryExpression(),
+            ctx.NOT(),
+            ctx.LIKE().getText(),
+            UnresolvedRegexExpression.Variant.LIKE
+        );
+    }
+
+    /**
+     * Shared builder for the single-value {@code LIKE}/{@code RLIKE} forms. A string literal known
+     * at parse time is validated and turned into a concrete {@link WildcardLike}/{@link RLike}
+     * immediately; a wrong-typed {@code ?param} is rejected here; any other constant expression
+     * becomes an {@link UnresolvedRegexExpression} placeholder that the optimizer folds later.
+     *
+     * @param opText the operator keyword exactly as the user typed it, used only in parameter-type
+     *               error messages; the fast-path message uses the canonical {@code variant} name.
+     */
+    private Expression regexExpression(
+        ParserRuleContext ctx,
+        EsqlBaseParser.ValueExpressionContext valueExpr,
+        EsqlBaseParser.PrimaryExpressionContext patternCtx,
+        TerminalNode not,
+        String opText,
+        UnresolvedRegexExpression.Variant variant
+    ) {
         Source source = source(ctx);
-        Expression left = expression(ctx.valueExpression());
-        Expression right = expression(ctx.primaryExpression());
+        Expression left = expression(valueExpr);
+        Expression right = expression(patternCtx);
         // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
-        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && !(lit.value() instanceof List<?>)) {
+        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.value() instanceof List<?>) == false) {
             String patternString = BytesRefs.toString(lit.fold(FoldContext.small()));
             try {
-                WildcardPattern pattern = new WildcardPattern(patternString);
-                WildcardLike result = new WildcardLike(source, left, pattern);
-                return ctx.NOT() == null ? result : new Not(source, result);
+                Expression regex = switch (variant) {
+                    case LIKE -> new WildcardLike(source, left, new WildcardPattern(patternString));
+                    case RLIKE -> new RLike(source, left, new RLikePattern(patternString));
+                };
+                return not == null ? regex : new Not(source, regex);
             } catch (InvalidArgumentException e) {
-                throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternString, e.getMessage());
+                throw new ParsingException(source, "Invalid pattern for {} [{}]: [{}]", variant.name(), patternString, e.getMessage());
             }
         }
         // For parameters (not inline literals), wrong types must be caught at parse time.
         // Inline literals like `12` in `WHERE field LIKE 12` are caught later by postOptimizationVerification.
         // MISSING_PARAMETER is excluded: it signals an unknown param whose error was already deferred.
-        boolean isParam = ctx.primaryExpression() instanceof EsqlBaseParser.ConstantDefaultContext constCtx
+        boolean isParam = patternCtx instanceof EsqlBaseParser.ConstantDefaultContext constCtx
             && constCtx.constant() instanceof EsqlBaseParser.InputParameterContext;
         if (isParam && right instanceof Literal lit && right != MISSING_PARAMETER) {
-            String paramText = ctx.primaryExpression().getText();
+            String paramText = patternCtx.getText();
             if (lit.value() instanceof List<?>) {
                 throw new ParsingException(
                     source,
                     "Invalid pattern parameter type for {} [{}]: expected string, found list",
-                    ctx.LIKE().getText(),
+                    opText,
                     paramText
                 );
             }
@@ -965,15 +955,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 throw new ParsingException(
                     source,
                     "Invalid pattern parameter type for {} [{}]: expected string, found {}",
-                    ctx.LIKE().getText(),
+                    opText,
                     paramText,
                     lit.dataType().typeName()
                 );
             }
         }
         // General constant expression: defer type/foldability checks and folding to the analysis phase
-        UnresolvedRegexExpression like = new UnresolvedRegexExpression(source, left, right, false, UnresolvedRegexExpression.Variant.LIKE);
-        return ctx.NOT() == null ? like : new Not(source, like);
+        UnresolvedRegexExpression regex = new UnresolvedRegexExpression(source, left, right, variant);
+        return not == null ? regex : new Not(source, regex);
     }
 
     @Override

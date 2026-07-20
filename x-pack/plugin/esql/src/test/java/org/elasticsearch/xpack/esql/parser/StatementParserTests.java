@@ -1680,7 +1680,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLikeRLikeConstantExpression() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         // At parse time, a non-literal RHS produces an UnresolvedRegexExpression placeholder.
-        // The optimizer folds the pattern and ResolveRegexPattern converts it to WildcardLike/RLike.
+        // The optimizer folds the pattern and ReplaceUnresolvedRegex converts it to WildcardLike/RLike.
         LogicalPlan cmd = processingCommand("where foo like concat(\"pre\", \"fix*\")");
         assertEquals(Filter.class, cmd.getClass());
         assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());

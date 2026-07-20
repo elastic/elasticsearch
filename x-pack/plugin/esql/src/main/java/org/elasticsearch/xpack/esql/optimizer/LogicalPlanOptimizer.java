@@ -75,7 +75,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ResolveRegexPattern;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceUnresolvedRegex;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
@@ -206,7 +206,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
-            new ResolveRegexPattern(),
+            new ReplaceUnresolvedRegex(),
             new PruneRedundantAggregateGroupings(),
             /* Then deduplicate aggregations
                We need this after the constant folding

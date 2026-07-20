@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -648,14 +650,16 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     // LIKE/RLIKE constant-expression tests: pattern folding happens in the optimizer, not the analyzer.
 
     /**
-     * LIKE with a foldable CONCAT expression is folded by ConstantFolding in the optimizer into a concrete WildcardLike.
+     * LIKE with a foldable CONCAT expression is folded by ConstantFolding in the optimizer, then
+     * routed through {@code ReplaceRegexMatch}. As for an inline {@code LIKE "Anna*"}, the prefix
+     * pattern decomposes into a {@link StartsWith}, keeping both paths consistent.
      */
-    public void testLikeConstantExpressionFoldsToWildcardLike() {
+    public void testLikeConstantExpressionFoldsToStartsWith() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(defaultAnalyzer().query("from test | where first_name like concat(\"Anna\", \"*\")"));
         var filter = as(as(plan, Limit.class).child(), Filter.class);
-        WildcardLike like = as(filter.condition(), WildcardLike.class);
-        assertEquals("Anna*", like.pattern().pattern());
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
     }
 
     /**
@@ -683,8 +687,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         var plan = optimize(defaultAnalyzer().query("from test | eval x = \"Anna*\" | where first_name like x"));
         // Eval → Limit → Filter → EsRelation (Eval stays because x is in the output)
         var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
-        WildcardLike like = as(filter.condition(), WildcardLike.class);
-        assertEquals("Anna*", like.pattern().pattern());
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
     }
 
     /**
@@ -700,14 +704,14 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     /**
      * EVAL with a CONCAT that folds: the optimizer first evaluates CONCAT, then propagates and
-     * converts the UnresolvedRegexExpression into a WildcardLike.
+     * converts the UnresolvedRegexExpression, decomposing the prefix pattern into a {@link StartsWith}.
      */
     public void testLikeEvalPropagatedConcat() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(defaultAnalyzer().query("from test | eval x = concat(\"Anna\", \"*\") | where first_name like x"));
         var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
-        WildcardLike like = as(filter.condition(), WildcardLike.class);
-        assertEquals("Anna*", like.pattern().pattern());
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
     }
 
     /**
@@ -749,13 +753,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
         var eval = as(plan, Eval.class);
         var filter = as(as(eval.child(), Limit.class).child(), Filter.class);
-        WildcardLike like = as(filter.condition(), WildcardLike.class);
-        assertEquals("Eber*", like.pattern().pattern());
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Eber", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
     }
 
     /**
      * EVAL with a matchesAll pattern ("*") should produce IsNotNull, same as the inline case.
-     * ResolveRegexPattern handles this directly after propagation.
+     * ReplaceUnresolvedRegex handles this directly after propagation.
      */
     public void testLikeEvalPropagatedMatchesAll() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
@@ -783,7 +787,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testLikeNonFoldablePatternReportsError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name like last_name"));
-        assertThat(err, containsString("second argument of [LIKE] must be a constant, received [last_name]"));
+        assertThat(err, containsString("[LIKE] pattern must be a constant, received [last_name]"));
     }
 
     /**
@@ -792,7 +796,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testRLikeNonFoldablePatternReportsError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name rlike last_name"));
-        assertThat(err, containsString("second argument of [RLIKE] must be a constant, received [last_name]"));
+        assertThat(err, containsString("[RLIKE] pattern must be a constant, received [last_name]"));
     }
 
     /**
@@ -802,7 +806,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testLikeIntegerPatternReportsTypeError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name like 12"));
-        assertThat(err, containsString("second argument of [LIKE] must be [string]"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
     }
 
     /**
@@ -812,7 +816,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testLikeFoldedIntegerPatternReportsTypeError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name like (1 + 2)"));
-        assertThat(err, containsString("second argument of [LIKE] must be [string]"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
     }
 
     /**
@@ -821,7 +825,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testRLikeIntegerPatternReportsTypeError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name rlike 12"));
-        assertThat(err, containsString("second argument of [RLIKE] must be [string]"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
     }
 
     /**
@@ -832,7 +836,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testLikeNullPatternReportsError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name like p"));
-        assertThat(err, containsString("second argument of [LIKE] cannot be null, received [null]"));
+        assertThat(err, containsString("[LIKE] pattern must not be null"));
     }
 
     /**
@@ -841,11 +845,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testRLikeNullPatternReportsError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name rlike p"));
-        assertThat(err, containsString("second argument of [RLIKE] cannot be null, received [null]"));
+        assertThat(err, containsString("[RLIKE] pattern must not be null"));
     }
 
     /**
-     * RLIKE pattern ".*" via EVAL matches every non-null string; ResolveRegexPattern
+     * RLIKE pattern ".*" via EVAL matches every non-null string; ReplaceUnresolvedRegex
      * detects {@code matchesAll()} and produces {@link IsNotNull} instead of {@link RLike}.
      * Symmetric to {@link #testLikeEvalPropagatedMatchesAll}.
      */
@@ -859,7 +863,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     /**
      * RLIKE pattern with no regex metacharacters ("Anna") via EVAL has only one accepted
-     * string; ResolveRegexPattern detects {@code exactMatch()} and produces {@link Equals}.
+     * string; ReplaceUnresolvedRegex detects {@code exactMatch()} and produces {@link Equals}.
      * Symmetric to {@link #testLikeEvalPropagatedExactMatch}.
      */
     public void testRLikeEvalPropagatedExactMatch() {
@@ -878,20 +882,20 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testRLikeFoldedIntegerPatternReportsTypeError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name rlike (1 + 2)"));
-        assertThat(err, containsString("second argument of [RLIKE] must be [string]"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
     }
 
     /**
      * NOT LIKE with a constant expression: the parser wraps the UnresolvedRegexExpression in
-     * Not; ResolveRegexPattern descends into it and resolves the inner node normally.
+     * Not; ReplaceUnresolvedRegex descends into it and resolves the inner node normally.
      */
     public void testLikeNotConstantExpression() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(defaultAnalyzer().query("from test | where first_name not like concat(\"Anna\", \"*\")"));
         var filter = as(as(plan, Limit.class).child(), Filter.class);
         Not not = as(filter.condition(), Not.class);
-        WildcardLike like = as(not.field(), WildcardLike.class);
-        assertEquals("Anna*", like.pattern().pattern());
+        StartsWith startsWith = as(not.field(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
     }
 
     /**
@@ -906,14 +910,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertEquals("Anna.*", rlike.pattern().asJavaRegex());
     }
 
-    /**
-     * ROW provides the data, EVAL computes the pattern, WHERE filters via LIKE.
-     * PropagateEvalFoldables substitutes both the ROW field and the EVAL pattern into
-     * the filter condition; ResolveRegexPattern then resolves it. Since "demo" matches
-     * "demo*", the condition constant-folds to {@code true} and PruneFilters removes it.
-     * ReplaceRowAsLocalRelation converts the Row source to a LocalRelation.
-     */
-    public void testLikeRowEvalPropagatedConcat() {
+    public void testLikeAlwaysTrue_AsLocalRelation() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \"*\") | where abc like filter"));
         // The filter folds to true and is pruned; the Row source becomes a LocalRelation
@@ -922,9 +919,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
-     * Same as {@link #testLikeRowEvalPropagatedConcat} for RLIKE.
+     * Same as {@link #testLikeAlwaysTrue_AsLocalRelation} for RLIKE.
      */
-    public void testRLikeRowEvalPropagatedConcat() {
+    public void testRLikeAlwaysTrue_AsLocalRelation() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(
             defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \".*\") | where abc rlike filter")

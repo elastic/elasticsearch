@@ -41,7 +41,7 @@ public class ClusterInfoSimulator {
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     // Maps node id to heap usage.
-    private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
+    private final Map<String, NodeHeapMetrics> estimatedHeapUsages;
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
@@ -51,7 +51,7 @@ public class ClusterInfoSimulator {
         this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
-        this.estimatedHeapUsages = new HashMap<>(allocation.clusterInfo().getEstimatedHeapUsages());
+        this.estimatedHeapUsages = new HashMap<>(allocation.clusterInfo().getNodeHeapMetrics());
         this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
         this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
@@ -224,7 +224,7 @@ public class ClusterInfoSimulator {
     }
 
     // Visible for testing
-    public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
+    public Map<String, NodeHeapMetrics> getEstimatedHeapUsages() {
         return estimatedHeapUsages;
     }
 

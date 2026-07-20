@@ -14,32 +14,32 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class EstimatedHeapUsageTests extends ESTestCase {
+public class NodeHeapMetricsTests extends ESTestCase {
 
     public void testEstimatedUsageAsPercentage() {
         final long totalBytes = randomNonNegativeLong();
         final long estimatedUsageBytes = randomLongBetween(0, totalBytes);
-        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+        final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
             randomUUID(),
             totalBytes,
-            new NodeHeapEstimate(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
+            new NodeHeapEstimates(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
         );
-        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
-        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
-        assertEquals(estimatedHeapUsage.estimatedUsageAsPercentage(), 100.0 * estimatedUsageBytes / totalBytes, 0.0001);
+        assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
+        assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
+        assertEquals(nodeHeapMetrics.estimatedUsageAsPercentage(), 100.0 * estimatedUsageBytes / totalBytes, 0.0001);
     }
 
     public void testEstimatedFreeBytesAsPercentage() {
         final long totalBytes = randomNonNegativeLong();
         final long estimatedUsageBytes = randomLongBetween(0, totalBytes);
         final long estimatedFreeBytes = totalBytes - estimatedUsageBytes;
-        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+        final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
             randomUUID(),
             totalBytes,
-            new NodeHeapEstimate(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
+            new NodeHeapEstimates(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
         );
-        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
-        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
-        assertEquals(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), 100.0 * estimatedFreeBytes / totalBytes, 0.0001);
+        assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
+        assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
+        assertEquals(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), 100.0 * estimatedFreeBytes / totalBytes, 0.0001);
     }
 }

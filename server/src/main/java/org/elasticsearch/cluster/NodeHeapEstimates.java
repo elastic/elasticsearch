@@ -21,9 +21,9 @@ import java.io.IOException;
  * @param totalHeapUsage The total estimated heap usage, including things like index metadata, hosted shards, indexing infrastructure, etc.
  * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only
  */
-public record NodeHeapEstimate(long totalHeapUsage, long hostedShardsHeapUsage) implements Writeable {
+public record NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage) implements Writeable {
 
-    public NodeHeapEstimate {
+    public NodeHeapEstimates {
         assert totalHeapUsage >= 0;
         assert hostedShardsHeapUsage >= 0;
         assert totalHeapUsage >= hostedShardsHeapUsage
@@ -34,7 +34,7 @@ public record NodeHeapEstimate(long totalHeapUsage, long hostedShardsHeapUsage) 
                 + ")";
     }
 
-    public NodeHeapEstimate(StreamInput in) throws IOException {
+    public NodeHeapEstimates(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong());
     }
 

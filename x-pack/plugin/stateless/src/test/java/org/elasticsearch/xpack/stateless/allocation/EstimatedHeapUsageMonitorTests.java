@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.EstimatedHeapUsage;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.NodeHeapEstimate;
+import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Strings;
@@ -100,11 +100,11 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         );
 
         // All nodes are above the high watermark, but the feature is disabled — no reroute should be triggered.
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        final Map<String, NodeHeapMetrics> estimatedHeapUsages = new HashMap<>();
         randNodeIds(between(1, 3)).forEach(
             nodeId -> estimatedHeapUsages.put(
                 nodeId,
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeId,
                     totalBytesPerNode,
                     validHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
@@ -140,12 +140,12 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             mockLog.addExpectation(expectation);
 
             // Initially all nodes are below the high watermark — no reroute.
-            final Map<String, EstimatedHeapUsage> initialUsages = new HashMap<>();
+            final Map<String, NodeHeapMetrics> initialUsages = new HashMap<>();
             final var nodeIds = randNodeIds(between(2, 3));
             nodeIds.forEach(
                 nodeId -> initialUsages.put(
                     nodeId,
-                    new EstimatedHeapUsage(
+                    new NodeHeapMetrics(
                         nodeId,
                         totalBytesPerNode,
                         validHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
@@ -156,10 +156,10 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             // One node exceeds the high watermark — reroute should fire.
-            final Map<String, EstimatedHeapUsage> updatedUsages = new HashMap<>(initialUsages);
+            final Map<String, NodeHeapMetrics> updatedUsages = new HashMap<>(initialUsages);
             updatedUsages.put(
                 nodeIds.get(0),
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeIds.get(0),
                     totalBytesPerNode,
                     validHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
@@ -181,10 +181,10 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     )
                 )
             );
-            final Map<String, EstimatedHeapUsage> moreUsages = new HashMap<>(updatedUsages);
+            final Map<String, NodeHeapMetrics> moreUsages = new HashMap<>(updatedUsages);
             moreUsages.put(
                 nodeIds.get(1),
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeIds.get(1),
                     totalBytesPerNode,
                     validHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
@@ -202,10 +202,10 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     "estimated heap usages exceeded the high watermark * triggering reroute"
                 )
             );
-            final Map<String, EstimatedHeapUsage> reducedUsages = new HashMap<>(moreUsages);
+            final Map<String, NodeHeapMetrics> reducedUsages = new HashMap<>(moreUsages);
             reducedUsages.put(
                 nodeIds.get(0),
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeIds.get(0),
                     totalBytesPerNode,
                     validHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
@@ -241,20 +241,20 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             final AtomicBoolean heapUsageReduced = new AtomicBoolean(false);
             final var updatedClusterInfo = ClusterInfo.builder()
                 .estimatedHeapUsages(
-                    clusterInfo.getEstimatedHeapUsages()
+                    clusterInfo.getNodeHeapMetrics()
                         .entrySet()
                         .stream()
                         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-                            final EstimatedHeapUsage estimatedHeapUsage = entry.getValue();
-                            if (estimatedHeapUsage.estimatedUsageAsPercentage() > lowWatermarkPercentage
+                            final NodeHeapMetrics nodeHeapMetrics = entry.getValue();
+                            if (nodeHeapMetrics.estimatedUsageAsPercentage() > lowWatermarkPercentage
                                 && (heapUsageReduced.compareAndSet(false, true) || randomBoolean())) {
-                                return new EstimatedHeapUsage(
-                                    estimatedHeapUsage.nodeId(),
-                                    estimatedHeapUsage.totalBytes(),
-                                    validHeapEstimate(estimatedHeapUsage.totalBytes() * between(0, lowWatermarkPercentage) / 100)
+                                return new NodeHeapMetrics(
+                                    nodeHeapMetrics.nodeId(),
+                                    nodeHeapMetrics.totalBytes(),
+                                    validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage) / 100)
                                 );
                             } else {
-                                return estimatedHeapUsage;
+                                return nodeHeapMetrics;
                             }
                         }))
                 )
@@ -305,12 +305,12 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
 
     private ClusterInfo createClusterInfo(int lowWatermarkPercentage, int numNodesAboveLowWatermark) {
         assert lowWatermarkPercentage >= 0 && lowWatermarkPercentage < 100 : lowWatermarkPercentage;
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        final Map<String, NodeHeapMetrics> estimatedHeapUsages = new HashMap<>();
         final var nodeIdsAboveLowWatermark = randNodeIds(numNodesAboveLowWatermark);
         nodeIdsAboveLowWatermark.forEach(nodeId -> {
             estimatedHeapUsages.put(
                 nodeId,
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeId,
                     totalBytesPerNode,
                     validHeapEstimate(totalBytesPerNode * between(lowWatermarkPercentage + 1, 100) / 100)
@@ -322,7 +322,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             randOtherNodeIds(between(1, 3)).forEach(nodeId -> {
                 estimatedHeapUsages.put(
                     nodeId,
-                    new EstimatedHeapUsage(
+                    new NodeHeapMetrics(
                         nodeId,
                         totalBytesPerNode,
                         validHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage) / 100)
@@ -342,7 +342,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         return IntStream.range(0, n).mapToObj(id -> "other-node-" + id).toList();
     }
 
-    private NodeHeapEstimate validHeapEstimate(long totalHeapUsageBytes) {
-        return new NodeHeapEstimate(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes));
+    private NodeHeapEstimates validHeapEstimate(long totalHeapUsageBytes) {
+        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes));
     }
 }

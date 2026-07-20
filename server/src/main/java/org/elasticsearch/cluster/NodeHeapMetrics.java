@@ -17,28 +17,28 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * Represents an estimate of the heap used by allocated shards and ongoing merges on a particular node
+ * Represents metrics related to heap capacity and usage for a particular node
  */
-public record EstimatedHeapUsage(String nodeId, long totalBytes, NodeHeapEstimate nodeHeapEstimate) implements Writeable {
+public record NodeHeapMetrics(String nodeId, long totalBytes, NodeHeapEstimates nodeHeapEstimates) implements Writeable {
 
     public static final TransportVersion SHARD_HEAP_USAGE_IN_ESTIMATED_HEAP_USAGE = TransportVersion.fromName(
         "shard_heap_usage_in_estimated_heap_usage"
     );
 
-    public EstimatedHeapUsage {
+    public NodeHeapMetrics {
         assert totalBytes >= 0;
-        assert nodeHeapEstimate != null;
+        assert nodeHeapEstimates != null;
     }
 
-    public static EstimatedHeapUsage readFrom(StreamInput in) throws IOException {
+    public static NodeHeapMetrics readFrom(StreamInput in) throws IOException {
         final var nodeId = in.readString();
         final var totalBytes = in.readVLong();
         if (in.getTransportVersion().supports(SHARD_HEAP_USAGE_IN_ESTIMATED_HEAP_USAGE)) {
-            final var nodeHeapEstimate = new NodeHeapEstimate(in);
-            return new EstimatedHeapUsage(nodeId, totalBytes, nodeHeapEstimate);
+            final var nodeHeapEstimate = new NodeHeapEstimates(in);
+            return new NodeHeapMetrics(nodeId, totalBytes, nodeHeapEstimate);
         } else {
             final long totalHeapUsage = in.readVLong();
-            return new EstimatedHeapUsage(nodeId, totalBytes, new NodeHeapEstimate(totalHeapUsage, 0));
+            return new NodeHeapMetrics(nodeId, totalBytes, new NodeHeapEstimates(totalHeapUsage, 0));
         }
     }
 
@@ -47,14 +47,14 @@ public record EstimatedHeapUsage(String nodeId, long totalBytes, NodeHeapEstimat
         out.writeString(this.nodeId);
         out.writeVLong(this.totalBytes);
         if (out.getTransportVersion().supports(SHARD_HEAP_USAGE_IN_ESTIMATED_HEAP_USAGE)) {
-            out.writeWriteable(this.nodeHeapEstimate);
+            out.writeWriteable(this.nodeHeapEstimates);
         } else {
-            out.writeVLong(this.nodeHeapEstimate.totalHeapUsage());
+            out.writeVLong(this.nodeHeapEstimates.totalHeapUsage());
         }
     }
 
     public long estimatedFreeBytes() {
-        return totalBytes - nodeHeapEstimate.totalHeapUsage();
+        return totalBytes - nodeHeapEstimates.totalHeapUsage();
     }
 
     public double estimatedFreeBytesAsPercentage() {
@@ -66,16 +66,16 @@ public record EstimatedHeapUsage(String nodeId, long totalBytes, NodeHeapEstimat
     }
 
     public double estimatedUsageAsRatio() {
-        return nodeHeapEstimate.totalHeapUsage() / (double) totalBytes;
+        return nodeHeapEstimates.totalHeapUsage() / (double) totalBytes;
     }
 
-    public EstimatedHeapUsage updateEstimatedUsage(long indexMetadataUsageDelta, long hostedShardsUsageDelta) {
-        return new EstimatedHeapUsage(
+    public NodeHeapMetrics updateEstimatedUsage(long indexMetadataUsageDelta, long hostedShardsUsageDelta) {
+        return new NodeHeapMetrics(
             nodeId,
             totalBytes,
-            new NodeHeapEstimate(
-                Math.addExact(Math.addExact(nodeHeapEstimate.totalHeapUsage(), indexMetadataUsageDelta), hostedShardsUsageDelta),
-                Math.addExact(nodeHeapEstimate.hostedShardsHeapUsage(), hostedShardsUsageDelta)
+            new NodeHeapEstimates(
+                Math.addExact(Math.addExact(nodeHeapEstimates.totalHeapUsage(), indexMetadataUsageDelta), hostedShardsUsageDelta),
+                Math.addExact(nodeHeapEstimates.hostedShardsHeapUsage(), hostedShardsUsageDelta)
             )
         );
     }

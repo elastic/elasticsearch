@@ -218,7 +218,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
         private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
         private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-        private volatile Map<String, NodeHeapEstimate> estimatedHeapUsagePerNode;
+        private volatile Map<String, NodeHeapEstimates> estimatedHeapUsagePerNode;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
         private volatile Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
@@ -327,7 +327,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchEstimatedHeapUsage() {
             estimatedHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, NodeHeapEstimate> currentEstimatedHeapUsages) {
+                public void onResponse(Map<String, NodeHeapEstimates> currentEstimatedHeapUsages) {
                     estimatedHeapUsagePerNode = currentEstimatedHeapUsages;
                 }
 
@@ -522,11 +522,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private ClusterInfo updateAndGetCurrentClusterInfo() {
-            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>(maxHeapPerNode.size());
+            final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>(maxHeapPerNode.size());
             maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-                final NodeHeapEstimate estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
-                if (estimatedHeapUsage != null) {
-                    estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
+                final NodeHeapEstimates currentHeapEstimates = estimatedHeapUsagePerNode.get(nodeId);
+                if (currentHeapEstimates != null) {
+                    nodeHeapMetrics.put(nodeId, new NodeHeapMetrics(nodeId, maxHeapSize.getBytes(), currentHeapEstimates));
                 }
             });
             final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
@@ -542,7 +542,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 indicesStatsSummary.shardDataSetSizes,
                 indicesStatsSummary.dataPath,
                 indicesStatsSummary.reservedSpace,
-                estimatedHeapUsages,
+                nodeHeapMetrics,
                 estimatedShardHeapUsageEstimates.perShard(),
                 estimatedShardHeapUsageEstimates.defaultForShardsWithoutMetrics(),
                 nodeThreadPoolUsageStatsPerNode,

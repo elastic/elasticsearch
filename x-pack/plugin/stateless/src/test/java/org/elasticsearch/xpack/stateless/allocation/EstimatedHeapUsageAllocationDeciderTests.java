@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.EstimatedHeapUsage;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.NodeHeapEstimate;
+import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -701,7 +701,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private ClusterInfo createClusterInfoWithHeapUsage(
-        Map<String, EstimatedHeapUsage> nodeHeapUsages,
+        Map<String, NodeHeapMetrics> nodeHeapUsages,
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages
     ) {
         return ClusterInfo.builder().estimatedHeapUsages(nodeHeapUsages).estimatedShardHeapUsages(shardHeapUsages).build();
@@ -779,10 +779,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             .add(newNode(SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
     }
 
-    private EstimatedHeapUsage createNodeHeapUsage(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
+    private NodeHeapMetrics createNodeHeapUsage(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
         final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
-        return new EstimatedHeapUsage(nodeId, totalInBytes, new NodeHeapEstimate(usedInBytes, randomLongBetween(0, usedInBytes)));
+        return new NodeHeapMetrics(nodeId, totalInBytes, new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes)));
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -139,7 +139,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         if (heapUsageDisabledForNodeDecision != null) {
             return heapUsageDisabledForNodeDecision;
         }
-        final var nodeHeapUsageForNode = allocation.clusterInfo().getEstimatedHeapUsages().get(node.nodeId());
+        final var nodeHeapUsageForNode = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
         assert nodeHeapUsageForNode != null : "expected to have a valid heap usage estimate for the node";
 
         final double heapUsedPercentageForNode = nodeHeapUsageForNode.estimatedUsageAsPercentage();
@@ -187,7 +187,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
                         + "percentage from [%.2f] to [%.2f], which exceeds low watermark [%.2f]",
                     node.nodeId(),
                     shardRouting.shardId(),
-                    newNodeHeapUsageForNode.nodeHeapEstimate().totalHeapUsage() - nodeHeapUsageForNode.nodeHeapEstimate().totalHeapUsage(),
+                    newNodeHeapUsageForNode.nodeHeapEstimates().totalHeapUsage() - nodeHeapUsageForNode.nodeHeapEstimates()
+                        .totalHeapUsage(),
                     heapUsedPercentageForNode,
                     newNodeHeapUsageForNode.estimatedUsageAsPercentage(),
                     lowWaterMarkAsPercentage
@@ -223,7 +224,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "heap decider can remain disabled");
         }
 
-        final var nodeHeapUsageForNode = allocation.clusterInfo().getEstimatedHeapUsages().get(node.nodeId());
+        final var nodeHeapUsageForNode = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
         assert nodeHeapUsageForNode != null : "expected to have a valid heap usage estimate for the node";
 
         final double heapUsedPercentage = nodeHeapUsageForNode.estimatedUsageAsPercentage();
@@ -276,8 +277,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             return YES_ESTIMATED_HEAP_USAGE_FOR_INDEX_NODE_ONLY;
         }
 
-        final EstimatedHeapUsage estimatedHeapUsage = allocation.clusterInfo().getEstimatedHeapUsages().get(node.nodeId());
-        if (estimatedHeapUsage == null) {
+        final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
+        if (nodeHeapMetrics == null) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
@@ -286,7 +287,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             );
         }
 
-        if (estimatedHeapUsage.totalBytes() < minimumHeapSizeForEnabled.getBytes()) {
+        if (nodeHeapMetrics.totalBytes() < minimumHeapSizeForEnabled.getBytes()) {
             return allocation.decision(
                 Decision.YES,
                 NAME,

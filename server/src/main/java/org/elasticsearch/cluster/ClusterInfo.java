@@ -80,7 +80,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     private final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
-    final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
+    final Map<String, NodeHeapMetrics> estimatedHeapUsages;
     final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
@@ -127,7 +127,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
      * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
-     * @param estimatedHeapUsages estimated heap usage broken down by node
+     * @param nodeHeapMetrics estimated heap usage broken down by node
      * @param estimatedShardHeapUsages estimated heap usage broken down by {@link ShardId}
      * @param defaultShardHeapUsageForShardsWithoutMetrics estimate for a shard that has no entry in {@code estimatedShardHeapUsages}
      * @param nodeUsageStatsForThreadPools node-level usage stats (operational load) broken down by node
@@ -144,7 +144,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
-        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeHeapMetrics> nodeHeapMetrics,
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
         ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics,
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
@@ -161,7 +161,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             shardDataSetSizes,
             dataPath,
             reservedSpace,
-            estimatedHeapUsages,
+            nodeHeapMetrics,
             estimatedShardHeapUsages,
             defaultShardHeapUsageForShardsWithoutMetrics,
             nodeUsageStatsForThreadPools,
@@ -181,7 +181,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
-        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeHeapMetrics> estimatedHeapUsages,
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
         ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics,
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
@@ -219,7 +219,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         if (in.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
-            this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::readFrom);
+            this.estimatedHeapUsages = in.readImmutableMap(NodeHeapMetrics::readFrom);
         } else {
             this.estimatedHeapUsages = Map.of();
         }
@@ -269,7 +269,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<String, DiskUsage> mostAvailableSpaceUsage,
         Map<String, Long> shardSizes,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
-        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeHeapMetrics> estimatedHeapUsages,
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
     ) {
@@ -431,13 +431,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     }
 
     /**
-     * Returns a node id to estimated heap usage mapping for all nodes that we have such data for.
-     * Note that these estimates should be considered minimums. They may be used to determine whether
+     * Returns a node id to node heap metrics mapping for all nodes that we have such data for.
+     * Note that the estimates in the metrics should be considered minimums. They may be used to determine whether
      * there IS NOT capacity to do something, but not to determine that there IS capacity to do something.
      * Also note that the map may not be complete, it may contain none, or a subset of the nodes in
      * the cluster at any time. It may also contain entries for nodes that have since left the cluster.
      */
-    public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
+    public Map<String, NodeHeapMetrics> getNodeHeapMetrics() {
         return estimatedHeapUsages;
     }
 
@@ -753,7 +753,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         private Map<ShardId, Long> shardDataSetSizes = Map.of();
         private Map<NodeAndShard, String> dataPath = Map.of();
         private Map<NodeAndPath, ReservedSpace> reservedSpace = Map.of();
-        private Map<String, EstimatedHeapUsage> estimatedHeapUsages = Map.of();
+        private Map<String, NodeHeapMetrics> estimatedHeapUsages = Map.of();
         private Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = Map.of();
         private ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics = ShardAndIndexHeapUsage.ZERO;
         private Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = Map.of();
@@ -818,7 +818,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             return this;
         }
 
-        public Builder estimatedHeapUsages(Map<String, EstimatedHeapUsage> estimatedHeapUsages) {
+        public Builder estimatedHeapUsages(Map<String, NodeHeapMetrics> estimatedHeapUsages) {
             this.estimatedHeapUsages = estimatedHeapUsages;
             return this;
         }

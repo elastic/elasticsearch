@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.stateless.memory;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.NodeHeapEstimate;
+import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -224,14 +224,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      *  <li>Any shard missing {@link ShardMemoryMetrics} is given a default (non-zero) estimate</li>
      * </ul>
      * Called by {@link StatelessHeapUsageReader#collectClusterHeapUsage}, the node-level entry point into this service, whose results
-     * reach {@link org.elasticsearch.cluster.ClusterInfo#getEstimatedHeapUsages()} and are read from there by
+     * reach {@link org.elasticsearch.cluster.ClusterInfo#getNodeHeapMetrics()} and are read from there by
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider} and
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor}.
      *
      * @param clusterState The cluster state used to determine which shard is where
      * @return A map of node id to heap usage estimate in bytes
      */
-    public Map<String, NodeHeapEstimate> getPerNodeMemoryMetrics(ClusterState clusterState) {
+    public Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(ClusterState clusterState) {
         final DiscoveryNodes discoveryNodes = clusterState.nodes();
         final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
         final long mergeMemoryEstimate = mergeMemoryEstimation();
@@ -271,7 +271,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        final Map<String, NodeHeapEstimate> nodeIdToHeapUsage = Maps.transformValues(
+        final Map<String, NodeHeapEstimates> nodeIdToHeapUsage = Maps.transformValues(
             heapUsageBuilders,
             builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)
         );
@@ -348,7 +348,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return selfReportedShardMemoryOverheadEnabled;
     }
 
-    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimate nodeHeapEstimate) {}
+    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimates nodeHeapEstimates) {}
 
     /**
      * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
@@ -391,7 +391,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return snapshot.stream()
             .map(
                 s -> new LongWithAttributes(
-                    s.nodeHeapEstimate().totalHeapUsage(),
+                    s.nodeHeapEstimates().totalHeapUsage(),
                     Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
                 )
             )
@@ -403,7 +403,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return snapshot.stream()
             .map(
                 s -> new LongWithAttributes(
-                    s.nodeHeapEstimate().hostedShardsHeapUsage(),
+                    s.nodeHeapEstimates().hostedShardsHeapUsage(),
                     Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
                 )
             )
@@ -882,11 +882,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
          * @param postingsForTotalEstimate The postings value to use for the total heap estimate
          * @return The heap usage estimate for this node
          */
-        NodeHeapEstimate getHeapEstimate(long postingsForTotalEstimate) {
+        NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
             final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
             final long hostedShardsHeapEstimateInBytes = totalShardMemoryOverheadBytes + shardMemoryUsageInBytes
                 + totalPostingsInMemoryBytes;
-            return new NodeHeapEstimate(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
+            return new NodeHeapEstimates(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
         }
 
         long getHeapUsageEstimate(long effectivePostingsValue) {

@@ -22,6 +22,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -184,7 +185,18 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
     }
 
     @Override
+    public boolean foldable() {
+        if (Expressions.isGuaranteedNull(left()) || Expressions.isGuaranteedNull(right())) {
+            return true;
+        }
+        return super.foldable();
+    }
+
+    @Override
     public Object fold(FoldContext ctx) {
+        if (Expressions.isGuaranteedNull(left()) || Expressions.isGuaranteedNull(right())) {
+            return false;
+        }
         return EvaluatorMapper.super.fold(source(), ctx);
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -196,7 +197,20 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
 
     @Override
     public Object fold(FoldContext ctx) {
+        if (Expressions.isGuaranteedNull(right())) {
+            return true;
+        }
+
         return EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
+    public boolean foldable() {
+        if (Expressions.isGuaranteedNull(right())) {
+            return true;
+        }
+
+        return super.foldable();
     }
 
     @Override

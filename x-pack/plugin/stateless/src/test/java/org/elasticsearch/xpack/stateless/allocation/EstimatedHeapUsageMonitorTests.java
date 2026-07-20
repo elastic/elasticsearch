@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Strings;
@@ -241,22 +241,19 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             final AtomicBoolean heapUsageReduced = new AtomicBoolean(false);
             final var updatedClusterInfo = ClusterInfo.builder()
                 .estimatedHeapUsages(
-                    clusterInfo.getNodeHeapMetrics()
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-                            final NodeHeapMetrics nodeHeapMetrics = entry.getValue();
-                            if (nodeHeapMetrics.estimatedUsageAsPercentage() > lowWatermarkPercentage
-                                && (heapUsageReduced.compareAndSet(false, true) || randomBoolean())) {
-                                return new NodeHeapMetrics(
-                                    nodeHeapMetrics.nodeId(),
-                                    nodeHeapMetrics.totalBytes(),
-                                    validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage) / 100)
-                                );
-                            } else {
-                                return nodeHeapMetrics;
-                            }
-                        }))
+                    clusterInfo.getNodeHeapMetrics().entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
+                        final NodeHeapMetrics nodeHeapMetrics = entry.getValue();
+                        if (nodeHeapMetrics.estimatedUsageAsPercentage() > lowWatermarkPercentage
+                            && (heapUsageReduced.compareAndSet(false, true) || randomBoolean())) {
+                            return new NodeHeapMetrics(
+                                nodeHeapMetrics.nodeId(),
+                                nodeHeapMetrics.totalBytes(),
+                                validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage) / 100)
+                            );
+                        } else {
+                            return nodeHeapMetrics;
+                        }
+                    }))
                 )
                 .build();
             expectation.setExpectSeen();

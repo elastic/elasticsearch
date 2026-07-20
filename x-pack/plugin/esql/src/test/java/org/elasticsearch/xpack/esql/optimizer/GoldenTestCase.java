@@ -620,7 +620,7 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static Test.TestResult createNewOutput(Path output, QueryPlan<?> plan) throws IOException {
-        if (output.toString().contains("extra")) {
+        if (output.getFileName().toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
         String full = plan.toString(Node.NodeStringFormat.FULL);

@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -196,6 +197,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.EmbedExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -401,6 +403,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof EmbedExec embed) {
+            return planEmbed(embed, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {
@@ -561,6 +565,23 @@ public class LocalExecutionPlanner {
 
         return source.with(
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
+            outputLayout
+        );
+    }
+
+    private PhysicalOperation planEmbed(EmbedExec embed, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(embed.child(), context);
+        String inferenceId = BytesRefs.toString(embed.inferenceId().fold(context.foldCtx()));
+        Layout outputLayout = source.layout.builder().append(embed.targetField()).build();
+        ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+            context.foldCtx(),
+            embed.input(),
+            source.layout,
+            context.analysisRegistry()
+        );
+
+        return source.with(
+            new TextEmbeddingOperator.Factory(inferenceService, inferenceId, inputEvaluatorFactory, embed.timeout()),
             outputLayout
         );
     }

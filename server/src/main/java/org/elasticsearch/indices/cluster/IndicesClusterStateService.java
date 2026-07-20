@@ -717,7 +717,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             AllocatedIndex<? extends Shard> indexService = null;
             final var project = state.metadata().lookupProject(index).orElse(null);
             assert project != null : "null index project but non-null shard routings " + entry.getValue();
-            final IndexMetadata indexMetadata = state.metadata().findIndex(index).orElse(null);
+            final IndexMetadata indexMetadata = project.index(index);
             assert indexMetadata != null : "null index metadata but non-null shard routings " + entry.getValue();
             try {
                 logger.debug("creating index [{}] in project [{}]", index, project.id());

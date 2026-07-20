@@ -1232,10 +1232,17 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     * Generate a literal with a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
+        return new Literal(EMPTY, randomLiteralValue(type), type);
+    }
+
+    /**
+     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     */
+    public static Object randomLiteralValue(DataType type) {
+        return switch (type) {
             case BOOLEAN -> randomBoolean();
             case BYTE -> randomByte();
             case SHORT -> randomShort();
@@ -1296,7 +1303,7 @@ public final class EsqlTestUtils {
                 "can't make random values for [" + type.typeName() + "]"
             );
             case TDIGEST -> EsqlTestUtils.randomTDigest();
-        }, type);
+        };
     }
 
     public static ExponentialHistogram randomExponentialHistogram() {

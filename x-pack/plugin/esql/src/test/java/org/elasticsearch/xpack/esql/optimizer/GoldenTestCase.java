@@ -143,6 +143,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         this(null);
     }
 
+    /**
+     * A null {@code goldenMode} is a suite that hasn't opted into the {@code {current}}/{@code {historical}} split:
+     * each test runs once, checked at one random version drawn from the whole covered window — the pre-split behavior.
+     */
     protected GoldenTestCase(String goldenMode) {
         if (goldenMode != null && MODE_CURRENT.equals(goldenMode) == false && MODE_HISTORICAL.equals(goldenMode) == false) {
             throw new IllegalArgumentException("unknown golden mode [" + goldenMode + "]");
@@ -264,6 +268,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             return transportVersion;
         }
 
+        /**
+         * Pins every run of this test to exactly this version — mutually exclusive with {@link #since} and
+         * {@link #expectationChangesAt}, which describe a version window instead of a point.
+         *
+         * @deprecated declare the version dependence with {@link #since} / {@link #expectationChangesAt}; the pin
+         *             disappears once existing suites have migrated.
+         */
+        @Deprecated
         public TestBuilder transportVersion(TransportVersion transportVersion) {
             this.transportVersion = transportVersion;
             this.explicitTransportVersion = true;
@@ -278,7 +290,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             return since(resolve(transportVersionName));
         }
 
-        /** Same as {@link #since(String)}, for callers that already hold the version constant. */
+        /**
+         * Same as {@link #since(String)}, for callers that already hold the version constant — which is why,
+         * unlike the string form, no resolution check happens here.
+         */
         public TestBuilder since(TransportVersion since) {
             this.since = since;
             return this;
@@ -392,7 +407,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             List<VersionRange> ranges = deriveRanges(lowerBound, labels, COMPATIBLE_RELEASED_VERSIONS);
             List<VersionRange> live = new ArrayList<>(ranges.size());
             for (int i = 0; i < ranges.size(); i++) {
-                if (ranges.get(i).sampled().isEmpty()) {
+                if (ranges.get(i).versions().isEmpty()) {
                     if (i >= labels.size()) {
                         // the newest range always samples current(); an empty one means the version bookkeeping broke
                         throw new IllegalStateException(
@@ -432,7 +447,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private void writeReference(String testName, VersionRange range) throws IOException {
             TransportVersion anchor = explicitTransportVersion == false && undeclared() ? TransportVersion.current() : range.start();
             test(testName, range.dir(), anchor, true).doTests();
-            TransportVersion guard = undeclared() ? range.sampled().getFirst() : range.sampled().getLast();
+            TransportVersion guard = undeclared() ? range.versions().getFirst() : range.versions().getLast();
             if (guard.equals(anchor)) {
                 return;
             }
@@ -462,11 +477,11 @@ public abstract class GoldenTestCase extends ESTestCase {
                 return List.of(Tuple.tuple(ranges.getLast(), TransportVersion.current()));
             }
             if (MODE_HISTORICAL.equals(goldenMode)) {
-                return ranges.stream().map(r -> Tuple.tuple(r, randomFrom(r.sampled()))).toList();
+                return ranges.stream().map(r -> Tuple.tuple(r, randomFrom(r.versions()))).toList();
             }
             // unmigrated suite: one draw, uniform across the whole sampled window
             List<Tuple<VersionRange, TransportVersion>> union = ranges.stream()
-                .flatMap(r -> r.sampled().stream().map(v -> Tuple.tuple(r, v)))
+                .flatMap(r -> r.versions().stream().map(v -> Tuple.tuple(r, v)))
                 .toList();
             return List.of(randomFrom(union));
         }
@@ -522,13 +537,13 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * {@code dir} is null for the newest range and for tests without labels — their files live directly in the test
-     * directory. {@code sampled} is in ascending id order.
+     * directory. {@code versions} holds every released compatible version the range covers, ascending; checks draw from it.
      */
-    record VersionRange(String dir, TransportVersion start, List<TransportVersion> sampled) {}
+    record VersionRange(String dir, TransportVersion start, List<TransportVersion> versions) {}
 
     /**
      * Splits the version window at the labels and assigns every released version to the range it belongs to,
-     * by {@link TransportVersion#supports}. Ranges may come back empty ({@code sampled}) — the caller decides
+     * by {@link TransportVersion#supports}. Ranges may come back empty ({@code versions}) — the caller decides
      * whether that's a cleanup prompt or a failure.
      */
     static List<VersionRange> deriveRanges(TransportVersion lowerBound, List<Label> labels, Collection<TransportVersion> released) {
@@ -543,9 +558,9 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             cuts.add(label.version());
         }
-        List<List<TransportVersion>> sampled = new ArrayList<>(cuts.size());
+        List<List<TransportVersion>> partition = new ArrayList<>(cuts.size());
         for (int i = 0; i < cuts.size(); i++) {
-            sampled.add(new ArrayList<>());
+            partition.add(new ArrayList<>());
         }
         for (TransportVersion version : released) {
             if (version.supports(cuts.getFirst()) == false) {
@@ -558,30 +573,40 @@ public abstract class GoldenTestCase extends ESTestCase {
                     break;
                 }
             }
-            if (isStraddler(version, cuts, range)) {
-                continue;
-            }
-            sampled.get(range).add(version);
+            rejectStraddler(version, cuts, range);
+            partition.get(range).add(version);
         }
         List<VersionRange> ranges = new ArrayList<>(cuts.size());
         for (int i = 0; i < cuts.size(); i++) {
             // named by the exclusive upper bound: when the floor passes a label, [before_<label>] is exactly what dies
             String dir = i < labels.size() ? "before_" + labels.get(i).name() : null;
-            sampled.get(i).sort(Comparator.naturalOrder());
-            ranges.add(new VersionRange(dir, cuts.get(i), List.copyOf(sampled.get(i))));
+            partition.get(i).sort(Comparator.naturalOrder());
+            ranges.add(new VersionRange(dir, cuts.get(i), List.copyOf(partition.get(i))));
         }
         return ranges;
     }
 
-    /** A backport patch can support a newer cut but not an older one; such a version matches no range's files. */
-    private static boolean isStraddler(TransportVersion version, List<TransportVersion> cuts, int range) {
+    /**
+     * A version supporting a newer cut but not an older one means a version-aware change was backported below another
+     * one that wasn't. No range's expectations can be correct for such a version, so this is an error, not a skip:
+     * it fails deterministically on the PR that registers the interfering backport id.
+     */
+    private static void rejectStraddler(TransportVersion version, List<TransportVersion> cuts, int range) {
         for (int i = 1; i < range; i++) {
             if (version.supports(cuts.get(i)) == false) {
-                logger.debug("excluding [{}] from golden sampling: supports [{}] but not [{}]", version, cuts.get(range), cuts.get(i));
-                return true;
+                throw new IllegalStateException(
+                    Strings.format(
+                        "released transport version [%s] supports [%s] but not the older [%s] — a version-aware change was "
+                            + "backported below another one that wasn't. No golden version range can describe this version's "
+                            + "planning; see the backporting caution on Versioned's javadoc. If the backport is deliberate, "
+                            + "cover this combination with explicitly pinned transport versions.",
+                        version,
+                        cuts.get(range),
+                        cuts.get(i)
+                    )
+                );
             }
         }
-        return false;
     }
 
     private static final List<TransportVersion> COMPATIBLE_RELEASED_VERSIONS = TransportVersionUtils.allReleasedVersions()

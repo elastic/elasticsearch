@@ -76,6 +76,13 @@ import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
  * Rolling upgrades from 9.3.7 to 9.4.8 would have the same problem. That's generally ok, as rolling upgrades should be performed
  * to the latest patch version of a given minor version; however, if 9.3.7 gets released before 9.4.9, users may not be
  * able to perform rolling upgrades safely at all.
+ * <p>
+ * Similarly, never backport a version-sensitive change below another version-sensitive change that was not backported.
+ * Say change A shipped in 9.4.0 and was never backported, and change B, shipped in 9.5.0, gets backported to a 9.3 patch.
+ * That patch version now supports B but not A — a combination no contiguous version range can describe. Golden tests
+ * refuse such versions outright ({@code GoldenTestCase} fails when its version ranges encounter one). If an interfering
+ * backport is truly unavoidable, that version combination needs deliberate edge-case testing with explicitly pinned
+ * transport versions.
  *
  */
 public record Versioned<T>(T inner, TransportVersion minimumVersion) {}

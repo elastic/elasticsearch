@@ -437,13 +437,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    @Override
-    public void start() {
-        commonNodeConfig();
+    /**
+     * Starts all nodes in this cluster.
+     *
+     * @param configureInitialMasterNodes if {@code true}, configures {@code cluster.initial_master_nodes} to form a brand-new cluster;
+     *                                    if {@code false}, omits that setting so nodes can only join an existing cluster
+     */
+    public void start(boolean configureInitialMasterNodes) {
+        commonNodeConfig(configureInitialMasterNodes);
         nodes.forEach(ElasticsearchNode::start);
     }
 
-    private void commonNodeConfig() {
+    private void commonNodeConfig(boolean configureInitialMasterNodes) {
         final String nodeNames;
         if (nodes.stream().map(ElasticsearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
@@ -464,7 +469,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             if (nodeNames != null) {
                 assert node.getVersion().onOrAfter("7.0.0") : node.getVersion();
                 assert node.defaultConfig.keySet().stream().noneMatch(name -> name.startsWith("discovery.zen."));
-                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                if (configureInitialMasterNodes) {
+                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                } else {
+                    node.defaultConfig.remove("cluster.initial_master_nodes");
+                }
                 node.defaultConfig.put("discovery.seed_providers", "file");
                 node.defaultConfig.put("discovery.seed_hosts", "[]");
             }
@@ -476,13 +485,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void restart() {
+        commonNodeConfig(false);
         nodes.forEach(ElasticsearchNode::restart);
     }
 
     public void goToNextVersion() {
         stop(false);
         nodes.all(ElasticsearchNode::goToNextVersion);
-        start();
+        start(false);
         writeUnicastHostsFiles();
     }
 
@@ -493,7 +503,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         ElasticsearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
         node.stop(false);
         node.goToNextVersion();
-        commonNodeConfig();
+        commonNodeConfig(false);
         nodeIndex += 1;
         if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
             if (hasDeprecationIndexing(node)) {

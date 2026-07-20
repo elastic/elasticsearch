@@ -72,6 +72,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(InternalTestClustersPlugin.class);
         InternalPrecommitTasks.create(project, false);
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
+            restIntegTestTask.setConfigureInitialMasterNodes(true);
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()

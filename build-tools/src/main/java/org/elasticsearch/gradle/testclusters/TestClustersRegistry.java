@@ -39,12 +39,12 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         }
     }
 
-    public void maybeStartCluster(ElasticsearchCluster cluster) {
+    public void maybeStartCluster(ElasticsearchCluster cluster, boolean configureInitialMasterNodes) {
         if (runningClusters.contains(cluster)) {
             return;
         }
         runningClusters.add(cluster);
-        cluster.start();
+        cluster.start(configureInitialMasterNodes);
     }
 
     public Provider<TestClusterInfo> getClusterInfo(String clusterName) {

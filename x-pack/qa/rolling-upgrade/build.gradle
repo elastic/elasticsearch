@@ -127,6 +127,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
+    configureInitialMasterNodes = true
     mustRunAfter("precommit")
     dependsOn "copyTestNodeKeyMaterial"
     doFirst {

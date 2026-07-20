@@ -141,6 +141,7 @@ if (OS.current() == OS.WINDOWS) {
 
     tasks.register("javaRestTestBeforeRestart#${versionNoDots}", StandaloneRestIntegTestTask) {
       useCluster testClusterProvider
+      configureInitialMasterNodes = true
       dependsOn fixture
       def injected = project.objects.newInstance(Injected)
 

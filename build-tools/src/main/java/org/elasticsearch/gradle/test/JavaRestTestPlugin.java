@@ -54,6 +54,7 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         // Register test task
         TaskProvider<StandaloneRestIntegTestTask> javaRestTestTask = project.getTasks()
             .register(JAVA_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
+                task.setConfigureInitialMasterNodes(true);
                 task.useCluster(clusterProvider);
                 task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
                 task.setClasspath(testSourceSet.getRuntimeClasspath());

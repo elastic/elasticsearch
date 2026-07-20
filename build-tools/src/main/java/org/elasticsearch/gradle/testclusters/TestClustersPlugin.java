@@ -207,6 +207,18 @@ public class TestClustersPlugin implements Plugin<Project> {
         });
     }
 
+    /**
+     * Whether starting clusters for this task should configure {@code cluster.initial_master_nodes}.
+     * Chained BWC tasks that join an existing cluster should leave this {@code false}; the first task in
+     * a chain (e.g. {@code #oldClusterTest}) should set this to {@code true}.
+     */
+    static boolean configureInitialMasterNodes(TestClustersAware task) {
+        if (task instanceof StandaloneRestIntegTestTask standaloneRestIntegTestTask) {
+            return standaloneRestIntegTestTask.getConfigureInitialMasterNodes();
+        }
+        return true;
+    }
+
     static abstract class TestClustersHookPlugin implements Plugin<Project> {
         @Inject
         public abstract BuildEventsListenerRegistry getEventsListenerRegistry();
@@ -266,7 +278,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .forEach(awareTask -> {
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
-                            awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
+                            boolean configureInitialMasterNodes = configureInitialMasterNodes(awareTask);
+                            awareTask.getClusters()
+                                .forEach(
+                                    cluster -> awareTask.getRegistry().get().maybeStartCluster(cluster, configureInitialMasterNodes)
+                                );
                         });
                         awareTask.doLast("Stop clusters and check for resource leaks", task -> {
                             TestClustersRegistry registry = awareTask.getRegistry().get();

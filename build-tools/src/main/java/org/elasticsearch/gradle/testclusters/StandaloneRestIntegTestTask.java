@@ -13,6 +13,7 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.WorkResult;
@@ -40,6 +41,7 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
 public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+    private boolean configureInitialMasterNodes = false;
     private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
@@ -61,6 +63,15 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
     @Override
     public Collection<ElasticsearchCluster> getClusters() {
         return clusters;
+    }
+
+    @Input
+    public boolean getConfigureInitialMasterNodes() {
+        return configureInitialMasterNodes;
+    }
+
+    public void setConfigureInitialMasterNodes(boolean configureInitialMasterNodes) {
+        this.configureInitialMasterNodes = configureInitialMasterNodes;
     }
 
     @Override

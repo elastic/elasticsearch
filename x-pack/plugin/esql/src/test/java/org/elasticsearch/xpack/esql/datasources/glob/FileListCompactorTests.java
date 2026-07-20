@@ -140,6 +140,10 @@ public class FileListCompactorTests extends ESTestCase {
     public void testReservedPartitionKeyKeepsOnDiskName() {
         String base = "s3://b/data/";
         assertRoundTrip(base, listOf(base + "**/*.parquet", base + "_index=foo/f.parquet"));
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_index] surfaced as [_partition._index]"
+        );
     }
 
     /** The Hive null sentinel is a real directory name and must survive verbatim. */

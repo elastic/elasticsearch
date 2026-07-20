@@ -35,6 +35,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -549,10 +550,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
             assertThat("query request bytes are fetch-method independent", chunkedQueryRequestBytes, equalTo(nonChunkedQueryRequestBytes));
 
-            // The query result (NodeQueryResponse) includes a per-shard serviceTimeEWMA that is
-            // updated between runs and may shift by 1-2 bytes per shard when VLong encoding width
-            // changes. 16 bytes covers two shards with a 2-byte shift each, with room to spare.
-            long queryResultTolerance = 16L;
+            // The query result (NodeQueryResponse) includes a per-shard serviceTimeEWMA whose VLong
+            // encoding width can shift between runs; empirically this is usually 0 but occasionally a
+            // few bytes per shard. Scale with numShards, plus a flat margin for that jitter.
+            long queryResultTolerance = numShards * 2L + 24L;
             assertThat(
                 "chunked and non-chunked query result bytes are within encoding tolerance",
                 chunkedQueryResultBytes,
@@ -653,6 +654,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
     public void testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes() {
         // we use this local index to ensure that we go past the query phase
         final String localIndex = "local-shards-error-test";
+        // At least 2 shards per data node so both searches below are always batched.
+        int localIndexShards = between(2 * internalCluster().numDataNodes(), maximumNumberOfShards());
+        prepareCreate(localIndex).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, localIndexShards)).get();
+        ensureGreen(localIndex);
         prepareIndex(localIndex).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         try {
@@ -662,7 +667,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 INDEX_NAME
             );
 
-            Client coordOnlyNodeClient = client(coordOnlyNode);
+            // Shards on a node share one deserialized failingQuery; doWriteTo always serializes
+            // its failure field regardless of whether the shard throws. Without error_trace=true,
+            // SearchService strips the stack trace in place when INDEX_NAME shards throw it, so
+            // localIndex shards echo a stripped exception — fewer bytes despite more shards.
+            Client coordOnlyNodeClient = client(coordOnlyNode).filterWithHeader(Map.of("error_trace", "true"));
             // query only the local index and record the baseline for result bytes
             assertSearchHitsWithoutFailures(
                 coordOnlyNodeClient.prepareSearch(localIndex).setQuery(failingQuery).setAllowPartialSearchResults(true),
@@ -691,9 +700,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             assertThat(queryRequestBytes, hasSize(1));
             assertThat(queryRequestBytes.get(0).getLong(), greaterThan(queryRequestBytesLocalIndex));
 
-            // NodeQueryResponse is always deserialised via handler.read() — per-shard exceptions
-            // are payload, not transport-level errors — so result bytes are non-zero even though
-            // every shard in the batch failed.
+            // Both searches are batched, so their result bytes are comparable: batched failures are folded
+            // into the merged NodeQueryResponse as compact exception stamps, not full QuerySearchResult
+            // objects, so batched and non-batched byte counts sit on different scales.
             queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertThat(queryResultBytes, hasSize(1));
             assertThat(queryResultBytes.get(0).getLong(), greaterThan(queryResultBytesLocalIndex));

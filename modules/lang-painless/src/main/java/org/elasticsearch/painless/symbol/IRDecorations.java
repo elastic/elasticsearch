@@ -375,7 +375,7 @@ public class IRDecorations {
         }
     }
 
-    /** the resolved {@code @allocates_dynamic} estimator for a call or construction site; attached only when tracking is enabled */
+    /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
     public static class IRDAllocationEstimator extends IRDecoration<Method> {
 
         public IRDAllocationEstimator(Method value) {

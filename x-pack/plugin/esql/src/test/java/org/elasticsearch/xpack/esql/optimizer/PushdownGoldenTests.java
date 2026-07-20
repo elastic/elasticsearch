@@ -240,6 +240,22 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             .run();
     }
 
+    public void testMvContainsOnKeyword() {
+        String query = """
+                FROM employees
+                | WHERE mv_contains(first_name, ["Alice", "Anna", "Peter"])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvContainsOnDouble() {
+        String query = """
+                FROM all_types
+                | WHERE mv_contains(double, [1.0, 2.0, 3.0])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */
     private static ProjectMetadata salariesDatasetMetadata() {
         DataSource dataSource = new DataSource("golden_ds", "test", null, Map.of());

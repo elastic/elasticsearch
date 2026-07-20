@@ -20,7 +20,6 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -85,10 +84,10 @@ import static org.hamcrest.Matchers.notNullValue;
  * supplied as a node plugin (a single discovery path), so {@code EsqlPlugin}'s duplicate-validator guard
  * never trips.
  *
- * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the external-datasources
- * feature flag (which also gates {@code FROM <dataset>} resolution) and the local-filesystem feature flag,
- * and {@link #nodeSettings} allowlists the shared temp-dir root for {@code file://} access, so subclasses do
- * not repeat either the assume or the settings override.
+ * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the
+ * {@code dataset-in-from-command} capability (which also gates {@code FROM <dataset>} resolution) and the
+ * local-filesystem feature flag, and {@link #nodeSettings} allowlists the shared temp-dir root for
+ * {@code file://} access, so subclasses do not repeat either the assume or the settings override.
  *
  * <p>Deliberately imposes no {@code @ClusterScope} and does not override {@code getPragmas()} — both
  * vary per concrete test, so subclasses keep their own.
@@ -177,13 +176,14 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Gates every subclass on the external-datasources feature flag, which also gates {@code FROM <dataset>}
-     * resolution, plus the local-filesystem feature flag every subclass relies on for its {@code file://}
-     * fixtures. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer repeat the assume.
+     * Gates every subclass on the {@code dataset-in-from-command} capability, which also gates
+     * {@code FROM <dataset>} resolution, plus the local-filesystem feature flag every subclass relies on for
+     * its {@code file://} fixtures. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer
+     * repeat the assume.
      */
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires dataset-in-from-command capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
@@ -237,6 +237,41 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
         }
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    SHARED_TEST_DATA_SOURCE,
+                    resourceUri,
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+        registeredDatasets.add(name);
+        return name;
+    }
+
+    /**
+     * Registers a NON-STRICT ({@code dynamic:true}) dataset with a declared mapping against the shared data source,
+     * creating it on first use, and records it for teardown. A non-strict mapping overlays the declared columns onto
+     * the inferred schema and leaves undeclared columns to normal inference/reconciliation, so it exercises the
+     * declared-overlay path on top of inference (e.g. {@code union_by_name} widening of an undeclared column).
+     */
+    protected String registerNonStrictDataset(
+        String name,
+        String resourceUri,
+        LinkedHashMap<String, DatasetFieldMapping> properties,
+        Map<String, Object> settings
+    ) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -424,5 +459,24 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             }
         }
         return nodes;
+    }
+
+    /**
+     * Every {@link AsyncExternalSourceOperator.Status} across the query's driver profiles. Lets a caller assert on the
+     * <em>real I/O</em> a scan performed (splits totalled, bytes read), not merely the post-prune profile counters —
+     * the two differ exactly when the read path scans files the pruning already eliminated. Requires
+     * {@code profile(true)}.
+     */
+    protected static List<AsyncExternalSourceOperator.Status> externalScanStatuses(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true) to inspect the external scan", response.profile(), notNullValue());
+        List<AsyncExternalSourceOperator.Status> statuses = new ArrayList<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    statuses.add(status);
+                }
+            }
+        }
+        return statuses;
     }
 }

@@ -28,12 +28,20 @@ import java.util.function.Function;
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
  * source / dataset create request, the property must be set on <em>all</em> nodes for a complete
- * kill. When the coordinator is disabled it never rewrites {@code FROM <dataset>} into an external
- * relation, so no external work is ever dispatched to data nodes; data nodes therefore need no
- * separate check.
+ * kill. Enforcement is layered so that any single disabled node is sufficient to stop its own share
+ * of the work:
+ * <ul>
+ *   <li>The coordinator gates create requests ({@code DataSourceService}, {@code DatasetService})
+ *       and the {@code FROM <dataset>} rewrite ({@code DatasetResolver}), giving a clean early 403.</li>
+ *   <li>Every node gates the physical external-source operator build
+ *       ({@code LocalExecutionPlanner.planExternalSource}). This is the backstop that guarantees no
+ *       external I/O on a disabled node even when the already-rewritten plan arrives from elsewhere:
+ *       an enabled coordinator, a remote cluster in CCS/CPS, an enabled coordinator during a rolling
+ *       restart, or the inline {@code EXTERNAL} command (which bypasses the coordinator rewrite).</li>
+ * </ul>
  *
  * <p>Note this only gates the federation abstraction (create data source, create dataset, and
- * {@code FROM <dataset>} execution). It intentionally does not gate GET/DELETE of data sources and
+ * external-source execution). It intentionally does not gate GET/DELETE of data sources and
  * datasets, so an operator can still inspect and clean up while the switch is engaged.
  */
 public final class Federation {

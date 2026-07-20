@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
@@ -1843,6 +1844,13 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
+        // Federation kill switch, data-node backstop. This is the single point where an external source becomes a
+        // running operator on any node, so enforcing here guarantees no external I/O on a disabled node regardless of
+        // who planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled coordinator during
+        // a rolling restart that has not yet reached this node. It also catches the inline EXTERNAL command, which
+        // builds this exec at parse time and never passes through the coordinator DatasetResolver gate.
+        Federation.ensureEnabled();
+
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
 

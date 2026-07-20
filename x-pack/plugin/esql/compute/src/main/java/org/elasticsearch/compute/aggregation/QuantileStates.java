@@ -68,9 +68,9 @@ public final class QuantileStates {
             this(breaker, percentile, DEFAULT_COMPRESSION);
         }
 
-        SingleState(CircuitBreaker breaker, double percentile, double tDigestStateCompression) {
+        SingleState(CircuitBreaker breaker, double percentile, double compression) {
             this.breaker = breaker;
-            this.digest = TDigestState.create(breaker, tDigestStateCompression);
+            this.digest = TDigestState.create(breaker, compression);
             this.percentile = percentileParam(percentile);
         }
 
@@ -122,25 +122,25 @@ public final class QuantileStates {
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private final Double percentile;
-        private final double tDigestStateCompression;
+        private final double compression;
 
         GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile) {
             this(breaker, bigArrays, percentile, DEFAULT_COMPRESSION);
         }
 
-        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile, double tDigestStateCompression) {
+        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile, double compression) {
             this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.digests = bigArrays.newObjectArray(1);
             this.percentile = percentileParam(percentile);
-            this.tDigestStateCompression = tDigestStateCompression;
+            this.compression = compression;
         }
 
         private TDigestState getOrAddGroup(int groupId) {
             digests = bigArrays.grow(digests, groupId + 1);
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
-                qs = TDigestState.create(breaker, tDigestStateCompression);
+                qs = TDigestState.create(breaker, compression);
                 digests.set(groupId, qs);
             }
             return qs;
@@ -186,11 +186,11 @@ public final class QuantileStates {
                     if (group < digests.size()) {
                         state = getOrNull(group);
                         if (state == null) {
-                            state = TDigestState.create(breaker, tDigestStateCompression);
+                            state = TDigestState.create(breaker, compression);
                             closeState = true;
                         }
                     } else {
-                        state = TDigestState.create(breaker, tDigestStateCompression);
+                        state = TDigestState.create(breaker, compression);
                         closeState = true;
                     }
                     builder.appendBytesRef(serializeDigest(state));

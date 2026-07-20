@@ -527,4 +527,23 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             throw new IllegalArgumentException("Unexpected value [" + value + "] for mapping parameter [doc_values]");
         }
     }
+
+    /**
+     * Returns {@code true} unless the field mapping explicitly sets {@code doc_values.multi_value: false}.
+     *
+     * @param fieldMapping the generated field mapping parameters
+     * @return {@code false} when {@code doc_values.multi_value: false} is set, {@code true} otherwise
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean supportsMultiValue(Map<String, Object> fieldMapping) {
+        if (fieldMapping.get("doc_values") instanceof Map<?, ?> dvMap) {
+            Object multiValue = ((Map<String, Object>) dvMap).getOrDefault("multi_value", true);
+            if (multiValue instanceof Boolean b) {
+                return b;
+            } else {
+                throw new IllegalArgumentException("Unexpected value [" + multiValue + "] for mapping parameter [doc_values.multi_value]");
+            }
+        }
+        return true;
+    }
 }

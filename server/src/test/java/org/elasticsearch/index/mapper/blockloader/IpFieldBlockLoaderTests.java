@@ -44,6 +44,12 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.syntheticSource()
             || params.isColumnarStored();
         if (hasDocValues && useDocValues) {
+            // multi_value=false: FieldMapper.parse() skips parseCreateField for all but the first array element,
+            // so doc values holds at most one entry — the first value from the source array.
+            if (supportsMultiValue(fieldMapping) == false) {
+                var list = (List<String>) value;
+                return list.isEmpty() ? null : convert(list.get(0), nullValue);
+            }
             // Columnar index modes preserve arrival order via offsets; other modes return sorted, deduplicated doc values.
             boolean preserveOrder = params.indexMode().isColumnar();
             var stream = ((List<String>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull);

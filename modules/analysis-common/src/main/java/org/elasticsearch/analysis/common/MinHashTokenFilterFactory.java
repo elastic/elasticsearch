@@ -33,24 +33,29 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
         int hashCount = settings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT);
         int bucketCount = settings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT);
         int hashSetSize = settings.getAsInt("hash_set_size", MinHashFilter.DEFAULT_HASH_SET_SIZE);
-        long maxTokenCount = indexSettings.getMaxTokenCount();
-        long maxOutputTokens = (long) hashCount * bucketCount * hashSetSize;
-        if (maxOutputTokens > maxTokenCount) {
-            throw new IllegalArgumentException(
-                "The product of hash_count ["
-                    + hashCount
-                    + "], bucket_count ["
-                    + bucketCount
-                    + "], and hash_set_size ["
-                    + hashSetSize
-                    + "] is ["
-                    + maxOutputTokens
-                    + "], which exceeds the maximum token count limit ["
-                    + maxTokenCount
-                    + "]. This limit can be set by changing the ["
-                    + IndexSettings.MAX_TOKEN_COUNT_SETTING.getKey()
-                    + "] index level setting."
-            );
+        // Only validate when the user explicitly configured parameters; eager instantiation with
+        // default settings (empty Settings) is skipped so that an unrelated low max_token_count
+        // on an index that doesn't use min_hash does not cause index creation to fail.
+        if (settings.hasValue("hash_count") || settings.hasValue("bucket_count") || settings.hasValue("hash_set_size")) {
+            long maxTokenCount = indexSettings.getMaxTokenCount();
+            long maxOutputTokens = (long) hashCount * bucketCount * hashSetSize;
+            if (maxOutputTokens > maxTokenCount) {
+                throw new IllegalArgumentException(
+                    "The product of hash_count ["
+                        + hashCount
+                        + "], bucket_count ["
+                        + bucketCount
+                        + "], and hash_set_size ["
+                        + hashSetSize
+                        + "] is ["
+                        + maxOutputTokens
+                        + "], which exceeds the maximum token count limit ["
+                        + maxTokenCount
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_TOKEN_COUNT_SETTING.getKey()
+                        + "] index level setting."
+                );
+            }
         }
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
     }

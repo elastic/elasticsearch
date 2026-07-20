@@ -610,9 +610,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testHollowShardFailsIfSearchShardRegistersNewerCommit
-  issue: https://github.com/elastic/elasticsearch/issues/153393
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
   method: testRetriesAndOperationsAreTrackedSeparately
   issue: https://github.com/elastic/elasticsearch/issues/146899

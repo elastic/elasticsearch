@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -665,6 +666,65 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                 || Objects.equals(primaryShard.allocationId(), allocationId) == false;
         });
         awaitDirectCancellationMetric(node, 1L);
+    }
+
+    /// Verifies that a recovery cancelled from the throttling queue (with `sendShardFailure=false`) is not
+    /// re-attempted, and therefore not cancelled a second time, when the next cluster state update arrives
+    /// while the shard is still initializing in the routing table.
+    public void testQueueCancelledRecoveryIsNotCancelledAgainOnNextClusterStateUpdate() throws Exception {
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        // Occupying the only recovery slot
+        final var blockerIndexName = randomIndexName();
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
+        prepareCreate(blockerIndexName).setSettings(indexSettings(1, 0).build()).execute();
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        // Queue next recovery
+        final var indexName = randomIndexName();
+        prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
+
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
+        final var allocationId = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
+
+        // Detect if a second cancellation (with sendShardFailure=true) fires a RecoveryCancelledException to master.
+        final var duplicateCancellation = new AtomicBoolean(false);
+        MockTransportService.getInstance(node)
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
+                if (request instanceof FailedShardEntry failedShard
+                    && failedShard.getShardId().equals(shardId)
+                    && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
+                    duplicateCancellation.set(true);
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        // Cancel the queued recovery.
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, false))
+        );
+        final var cancellationResponse = client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        assertThat("recovery should have been cancelled from the queue", cancellationResponse.cancelledInQueue(), hasSize(1));
+
+        try {
+            // Trigger another cluster state update while the shard failure is being processed.
+            disableAllocation();
+
+            awaitClusterState(state -> state.routingTable().shardRoutingTable(shardId).primaryShard().unassigned());
+            assertFalse("recovery was double-cancelled", duplicateCancellation.get());
+        } finally {
+            TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
+        }
+
+        ensureGreen(blockerIndexName);
     }
 
     private void disableAllocation() {

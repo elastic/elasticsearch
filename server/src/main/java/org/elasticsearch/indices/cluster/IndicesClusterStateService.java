@@ -1300,6 +1300,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
         if (sendShardFailure) {
             sendFailShard(shardRouting, primaryTerm, message, failure, state);
+        } else {
+            failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
         }
     }
 

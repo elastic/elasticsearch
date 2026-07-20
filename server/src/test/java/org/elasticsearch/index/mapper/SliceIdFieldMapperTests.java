@@ -16,7 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -89,7 +88,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
 
     public void testColumnarModeStoresCompoundIdInBinaryDocValues() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        assumeTrue("columnar _id requires the extended doc values feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
             .put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), true)

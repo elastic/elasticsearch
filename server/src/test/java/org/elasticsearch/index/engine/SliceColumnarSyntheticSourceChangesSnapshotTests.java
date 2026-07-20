@@ -10,9 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.junit.Before;
 
 /**
  * The slice + columnar {@code _id} scenarios from {@link SliceColumnarChangesSnapshotTests} run through
@@ -20,11 +18,6 @@ import org.junit.Before;
  * columnar read of the compound identity term (both live docs and delete tombstones) from binary doc values.
  */
 public class SliceColumnarSyntheticSourceChangesSnapshotTests extends SliceSyntheticSourceChangesSnapshotTests {
-
-    @Before
-    public void assumeColumnarEnabled() {
-        assumeTrue("columnar _id requires the extended doc values feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Settings indexSettings() {

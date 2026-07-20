@@ -33,9 +33,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public record InferenceString(DataType dataType, DataFormat dataFormat, String value, @Nullable String description)
+    implements
+        Writeable,
+        ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
+    );
+    public static final TransportVersion INFERENCE_STRING_DESCRIPTION_ADDED = TransportVersion.fromName(
+        "inference_string_description_added"
     );
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
@@ -48,15 +54,17 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
     public static final String VALUE_FIELD = "value";
+    public static final String DESCRIPTION_FIELD = "description";
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
+        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2], (String) args[3])
     );
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
         PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(DESCRIPTION_FIELD));
     }
 
     /**
@@ -78,18 +86,42 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     /**
-     * Constructs an {@link InferenceString} with the given value, {@link DataType} and {@link DataFormat}
+     * Constructs an {@link InferenceString} with the given value, {@link DataType} and {@link DataFormat}, and no description
      *
      * @param dataType   the type of data that the String represents
      * @param dataFormat the format of the data. If {@code null}, the default data format for the given type is used
      * @param value      the String value
      */
     public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value) {
+        this(dataType, dataFormat, value, null);
+    }
+
+    /**
+     * Constructs an {@link InferenceString} with the given value, {@link DataType}, {@link DataFormat} and description
+     *
+     * @param dataType    the type of data that the String represents
+     * @param dataFormat  the format of the data. If {@code null}, the default data format for the given type is used
+     * @param value       the String value
+     * @param description an optional human-readable description of the data. May only be set for non-text inputs
+     */
+    public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, @Nullable String description) {
         this.dataType = Objects.requireNonNull(dataType);
         this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
         validateDataURIFormat();
+        this.description = description;
+        validateDescription();
+    }
+
+    private void validateDescription() {
+        if (description != null && isText()) {
+            throw new IllegalArgumentException(Strings.format(
+                "Data type [%s] does not support [%s], descriptions may only be set for non-text inputs",
+                dataType,
+                DESCRIPTION_FIELD
+            ));
+        }
     }
 
     private void validateTypeAndFormat() {
@@ -120,7 +152,12 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     public InferenceString(StreamInput in) throws IOException {
-        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
+        this(
+            in.readEnum(DataType.class),
+            in.readEnum(DataFormat.class),
+            in.readString(),
+            in.getTransportVersion().supports(INFERENCE_STRING_DESCRIPTION_ADDED) ? in.readOptionalString() : null
+        );
     }
 
     public boolean isText() {
@@ -202,9 +239,19 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                 RestStatus.BAD_REQUEST
             );
         }
+        if (out.getTransportVersion().supports(INFERENCE_STRING_DESCRIPTION_ADDED) == false && description != null) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with a description to an older node. "
+                    + "Please wait until all nodes are upgraded before using descriptions",
+                RestStatus.BAD_REQUEST
+            );
+        }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
         out.writeString(value);
+        if (out.getTransportVersion().supports(INFERENCE_STRING_DESCRIPTION_ADDED)) {
+            out.writeOptionalString(description);
+        }
     }
 
     @Override
@@ -213,6 +260,9 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         builder.field(TYPE_FIELD, dataType);
         builder.field(FORMAT_FIELD, dataFormat);
         builder.field(VALUE_FIELD, value);
+        if (description != null) {
+            builder.field(DESCRIPTION_FIELD, description);
+        }
         builder.endObject();
         return builder;
     }

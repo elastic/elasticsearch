@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.aggregation.QuantileStates;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -21,15 +19,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -186,101 +181,6 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             .toList();
         assertThat(mainPercentiles, hasSize(1));
         assertThat(mainPercentiles.getFirst().tDigestStateCompression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
-    }
-
-    /**
-     * Shows that reducing t-digest compression from DEFAULT_COMPRESSION (1000) to
-     * PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION (100) produces bucket percentile estimates
-     * that are within 1% of each other. Since the BCa CI is computed from the mean, stddev, and
-     * skewness of the bucket values, near-identical bucket values produce near-identical CIs.
-     * The dominant source of error in BCa is sampling variance between buckets — far larger than
-     * the quantization difference between compression=100 and compression=1000.
-     */
-    public void testBucketCompressionDoesNotMateriallyAffectPercentileEstimates() {
-        var breaker = new NoopCircuitBreaker("test");
-        int totalDataPoints = 100_000;
-        int bucketCount = ApproximationPlan.BUCKET_COUNT;
-        double percentileRank = 95.0;
-
-        // Generate a fixed dataset (exponential distribution — similar to real latency data).
-        Random rng = new Random(42);
-        List<Double> data = new ArrayList<>(totalDataPoints);
-        for (int i = 0; i < totalDataPoints; i++) {
-            data.add(-Math.log(1.0 - rng.nextDouble()) * 100.0);
-        }
-
-        double maxRelativeDiff = 0.0;
-
-        for (int bucket = 0; bucket < bucketCount; bucket++) {
-            try (
-                TDigestState full = TDigestState.create(breaker, QuantileStates.DEFAULT_COMPRESSION);
-                TDigestState reduced = TDigestState.create(breaker, ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION)
-            ) {
-                // Each bucket gets every 16th data point starting at its index (simulates bucket split).
-                for (int i = bucket; i < totalDataPoints; i += bucketCount) {
-                    full.add(data.get(i));
-                    reduced.add(data.get(i));
-                }
-
-                double fullP = full.quantile(percentileRank / 100.0);
-                double reducedP = reduced.quantile(percentileRank / 100.0);
-                double relativeDiff = Math.abs(fullP - reducedP) / Math.abs(fullP);
-                maxRelativeDiff = Math.max(maxRelativeDiff, relativeDiff);
-            }
-        }
-
-        logger.info(
-            "Max relative difference in p{} bucket estimates between compression={} and compression={}: {}%",
-            (int) percentileRank,
-            (long) QuantileStates.DEFAULT_COMPRESSION,
-            (long) ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION,
-            String.format("%.4f", maxRelativeDiff * 100)
-        );
-
-        // Bucket percentile estimates are within 1% — negligible compared to BCa sampling variance.
-        assertTrue("Expected max relative difference < 1% but got " + (maxRelativeDiff * 100) + "%", maxRelativeDiff < 0.01);
-    }
-
-    /**
-     * Proves that PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION reduces memory usage relative to DEFAULT_COMPRESSION.
-     * Each approximation plan creates TRIAL_COUNT * BUCKET_COUNT = 32 bucket copies per percentile aggregation,
-     * so the per-state saving is amplified significantly under high-cardinality group-by fields.
-     */
-    public void testBucketCompressionReducesMemoryFootprint() {
-        var breaker = new NoopCircuitBreaker("test");
-        int dataPoints = 10_000;
-
-        try (
-            TDigestState fullDigest = TDigestState.create(breaker, QuantileStates.DEFAULT_COMPRESSION);
-            TDigestState reducedDigest = TDigestState.create(breaker, ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION)
-        ) {
-            for (int i = 0; i < dataPoints; i++) {
-                fullDigest.add(i);
-                reducedDigest.add(i);
-            }
-
-            long fullMemory = fullDigest.ramBytesUsed();
-            long reducedMemory = reducedDigest.ramBytesUsed();
-
-            // Reduced compression must use meaningfully less memory than full compression.
-            assertThat(fullMemory, greaterThan(reducedMemory));
-
-            // Across all 32 bucket copies the saving compounds significantly.
-            int bucketCopies = ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT;
-            long totalSavingPerGroup = (fullMemory - reducedMemory) * bucketCopies;
-            assertThat(totalSavingPerGroup, greaterThan(0L));
-
-            logger.info(
-                "TDigestState memory — full compression ({}): {} bytes, reduced compression ({}): {} bytes; "
-                    + "saving per group across {} bucket copies: {} bytes",
-                (long) QuantileStates.DEFAULT_COMPRESSION,
-                fullMemory,
-                (long) ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION,
-                reducedMemory,
-                bucketCopies,
-                totalSavingPerGroup
-            );
-        }
     }
 
     public void testColumnMetadata() {

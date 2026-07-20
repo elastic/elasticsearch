@@ -75,6 +75,16 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
+        // The inference rolling-upgrade BWC suites (e.g. OpenAiServiceUpgradeIT) are stateful and order-dependent:
+        // each parameterized case relies on the earlier `upgradedNodes=0` case having created the inference endpoint
+        // it later reads. Partial re-execution skips the setup case and the reads 404. Always run the whole task so
+        // the create/read/delete lifecycle stays intact on retry.
+        if (test.getPath().contains(":x-pack:plugin:inference:qa:rolling-upgrade:")) {
+            test.getLogger()
+                .lifecycle("Smart retry: running all tests for {} (stateful rolling-upgrade task, never skipped)", test.getPath());
+            return;
+        }
+
         if (testsBuildServiceProvider.get().wasTaskSuccessful(test.getPath())) {
             test.getLogger().lifecycle("Smart retry: skipping {} (succeeded in previous run)", test.getPath());
             test.onlyIf("Skipped by smart retry - succeeded in previous run", element -> false);

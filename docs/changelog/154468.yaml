@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154468
+summary: Allow opting out of `all_columns`
+type: enhancement

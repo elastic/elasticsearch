@@ -326,34 +326,41 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
 
     public final void testRefCounting() {
         B block = buildBlock(blockFactory(), mixedExpectedValues());
-        assertThat(breaker.getUsed(), greaterThan(0L));
-        assertTrue(block.hasReferences());
-        int extraReferences = randomIntBetween(1, 15);
-        for (int i = 0; i < extraReferences; i++) {
-            if (randomBoolean()) {
-                block.incRef();
-            } else {
-                assertTrue(block.tryIncRef());
+        try {
+            assertThat(breaker.getUsed(), greaterThan(0L));
+            assertTrue(block.hasReferences());
+            int extraReferences = randomIntBetween(1, 15);
+            for (int i = 0; i < extraReferences; i++) {
+                if (randomBoolean()) {
+                    block.incRef();
+                } else {
+                    assertTrue(block.tryIncRef());
+                }
             }
-        }
-        for (int i = 0; i < extraReferences; i++) {
+            for (int i = 0; i < extraReferences; i++) {
+                if (randomBoolean()) {
+                    block.close();
+                } else {
+                    assertFalse(block.decRef());
+                }
+                assertTrue(block.hasReferences());
+            }
             if (randomBoolean()) {
                 block.close();
             } else {
-                assertFalse(block.decRef());
+                assertTrue(block.decRef());
             }
-            assertTrue(block.hasReferences());
+            assertFalse(block.hasReferences());
+            assertFalse(block.tryIncRef());
+            expectThrows(IllegalStateException.class, block::close);
+            expectThrows(IllegalStateException.class, block::incRef);
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            // Drain leftover refs so @After checkBreaker doesn't mask the real failure.
+            while (block.hasReferences()) {
+                block.close();
+            }
         }
-        if (randomBoolean()) {
-            block.close();
-        } else {
-            assertTrue(block.decRef());
-        }
-        assertFalse(block.hasReferences());
-        assertFalse(block.tryIncRef());
-        expectThrows(IllegalStateException.class, block::close);
-        expectThrows(IllegalStateException.class, block::incRef);
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public final void testAttachReleasable() {
@@ -439,7 +446,10 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         V value = randomValue();
         int positions = randomIntBetween(1, 8192);
         try (B block = createConstantBlock(blockFactory(), value, positions)) {
-            assertSerializationAtSupportedVersions(block, repeat(value, positions), copy -> assertTrue(copy.asVector().isConstant()));
+            assertSerializationAtSupportedVersions(block, repeat(value, positions), copy -> {
+                assertThat(copy.asVector(), notNullValue());
+                assertTrue(copy.asVector().isConstant());
+            });
         }
     }
 
@@ -682,6 +692,13 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
 
     private void assertSlice(B block, List<List<V>> expected) {
         try (Block sliced = block.slice(0, block.getPositionCount())) {
+            // Full-range slice reuses the block; *VectorBlock wraps via asBlock() so only the vector is reused.
+            Vector vector = block.asVector();
+            if (vector != null) {
+                assertThat(sliced.asVector(), sameInstance(vector));
+            } else {
+                assertThat(sliced, sameInstance(block));
+            }
             assertValues(castBlock(sliced), expected);
         }
         assertTrue(block.hasReferences());

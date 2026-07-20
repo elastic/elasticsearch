@@ -3540,7 +3540,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     "prepareIndex failure warning",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
-                    "*failed to prepare index op*in batch during replay*"
+                    "failed to prepare index"
                 )
             );
             mockLog.addExpectation(

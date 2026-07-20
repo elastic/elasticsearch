@@ -309,6 +309,11 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         indicesCSSvc.handleRecoveryFailure(shardRouting, false, primaryTerm, new Exception("dummy"));
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        final var cacheEntry = indicesCSSvc.failedShardsCache.get(shardId);
+        assertNotNull("failedShardsCache should contain failed shard entry", cacheEntry);
+        assertTrue(cacheEntry.routing().isSameAllocation(shardRouting));
+        assertEquals(primaryTerm, cacheEntry.primaryTerm());
     }
 
     public ClusterState randomInitialClusterState(

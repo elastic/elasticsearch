@@ -1,4 +1,4 @@
-area: Compute Engine
+area: ES|QL
 issues: []
 pr: 154472
 summary: Remove PARALLEL_TOPN_FEATURE_FLAG; enable parallel TopN unconditionally

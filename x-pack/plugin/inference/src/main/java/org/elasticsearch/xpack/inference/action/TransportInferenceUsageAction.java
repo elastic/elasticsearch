@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.usage.ModelStats;
 import org.elasticsearch.xpack.core.inference.usage.SemanticTextStats;
-import org.elasticsearch.xpack.core.ml.stats.MlConfigSizeUsage;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
@@ -103,7 +102,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         Map<String, ModelStats> endpointStats = new TreeMap<>();
         addStatsByServiceAndTask(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
         addStatsForDefaultModels(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
-        return new InferenceFeatureSetUsage(endpointStats.values(), MlConfigSizeUsage.collectInferenceEndpointConfigSizes(endpoints));
+        return new InferenceFeatureSetUsage(endpointStats.values());
     }
 
     /**

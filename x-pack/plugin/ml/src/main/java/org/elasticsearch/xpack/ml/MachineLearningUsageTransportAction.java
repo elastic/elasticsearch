@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
@@ -519,14 +521,32 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                             addInferenceIngestUsage(getStatsResponse, inferenceUsage);
                             addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
                             addDeploymentStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                            l.onResponse(inferenceUsage);
+                            addInferenceEndpointConfigSizes(inferenceUsage, l);
                         })
                     );
                 })
             );
         } else {
-            listener.onResponse(Map.of());
+            addInferenceEndpointConfigSizes(new LinkedHashMap<>(), listener);
         }
+    }
+
+    private void addInferenceEndpointConfigSizes(Map<String, Object> inferenceUsage, ActionListener<Map<String, Object>> listener) {
+        client.execute(
+            GetInferenceModelAction.INSTANCE,
+            new GetInferenceModelAction.Request("_all", TaskType.ANY, false),
+            ActionListener.wrap(response -> {
+                MlConfigSizeUsage.putAuxiliaryConfigSizes(
+                    inferenceUsage,
+                    "inference_endpoints",
+                    MlConfigSizeUsage.collectInferenceEndpointConfigSizes(response.getEndpoints())
+                );
+                listener.onResponse(inferenceUsage);
+            }, e -> {
+                logger.warn("Failed to get inference endpoints to include in ML usage", e);
+                listener.onResponse(inferenceUsage);
+            })
+        );
     }
 
     private static void addDeploymentStats(

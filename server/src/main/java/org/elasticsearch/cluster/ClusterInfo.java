@@ -271,7 +271,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<NodeAndPath, ReservedSpace> reservedSpace,
         Map<String, EstimatedHeapUsage> estimatedHeapUsages,
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
-        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments
     ) {
         return new ClusterInfo(
             leastAvailableSpaceUsage,

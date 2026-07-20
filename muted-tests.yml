@@ -2,12 +2,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
-  issue: https://github.com/elastic/elasticsearch/issues/118208
-- class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test51AutoConfigurationWithPasswordProtectedKeystore
-  issue: https://github.com/elastic/elasticsearch/issues/118212
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -400,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
-  method: testStartFailedTransform
-  issue: https://github.com/elastic/elasticsearch/issues/153065
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
@@ -493,9 +484,6 @@ tests:
 - class: org.elasticsearch.geometry.utils.CircleUtilsTests
   method: testCreateRegularGeoShapePolygon
   issue: https://github.com/elastic/elasticsearch/issues/153600
-- class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
-  method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
-  issue: https://github.com/elastic/elasticsearch/issues/153109
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153613
@@ -637,9 +625,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
-- class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
-  method: testControllerSpawnGatedBySettings
-  issue: https://github.com/elastic/elasticsearch/issues/154291
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
@@ -661,3 +646,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
   issue: https://github.com/elastic/elasticsearch/issues/154380
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/154395
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  issue: https://github.com/elastic/elasticsearch/issues/154350

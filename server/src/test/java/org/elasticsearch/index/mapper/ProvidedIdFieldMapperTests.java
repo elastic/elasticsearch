@@ -19,9 +19,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,6 +75,19 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         ft.fielddataBuilder(FieldDataContext.noRuntimeFields(idFieldDataEnabled, "index", "test")).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable(idFieldDataEnabled));
+    }
+
+    // Regular sorting on _id is supported, but bucketed sorting (e.g. top_metrics) is not and must be a 400, not a 500.
+    public void testBucketedSortOnIdThrowsIllegalArgument() {
+        var fieldData = ProvidedIdFieldMapper.COLUMNAR_ID.fieldType()
+            .fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
+            .build(null, null);
+        assertNotNull(fieldData.sortField(null, MultiValueMode.MIN, null, false));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldData.newBucketedSort(null, null, MultiValueMode.MIN, null, SortOrder.ASC, DocValueFormat.RAW, 1, null)
+        );
+        assertThat(e.getMessage(), containsString("_id"));
     }
 
     public void testFetchIdFieldValue() throws IOException {

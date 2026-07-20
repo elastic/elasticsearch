@@ -22,6 +22,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Dictionary dictionary;
     private final boolean dedup;
     private final boolean longestOnly;
+    private final Object sharingKey;
 
     public HunspellTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, HunspellService hunspellService) {
         super(name);
@@ -38,6 +39,9 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
         dedup = settings.getAsBoolean("dedup", true);
         longestOnly = settings.getAsBoolean("longest_only", false);
+        // The dictionary is loaded once per locale by {@link HunspellService} and reused across
+        // factories — identity-equality on the {@link Dictionary} reference is sufficient.
+        this.sharingKey = new Key(dictionary, dedup, longestOnly);
     }
 
     @Override
@@ -53,4 +57,10 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         return longestOnly;
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Dictionary dictionary, boolean dedup, boolean longestOnly) {}
 }

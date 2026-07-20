@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 /// Transport action for batch cancellation of recoveries on a data node.
 /// Note that cancellation is best-effort. Recoveries may complete before the cancellation goes through or the request
@@ -87,16 +88,19 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
-        final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
+        final Set<String> allocationIdsCancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
 
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
-            if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
+            if (allocationIdsCancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
+        final Set<CancelRecoveriesAction.CancelledInQueue> cancelledInQueue = allocationIdsCancelledInQueue.stream()
+            .map(allocationId -> new CancelRecoveriesAction.CancelledInQueue(toCancel.get(allocationId), allocationId))
+            .collect(Collectors.toSet());
         listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
     }
 
@@ -149,8 +153,8 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
         try {
             switch (recoveryType) {
-                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation();
-                case PEER, RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
+                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE, PEER -> indexShard.requestRecoveryCancellation();
+                case RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
                     shardId,
                     recoveryType + " recoveries do not currently support direct cancellation of started recoveries"
                 );

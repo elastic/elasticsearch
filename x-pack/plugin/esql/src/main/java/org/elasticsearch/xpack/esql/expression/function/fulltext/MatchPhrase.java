@@ -246,7 +246,6 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
-    /** Builds a lexical query for {@code fieldName}, including the function options. */
     public QueryBuilder asLexicalQueryBuilder(String fieldName) {
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions()).toQueryBuilder();
     }

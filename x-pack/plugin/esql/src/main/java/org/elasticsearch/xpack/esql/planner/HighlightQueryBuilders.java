@@ -148,8 +148,7 @@ public final class HighlightQueryBuilders {
 
     /**
      * Returns a MATCH or MATCH_PHRASE with a lexical query builder for its ON column. The normal index rewrite may
-     * produce an inference query or use a mapped field name that differs from the ON column. Storing the lexical
-     * builder also preserves function options across plan serialization.
+     * produce an inference query or use a mapped field name that differs from the ON column.
      */
     public static Expression resolveLexicalQueryBuilder(Expression expr) {
         return switch (expr) {
@@ -162,9 +161,9 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * The lexical query builder for a MATCH or MATCH_PHRASE: the one already resolved on the coordinator, or a fresh
-     * builder keyed by the ON column. Single source of truth shared by {@link #resolveLexicalQueryBuilder} and
-     * {@link #build}, so the two paths cannot drift apart on field name or options.
+     * Builds a lexical query builder for a MATCH or MATCH_PHRASE expression.
+     * @param expr The MATCH or MATCH_PHRASE expression.
+     * @return The lexical query builder.
      */
     private static QueryBuilder lexicalQueryBuilder(Expression expr) {
         return switch (expr) {
@@ -176,7 +175,6 @@ public final class HighlightQueryBuilders {
         };
     }
 
-    /** Builds a query against HIGHLIGHT's per-row index. */
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
@@ -190,7 +188,6 @@ public final class HighlightQueryBuilders {
         };
     }
 
-    /** Translates an expression using the standard pushdown path. */
     private static QueryBuilder pushdownQueryBuilder(Expression expr) {
         return TranslatorHandler.TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, expr).toQueryBuilder();
     }

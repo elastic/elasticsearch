@@ -99,7 +99,6 @@ public final class QueryBuilderResolver {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformDown(logicalPlan -> {
-                // HIGHLIGHT evaluates MATCH and MATCH_PHRASE against its ON columns, not the index mappings.
                 boolean isHighlight = logicalPlan instanceof Highlight;
                 return logicalPlan.transformExpressionsOnly(Expression.class, expr -> {
                     if (isHighlight && (expr instanceof Match || expr instanceof MatchPhrase)) {

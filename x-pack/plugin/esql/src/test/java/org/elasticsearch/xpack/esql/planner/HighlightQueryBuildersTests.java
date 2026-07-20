@@ -289,7 +289,6 @@ public class HighlightQueryBuildersTests extends ESTestCase {
     }
 
     public void testResolvedLexicalBuilderKeysOffOnColumnForUnionTypedField() {
-        // The per-row index is keyed by the ON column, so we must query "title" and not the union field's underlying name.
         EsField unionField = new MultiTypeEsField("title.converted", KEYWORD, false, Map.of(), EsField.TimeSeriesFieldType.NONE, null);
         Match match = new Match(EMPTY, new FieldAttribute(EMPTY, "title", unionField), of("fox"), null);
         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match);

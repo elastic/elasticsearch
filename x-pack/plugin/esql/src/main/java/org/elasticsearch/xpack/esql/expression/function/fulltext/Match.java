@@ -16,7 +16,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -63,7 +62,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -501,7 +499,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new MatchBytesRefEvaluator.Factory(
+            case BYTES_REF -> new RuntimeSearchBytesRefEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field()),
                 (BytesRef) queryValue,
@@ -570,20 +568,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             case INT -> queryString != null ? EsqlDataTypeConverter.stringToInt(queryString) : ((Number) queryValue).intValue();
             default -> throw EsqlIllegalArgumentException.illegalDataType(fieldType);
         };
-    }
-
-    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
-    static boolean processBytesRef(
-        @Position int position,
-        BytesRefBlock fieldBlock,
-        @Fixed BytesRef queryStringBytesRef,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
-    ) {
-        if (fieldBlock == null) {
-            return false;
-        }
-
-        return fieldBlock.hasValue(position, queryStringBytesRef, scratch);
     }
 
     @Evaluator(extraName = "Boolean", allNullsIsNull = false)

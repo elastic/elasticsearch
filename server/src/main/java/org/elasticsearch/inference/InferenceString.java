@@ -31,9 +31,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
+ * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64.
+ * <p>
+ * An instance always carries at least one of {@code value} or {@code description}. {@code value} may only be {@code null} when a
+ * {@code description} is present, in which case the description stands in for the (unretained) data. Descriptions may only be set for
+ * non-text inputs, so text inputs always have a non-null {@code value}.
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value, @Nullable String description)
+public record InferenceString(DataType dataType, DataFormat dataFormat, @Nullable String value, @Nullable String description)
     implements
         Writeable,
         ToXContentObject {
@@ -63,7 +67,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
-        PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(VALUE_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(DESCRIPTION_FIELD));
     }
 
@@ -101,27 +105,30 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      *
      * @param dataType    the type of data that the String represents
      * @param dataFormat  the format of the data. If {@code null}, the default data format for the given type is used
-     * @param value       the String value
+     * @param value       the String value. May only be {@code null} when a {@code description} is present
      * @param description an optional human-readable description of the data. May only be set for non-text inputs
      */
-    public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, @Nullable String description) {
+    public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, @Nullable String value, @Nullable String description) {
         this.dataType = Objects.requireNonNull(dataType);
         this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
-        this.value = Objects.requireNonNull(value);
+        this.value = value;
         validateDataURIFormat();
         this.description = description;
         validateDescription();
+        validateValueAndDescription();
+    }
+
+    private void validateValueAndDescription() {
+        if (value == null && description == null) {
+            throw new IllegalArgumentException("An InferenceString must have a value or a description");
+        }
     }
 
     private void validateDescription() {
         if (description != null && isText()) {
             throw new IllegalArgumentException(
-                Strings.format(
-                    "Data type [%s] does not support [%s], descriptions may only be set for non-text inputs",
-                    dataType,
-                    DESCRIPTION_FIELD
-                )
+                Strings.format("Data type [%s] does not support a description, descriptions may only be set for non-text inputs", dataType)
             );
         }
     }
@@ -140,7 +147,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     private void validateDataURIFormat() {
-        if (dataFormat == DataFormat.BASE64) {
+        if (dataFormat == DataFormat.BASE64 && value != null) {
             var endOfURIPart = value.indexOf(',');
             // Fast-fail on missing or oversized URI part before the regex.
             if (endOfURIPart < 0
@@ -157,7 +164,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         this(
             in.readEnum(DataType.class),
             in.readEnum(DataFormat.class),
-            in.readString(),
+            in.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) ? in.readOptionalString() : in.readString(),
             in.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) ? in.readOptionalString() : null
         );
     }
@@ -250,9 +257,14 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
-        out.writeString(value);
         if (out.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY)) {
+            out.writeOptionalString(value);
             out.writeOptionalString(description);
+        } else {
+            // A null value is only possible when a description is present, and the description guard above already threw in that case, so
+            // value is guaranteed non-null on this path.
+            assert value != null : "value must be non-null when serializing without description support";
+            out.writeString(value);
         }
     }
 
@@ -261,7 +273,9 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         builder.startObject();
         builder.field(TYPE_FIELD, dataType);
         builder.field(FORMAT_FIELD, dataFormat);
-        builder.field(VALUE_FIELD, value);
+        if (value != null) {
+            builder.field(VALUE_FIELD, value);
+        }
         if (description != null) {
             builder.field(DESCRIPTION_FIELD, description);
         }

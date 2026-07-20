@@ -276,7 +276,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         }
     }
 
-    public void testParserWithNoValue_throwsException() throws IOException {
+    public void testParserWithNoValueAndNoDescription_throwsException() throws IOException {
         var requestJson = """
             {
                 "type": "text"
@@ -287,8 +287,46 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                 IllegalArgumentException.class,
                 () -> InferenceString.PARSER.apply(parser, null)
             );
-            assertThat(exception.getMessage(), is("Required [value]"));
+            assertThat(exception.getCause().getMessage(), is("An InferenceString must have a value or a description"));
         }
+    }
+
+    public void testParserWithDescriptionAndNoValue_succeeds() throws IOException {
+        var description = randomAlphanumericOfLength(10);
+        var requestJson = Strings.format("""
+            {
+                "type": "image",
+                "format": "base64",
+                "description": "%s"
+            }
+            """, description);
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = InferenceString.PARSER.apply(parser, null);
+            assertThat(request.dataType(), is(DataType.IMAGE));
+            assertThat(request.value(), is((String) null));
+            assertThat(request.description(), is(description));
+        }
+    }
+
+    public void testConstructorWithDescriptionAndNoValue_succeeds() {
+        var description = randomAlphanumericOfLength(10);
+        var inferenceString = new InferenceString(randomDataTypeSupportingBase64(), DataFormat.BASE64, null, description);
+        assertThat(inferenceString.value(), is((String) null));
+        assertThat(inferenceString.description(), is(description));
+    }
+
+    public void testConstructorWithNoValueAndNoDescription_throws() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(randomDataTypeSupportingBase64(), DataFormat.BASE64, null, null)
+        );
+        assertThat(exception.getMessage(), is("An InferenceString must have a value or a description"));
+    }
+
+    public void testConstructorWithNoValueOnTextInput_throws() {
+        // Text inputs cannot carry a description, so a null value leaves nothing set and is rejected
+        var exception = assertThrows(IllegalArgumentException.class, () -> new InferenceString(DataType.TEXT, DataFormat.TEXT, null, null));
+        assertThat(exception.getMessage(), is("An InferenceString must have a value or a description"));
     }
 
     public void testParserWithUnknownField_throwsException() throws IOException {
@@ -470,6 +508,24 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         }
     }
 
+    public void testValueOptionalWireRoundTrip() throws IOException {
+        for (int i = 0; i < 20; i++) {
+            TransportVersion version = TransportVersionUtils.randomVersionSupporting(INFERENCE_FIELD_METADATA_RETAIN_BINARY);
+            var description = randomAlphanumericOfLength(10);
+            // Description-only instance: value is null, so the description stands in for the (unretained) data
+            var instance = new InferenceString(randomDataTypeSupportingBase64(), DataFormat.BASE64, null, description);
+            var deserialized = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
+            assertThat(deserialized, is(instance));
+            assertThat(deserialized.value(), is((String) null));
+            assertThat(deserialized.description(), is(description));
+        }
+    }
+
+    public void testToXContentWithoutValue_omitsField() {
+        var inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, null, randomAlphanumericOfLength(10));
+        assertThat(inferenceStringToMap(inferenceString).containsKey(VALUE_FIELD), is(false));
+    }
+
     public void testDescriptionIsNotBackwardsCompatible() {
         var instance = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI, randomAlphanumericOfLength(10));
         var statusException = expectThrows(
@@ -582,7 +638,9 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         var requestMap = new HashMap<String, Object>();
         requestMap.put(TYPE_FIELD, input.dataType().toString());
         requestMap.put(FORMAT_FIELD, input.dataFormat().toString());
-        requestMap.put(VALUE_FIELD, input.value());
+        if (input.value() != null) {
+            requestMap.put(VALUE_FIELD, input.value());
+        }
         if (input.description() != null) {
             requestMap.put(DESCRIPTION_FIELD, input.description());
         }

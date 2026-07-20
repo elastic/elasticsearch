@@ -715,12 +715,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final Index index = entry.getKey();
 
             AllocatedIndex<? extends Shard> indexService = null;
-            final var project = state.metadata().lookupProject(index);
-            assert project.isEmpty() == false;
-            final IndexMetadata indexMetadata = project.get().index(index);
-            assert indexMetadata != null : "null index metadata but non-null new shard routings " + entry.getValue();
+            final var project = state.metadata().lookupProject(index).orElse(null);
+            assert project != null : "null index project but non-null shard routings " + entry.getValue();
+            final IndexMetadata indexMetadata = state.metadata().findIndex(index).orElse(null);
+            assert indexMetadata != null : "null index metadata but non-null shard routings " + entry.getValue();
             try {
-                logger.debug("creating index [{}] in project [{}]", index, project.get().id());
+                logger.debug("creating index [{}] in project [{}]", index, project.id());
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
                 indexService.updateMapping(null, indexMetadata);
             } catch (Exception e) {
@@ -816,26 +816,30 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
         final var shardId = shardRouting.shardId();
         final DiscoveryNode sourceNode;
-        final ProjectMetadata project = state.metadata().projectFor(shardRouting.index());
-        if (shardRouting.recoverySource().getType() == Type.PEER) {
-            sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
-            if (sourceNode == null) {
-                logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
-                return;
-            }
-        } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
-            ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
-            sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
-            if (sourceNode == null) {
-                logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
-                return;
-            }
-        } else {
-            sourceNode = null;
-        }
-        final var primaryTerm = project.index(shardRouting.index()).primaryTerm(shardRouting.id());
+        final ProjectMetadata project = state.metadata().lookupProject(shardRouting.index()).orElse(null);
+        assert project != null : "null index project but non-null shard routing " + shardRouting;
+        final IndexMetadata indexMetadata = project.index(shardId.getIndex());
+        assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
+        final var primaryTerm = indexMetadata.primaryTerm(shardRouting.id());
 
         try {
+            if (shardRouting.recoverySource().getType() == Type.PEER) {
+                sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
+                if (sourceNode == null) {
+                    logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
+                    return;
+                }
+            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
+                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
+                if (sourceNode == null) {
+                    logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
+                    return;
+                }
+            } else {
+                sourceNode = null;
+            }
+
             final var pendingShardCreation = createOrRefreshPendingShardCreation(shardId, state.stateUUID());
             createShardWhenLockAvailable(
                 shardRouting,
@@ -1042,13 +1046,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 + " local: "
                 + currentRoutingEntry;
 
-        final var project = clusterState.metadata().lookupProject(shard.shardId().getIndex());
-        assert project.isEmpty() == false;
-        final IndexMetadata indexMetadata = project.get().index(shard.shardId().getIndex());
-        assert indexMetadata != null;
+        final ProjectMetadata project = clusterState.metadata().lookupProject(shard.shardId().getIndex()).orElse(null);
+        assert project != null : "null index project but non-null shard routing " + shardRouting;
+        final IndexMetadata indexMetadata = project.index(shard.shardId().getIndex());
+        assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
         final long primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
         final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
-        final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(project.get().id())
+        final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(project.id())
             .shardRoutingTable(shardRouting.shardId());
         try {
             shard.updateShardState(
@@ -1308,6 +1312,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         final ShardId shardId = shardRouting.shardId();
         try {
+            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {

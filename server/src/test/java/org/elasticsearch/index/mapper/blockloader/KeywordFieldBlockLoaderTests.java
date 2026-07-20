@@ -54,6 +54,11 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();
         if (hasDocValues && useDocValues) {
+            // multi_value=false: only the first array element is indexed in doc values.
+            if (supportsMultiValue(fieldMapping) == false) {
+                var list = (List<String>) value;
+                return list.isEmpty() ? null : convert(list.getFirst(), nullValue, ignoreAbove);
+            }
             // Columnar index modes preserve arrival order via offsets
             boolean preserveOrder = params.indexMode().isColumnar();
             var resultList = preserveOrder

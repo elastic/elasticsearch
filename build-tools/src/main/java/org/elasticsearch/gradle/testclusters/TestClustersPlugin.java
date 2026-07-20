@@ -280,9 +280,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                             awareTask.beforeStart();
                             boolean configureInitialMasterNodes = configureInitialMasterNodes(awareTask);
                             awareTask.getClusters()
-                                .forEach(
-                                    cluster -> awareTask.getRegistry().get().maybeStartCluster(cluster, configureInitialMasterNodes)
-                                );
+                                .forEach(cluster -> awareTask.getRegistry().get().maybeStartCluster(cluster, configureInitialMasterNodes));
                         });
                         awareTask.doLast("Stop clusters and check for resource leaks", task -> {
                             TestClustersRegistry registry = awareTask.getRegistry().get();

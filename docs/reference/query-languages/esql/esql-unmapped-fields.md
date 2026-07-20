@@ -72,7 +72,7 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 ### Scope of loaded fields [esql-unmapped-fields-scope]
 
-`LOAD` does not dump every field from `_source`. It loads:
+`LOAD` does not actually load every field from `_source`. It loads:
 
 - **Partially mapped fields**: if a field is mapped in some queried indices but not others, {{esql}} loads it from `_source` in the indices where it is unmapped. For example, in `FROM idx1, idx2`, a field mapped only in `idx1` is loaded from `idx2` even when the rest of the query never mentions that field.
 - **Fully unmapped fields**: fields that are not mapped in any queried index are loaded only when the query references them.
@@ -83,7 +83,7 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 - [`PROMQL`](commands/promql.md) is not supported with `LOAD`.
 - Referencing subfields of [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) parents is not supported.
-- Partially mapped fields whose type has no implicit conversion from `keyword` (for example `text` or `aggregate_metric_double`) keep their mapped type but are not loaded from `_source`. {applies_to}`stack: ga 9.5+`
+- Partially mapped fields whose type has no implicit conversion from `keyword` (for example `text` or `aggregate_metric_double`) keep their mapped type but are not loaded from `_source` (i.e., they're set as `null` where unmapped). Using explicit cast, e.g., `to_text` allows loading from `_source`. {applies_to}`stack: ga 9.5+`
 
 For the full list of restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 

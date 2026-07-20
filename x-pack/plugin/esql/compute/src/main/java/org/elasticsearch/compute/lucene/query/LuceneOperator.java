@@ -26,10 +26,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -39,6 +44,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +69,13 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected final IndexedByShardId<? extends RefCounted> refCounteds;
     protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+    private final QueryWarnings singleValueQueryWarnings;
+
+    /**
+     * {@link Warnings} for each {@link Query} that needs one. These exist per {@link Driver}.
+     */
+    private final IdentityHashMap<Query, Warnings> queryWarnings = new IdentityHashMap<>();
 
     /**
      * Count of the number of slices processed.
@@ -116,17 +129,20 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
         this.directoryBytesRead = directoryBytesRead;
         this.refCounteds = refCounteds;
         refCounteds.iterable().forEach(RefCounted::mustIncRef);
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
         this.shardRowsEmitted = new long[shardProcessNanos.length];
@@ -139,6 +155,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
         protected final LongSupplier directoryBytesRead;
+        protected final QueryWarnings singleValueQueryWarnings;
 
         /**
          * Build the factory.
@@ -156,7 +173,8 @@ public abstract class LuceneOperator extends SourceOperator {
             boolean needsScore,
             Function<ShardContext, ScoreMode> scoreModeFunction,
             LongSupplier directoryBytesRead,
-            int minDocsPerSlice
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings
         ) {
             this(
                 contextsByShardId,
@@ -170,7 +188,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 scoreModeFunction,
                 directoryBytesRead,
                 minDocsPerSlice,
-                LuceneSliceQueue.LeafSplitGuard.NEVER
+                LuceneSliceQueue.LeafSplitGuard.NEVER,
+                singleValueQueryWarnings
             );
         }
 
@@ -186,9 +205,11 @@ public abstract class LuceneOperator extends SourceOperator {
             Function<ShardContext, ScoreMode> scoreModeFunction,
             LongSupplier directoryBytesRead,
             int minDocsPerSlice,
-            LuceneSliceQueue.LeafSplitGuard leafSplitGuard
+            LuceneSliceQueue.LeafSplitGuard leafSplitGuard,
+            QueryWarnings singleValueQueryWarnings
         ) {
             this.directoryBytesRead = directoryBytesRead;
+            this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -218,16 +239,18 @@ public abstract class LuceneOperator extends SourceOperator {
     @Override
     public final Page getOutput() {
         long bytesSnapshot = directoryBytesRead.getAsLong();
-        try {
-            Page page = getCheckedOutput();
-            if (page != null) {
-                pagesEmitted++;
-                rowsEmitted += page.getPositionCount();
+        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarnings)) {
+            try {
+                Page page = getCheckedOutput();
+                if (page != null) {
+                    pagesEmitted++;
+                    rowsEmitted += page.getPositionCount();
+                }
+                stopShardClock(System.nanoTime());
+                return page;
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
             }
-            stopShardClock(System.nanoTime());
-            return page;
-        } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
         } finally {
             recordBytesRead(bytesSnapshot);
         }
@@ -304,6 +327,15 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected LuceneSliceQueue getSliceQueue() {
         return sliceQueue;
+    }
+
+    /**
+     * Visible for testing only: the per-driver query warnings map, so tests can assert that two
+     * {@link LuceneOperator}s scanning the same shared query node end up with distinct
+     * {@link Warnings} instances for it.
+     */
+    Map<Query, Warnings> singleValueQueryWarnings() {
+        return queryWarnings;
     }
 
     @Override

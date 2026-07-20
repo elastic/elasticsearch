@@ -41,7 +41,7 @@ public class ClusterInfoSimulator {
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     // Maps node id to heap usage.
-    private final Map<String, NodeHeapMetrics> estimatedHeapUsages;
+    private final Map<String, NodeHeapMetrics> nodeHeapMetrics;
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
@@ -51,7 +51,7 @@ public class ClusterInfoSimulator {
         this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
-        this.estimatedHeapUsages = new HashMap<>(allocation.clusterInfo().getNodeHeapMetrics());
+        this.nodeHeapMetrics = new HashMap<>(allocation.clusterInfo().getNodeHeapMetrics());
         this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
         this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
@@ -138,26 +138,26 @@ public class ClusterInfoSimulator {
     }
 
     public void simulateAddIndexToNode(String nodeId, Index index) {
-        var nodeHeap = estimatedHeapUsages.get(nodeId);
+        var nodeHeap = nodeHeapMetrics.get(nodeId);
         // Use any shard ID since index stats are the same.
         if (nodeHeap != null) {
             var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
                 new ShardId(index, 0),
                 defaultShardHeapUsageForShardsWithoutMetrics
             );
-            estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes(), 0));
+            nodeHeapMetrics.put(nodeId, nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes(), 0));
         }
     }
 
     public void simulateRemoveIndexFromNode(String nodeId, Index index) {
-        var nodeHeap = estimatedHeapUsages.get(nodeId);
+        var nodeHeap = nodeHeapMetrics.get(nodeId);
         // Use any shard ID since index stats are the same.
         if (nodeHeap != null) {
             var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
                 new ShardId(index, 0),
                 defaultShardHeapUsageForShardsWithoutMetrics
             );
-            estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes(), 0));
+            nodeHeapMetrics.put(nodeId, nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes(), 0));
         }
     }
 
@@ -185,7 +185,7 @@ public class ClusterInfoSimulator {
     }
 
     private void modifyHeapUsage(RoutingNode routingNode, ShardId shardId, Modification modification, boolean includeIndexUsage) {
-        var nodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
+        var nodeHeap = nodeHeapMetrics.get(routingNode.nodeId());
         if (nodeHeap == null) {
             return;
         }
@@ -201,7 +201,7 @@ public class ClusterInfoSimulator {
                     // shard for the index, and the index-level heap usage overhead must be added.
                     indexUsageDelta = shardAndIndexHeap.indexHeapUsageBytes();
                 }
-                estimatedHeapUsages.put(
+                nodeHeapMetrics.put(
                     routingNode.nodeId(),
                     nodeHeap.updateEstimatedUsage(indexUsageDelta, shardAndIndexHeap.shardHeapUsageBytes())
                 );
@@ -214,7 +214,7 @@ public class ClusterInfoSimulator {
                     // usage overhead must be subtracted, since the node will no longer have the index.
                     indexUsageDelta = -1 * shardAndIndexHeap.indexHeapUsageBytes();
                 }
-                estimatedHeapUsages.put(
+                nodeHeapMetrics.put(
                     routingNode.nodeId(),
                     nodeHeap.updateEstimatedUsage(indexUsageDelta, -1 * shardAndIndexHeap.shardHeapUsageBytes())
                 );
@@ -224,8 +224,8 @@ public class ClusterInfoSimulator {
     }
 
     // Visible for testing
-    public Map<String, NodeHeapMetrics> getEstimatedHeapUsages() {
-        return estimatedHeapUsages;
+    public Map<String, NodeHeapMetrics> getNodeHeapMetrics() {
+        return nodeHeapMetrics;
     }
 
     /**
@@ -298,7 +298,7 @@ public class ClusterInfoSimulator {
                 mostAvailableSpaceUsage,
                 shardSizes.toImmutableMap(),
                 Map.of(),
-                estimatedHeapUsages,
+                nodeHeapMetrics,
                 estimatedShardHeapUsages,
                 shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools()
             );

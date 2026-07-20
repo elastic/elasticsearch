@@ -278,10 +278,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testHeapUsageEstimateIsPresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
-        Map<String, NodeHeapMetrics> estimatedHeapUsages = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
-        assertNotNull(estimatedHeapUsages);
+        Map<String, NodeHeapMetrics> nodeHeapMetrics = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
+        assertNotNull(nodeHeapMetrics);
         // Not collecting yet because it is disabled
-        assertTrue(estimatedHeapUsages.isEmpty());
+        assertTrue(nodeHeapMetrics.isEmpty());
 
         // Enable collection for estimated heap usages
         updateClusterSettings(
@@ -292,12 +292,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         try {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            estimatedHeapUsages = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
-            assertEquals(state.nodes().size(), estimatedHeapUsages.size());
+            nodeHeapMetrics = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
+            assertEquals(state.nodes().size(), nodeHeapMetrics.size());
             for (DiscoveryNode node : state.nodes()) {
-                assertTrue(estimatedHeapUsages.containsKey(node.getId()));
-                NodeHeapMetrics nodeHeapMetrics = estimatedHeapUsages.get(node.getId());
-                assertThat(nodeHeapMetrics.estimatedFreeBytes(), lessThanOrEqualTo(nodeHeapMetrics.totalBytes()));
+                assertTrue(nodeHeapMetrics.containsKey(node.getId()));
+                NodeHeapMetrics currentNodeMetrics = nodeHeapMetrics.get(node.getId());
+                assertThat(currentNodeMetrics.estimatedFreeBytes(), lessThanOrEqualTo(currentNodeMetrics.totalBytes()));
             }
         } finally {
             updateClusterSettings(

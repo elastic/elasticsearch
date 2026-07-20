@@ -1,5 +1,5 @@
 ---
-navigation_title: "Combine result sets with subqueries in FROM command"
+navigation_title: "Combine result sets with subqueries in a FROM command"
 applies_to:
   serverless: ga
   stack: preview 9.4, ga 9.5+
@@ -8,7 +8,7 @@ products:
 ---
 
 # {{esql}} subquery [esql-subquery]
-# Combine result sets with {{esql}} subqueries in FROM command [esql-subquery]
+# Combine result sets with {{esql}} subqueries in a FROM command [esql-subquery]
 
 A subquery is a complete ES|QL query wrapped in parentheses that can be used
 in place of an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command.

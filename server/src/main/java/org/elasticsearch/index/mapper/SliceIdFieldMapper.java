@@ -66,7 +66,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
 
         /**
          * The stored {@code _id} is the compound {@code id#slice} term; strip the slice so that generic stored-field
-         * readers (such as the {@code _fields} lookup) only ever expose the user-visible id.
+         * readers expose the user-visible id.
          */
         @Override
         public String decodeStoredId(byte[] value) {
@@ -112,9 +112,8 @@ public class SliceIdFieldMapper extends IdFieldMapper {
             throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
         }
         final String id = context.id();
-        // The compound term (== Engine.Operation.uid()) scopes uniqueness/versioning/GET/delete; the slice-free search
-        // term drives ids/term search. The compound is added first because nested children copy the root's first _id
-        // field, and they must carry the uid for the engine's soft-delete to remove them along with their root.
+        // The compound is added first: nested children copy the root's first _id field and must carry the uid so that a
+        // soft-delete removes them along with their root.
         final BytesRef compound = encodeCompoundId(id, slice);
         context.doc().add(new StringField(NAME, compound, Field.Store.NO));
         context.doc().add(new StringField(NAME, searchTerm(id), Field.Store.NO));
@@ -130,9 +129,8 @@ public class SliceIdFieldMapper extends IdFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         if (columnar) {
-            // Nested child documents are in the same Lucene updateDocuments batch as the root document, and Lucene
-            // requires a consistent field schema across the batch, so children must carry the _id doc values too.
-            // They share the root's compound id: a nested document has no identity of its own.
+            // Nested children are in the same Lucene updateDocuments batch as the root, which requires a consistent
+            // field schema, so they carry the root's compound id in doc values too.
             var iterator = context.nonRootDocuments().iterator();
             if (iterator.hasNext()) {
                 final BytesRef compound = encodeCompoundId(context.id(), context.sourceToParse().routing());

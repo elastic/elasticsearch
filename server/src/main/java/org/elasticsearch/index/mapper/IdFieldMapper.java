@@ -154,9 +154,8 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Decode the raw stored {@code _id} bytes into the user-visible id, dispatching on the field type. For callers that
-     * hold a {@link MappedFieldType} but no {@link org.elasticsearch.index.IndexSettings}, this is the only way to know
-     * how the stored bytes are encoded.
+     * Decode the raw stored {@code _id} bytes into the user-visible id, dispatching on the field type so that callers
+     * holding only a {@link MappedFieldType} still decode with the right encoding.
      */
     public static String decodeStoredId(MappedFieldType fieldType, byte[] value) {
         return fieldType instanceof AbstractIdFieldType idFieldType ? idFieldType.decodeStoredId(value) : Uid.decodeId(value);

@@ -89,9 +89,8 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     /**
-     * The stored {@code _id} holds the compound {@code id#slice}, so generic stored-field readers (such as the
-     * {@code _fields} lookup used by scripts and runtime fields) must decode it through the field type to expose the
-     * plain, user-visible id.
+     * The stored {@code _id} holds the compound {@code id#slice}, so generic stored-field readers must decode it
+     * through the field type to expose the plain id.
      */
     public void testStoredIdDecodesToPlainIdNotCompound() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
@@ -181,8 +180,8 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     /**
-     * Nested children copy the root's {@code _id} so that a soft-delete by uid removes the whole block. The engine's uid
-     * is the compound identity term, so that is the term the children must carry.
+     * Nested children copy the root's {@code _id} so that a soft-delete by uid removes the whole block, so they must
+     * carry the compound identity term.
      */
     public void testNestedDocumentsCarryCompoundIdentityTerm() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());

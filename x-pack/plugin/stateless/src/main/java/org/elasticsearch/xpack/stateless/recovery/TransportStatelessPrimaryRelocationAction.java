@@ -210,6 +210,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         try (var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId())) {
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             final var indexShard = indexService.getShard(request.shardId().id());
+            indexShard.ensureRecoveryNotCancelled();
             indexShard.prepareForIndexRecovery();
 
             transportService.sendChildRequest(

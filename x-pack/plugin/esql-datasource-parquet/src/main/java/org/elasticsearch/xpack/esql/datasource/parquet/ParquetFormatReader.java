@@ -479,8 +479,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Records per-column materialization mode (eager/late) for each projected, non-NULL column.
-     * Per-page byte and time accounting is not wired here; see {@link ParquetReaderCounters} field
-     * docs and the TODO in {@link #read(StorageObject, FormatReadContext)} for scope.
+     * Per-page decode time is tracked in aggregate (see {@link ParquetReaderCounters#addTotalReadNanos}
+     * callers in the column iterators), but not broken down per column; see {@link ParquetReaderCounters}
+     * field docs for scope.
      */
     private void recordPerColumnMaterialization(List<Attribute> projectedAttributes, boolean useOptimized) {
         Set<String> predicateNames = pushedExpressions != null ? pushedExpressions.predicateColumnNames() : Set.of();
@@ -1064,6 +1065,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+                if (desc != null && isMapDescendedLeaf(parquetSchema, path)) {
+                    // A MAP's key and value leaves collapse to the same logical name (both stop at the
+                    // enclosing MAP group) and are heterogeneously typed, so folding their footer stats into
+                    // one entry throws in the min/max merge. A MAP is UNSUPPORTED downstream and its stats are
+                    // never consumed, so skip every map-descended leaf entirely. See isMapDescendedLeaf.
+                    continue;
+                }
                 if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
                     // Top-level list column: its leaf null_count/min/max are element-level and don't
                     // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
@@ -1078,10 +1086,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 // Key non-top-level leaves on the flattener's logical leaf name so the stats bind to the
                 // same attribute name the planner uses (a struct-nested list leaf answers.text.list.element
-                // is surfaced as answers.text). NB: a MAP's key and value leaves share this name (both stop
-                // at the enclosing MAP group), so their stats merge into one entry here. That is harmless
-                // while MAP is UNSUPPORTED downstream and never projected; revisit if MAP columns become
-                // readable.
+                // is surfaced as answers.text). MAP leaves are excluded above (isMapDescendedLeaf) because
+                // their key and value share this name yet are heterogeneously typed, which would fold into one
+                // entry and throw in the min/max merge.
                 String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                     a[0] += b[0];
@@ -1214,7 +1221,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private FilterPredicate resolveFilterPredicate(StorageObject object, MessageType schema) {
         if (pushedExpressions != null) {
             try {
-                return pushedExpressions.toFilterPredicate(schema);
+                // Pass the declared formats: without them the temporal arms cannot tell that the scan rescales a
+                // column relative to the statistics these predicates are compared against, and prune matching rows.
+                return pushedExpressions.toFilterPredicate(schema, declaredDateFormats);
             } catch (Exception e) {
                 logger.warn("Failed to resolve Parquet filter predicate for [{}], proceeding without pushdown: {}", object.path(), e);
                 return null;
@@ -1270,8 +1279,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 context.informationalWarningSink()
             );
         } finally {
-            // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
-            // is in the per-column counters, not here.
+            // This covers only the synchronous open/setup phase (footer, row-group filtering,
+            // index/dictionary/bloom prefetch dispatch). The returned iterator's own hasNext()/
+            // next() time its row-group transitions and per-page decode separately (see
+            // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
+            // counter so read_nanos covers the reader's full producer-thread lifecycle.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
@@ -1349,6 +1361,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String[] path = col.getPath().toArray();
             ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+            if (desc != null && isMapDescendedLeaf(parquetSchema, path)) {
+                // Skip map-descended leaves: a MAP's key/value collapse to one heterogeneously typed logical
+                // name that put() here would silently record as wrong value-over-key stats, and a MAP is
+                // UNSUPPORTED downstream so the stats are never consumed. Mirrors extractStatistics.
+                continue;
+            }
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
                 // Top-level list column: size marker only under the attribute name (path[0]); the unknown
                 // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
@@ -1363,8 +1381,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Publish non-top-level leaves under the flattener's logical leaf name (which stops at an
             // enclosing LIST/MAP) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
             // "answers.text.list.element" would never be found by the planner's attribute name.
-            // See extractStatistics for the logical-name keying rationale and the MAP key/value
-            // stat-merge assumption (harmless while MAP is UNSUPPORTED).
+            // See extractStatistics for the logical-name keying rationale; MAP leaves are skipped above
+            // (isMapDescendedLeaf) since their key/value would collapse to one heterogeneously typed name.
             String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
@@ -1416,6 +1434,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     static int compareStatExtremum(Comparable a, Comparable b) {
         if (a instanceof String && b instanceof String) {
             return SourceStatisticsSerializer.compareKeywordUtf8(a, b);
+        }
+        // Last-resort net: heterogeneously typed extrema (e.g. a MAP key String against a value Long) must not
+        // cross-cast into a raw ClassCastException. The statistics producers already skip map-descended leaves
+        // (isMapDescendedLeaf), so in production only same-type extrema reach here — a mismatch means a fold
+        // regression upstream. Fail loudly under -ea (tests/CI) to catch it, and fall back to a safe 0 in
+        // production rather than crashing on the cross-cast.
+        if (a.getClass() != b.getClass()) {
+            assert false
+                : "heterogeneous stat extrema ["
+                    + a.getClass()
+                    + "] vs ["
+                    + b.getClass()
+                    + "]; map-descended leaves must be skipped upstream";
+            return 0;
         }
         return a.compareTo(b);
     }
@@ -1925,7 +1957,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 dynamicThreshold,
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters,
-                errorPolicy
+                errorPolicy,
+                warningSink
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -2257,6 +2290,35 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     private static boolean isRepeatedLeaf(ColumnDescriptor desc) {
         return desc != null && desc.getMaxRepetitionLevel() > 0;
+    }
+
+    /**
+     * Whether the leaf reached by {@code descriptorPath} sits under a {@code MAP} group at any depth.
+     * <p>
+     * A Parquet {@code MAP<K,V>} has two physical leaves ({@code m.key_value.key}, {@code m.key_value.value})
+     * that {@link #logicalLeafName} collapses to the same enclosing-MAP dotted name. Their footer statistics
+     * are therefore heterogeneously typed (e.g. a keyword key and a long value) yet fold into a single entry
+     * keyed on that shared name — comparing a {@code String} key extremum against a {@code Long} value extremum
+     * throws {@link ClassCastException} in the min/max merge. A {@code MAP} group also resolves to
+     * {@link DataType#UNSUPPORTED} downstream, so these stats are never consumed. Collecting them is both
+     * pointless and harmful, so the statistics producers skip every map-descended leaf. Driven off the
+     * schema's {@code MAP} logical annotation (like {@link #logicalLeafName}), it covers homogeneous maps and
+     * every nested variant ({@code struct<map>}, {@code map<string,list>}, {@code map<string,struct>}) at any
+     * depth.
+     */
+    private static boolean isMapDescendedLeaf(GroupType schema, String[] descriptorPath) {
+        Type current = schema;
+        for (String segment : descriptorPath) {
+            // The descriptor path is always resolvable within the schema it came from, so every
+            // intermediate node is a group and getType() never throws here.
+            Type child = current.asGroupType().getType(segment);
+            if (child.isPrimitive() == false
+                && child.asGroupType().getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+                return true;
+            }
+            current = child;
+        }
+        return false;
     }
 
     /**
@@ -2655,6 +2717,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         private SkipWarnings coercionWarnings;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
+        /**
+         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
+         * directly via {@code HeaderWarning}. Under the async source
+         * this iterator runs on a background reader thread, so a non-null sink (the source buffer
+         * relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
 
         /**
          * The coercion-failure sink for this read, or {@code null} under {@code fail_fast} — the
@@ -2672,7 +2742,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     "Parquet file ["
                         + fileLocation
                         + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null"
+                        + "they are returned as null",
+                    warningSink
                 );
             }
             return coercionWarnings;
@@ -2696,6 +2767,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
+            this.warningSink = warningSink;
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;
@@ -2782,74 +2854,79 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private boolean advanceRowGroup() throws IOException {
-            if (rowGroup != null) {
-                rowGroup.close();
-                rowGroup = null;
-            }
-            rowGroup = reader.readNextFilteredRowGroup();
-            if (rowGroup == null) {
-                exhausted = true;
-                return false;
-            }
-            rowGroupOrdinal++;
-            pageBatchIndexInRowGroup = 0;
-            rowsRemainingInGroup = rowGroup.getRowCount();
-
-            if (hasRecordFilter == false) {
-                RowRanges allRows = RowRanges.all(rowsRemainingInGroup);
-                pageColumnReaders = new PageColumnReader[columnInfos.length];
-                for (int i = 0; i < columnInfos.length; i++) {
-                    ColumnInfo ci = columnInfos[i];
-                    if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
-                        PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
-                        pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
-                    }
+            long startNanos = System.nanoTime();
+            try {
+                if (rowGroup != null) {
+                    rowGroup.close();
+                    rowGroup = null;
                 }
-            } else {
-                pageColumnReaders = null;
-            }
-
-            if (hasRecordFilter || hasListColumns) {
-                ColumnReadStoreImpl store = new ColumnReadStoreImpl(
-                    rowGroup,
-                    new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
-                    projectedSchema,
-                    createdBy
-                );
-                columnReaders = new ColumnReader[columnInfos.length];
-                columnUncompressedBytes = new long[columnInfos.length];
-
-                // Best-effort: rowGroupOrdinal may not match the physical block index when
-                // readNextFilteredRowGroup() skips entire row groups. A wrong hint only affects
-                // pre-sizing (falls back to grow-on-demand), not correctness.
-                List<BlockMetaData> rowGroups = reader.getRowGroups();
-                Map<String, Long> chunkSizes = Map.of();
-                if (rowGroupOrdinal >= 0 && rowGroupOrdinal < rowGroups.size()) {
-                    BlockMetaData block = rowGroups.get(rowGroupOrdinal);
-                    chunkSizes = new HashMap<>();
-                    for (ColumnChunkMetaData chunk : block.getColumns()) {
-                        chunkSizes.put(chunk.getPath().toDotString(), chunk.getTotalUncompressedSize());
-                    }
+                rowGroup = reader.readNextFilteredRowGroup();
+                if (rowGroup == null) {
+                    exhausted = true;
+                    return false;
                 }
+                rowGroupOrdinal++;
+                pageBatchIndexInRowGroup = 0;
+                rowsRemainingInGroup = rowGroup.getRowCount();
 
-                for (int i = 0; i < columnInfos.length; i++) {
-                    if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false) {
-                        boolean needColumnReader = hasRecordFilter
-                            ? (pageColumnReaders == null || pageColumnReaders[i] == null)
-                            : columnInfos[i].maxRepLevel() > 0;
-                        if (needColumnReader) {
-                            columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
-                            String colPath = String.join(".", columnInfos[i].descriptor().getPath());
-                            Long size = chunkSizes.get(colPath);
-                            columnUncompressedBytes[i] = size != null ? size : 0L;
+                if (hasRecordFilter == false) {
+                    RowRanges allRows = RowRanges.all(rowsRemainingInGroup);
+                    pageColumnReaders = new PageColumnReader[columnInfos.length];
+                    for (int i = 0; i < columnInfos.length; i++) {
+                        ColumnInfo ci = columnInfos[i];
+                        if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
+                            PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
+                            pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
                         }
                     }
+                } else {
+                    pageColumnReaders = null;
                 }
-            } else {
-                columnReaders = null;
-                columnUncompressedBytes = null;
+
+                if (hasRecordFilter || hasListColumns) {
+                    ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                        rowGroup,
+                        new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
+                        projectedSchema,
+                        createdBy
+                    );
+                    columnReaders = new ColumnReader[columnInfos.length];
+                    columnUncompressedBytes = new long[columnInfos.length];
+
+                    // Best-effort: rowGroupOrdinal may not match the physical block index when
+                    // readNextFilteredRowGroup() skips entire row groups. A wrong hint only affects
+                    // pre-sizing (falls back to grow-on-demand), not correctness.
+                    List<BlockMetaData> rowGroups = reader.getRowGroups();
+                    Map<String, Long> chunkSizes = Map.of();
+                    if (rowGroupOrdinal >= 0 && rowGroupOrdinal < rowGroups.size()) {
+                        BlockMetaData block = rowGroups.get(rowGroupOrdinal);
+                        chunkSizes = new HashMap<>();
+                        for (ColumnChunkMetaData chunk : block.getColumns()) {
+                            chunkSizes.put(chunk.getPath().toDotString(), chunk.getTotalUncompressedSize());
+                        }
+                    }
+
+                    for (int i = 0; i < columnInfos.length; i++) {
+                        if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false) {
+                            boolean needColumnReader = hasRecordFilter
+                                ? (pageColumnReaders == null || pageColumnReaders[i] == null)
+                                : columnInfos[i].maxRepLevel() > 0;
+                            if (needColumnReader) {
+                                columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                                String colPath = String.join(".", columnInfos[i].descriptor().getPath());
+                                Long size = chunkSizes.get(colPath);
+                                columnUncompressedBytes[i] = size != null ? size : 0L;
+                            }
+                        }
+                    }
+                } else {
+                    columnReaders = null;
+                    columnUncompressedBytes = null;
+                }
+                return rowsRemainingInGroup > 0;
+            } finally {
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
-            return rowsRemainingInGroup > 0;
         }
 
         @Override
@@ -2857,85 +2934,90 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            int effectiveBatch = batchSize;
-            if (rowBudget != FormatReader.NO_LIMIT) {
-                effectiveBatch = Math.min(effectiveBatch, rowBudget);
-            }
-            int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
-            // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
-            // synthesise the {@code _rowPosition} block when present in the projection. The
-            // baseline path requires hasRecordFilter==false (enforced in the constructor), so
-            // rowGroupOrdinal is always the physical block index here.
-            int firstRowOfBatchInRG = (int) (rowGroup.getRowCount() - rowsRemainingInGroup);
-
-            Block[] blocks = new Block[attributes.size()];
+            long startNanos = System.nanoTime();
             try {
-                for (int col = 0; col < columnInfos.length; col++) {
-                    ColumnInfo info = columnInfos[col];
-                    if (info == null) {
-                        blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
-                    } else if (info.isRowPosition()) {
-                        long base = rowGroupFirstRowGlobal[rowGroupOrdinal] + firstRowOfBatchInRG;
-                        long[] values = new long[rowsToRead];
-                        for (int i = 0; i < rowsToRead; i++) {
-                            values[i] = base + i;
-                        }
-                        blocks[col] = blockFactory.newLongArrayVector(values, rowsToRead).asBlock();
-                    } else {
-                        try {
-                            if (pageColumnReaders != null && pageColumnReaders[col] != null) {
-                                blocks[col] = pageColumnReaders[col].readBatch(rowsToRead, blockFactory);
-                            } else {
-                                blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
+                int effectiveBatch = batchSize;
+                if (rowBudget != FormatReader.NO_LIMIT) {
+                    effectiveBatch = Math.min(effectiveBatch, rowBudget);
+                }
+                int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
+                // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
+                // synthesise the {@code _rowPosition} block when present in the projection. The
+                // baseline path requires hasRecordFilter==false (enforced in the constructor), so
+                // rowGroupOrdinal is always the physical block index here.
+                int firstRowOfBatchInRG = (int) (rowGroup.getRowCount() - rowsRemainingInGroup);
+
+                Block[] blocks = new Block[attributes.size()];
+                try {
+                    for (int col = 0; col < columnInfos.length; col++) {
+                        ColumnInfo info = columnInfos[col];
+                        if (info == null) {
+                            blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                        } else if (info.isRowPosition()) {
+                            long base = rowGroupFirstRowGlobal[rowGroupOrdinal] + firstRowOfBatchInRG;
+                            long[] values = new long[rowsToRead];
+                            for (int i = 0; i < rowsToRead; i++) {
+                                values[i] = base + i;
                             }
-                        } catch (CircuitBreakingException e) {
-                            Releasables.closeExpectNoException(blocks);
-                            throw e;
-                        } catch (Exception e) {
-                            Releasables.closeExpectNoException(blocks);
-                            Attribute attr = attributes.get(col);
-                            throw new IllegalArgumentException(
-                                "Failed to read Parquet column ["
-                                    + attr.name()
-                                    + "] (type "
-                                    + attr.dataType()
-                                    + ") at row group ["
-                                    + (rowGroupOrdinal + 1)
-                                    + "] page batch ["
-                                    + pageBatchIndexInRowGroup
-                                    + "] in file ["
-                                    + fileLocation
-                                    + "]: "
-                                    + e.getMessage(),
-                                e
-                            );
+                            blocks[col] = blockFactory.newLongArrayVector(values, rowsToRead).asBlock();
+                        } else {
+                            try {
+                                if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                                    blocks[col] = pageColumnReaders[col].readBatch(rowsToRead, blockFactory);
+                                } else {
+                                    blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
+                                }
+                            } catch (CircuitBreakingException e) {
+                                Releasables.closeExpectNoException(blocks);
+                                throw e;
+                            } catch (Exception e) {
+                                Releasables.closeExpectNoException(blocks);
+                                Attribute attr = attributes.get(col);
+                                throw new IllegalArgumentException(
+                                    "Failed to read Parquet column ["
+                                        + attr.name()
+                                        + "] (type "
+                                        + attr.dataType()
+                                        + ") at row group ["
+                                        + (rowGroupOrdinal + 1)
+                                        + "] page batch ["
+                                        + pageBatchIndexInRowGroup
+                                        + "] in file ["
+                                        + fileLocation
+                                        + "]: "
+                                        + e.getMessage(),
+                                    e
+                                );
+                            }
                         }
                     }
+                } catch (IllegalArgumentException | CircuitBreakingException e) {
+                    throw e;
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw new IllegalArgumentException(
+                        "Failed to create Page batch at row group ["
+                            + (rowGroupOrdinal + 1)
+                            + "] page batch ["
+                            + pageBatchIndexInRowGroup
+                            + "] in file ["
+                            + fileLocation
+                            + "]: "
+                            + e.getMessage(),
+                        e
+                    );
                 }
-            } catch (IllegalArgumentException | CircuitBreakingException e) {
-                throw e;
-            } catch (Exception e) {
-                Releasables.closeExpectNoException(blocks);
-                throw new IllegalArgumentException(
-                    "Failed to create Page batch at row group ["
-                        + (rowGroupOrdinal + 1)
-                        + "] page batch ["
-                        + pageBatchIndexInRowGroup
-                        + "] in file ["
-                        + fileLocation
-                        + "]: "
-                        + e.getMessage(),
-                    e
-                );
-            }
 
-            pageBatchIndexInRowGroup++;
-            rowsRemainingInGroup -= rowsToRead;
-            if (rowBudget != FormatReader.NO_LIMIT) {
-                rowBudget -= rowsToRead;
+                pageBatchIndexInRowGroup++;
+                rowsRemainingInGroup -= rowsToRead;
+                if (rowBudget != FormatReader.NO_LIMIT) {
+                    rowBudget -= rowsToRead;
+                }
+                counters.addRowsEmitted(rowsToRead);
+                return new Page(blocks);
+            } finally {
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
-            counters.addRowsEmitted(rowsToRead);
-            return new Page(blocks);
         }
 
         private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead, int colIndex) {
@@ -2947,7 +3029,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             DataType fileType = info.fileEsqlType();
             if (fileType != null
                 && declared != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, declared) == false
+                && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
                 && DeclaredTypeCoercions.supports(fileType, declared)) {
                 Block physical = readColumnBlock(cr, info.fileTyped(), rowsToRead, colIndex);
                 try {

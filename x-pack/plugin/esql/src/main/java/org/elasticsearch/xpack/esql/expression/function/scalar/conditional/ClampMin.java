@@ -57,6 +57,7 @@ public class ClampMin extends EsqlScalarFunction {
         briefSummary = "Clamps input values to a lower bound, raising any value below min to min.",
         description = "Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMin(

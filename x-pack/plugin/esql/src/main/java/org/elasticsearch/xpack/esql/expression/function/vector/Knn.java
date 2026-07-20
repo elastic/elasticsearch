@@ -331,7 +331,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         List<Expression> filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new Knn(source, field, query, null, null, queryBuilder, filterExpressions);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new Knn(source, field, query, options, null, queryBuilder, filterExpressions);
     }
 
     @Override
@@ -341,6 +344,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
         out.writeNamedWriteableCollection(filterExpressions());
+
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -361,8 +368,6 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public boolean equals(Object o) {
-        // Knn does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
         return super.equals(knn)
@@ -372,7 +377,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions());
+        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
     }
 
 }

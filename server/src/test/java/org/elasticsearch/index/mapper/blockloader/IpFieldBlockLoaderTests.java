@@ -48,7 +48,7 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
             // so doc values holds at most one entry — the first value from the source array.
             if (supportsMultiValue(fieldMapping) == false) {
                 var list = (List<String>) value;
-                return list.isEmpty() ? null : convert(list.get(0), nullValue);
+                return list.isEmpty() ? null : convert(list.getFirst(), nullValue);
             }
             // Columnar index modes preserve arrival order via offsets; other modes return sorted, deduplicated doc values.
             boolean preserveOrder = params.indexMode().isColumnar();

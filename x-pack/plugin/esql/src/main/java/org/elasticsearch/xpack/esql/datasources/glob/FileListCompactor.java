@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -21,8 +23,15 @@ import java.util.Map;
  * Tries Hive-partitioned encoding first (if partition metadata exists),
  * then falls back to segment-dictionary encoding, and finally returns
  * the original list unchanged if neither encoding fits.
+ * <p>
+ * Every candidate encoding is verified to replay the listed keys exactly before it is returned
+ * (see {@link #verified}); one that cannot is discarded so the caller falls through to the next
+ * encoding or the raw list. This keeps every compact representation faithful even for layouts an
+ * encoding does not anticipate.
  */
 final class FileListCompactor {
+
+    private static final Logger logger = LogManager.getLogger(FileListCompactor.class);
 
     private FileListCompactor() {}
 
@@ -43,16 +52,50 @@ final class FileListCompactor {
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
         if (pm != null && pm.isEmpty() == false) {
-            FileList hive = tryHive(normalizedBase, raw);
+            FileList hive = verified(tryHive(normalizedBase, raw), raw);
             if (hive != null) {
                 return hive;
             }
         }
-        FileList dict = tryDictionary(normalizedBase, raw);
+        FileList dict = verified(tryDictionary(normalizedBase, raw), raw);
         if (dict != null) {
             return dict;
         }
         return raw;
+    }
+
+    /**
+     * Returns the candidate only if it reconstructs every listed path exactly; otherwise {@code null},
+     * so the caller falls through to the next encoding or the raw list. This is the chokepoint that
+     * keeps every compact representation faithful even for a layout no encoding anticipates — e.g. a
+     * base path that is not a prefix of the listed keys, as a comma-separated resource produces on the
+     * first_file_wins rail. The reconstruction is compared as a string; a candidate whose reconstructed
+     * key does not even parse is treated as a mismatch rather than allowed to throw.
+     */
+    private static FileList verified(FileList candidate, GenericFileList raw) {
+        if (candidate == null) {
+            return null;
+        }
+        for (int i = 0; i < raw.fileCount(); i++) {
+            String expected = raw.path(i).toString();
+            String actual;
+            try {
+                actual = candidate.path(i).toString();
+            } catch (IllegalArgumentException e) {
+                actual = null;
+            }
+            if (expected.equals(actual) == false) {
+                logger.debug(
+                    "discarding {} for pattern [{}]: listed file [{}] reconstructs as [{}]",
+                    candidate.getClass().getSimpleName(),
+                    raw.originalPattern(),
+                    expected,
+                    actual
+                );
+                return null;
+            }
+        }
+        return candidate;
     }
 
     private static String extractExtension(String leafSegment) {

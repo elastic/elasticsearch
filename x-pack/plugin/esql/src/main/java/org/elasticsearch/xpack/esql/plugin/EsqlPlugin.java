@@ -629,29 +629,37 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(
-            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
-            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
-            new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
-            new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
-            new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
-            new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
-            new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
-            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
+        List<ActionHandler> actions = new ArrayList<>(
+            List.of(
+                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+            )
         );
+        // Federation (external data sources) transport actions are registered only when the feature is on. When
+        // suppressed the actions are absent, so a client hitting one gets the framework's standard "no handler"
+        // response, and no internal caller can reach the CRUD services or the FROM <dataset> resolve action.
+        if (Federation.isEnabled()) {
+            actions.add(new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class));
+            actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
+            actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
+            actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
+            actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
+            actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
+            actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
+        }
+        return actions;
     }
 
     @Override
@@ -661,23 +669,31 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        return List.of(
-            new RestEsqlQueryAction(capabilities),
-            new RestEsqlAsyncQueryAction(capabilities),
-            new RestEsqlGetAsyncResultAction(),
-            new RestEsqlStopAsyncAction(),
-            new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction(),
-            new RestPutViewAction(),
-            new RestDeleteViewAction(),
-            new RestGetViewAction(),
-            new RestPutDataSourceAction(),
-            new RestGetDataSourceAction(),
-            new RestDeleteDataSourceAction(),
-            new RestPutDatasetAction(),
-            new RestGetDatasetAction(),
-            new RestDeleteDatasetAction()
+        List<RestHandler> handlers = new ArrayList<>(
+            List.of(
+                new RestEsqlQueryAction(capabilities),
+                new RestEsqlAsyncQueryAction(capabilities),
+                new RestEsqlGetAsyncResultAction(),
+                new RestEsqlStopAsyncAction(),
+                new RestEsqlDeleteAsyncResultAction(),
+                new RestEsqlListQueriesAction(),
+                new RestPutViewAction(),
+                new RestDeleteViewAction(),
+                new RestGetViewAction()
+            )
         );
+        // Federation (external data sources) REST handlers are registered only when the feature is on. When
+        // suppressed the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
+        // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        if (Federation.isEnabled()) {
+            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestGetDataSourceAction());
+            handlers.add(new RestDeleteDataSourceAction());
+            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestGetDatasetAction());
+            handlers.add(new RestDeleteDatasetAction());
+        }
+        return handlers;
     }
 
     @Override

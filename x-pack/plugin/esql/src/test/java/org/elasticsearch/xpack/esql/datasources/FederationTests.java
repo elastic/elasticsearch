@@ -18,12 +18,13 @@ import java.util.function.Function;
  * Unit tests for {@link Federation}, the federation (external data sources) kill switch. The live state is a
  * {@code static final} read once at class load and cannot be flipped in-JVM, so the property parsing and the
  * enforcement branch are exercised through the package-private {@link Federation#readEnabled} /
- * {@link Federation#ensureEnabled(boolean)} seams, which take their input as a parameter.
+ * {@link Federation#ensureEnabled(boolean)} seams, which take their input as a parameter. The registered-vs-suppressed
+ * behavior at the REST and transport surface is covered end-to-end by the single-node REST ITs.
  */
 public class FederationTests extends ESTestCase {
 
     private static Function<String, String> property(String value) {
-        return Map.of(Federation.ENABLED_PROPERTY, value)::get;
+        return Map.of(Federation.REGISTER_PROPERTY, value)::get;
     }
 
     public void testEnabledByDefaultWhenPropertyAbsent() {
@@ -44,20 +45,22 @@ public class FederationTests extends ESTestCase {
 
     public void testInvalidValueFailsFast() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Federation.readEnabled(property("maybe")));
-        assertTrue(e.getMessage().contains(Federation.ENABLED_PROPERTY));
+        assertTrue(e.getMessage().contains(Federation.REGISTER_PROPERTY));
     }
 
     public void testEnsureEnabledIsNoopWhenEnabled() {
         Federation.ensureEnabled(true); // must not throw
     }
 
-    public void testEnsureEnabledThrowsForbiddenWhenDisabled() {
+    public void testEnsureEnabledThrowsBadRequestWhenDisabled() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> Federation.ensureEnabled(false));
-        assertEquals(RestStatus.FORBIDDEN, e.status());
-        assertTrue(e.getMessage().contains(Federation.ENABLED_PROPERTY));
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertTrue(e.getMessage().contains("external data sources are not available"));
     }
 
-    public void testDisabledExceptionIsForbidden() {
-        assertEquals(RestStatus.FORBIDDEN, Federation.disabledException().status());
+    public void testNotAvailableExceptionIsBadRequest() {
+        ElasticsearchStatusException e = Federation.notAvailableException();
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertEquals("external data sources are not available", e.getMessage());
     }
 }

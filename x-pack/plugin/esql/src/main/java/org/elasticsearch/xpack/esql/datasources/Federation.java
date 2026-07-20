@@ -16,9 +16,9 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.function.Function;
 
 /**
- * Kill switch for the ES|QL federation feature (external data sources and datasets). Federation is
- * enabled by default; an operator disables it by setting the system property
- * {@value #ENABLED_PROPERTY} to {@code false}.
+ * Kill switch for the ES|QL federation feature (external data sources and datasets). The feature is
+ * registered by default; an operator suppresses it by setting the system property
+ * {@value #REGISTER_PROPERTY} to {@code false}.
  *
  * <p>This is a deliberately coarse, static lever, not a dynamic setting: the value is read once at
  * class initialization (forced at node startup via {@link #init()}), so changing it requires
@@ -26,29 +26,33 @@ import java.util.function.Function;
  * used rarely, and it keeps the mechanism simple (a dynamic enabler would be considerably more
  * complex). Cloud/GovCloud can set system properties on any deployment.
  *
- * <p>Because any node can be the coordinating node for a query and any node can receive a data
- * source / dataset create request, the property must be set on <em>all</em> nodes for a complete
- * kill. Enforcement is layered so that any single disabled node is sufficient to stop its own share
- * of the work:
+ * <p>When suppressed, the goal is that the feature looks like it never existed rather than being
+ * present-but-forbidden:
  * <ul>
- *   <li>The coordinator gates create requests ({@code DataSourceService}, {@code DatasetService})
- *       and the {@code FROM <dataset>} rewrite ({@code DatasetResolver}), giving a clean early 403.</li>
- *   <li>Every node gates the physical external-source operator build
- *       ({@code LocalExecutionPlanner.planExternalSource}). This is the backstop that guarantees no
- *       external I/O on a disabled node even when the already-rewritten plan arrives from elsewhere:
- *       an enabled coordinator, a remote cluster in CCS/CPS, an enabled coordinator during a rolling
- *       restart, or the inline {@code EXTERNAL} command (which bypasses the coordinator rewrite).</li>
+ *   <li>{@code EsqlPlugin} does not register the federation REST handlers or transport actions
+ *       (create/get/delete data source and dataset, plus the {@code FROM <dataset>} resolve action),
+ *       so their endpoints return the framework's standard {@code no handler found for uri}
+ *       ({@code 400}), identical to a feature that was never shipped.</li>
+ *   <li>{@code DatasetResolver} skips the {@code FROM <dataset>} rewrite entirely, so a dataset name
+ *       falls through to normal index resolution and errors as {@code Unknown index}, the same error
+ *       a nonexistent index gives.</li>
+ *   <li>Every node keeps a backstop at the physical external-source operator build
+ *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}.
+ *       This guarantees no external I/O on a disabled node even when an already-rewritten plan arrives
+ *       from elsewhere: an enabled coordinator in CCS/CPS, an enabled coordinator during a rolling
+ *       restart that has not yet reached this node, or the inline {@code EXTERNAL} command (which
+ *       bypasses the coordinator rewrite).</li>
  * </ul>
  *
- * <p>Note this only gates the federation abstraction (create data source, create dataset, and
- * external-source execution). It intentionally does not gate GET/DELETE of data sources and
- * datasets, so an operator can still inspect and clean up while the switch is engaged.
+ * <p>Because any node can be the coordinating node for a query and any node can receive a data
+ * source / dataset create request, the property must be set on <em>all</em> nodes for a complete
+ * kill.
  */
 public final class Federation {
 
     private static final Logger logger = LogManager.getLogger(Federation.class);
 
-    public static final String ENABLED_PROPERTY = "es.esql.federation.enabled";
+    public static final String REGISTER_PROPERTY = "es.esql.register_federation_feature";
 
     private static final boolean ENABLED = readEnabled(System::getProperty);
 
@@ -58,7 +62,7 @@ public final class Federation {
         // the read and this log run in the static initializer, plugin startup calls init() to force
         // class initialization at boot rather than deferring it to the first federation operation.
         if (ENABLED == false) {
-            logger.info("ES|QL federation (external data sources) is disabled ([{}]=false)", ENABLED_PROPERTY);
+            logger.info("ES|QL federation (external data sources) is not registered ([{}]=false)", REGISTER_PROPERTY);
         }
     }
 
@@ -77,37 +81,40 @@ public final class Federation {
      * is absent; an unparseable value fails fast (matching {@code FeatureFlag}).
      */
     static boolean readEnabled(Function<String, String> getProperty) {
-        final String value = getProperty.apply(ENABLED_PROPERTY);
+        final String value = getProperty.apply(REGISTER_PROPERTY);
         try {
             return Booleans.parseBoolean(value, true);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for system property [" + ENABLED_PROPERTY + "]", e);
+            throw new IllegalArgumentException("Invalid value [" + value + "] for system property [" + REGISTER_PROPERTY + "]", e);
         }
     }
 
-    /** Whether the federation feature is enabled on this node. */
-    private static boolean enabled() {
+    /**
+     * Whether the federation feature is registered on this node. Read by {@code EsqlPlugin} at startup to
+     * decide whether to register the federation REST handlers and transport actions, and by
+     * {@code DatasetResolver} to decide whether to attempt the {@code FROM <dataset>} rewrite.
+     */
+    public static boolean isEnabled() {
         return ENABLED;
     }
 
-    /** No-op when federation is enabled; throws {@link #disabledException()} when the kill switch is engaged. */
+    /** No-op when federation is enabled; throws {@link #notAvailableException()} when the kill switch is engaged. */
     public static void ensureEnabled() {
-        ensureEnabled(enabled());
+        ensureEnabled(isEnabled());
     }
 
     static void ensureEnabled(boolean enabled) {
         if (enabled == false) {
-            throw disabledException();
+            throw notAvailableException();
         }
     }
 
-    static ElasticsearchStatusException disabledException() {
-        return new ElasticsearchStatusException(
-            "ES|QL federation (external data sources) is disabled on this node "
-                + "(system property ["
-                + ENABLED_PROPERTY
-                + "] is set to false)",
-            RestStatus.FORBIDDEN
-        );
+    /**
+     * The {@code 400} thrown by the data-node backstop when an external-source plan reaches a node that has
+     * federation suppressed. The message deliberately omits the property name so it reads as a plain
+     * "feature not present" error rather than a configuration hint.
+     */
+    static ElasticsearchStatusException notAvailableException() {
+        return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
     }
 }

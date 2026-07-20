@@ -479,16 +479,5 @@ public final class DatasetRewriter {
      * heterogeneous-FROM {@link UnionAll} building), and the explicitly-named datasets absent from the resolved set
      * (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
-    public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {
-
-        /**
-         * Whether {@link #rewriteOne} will produce at least one external-source exec for this relation.
-         * Non-empty {@link #resolvedExternalDatasets} is precisely the condition under which
-         * {@link #rewriteOne} calls {@code buildDatasetBranch} and emits {@code ExternalSourceExec} nodes
-         * rather than leaving the relation unchanged.
-         */
-        public boolean resolvesToExternalSource() {
-            return resolvedExternalDatasets.isEmpty() == false;
-        }
-    }
+    public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}
 }

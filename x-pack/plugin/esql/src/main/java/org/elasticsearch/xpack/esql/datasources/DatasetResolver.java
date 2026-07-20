@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,11 +59,22 @@ public class DatasetResolver {
      * Completes {@code listener} with the rewritten plan (or the untouched plan when no relation qualifies).
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
      * dataset) propagate as-is.
+     *
+     * <p>When federation is suppressed (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
+     * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
+     * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      */
     public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
+        // Federation suppressed: do not attempt any dataset resolution, so the feature is indistinguishable from one
+        // that was never registered (the FROM <dataset> name resolves as an unknown index). The EsqlResolveDatasetAction
+        // is also unregistered in this mode, so dispatching it here would fail; skipping is both correct and required.
+        if (Federation.isEnabled() == false) {
+            listener.onResponse(parsed);
+            return;
+        }
+
         // Cheap short-circuit: no datasets registered → no FROM can target one, so no dispatch and no walk cost on the
-        // common path. Dataset creation is gated by the federation kill switch (see Federation); an already-registered
-        // dataset that survives into a disabled node is rejected below, after resolution, by the kill-switch guard.
+        // common path.
         Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
         if (datasetNames.isEmpty()) {
             listener.onResponse(parsed);
@@ -119,20 +129,7 @@ public class DatasetResolver {
         // RemoteDatasetNotSupportedException). This resolver only does the LOCAL rewrite + read-authz; under CPS it
         // additionally preserves the remote half of a matched dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true).
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        chain.andThenApply(ignored -> {
-            // Federation kill switch: reject only when the query actually resolves to a dataset the caller may read,
-            // never a plain-index query that merely pattern-matches a dataset name. An explicitly-named but
-            // unauthorized dataset is deliberately not blocked here: it stays the existing 400 "Unknown index"
-            // (existence-hiding), so the kill switch adds no existence oracle.
-            if (anyResolvesToExternalSource(resolutions.values())) {
-                Federation.ensureEnabled();
-            }
-            return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled);
-        }).addListener(listener);
-    }
-
-    /** Whether any per-relation resolution will produce external-source execs. */
-    static boolean anyResolvesToExternalSource(Collection<DatasetResolution> resolutions) {
-        return resolutions.stream().anyMatch(DatasetResolution::resolvesToExternalSource);
+        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
+            .addListener(listener);
     }
 }

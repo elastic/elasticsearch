@@ -2681,11 +2681,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             long contextId = randomNonNegativeLong();
             try {
                 searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
-                final ShardSearchContextId id = new ShardSearchContextId(
-                        "otherSessionId",
-                        contextId,
-                        searcherSupplier.getSearcherId()
-                );
+                final ShardSearchContextId id = new ShardSearchContextId("otherSessionId", contextId, searcherSupplier.getSearcherId());
 
                 readerContext = searchService.createAndPutRelocatedPitContext(
                     id,
@@ -2722,18 +2718,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             long contextId = randomNonNegativeLong();
 
             try {
-                final ShardSearchContextId id1 = new ShardSearchContextId(
-                        "otherSessionId",
-                        contextId,
-                        null
-                );
-                final ShardSearchContextId id2 = new ShardSearchContextId(
-                    "otherSessionId",
-                    contextId,
-                    null
-                );
+                final ShardSearchContextId id1 = new ShardSearchContextId("otherSessionId", contextId, null);
+                final ShardSearchContextId id2 = new ShardSearchContextId("otherSessionId", contextId, null);
 
-                CountDownLatch  latch = new CountDownLatch(1);
+                CountDownLatch latch = new CountDownLatch(1);
                 Thread t1 = new Thread(() -> {
                     SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
                     try {

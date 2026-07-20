@@ -1,12 +1,23 @@
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 import { classifyChangedFiles } from "../detectors/changed-files.ts";
+import { partitionByBwc, defaultBuildScriptReader } from "../detectors/bwc.ts";
 import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes.ts";
 import { buildCommands, dedupeTests } from "../commands.ts";
 import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
-import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain.ts";
+import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG, type ClassifiedTest } from "../domain.ts";
+
+// Bootstrap-written list of tests that cannot be re-run (BWC projects). The
+// analyze step downloads and folds it into the outcomes as `not_applicable`.
+// Keep in sync with FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts.
+const SKIPPED_FILE = "flakiness-skipped.json";
+
+function describeTest(t: ClassifiedTest): string {
+  const target = t.yamlTest ? `${t.fqcn}.${t.yamlTest}` : (t.fqcn ?? t.suitePath ?? "(whole source set)");
+  return `${t.gradleProject} [${t.kind}] ${target}`;
+}
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
@@ -126,12 +137,32 @@ export function run(): void {
     process.exit(0);
   }
 
-  if (tests.length > 30) {
-    console.log(`Warning: ${tests.length} test files to re-run`);
+  // BWC qa projects disable the bare test task, so the detector's plain
+  // `:project:task` re-runs nothing (0 tests, exit 0). Split those out so they
+  // are recorded as `not_applicable` instead of wasting jobs and polluting the
+  // metric as `hang`s. Running them properly (version-qualified `v<ver>#bwcTest`)
+  // is a separate follow-up.
+  const { runnable, notApplicable } = partitionByBwc(tests, defaultBuildScriptReader(PROJECT_ROOT));
+  if (notApplicable.length > 0) {
+    console.log(`Skipping ${notApplicable.length} BWC test(s) - not re-runnable via the bare task (recorded as not_applicable):`);
+    for (const t of notApplicable) {
+      console.log(`  - ${describeTest(t)}`);
+    }
+    if (process.env.CI) {
+      try {
+        writeFileSync(resolve(PROJECT_ROOT, SKIPPED_FILE), JSON.stringify(notApplicable));
+      } catch (err) {
+        console.error(`Failed to write ${SKIPPED_FILE}:`, err);
+      }
+    }
+  }
+
+  if (runnable.length > 30) {
+    console.log(`Warning: ${runnable.length} test files to re-run`);
     if (process.env.CI) {
       try {
         execSync(
-          `buildkite-agent annotate "Warning: ${tests.length} test files to re-run (${changedTests.length} changed, ${unmuted.located.length} unmuted). This may take a while." --style "warning" --context "flakiness-detection"`,
+          `buildkite-agent annotate "Warning: ${runnable.length} test files to re-run (${changedTests.length} changed, ${unmuted.located.length} unmuted). This may take a while." --style "warning" --context "flakiness-detection"`,
           { cwd: PROJECT_ROOT, stdio: "inherit" }
         );
       } catch {
@@ -141,8 +172,9 @@ export function run(): void {
   }
 
   uploadBuildkitePipeline(
-    buildCommands(tests, DEFAULT_BATCHING_CONFIG),
-    DEFAULT_AGENT_CONFIG
+    buildCommands(runnable, DEFAULT_BATCHING_CONFIG),
+    DEFAULT_AGENT_CONFIG,
+    { hasNotApplicable: notApplicable.length > 0 }
   );
 }
 

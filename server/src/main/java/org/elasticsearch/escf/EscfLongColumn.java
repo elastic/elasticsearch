@@ -26,12 +26,22 @@ final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.LONG;
     }
 
     @Override
-    long getLongValue(int d) {
-        return rawLong(d);
+    long getLongValue(int row) {
+        return rawLong(row);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfLongColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
     }
 }

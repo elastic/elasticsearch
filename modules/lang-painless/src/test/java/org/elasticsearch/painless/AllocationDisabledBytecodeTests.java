@@ -82,7 +82,7 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testNoCounterBytecodeForNewObjectWhenDisabled() {
-        // The @allocates_constant visitNewObject path must also be clean when tracking is off.
+        // The @allocates visitNewObject path must also be clean when tracking is off.
         String asm = bytecode("new ArrayList(); return 1;", -1L);
         assertThat(asm, not(containsString("$checkAllocBytes")));
         assertThat(asm, not(containsString("AllocationGuard")));
@@ -94,7 +94,7 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testNoEstimatorBytecodeWhenDisabled() {
-        // @allocates_dynamic sites must also be clean when tracking is off.
+        // @allocates sites must also be clean when tracking is off.
         String asm = bytecode("String s = 'hello'; s.substring(0, 3); new ArrayList(new ArrayList()); return 1;", -1L);
         assertThat(asm, not(containsString("$checkAllocBytes")));
         assertThat(asm, not(containsString("AllocationEstimators")));

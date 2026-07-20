@@ -577,9 +577,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
-  method: testStartFailedTransform
-  issue: https://github.com/elastic/elasticsearch/issues/153065
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<big positive double>, <big negative double>}
   issue: https://github.com/elastic/elasticsearch/issues/153069

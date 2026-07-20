@@ -179,7 +179,9 @@ public class PageColumnReaderSkipOvershootReproTests extends ESTestCase {
 
             @Override
             public InputStream newStream(long position, long length) {
-                return new ByteArrayInputStream(data, (int) position, (int) Math.min(length, data.length - position));
+                int offset = Math.toIntExact(position);
+                int len = Math.toIntExact(Math.min(length, data.length - position));
+                return new ByteArrayInputStream(data, offset, len);
             }
 
             @Override

@@ -141,6 +141,11 @@ final class PageColumnReader implements Releasable {
      * jump the physical cursor PAST a {@link #skipRows} target; the surplus is recorded here and
      * credited against subsequent skip requests rather than being discarded (which would leave the
      * reader silently ahead and misread later survivor rows).
+     *
+     * <p>Only {@link #skipRows} spends this credit. The read entry point ({@link #readBatch}) requires
+     * it to be zero, and asserts as much: a prejump only ever crosses survivor-excluded pages, so the
+     * caller always reaches the next survivor through a {@code skipRows} whose gap fully drains the
+     * surplus before any decode happens.
      */
     private long pendingPrejumped;
 
@@ -175,6 +180,8 @@ final class PageColumnReader implements Releasable {
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
+        assert pendingPrejumped == 0
+            : "readBatch called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position";
         loadDictionaryIfNeeded();
         // Declared-type coercion beyond the fused pairs: decode the column at the file's own type
         // with the arms below, then coerce the block to the declared type. Per-value failures
@@ -563,7 +570,7 @@ final class PageColumnReader implements Releasable {
         if (pendingPrejumped > 0) {
             long credited = Math.min(pendingPrejumped, count);
             pendingPrejumped -= credited;
-            count -= (int) credited;
+            count -= (int) credited; // safe: credited <= count (int), so no overflow
             if (count == 0) {
                 return;
             }

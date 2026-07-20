@@ -129,8 +129,13 @@ public class ParquetTwoPhasePageSkipCorrectnessIT extends AbstractFromDatasetSub
     /**
      * Verifies that {@code MV_COUNT(VALUES(v))} returns exactly {@link #HIT_COUNT} when the
      * two-phase page-filtered iterator's {@code skipRows} crosses an excluded projection page and
-     * banks the overshoot surplus. Before the fix the surplus was discarded, causing a later skip
-     * to advance into the survivor page and silently drop rows, making the count smaller.
+     * banks the overshoot surplus. When the surplus is not banked, a later skip advances into the
+     * survivor page and silently drops rows, making the count smaller than the cluster size.
+     *
+     * <p>This is an end-to-end sanity check that the real S3-backed two-phase path produces the
+     * correct aggregate; the deterministic regression guard for the {@code skipRows} accounting
+     * itself is the unit test {@code PageColumnReaderSkipOvershootReproTests}, which reproduces the
+     * overshoot directly without a fixture.
      */
     public void testGroupedDistinctSurvivesExcludedProjectionPageSkip() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);
@@ -149,11 +154,13 @@ public class ParquetTwoPhasePageSkipCorrectnessIT extends AbstractFromDatasetSub
 
         assertThat("exactly one surviving group (s == \"hit\")", values, hasSize(1));
         List<Object> row = values.get(0);
-        assertThat("group key must be the cluster value", row.get(1).toString(), equalTo("hit"));
+        int uIdx = columnIndex(response, "u");
+        int sIdx = columnIndex(response, "s");
+        assertThat("group key must be the cluster value", row.get(sIdx).toString(), equalTo("hit"));
         assertThat(
             "distinct v over survivors must equal the exact cluster size; a smaller value means the "
                 + "excluded-page skip dropped surviving rows",
-            ((Number) row.get(0)).intValue(),
+            ((Number) row.get(uIdx)).intValue(),
             equalTo(HIT_COUNT)
         );
     }
@@ -220,6 +227,17 @@ public class ParquetTwoPhasePageSkipCorrectnessIT extends AbstractFromDatasetSub
                 return 0;
             }
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int columnIndex(Map<String, Object> response, String columnName) {
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
+        for (int i = 0; i < columns.size(); i++) {
+            if (columnName.equals(columns.get(i).get("name"))) {
+                return i;
+            }
+        }
+        throw new AssertionError("column '" + columnName + "' not found in response");
     }
 
     private static PositionOutputStream positionOutputStream(ByteArrayOutputStream baos) {

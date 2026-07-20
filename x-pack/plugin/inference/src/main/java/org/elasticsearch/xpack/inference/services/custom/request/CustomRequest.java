@@ -109,7 +109,7 @@ public class CustomRequest implements OutboundRequest {
             }
             return builder.build();
         } catch (URISyntaxException e) {
-            throw new IllegalStateException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
+            throw new IllegalArgumentException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
         }
     }
 

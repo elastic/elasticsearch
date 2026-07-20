@@ -215,3 +215,24 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - match: { error.reason: "/.*operator.is.only.supported.in.WHERE.*/" }
+
+---
+"match function on left hand side succeeds via runtime lexical search":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          capabilities: [ match_operator_lhs_expression ]
+      reason: "requires expression on LHS of match operator"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE to_text(concat(content, " foo")):"fox" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 6 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 
 /**
@@ -148,4 +149,21 @@ public interface FileList {
     boolean isEmpty();
 
     long estimatedBytes();
+
+    /**
+     * The 128-bit fingerprint identifying the resolved file SET: a commutative fold over every file's
+     * {@code (path, mtime, size)} plus the file count, computed once when the listing is built. The same
+     * set listed in any order yields the same fingerprint; any file added, removed, or modified (mtime
+     * or size) yields a different one. This makes the fingerprint a content-addressed cache key for
+     * dataset-level derived state (e.g. the warm COUNT(*) aggregate): keys derived from it are
+     * correct-or-miss by construction, with no separate invalidation protocol — and they survive listing
+     * refreshes (the 30s listing TTL) as long as the underlying files are unchanged, because the
+     * fingerprint derives from listing CONTENT, not listing object identity.
+     * <p>
+     * {@code null} for the sentinels and for implementations that do not compute one.
+     */
+    @Nullable
+    default FileSetFingerprint fileSetFingerprint() {
+        return null;
+    }
 }

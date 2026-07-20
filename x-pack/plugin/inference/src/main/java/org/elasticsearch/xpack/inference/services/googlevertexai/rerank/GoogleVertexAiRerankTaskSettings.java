@@ -13,10 +13,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +33,7 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings, TopNProvi
     public static GoogleVertexAiRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
+        Integer topN = extractOptionalPositiveInteger(map, TOP_N, SettingsScope.TASK_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiRerankTaskSettings(topN);

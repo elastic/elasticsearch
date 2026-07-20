@@ -13,12 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,13 +68,8 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     protected static Builder fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractOptionalPositiveInteger(
-            map,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer numAllocations = extractOptionalPositiveInteger(map, NUM_ALLOCATIONS, SettingsScope.SERVICE_SETTINGS, validationException);
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, SettingsScope.SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
             ADAPTIVE_ALLOCATIONS,
@@ -82,18 +77,15 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         );
 
         // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                ServiceUtils.missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), SettingsScope.SERVICE_SETTINGS)
             );
         }
 
-        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, SettingsScope.SERVICE_SETTINGS, validationException);
 
         // if an error occurred while parsing, we'll set these to an invalid value, so we don't accidentally get a
         // null pointer when doing unboxing
@@ -235,7 +227,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         var numAllocations = extractOptionalPositiveInteger(
             serviceSettings,
             NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
         var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
@@ -246,10 +238,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                ServiceUtils.missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), SettingsScope.SERVICE_SETTINGS)
             );
         }
         if (numAllocations != null && adaptiveAllocationsSettings != null) {

@@ -11,10 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.net.URI;
@@ -51,7 +51,7 @@ public record DeepSeekServiceSettings(String modelId, URI uri) implements Servic
      */
     static DeepSeekServiceSettings fromMap(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var model = extractRequiredString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var model = extractRequiredString(serviceSettings, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
         var uri = extractOptionalUri(serviceSettings, URL, validationException);
         validationException.throwIfValidationErrorsExist();
         return new DeepSeekServiceSettings(model, uri);

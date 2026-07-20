@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +32,7 @@ public record QueryParameters(List<Parameter> parameters) implements ToXContentF
         List<Tuple<String, String>> queryParams = extractOptionalListOfStringTuples(
             map,
             QUERY_PARAMETERS,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 

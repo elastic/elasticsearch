@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.inference.services.settings;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
@@ -54,7 +54,7 @@ public class EnforcingEmptyTaskSettings extends EmptyTaskSettings {
         throw new ElasticsearchStatusException(
             "[{}] Configuration contains unknown settings {}",
             RestStatus.BAD_REQUEST,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             settings.keySet()
         );
     }

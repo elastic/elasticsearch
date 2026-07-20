@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
@@ -42,7 +42,7 @@ public final class NumberParser {
     public static void validatePositiveInteger(@Nullable Integer value, String settingName) {
         if (value != null && value <= 0) {
             throw new IllegalArgumentException(
-                mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
+                mustBeAPositiveIntegerErrorMessage(settingName, SettingsScope.SERVICE_SETTINGS.toString(), value)
             );
         }
     }

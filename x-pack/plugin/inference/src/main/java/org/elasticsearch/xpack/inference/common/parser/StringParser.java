@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.common.parser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.List;
 import java.util.Map;
@@ -26,10 +26,10 @@ public final class StringParser {
      */
     public static void validateStringIsNotNullOrEmpty(@Nullable String value, String settingName) {
         if (value == null) {
-            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
+            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, SettingsScope.SERVICE_SETTINGS.toString()));
         }
         if (value.isEmpty()) {
-            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, ModelConfigurations.SERVICE_SETTINGS));
+            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, SettingsScope.SERVICE_SETTINGS.toString()));
         }
     }
 

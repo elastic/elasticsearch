@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -64,15 +64,10 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
 
         Integer dimensions = null;
         if (ConfigurationParseContext.isRequestContext(context) == false) {
-            dimensions = extractRequiredPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            dimensions = extractRequiredPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
         }
-        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -156,7 +151,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
         var extractedRateLimitSettings = RateLimitSettings.of(

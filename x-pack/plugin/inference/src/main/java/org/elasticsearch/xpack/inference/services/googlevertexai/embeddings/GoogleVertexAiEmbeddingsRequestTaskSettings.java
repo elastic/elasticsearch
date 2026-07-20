@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
@@ -36,7 +36,7 @@ public record GoogleVertexAiEmbeddingsRequestTaskSettings(@Nullable Boolean auto
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
             validationException

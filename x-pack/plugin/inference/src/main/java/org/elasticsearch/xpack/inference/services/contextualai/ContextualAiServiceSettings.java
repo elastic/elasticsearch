@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.inference.services.contextualai;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -42,7 +42,7 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
         var modelId = extractRequiredString(
             serviceSettingsMap,
             ServiceFields.MODEL_ID,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
         var rateLimitSettings = RateLimitSettings.of(serviceSettingsMap, defaultRateLimit, validationException, context);

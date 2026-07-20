@@ -19,6 +19,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -26,8 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
-import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
@@ -47,7 +46,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         }
 
         ValidationException validationException = new ValidationException();
-        var scope = parseContext == ConfigurationParseContext.REQUEST ? SERVICE_SETTINGS : SECRET_SETTINGS;
+        var scope = parseContext == ConfigurationParseContext.REQUEST ? SettingsScope.SERVICE_SETTINGS : SettingsScope.SECRET_SETTINGS;
         SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, scope, validationException);
 
         validationException.throwIfValidationErrorsExist();
@@ -119,14 +118,18 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         out.writeSecureString(apiKey);
     }
 
-    public static SecureString extractOptionalApiKey(Map<String, Object> map, String scope, ValidationException validationException) {
+    public static SecureString extractOptionalApiKey(
+        Map<String, Object> map,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
         return extractOptionalSecureString(map, API_KEY, scope, validationException);
     }
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         var validationException = new ValidationException();
-        var extractedApiKey = extractOptionalApiKey(newSecrets, SERVICE_SETTINGS, validationException);
+        var extractedApiKey = extractOptionalApiKey(newSecrets, SettingsScope.SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {

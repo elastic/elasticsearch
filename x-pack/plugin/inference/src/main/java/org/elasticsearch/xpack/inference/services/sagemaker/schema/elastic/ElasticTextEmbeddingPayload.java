@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -332,7 +332,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
-                ModelConfigurations.SERVICE_SETTINGS,
+                SettingsScope.SERVICE_SETTINGS,
                 validationException
             );
             // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
@@ -345,7 +345,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 var storedDimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
                 if (storedDimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER_FIELD, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER_FIELD, SettingsScope.SERVICE_SETTINGS.toString())
                     );
                 }
                 dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
@@ -354,7 +354,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             SimilarityMeasure similarity = ServiceUtils.extractRequiredEnum(
                 serviceSettings,
                 ServiceFields.SIMILARITY,
-                ModelConfigurations.SERVICE_SETTINGS,
+                SettingsScope.SERVICE_SETTINGS,
                 SimilarityMeasure::fromString,
                 EnumSet.allOf(SimilarityMeasure.class),
                 validationException
@@ -363,7 +363,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             var elementType = extractRequiredEnum(
                 serviceSettings,
                 ELEMENT_TYPE_FIELD,
-                ModelConfigurations.SERVICE_SETTINGS,
+                SettingsScope.SERVICE_SETTINGS,
                 DenseVectorFieldMapper.ElementType::fromString,
                 EnumSet.allOf(DenseVectorFieldMapper.ElementType.class),
                 validationException

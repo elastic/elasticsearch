@@ -14,6 +14,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -21,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
@@ -36,7 +36,10 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD);
 
-    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(SERVICE_SETTINGS, SECRET_FIELDS);
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(
+        SettingsScope.SERVICE_SETTINGS.toString(),
+        SECRET_FIELDS
+    );
 
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
         "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.";
@@ -51,7 +54,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
         var extractedSecretsMap = extractSecretsMap(map);
 
-        SecretSettings.validateExactlyOneField(extractedSecretsMap, SERVICE_SETTINGS, SECRET_FIELDS);
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, SettingsScope.SERVICE_SETTINGS.toString(), SECRET_FIELDS);
 
         if (extractedSecretsMap.containsKey(API_KEY)) {
             return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);
@@ -104,9 +107,9 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
      */
     private static Map<String, SecureString> extractSecretsMap(Map<String, Object> map) {
         var validationException = new ValidationException();
-        var secureApiToken = extractOptionalSecureString(map, API_KEY, SERVICE_SETTINGS, validationException);
-        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SERVICE_SETTINGS, validationException);
-        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SERVICE_SETTINGS, validationException);
+        var secureApiToken = extractOptionalSecureString(map, API_KEY, SettingsScope.SERVICE_SETTINGS, validationException);
+        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SettingsScope.SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         var provided = new HashMap<String, SecureString>();

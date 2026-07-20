@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.inference.services.azureopenai;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -85,9 +85,9 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
         ConfigurationParseContext context,
         RateLimitSettings defaultRateLimitSettings
     ) {
-        var resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var resourceName = extractRequiredString(map, RESOURCE_NAME, SettingsScope.SERVICE_SETTINGS, validationException);
+        var deploymentId = extractRequiredString(map, DEPLOYMENT_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var apiVersion = extractRequiredString(map, API_VERSION, SettingsScope.SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, defaultRateLimitSettings, validationException, context);
         var oAuth2Settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
         return new CommonSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);

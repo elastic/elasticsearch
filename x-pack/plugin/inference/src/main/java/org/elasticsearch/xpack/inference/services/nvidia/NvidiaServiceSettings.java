@@ -12,11 +12,11 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -153,7 +153,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
-        var model = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var model = ServiceUtils.extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
         var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         return new NvidiaCommonServiceSettings(model, uri, rateLimitSettings);

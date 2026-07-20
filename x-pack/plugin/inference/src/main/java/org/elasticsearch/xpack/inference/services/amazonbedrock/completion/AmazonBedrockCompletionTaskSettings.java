@@ -12,9 +12,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -47,7 +47,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             TEMPERATURE_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
         Double topP = extractOptionalDoubleInRange(
@@ -55,7 +55,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             TOP_P_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
         Double topK = extractOptionalDoubleInRange(
@@ -63,13 +63,13 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             TOP_K_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
         Integer maxNewTokens = extractOptionalPositiveInteger(
             settings,
             MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -24,6 +23,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
@@ -62,7 +62,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String JSON_PARSER = "json_parser";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
-    private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
+    private static final String RESPONSE_SCOPE = String.join(".", SettingsScope.SERVICE_SETTINGS.toString(), RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
 
     private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
@@ -81,15 +81,15 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
 
-        var url = extractRequiredString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var url = extractRequiredString(map, ServiceFields.URL, SettingsScope.SERVICE_SETTINGS, validationException);
 
         var queryParams = QueryParameters.fromMap(map, validationException);
 
         var stringHeaders = extractStringHeadersMap(map, validationException);
 
-        var requestContentString = extractRequiredString(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var requestContentString = extractRequiredString(map, REQUEST, SettingsScope.SERVICE_SETTINGS, validationException);
 
-        var responseParserMap = extractRequiredMap(map, RESPONSE, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var responseParserMap = extractRequiredMap(map, RESPONSE, SettingsScope.SERVICE_SETTINGS, validationException);
 
         var jsonParserMap = extractRequiredMap(
             Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
@@ -103,7 +103,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         var inputTypeTranslator = InputTypeTranslator.fromMap(map, validationException, CustomService.NAME);
-        var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, SettingsScope.SERVICE_SETTINGS, validationException);
 
         if (responseParserMap == null || jsonParserMap == null) {
             throw validationException;
@@ -143,14 +143,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
                 return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
             }
 
-            var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-            var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-            var maxInputTokens = extractOptionalPositiveInteger(
-                map,
-                MAX_INPUT_TOKENS,
-                ModelConfigurations.SERVICE_SETTINGS,
-                validationException
-            );
+            var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
+            var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
+            var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
             return new TextEmbeddingSettings(similarity, dimensions, maxInputTokens);
         }
 
@@ -161,7 +156,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             var extractedMaxInputTokens = extractOptionalPositiveInteger(
                 map,
                 MAX_INPUT_TOKENS,
-                ModelConfigurations.SERVICE_SETTINGS,
+                SettingsScope.SERVICE_SETTINGS,
                 validationException
             );
             return new TextEmbeddingSettings(
@@ -333,12 +328,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             validationException
         );
 
-        var extractedUrl = extractOptionalString(
-            serviceSettings,
-            ServiceFields.URL,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var extractedUrl = extractOptionalString(serviceSettings, ServiceFields.URL, SettingsScope.SERVICE_SETTINGS, validationException);
 
         var extractedQueryParams = QueryParameters.fromMap(serviceSettings, validationException);
 
@@ -347,7 +337,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         var extractedRequestContentString = extractOptionalString(
             serviceSettings,
             REQUEST,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 
@@ -365,7 +355,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         var extractedBatchSize = extractOptionalPositiveInteger(
             serviceSettings,
             BATCH_SIZE,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 

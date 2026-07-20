@@ -12,10 +12,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiUtils;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings, TopNProvider
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
+        Integer topN = extractOptionalPositiveInteger(map, TOP_N, SettingsScope.TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

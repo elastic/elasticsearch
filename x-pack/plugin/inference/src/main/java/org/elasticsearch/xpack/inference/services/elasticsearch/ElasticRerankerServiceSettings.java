@@ -11,10 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -105,7 +105,7 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
         LongDocumentStrategy longDocumentStrategy = extractOptionalEnum(
             map,
             LONG_DOCUMENT_STRATEGY,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             LongDocumentStrategy::fromString,
             EnumSet.allOf(LongDocumentStrategy.class),
             validationException
@@ -114,7 +114,7 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
         Integer maxChunksPerDoc = extractOptionalPositiveInteger(
             map,
             MAX_CHUNKS_PER_DOC,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 

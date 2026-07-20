@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
@@ -29,7 +29,7 @@ public record GoogleVertexAiRerankRequestTaskSettings(@Nullable Integer topN) {
         Integer topN = extractOptionalPositiveInteger(
             map,
             GoogleVertexAiRerankTaskSettings.TOP_N,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
 

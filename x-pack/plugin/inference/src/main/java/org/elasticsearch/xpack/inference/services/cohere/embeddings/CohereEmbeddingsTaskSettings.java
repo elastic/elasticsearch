@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -52,7 +52,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
 
     static ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> parser = new ConstructingObjectParser<>(
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS.toString(),
             ignoreUnknownFields,
             args -> {
                 InputType inputType = EnumParser.parseFromStringInObjectParserContext(
@@ -78,7 +78,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, null);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.TASK_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SettingsScope.TASK_SETTINGS);
         }
     }
 

@@ -132,17 +132,8 @@ public class SearchReadyGateIT extends ESIntegTestCase {
         clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId.get()).get();
 
         try {
-            SearchResponse response = searchFuture.actionGet();
-            try {
-                assertThat("search should have failed due to cancellation", response.getFailedShards(), greaterThan(0));
-                assertThat(
-                    ExceptionsHelper.unwrap(response.getShardFailures()[0].getCause(), TaskCancelledException.class),
-                    notNullValue()
-                );
-            } finally {
-                response.decRef();
-            }
-        } catch (SearchPhaseExecutionException ex) {
+            // 1 primary, 0 replicas: all shards fail on cancellation, so SearchPhaseExecutionException is always thrown
+            SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, searchFuture::actionGet);
             assertThat(ExceptionsHelper.unwrap(ex, TaskCancelledException.class), notNullValue());
         } finally {
             allowRecovery.countDown(); // let recovery finish so the node shuts down cleanly

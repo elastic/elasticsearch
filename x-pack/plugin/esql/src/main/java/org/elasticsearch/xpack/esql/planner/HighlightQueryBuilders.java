@@ -153,13 +153,26 @@ public final class HighlightQueryBuilders {
      */
     public static Expression resolveLexicalQueryBuilder(Expression expr) {
         return switch (expr) {
-            case Match match when match.queryBuilder() == null -> match.replaceQueryBuilder(
-                match.asLexicalQueryBuilder(fieldName(match.field()))
-            );
+            case Match match when match.queryBuilder() == null -> match.replaceQueryBuilder(lexicalQueryBuilder(match));
             case MatchPhrase matchPhrase when matchPhrase.queryBuilder() == null -> matchPhrase.replaceQueryBuilder(
-                matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()))
+                lexicalQueryBuilder(matchPhrase)
             );
             default -> expr;
+        };
+    }
+
+    /**
+     * The lexical query builder for a MATCH or MATCH_PHRASE: the one already resolved on the coordinator, or a fresh
+     * builder keyed by the ON column. Single source of truth shared by {@link #resolveLexicalQueryBuilder} and
+     * {@link #build}, so the two paths cannot drift apart on field name or options.
+     */
+    private static QueryBuilder lexicalQueryBuilder(Expression expr) {
+        return switch (expr) {
+            case Match match -> match.queryBuilder() != null ? match.queryBuilder() : match.asLexicalQueryBuilder(fieldName(match.field()));
+            case MatchPhrase matchPhrase -> matchPhrase.queryBuilder() != null
+                ? matchPhrase.queryBuilder()
+                : matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
+            default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");
         };
     }
 
@@ -169,10 +182,8 @@ public final class HighlightQueryBuilders {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
             case Or or -> QueryBuilders.boolQuery().should(build(or.left())).should(build(or.right()));
             case Not not -> QueryBuilders.boolQuery().mustNot(build(not.field()));
-            case Match match -> match.queryBuilder() != null ? match.queryBuilder() : match.asLexicalQueryBuilder(fieldName(match.field()));
-            case MatchPhrase matchPhrase -> matchPhrase.queryBuilder() != null
-                ? matchPhrase.queryBuilder()
-                : matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
+            case Match match -> lexicalQueryBuilder(match);
+            case MatchPhrase matchPhrase -> lexicalQueryBuilder(matchPhrase);
             case QueryString queryString -> pushdownQueryBuilder(queryString);
             case Kql kql -> pushdownQueryBuilder(kql);
             default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");

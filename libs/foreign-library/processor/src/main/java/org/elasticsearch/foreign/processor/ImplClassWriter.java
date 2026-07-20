@@ -358,9 +358,17 @@ class ImplClassWriter {
             int marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
                 if (paramType == NativeType.STRING) {
+                    var notNull = tryBlock.newLabel();
+                    var end = tryBlock.newLabel();
+                    tryBlock.aload(slot);
+                    tryBlock.ifnonnull(notNull);
+                    tryBlock.getstatic(CD_MemorySegment, "NULL", CD_MemorySegment);
+                    tryBlock.goto_(end);
+                    tryBlock.labelBinding(notNull);
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
                     tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    tryBlock.labelBinding(end);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }

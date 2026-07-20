@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -83,6 +86,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -106,9 +110,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
@@ -141,6 +144,90 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
         assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
+    }
+
+    // ===== Declared date `format` on a columnar column (rejectUncoercibleFileTypedRetypes) =====
+
+    /**
+     * A declared date {@code format} on a NUMERIC physical column is legal: the format is that column's epoch unit /
+     * parse dialect ({@code epoch_second} reads seconds). Covers every numeric physical the coercion admits, in both
+     * the non-strict overlay and the strict path — the two resolution routes funnel through the one reject method, so
+     * a regression in either would surface here. The read-VALUE half lives in {@code DeclaredTypeCoercionsTests} and
+     * {@code FromDatasetIT}; this pins the resolver's admission.
+     */
+    public void testDeclaredDateFormatOnNumericColumnResolves() throws Exception {
+        for (DataType numeric : List.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE)) {
+            for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+                Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+                props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+                ExternalSourceResolution resolution = resolveWithDeclaredMapping(List.of(attr("event_ts", numeric)), props, dynamic);
+                assertNotNull(
+                    "[format] on a [" + numeric.typeName() + "] physical must resolve (dynamic=" + dynamic + ")",
+                    resolution.resolvedSource(DECLARED_GLOB)
+                );
+            }
+        }
+    }
+
+    /**
+     * A declared date {@code format} is still rejected where it could never apply. An already-temporal physical (an
+     * annotated parquet TIMESTAMP infers as {@code datetime}) passes the preceding TYPE check as an identity coercion,
+     * so it reaches — and must be caught by — the format check. The message names the two places a format does apply.
+     */
+    public void testDeclaredDateFormatOnTemporalColumnRejected() throws Exception {
+        for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.DATETIME)), props, dynamic)
+            );
+            assertThat(e.getMessage(), containsString("[format] on column [ts]"));
+            assertThat(e.getMessage(), containsString("datetime"));
+            assertThat(e.getMessage(), containsString("epoch unit"));
+        }
+    }
+
+    /**
+     * A boolean physical declared {@code date} never reaches the format check — it dies at the preceding TYPE check,
+     * because no coercion boolean&rarr;date exists at all. Pins WHICH guard rejects it, so the two are not conflated.
+     */
+    public void testDeclaredDateOnBooleanColumnRejectedByTypeCheckNotFormatCheck() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.BOOLEAN)), props, DatasetMapping.Dynamic.TRUE)
+        );
+        assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
+        assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
+    }
+
+    private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
+
+    /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
+    private ExternalSourceResolution resolveWithDeclaredMapping(
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, fileSchema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), List.of(entry(file, 100)));
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        return future.actionGet();
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====

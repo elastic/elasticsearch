@@ -32,8 +32,7 @@ public class VectorReleasableTests extends ESTestCase {
     BlockFactory blockFactory;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initBlockFactory() throws Exception {
         breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
         breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         blockFactory = BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService)).build();

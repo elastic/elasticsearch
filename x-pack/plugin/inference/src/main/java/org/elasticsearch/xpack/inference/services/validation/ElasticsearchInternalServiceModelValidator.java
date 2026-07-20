@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandEmbeddingModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticDeployedModel;
 
 public class ElasticsearchInternalServiceModelValidator implements ModelValidator {
 
@@ -47,6 +48,13 @@ public class ElasticsearchInternalServiceModelValidator implements ModelValidato
                 listener.delegateFailureAndWrap((delegate, r) -> {
                     delegate.onResponse(postValidate(service, model, r));
                 })
+            );
+        } else if (model instanceof ElasticDeployedModel && model.getTaskType() == TaskType.TEXT_EMBEDDING) {
+            serviceIntegrationValidator.validate(
+                service,
+                model,
+                timeout,
+                listener.delegateFailureAndWrap((delegate, r) -> delegate.onResponse(postValidate(service, model, r)))
             );
         } else {
             listener.onResponse(model);

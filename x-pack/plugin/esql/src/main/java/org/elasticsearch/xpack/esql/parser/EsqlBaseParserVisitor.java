@@ -578,6 +578,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#embedCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEmbedCommand(EsqlBaseParser.EmbedCommandContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

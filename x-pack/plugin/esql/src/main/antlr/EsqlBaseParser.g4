@@ -82,6 +82,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? dedupCommand
     | {this.isDevVersion()}? highlightCommand
+    | {this.isDevVersion()}? embedCommand
     ;
 
 whereCommand
@@ -434,4 +435,8 @@ mmrCommand
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+embedCommand
+    : DEV_EMBED (targetField=qualifiedName ASSIGN)? input=primaryExpression commandNamedParameters
     ;

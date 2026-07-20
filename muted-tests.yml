@@ -511,9 +511,6 @@ tests:
 - class: org.elasticsearch.exponentialhistogram.ExponentialHistogramMergerTests
   method: testDifferenceForCumulativeHistos
   issue: https://github.com/elastic/elasticsearch/issues/153665
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/153695
 - class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
   method: testES92ConstructorRejectsUnwrappedFilterIndexInput
   issue: https://github.com/elastic/elasticsearch/issues/153738

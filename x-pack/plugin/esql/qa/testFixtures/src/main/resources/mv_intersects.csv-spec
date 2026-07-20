@@ -159,7 +159,7 @@ set2 = [4100000001,4100000002,4100000003,4100000004,4100000005,4100000006,410000
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 mvIntersectsKeywordFields
@@ -173,4 +173,49 @@ FROM employees
 
 emp_no:integer | intersects:boolean
 10001          | false
+;
+
+withFoldableEmptyRightArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(keyword, mv_intersection(["foo", "bar"], ["foobar", "abc"]))
+| KEEP id
+;
+
+id: long
+;
+
+
+withFoldableEmptyLeftArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(mv_intersection(["foo", "bar"], ["foobar", "abc"]), keyword)
+| KEEP id
+;
+
+id: long
+;
+
+withLeftNullArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(NULL, keyword)
+| KEEP id
+;
+
+id: long
+;
+
+withBothNullArguments
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(NULL, NULL)
+| KEEP id
+;
+
+id: long
 ;

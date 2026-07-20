@@ -103,6 +103,23 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
     }
 
+    public void testFromMap_ThrowsOnInvalidMaxBatchSize() {
+        final int invalidBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
+        var map = new HashMap<String, Object>(
+            Map.of(ServiceFields.MODEL_ID, "my-model-id", ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE, invalidBatchSize)
+        );
+
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString("Invalid value [" + invalidBatchSize + "]. [max_batch_size] must be a positive integer;")
+        );
+    }
+
     public void testFromMap_IgnoresRateLimitField_PersistentContext() {
         var modelId = "my-model-id";
         var map = new HashMap<String, Object>(

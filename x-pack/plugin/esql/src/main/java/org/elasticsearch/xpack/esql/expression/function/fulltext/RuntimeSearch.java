@@ -122,6 +122,25 @@ public final class RuntimeSearch {
         return terms;
     }
 
+    /**
+     * Exact (unanalyzed) value equality, shared by the runtime full-text functions for types that a pushed-down
+     * query matches as a single term: {@code keyword} for {@code match} and {@code match_phrase} (and {@code ip},
+     * {@code version} etc. for {@code match}, whose query value is converted up front).
+     */
+    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
+    static boolean processBytesRef(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed BytesRef queryStringBytesRef,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
+        if (fieldBlock == null) {
+            return false;
+        }
+
+        return fieldBlock.hasValue(position, queryStringBytesRef, scratch);
+    }
+
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
     static boolean processText(
         @Position int position,

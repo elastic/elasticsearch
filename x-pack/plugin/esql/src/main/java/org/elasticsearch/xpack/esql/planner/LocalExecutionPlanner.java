@@ -1321,8 +1321,14 @@ public class LocalExecutionPlanner {
         // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
+        String analyzerName = options.analyzerName();
 
-        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(queryExpr, fieldNames);
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            queryExpr,
+            fieldNames,
+            analyzerName,
+            context.analysisRegistry()
+        );
         HighlightConfig config = new HighlightConfig(
             translated.queryText(),
             options.preTag(),
@@ -1334,6 +1340,7 @@ public class LocalExecutionPlanner {
             HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
+            analyzerName,
             options.maxAnalyzedOffset()
             // The query and MemoryIndex must use the same analyzer.
         ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);

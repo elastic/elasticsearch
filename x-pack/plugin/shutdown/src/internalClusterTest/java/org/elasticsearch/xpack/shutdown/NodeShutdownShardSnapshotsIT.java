@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -61,6 +62,7 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, nodeForRemoval);
 
         // Wait for index2 to complete its snapshot, then start shutdown so that we observe 1 completed shard snapshot
+        final var index2CompletionTimeout = TimeValue.THIRTY_SECONDS;
         safeAwait(
             ClusterServiceUtils.addTemporaryStateListener(
                 clusterService,
@@ -75,8 +77,10 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
                                     shardEntry -> shardEntry.getKey().getIndexName().equals(index2)
                                         && shardEntry.getValue().state().completed()
                                 )
-                    )
-            )
+                    ),
+                index2CompletionTimeout
+            ),
+            index2CompletionTimeout
         );
         putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
 

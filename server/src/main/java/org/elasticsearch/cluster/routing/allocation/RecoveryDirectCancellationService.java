@@ -135,7 +135,8 @@ public class RecoveryDirectCancellationService {
     }
 
     /// Given the `requests` map of [CancelRecoveriesAction] request per node, sends each request to its target node.
-    private void sendCancellations(Map<DiscoveryNode, CancelRecoveriesAction.Request> requests) {
+    /// This method is synchronized to prevent concurrent invocations from sending duplicate cancellations.
+    private synchronized void sendCancellations(Map<DiscoveryNode, CancelRecoveriesAction.Request> requests) {
         if (enableDirectRecoveryCancellations == false) {
             logger.debug(
                 "[{}] is disabled, would have sent direct recovery cancellations {}",
@@ -153,17 +154,15 @@ public class RecoveryDirectCancellationService {
             );
             return;
         }
-        final var deduplicatedRequests = deduplicateFromCache(requests);
+        final var deduplicatedRequests = deduplicateAndUpdateCache(requests);
         logger.debug("sending direct cancellation requests {}", deduplicatedRequests);
         for (var nodeRequest : deduplicatedRequests.entrySet()) {
             sendDirectCancelRecoveriesRequest(nodeRequest.getKey(), nodeRequest.getValue());
         }
     }
 
-    /// Removes cancellations that were already sent recently. Best effort, since entries in the cache have a time expiration,
-    /// and a request has to be processed without error by the relevant data node for it to be recorded in the cache (which means
-    /// a subsequent request could check the cache before the master received a response for the prior request)
-    private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateFromCache(
+    /// Removes cancellations that were already sent recently and updates the cache.
+    private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateAndUpdateCache(
         Map<DiscoveryNode, CancelRecoveriesAction.Request> requests
     ) {
         final var deduped = new HashMap<DiscoveryNode, CancelRecoveriesAction.Request>();
@@ -182,6 +181,7 @@ public class RecoveryDirectCancellationService {
                         dedupedCancellations.add(cancellation);
                     }
                 }
+                sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
             }
             if (dedupedCancellations.isEmpty() == false) {
                 final var updatedNodeRequest = new CancelRecoveriesAction.Request(
@@ -200,16 +200,16 @@ public class RecoveryDirectCancellationService {
             node,
             CancelRecoveriesAction.TYPE.name(),
             request,
-            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
-                // We only record the cancellation in the cache once we know the data node processed it successfully
+            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> failShardsCancelledInQueue(node, response), e -> {
+                // Request was unsuccessful, invalidate cached entries so another request can try again later
+                // There is a possibility that another close-in-time request was deduplicated from this while we were
+                // waiting for it to respond but that should be fine, as in all likelihood, this subsequent request would
+                // have faced the same transport error and direct cancellation is best effort anyway
                 for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-                    sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
+                    sentCancellations.invalidate(cancellation.allocationId());
                 }
-                failShardsCancelledInQueue(node, response);
-            }, e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)),
-                CancelRecoveriesAction.Response::new,
-                genericExecutor
-            )
+                logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
+            }), CancelRecoveriesAction.Response::new, genericExecutor)
         );
     }
 

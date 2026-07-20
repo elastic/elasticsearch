@@ -533,7 +533,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(service.sentCancellations.get(allocationId2.getId()), notNullValue());
     }
 
-    public void testFailedRequestsAreNotCached() {
+    public void testFailedRequestsAreInvalidated() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 3, 1)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);

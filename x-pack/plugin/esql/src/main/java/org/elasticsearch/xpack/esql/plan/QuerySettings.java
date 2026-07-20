@@ -110,7 +110,7 @@ public final class QuerySettings {
             - Partially unmapped non-`keyword` fields can be used in expressions. If the field is mapped to a single type and there's an
               available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion
               (for example `text`, `aggregate_metric_double`, or `dense_vector`), and an explicit one has not been provided by the user,
-              values remain typed where mapped and are `null` for rows from indices where the field is unmapped.
+              values retain the mapped type but are `null` for rows from indices where the field is unmapped.
               {applies_to}`stack: ga 9.5+`
               - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or `TO_TYPE`),
                 unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`

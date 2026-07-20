@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack: preview =9.3, ga 9.5+
+  stack: preview 9.3-9.4, ga 9.5+
   serverless: ga
 navigation_title: "Unmapped fields"
 description: How ES|QL queries fields that aren't in the index mapping, using the SET unmapped_fields directive.
@@ -35,8 +35,8 @@ The `unmapped_fields` setting accepts three values, which range from strict to p
 | Value | What it does | When to use it |
 | --- | --- | --- |
 | `DEFAULT` | The query fails when it references a field that is not mapped in any queried index. For a partially mapped field, documents from indices where the field is not mapped return `null`. This is the default behavior. | You want strict schema enforcement and prefer an error when a field is completely unmapped. |
-| `NULLIFY` | When a query references a field that is not mapped in any queried index, that field returns `null`. Fully unmapped fields that the query never mentions do not appear in the output. Partially mapped fields behave as they do in `DEFAULT`: documents from indices where the field is not mapped return `null`. | You want a reusable query to continue when a field is not available in a dataset. |
-| `LOAD` {applies_to}`stack: preview =9.4, ga 9.5+` | When a query references a fully unmapped field, {{esql}} loads it from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword` (or `null` if absent from `_source`). Fully unmapped fields that the query never mentions are not loaded. For a partially mapped field, {{esql}} loads values from `_source` where the field is unmapped, even if the query does not mention the field.<br><br>{applies_to}`stack: ga 9.5+` For a partially mapped field with a non-`keyword` type, `LOAD` converts the loaded values to the field's mapped type where possible. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
+| `NULLIFY` | When a query references a field that is not mapped in any queried index, that field returns `null`. Fully unmapped fields that the query never mentions do not appear in the output. Partially mapped fields behave as they do in `DEFAULT`: documents from indices where the field is not mapped return `null`. | You want a reusable query to continue working when a field is not available in a dataset. |
+| `LOAD` {applies_to}`stack: preview =9.4, ga 9.5+` | When a query references a fully unmapped field, {{esql}} loads it from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword` and fills with the `null` value if absent from `_source`. Fully unmapped fields that the query never mentions are not loaded. For a partially mapped field, {{esql}} loads values from `_source` where the field is unmapped, even if the query does not mention the field.<br><br>{applies_to}`stack: ga 9.5+` For a partially mapped field with a non-`keyword` type, `LOAD` converts the loaded values to the field's mapped type where possible. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
 
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
@@ -83,7 +83,7 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 - [`PROMQL`](commands/promql.md) is not supported with `LOAD`.
 - Referencing subfields of [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) parents is not supported.
-- Partially mapped fields whose type has no implicit conversion from `keyword` (for example `text` or `aggregate_metric_double`) keep their mapped type where mapped and are `null` where unmapped. {applies_to}`stack: ga 9.5+`
+- Partially mapped fields whose type has no implicit conversion from `keyword` (for example `text` or `aggregate_metric_double`) keep their mapped type but are not loaded from `_source`. {applies_to}`stack: ga 9.5+`
 
 For the full list of restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 

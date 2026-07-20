@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -510,16 +509,11 @@ public class ApproximationPlan {
                 // memory pressure when there are many groups.
                 AggregateFunction bucketAggFn;
                 if (aggFn instanceof Percentile p) {
-                    bucketAggFn = new Percentile(p.source(), p.field(), p.filter(), p.window(), p.percentile(), BUCKET_COMPRESSION);
+                    bucketAggFn = p.withCompression(BUCKET_COMPRESSION);
                 } else if (aggFn instanceof Median m) {
-                    bucketAggFn = new Percentile(
-                        m.source(),
-                        m.field(),
-                        m.filter(),
-                        m.window(),
-                        Literal.integer(Source.EMPTY, (int) QuantileStates.MEDIAN),
-                        BUCKET_COMPRESSION
-                    );
+                    // Use Median.surrogate() as the single source of truth for the Median→Percentile(50) mapping.
+                    Expression surrogate = m.surrogate();
+                    bucketAggFn = surrogate instanceof Percentile sp ? sp.withCompression(BUCKET_COMPRESSION) : aggFn;
                 } else {
                     bucketAggFn = aggFn;
                 }

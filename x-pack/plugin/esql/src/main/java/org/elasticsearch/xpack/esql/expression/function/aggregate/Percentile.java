@@ -191,6 +191,23 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         return compression;
     }
 
+    public Percentile withCompression(double newCompression) {
+        return new Percentile(source(), field(), filter(), window(), percentile, newCompression);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Double.hashCode(compression);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        return Double.compare(((Percentile) obj).compression, compression) == 0;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {

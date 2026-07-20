@@ -82,6 +82,11 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return DateTimeFormatter.ISO_INSTANT.format(BASE.plus(Duration.ofDays(i))); // 12:34:56 on 2020-01-(i+1)
     }
 
+    /** A keyword whose stored values are genuinely mixed-case, so a case-insensitive match exercises the field-side fold. */
+    private static String label(int i) {
+        return new String[] { "Alpha", "BETA", "gamma", "DeLtA" }[i % 4];
+    }
+
     @Before
     public void loadBothSources() throws Exception {
         // The index: one shard so the result order is trivial to reason about; ESQL sorts explicitly anyway.
@@ -90,15 +95,30 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("id", "type=integer", "status", "type=integer", "tags", "type=keyword", "bytes", "type=long", "ts", "type=date")
+                .setMapping(
+                    "id",
+                    "type=integer",
+                    "status",
+                    "type=integer",
+                    "tags",
+                    "type=keyword",
+                    "bytes",
+                    "type=long",
+                    "ts",
+                    "type=date",
+                    "label",
+                    "type=keyword"
+                )
         );
         for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(INDEX).setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i)).get();
+            client().prepareIndex(INDEX)
+                .setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i), "label", label(i))
+                .get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
-        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date\n");
+        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword\n");
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
                 .append(',')
@@ -109,6 +129,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(bytes(i))
                 .append(',')
                 .append(ts(i))
+                .append(',')
+                .append(label(i))
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
@@ -123,6 +145,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("tags", new DatasetFieldMapping("keyword", null));
         properties.put("bytes", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", null));
+        properties.put("label", new DatasetFieldMapping("keyword", null));
         return properties;
     }
 
@@ -156,6 +179,11 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     /** A case-insensitive keyword term with no case-folding match selects nothing on both paths — never a silent over-match. */
     public void testCaseInsensitiveTermNoMatch() {
         assertSelectsSameRows(QueryBuilders.termQuery("tags", "T9").caseInsensitive(true));
+    }
+
+    /** Exercises the field-side fold: a lower-case term matches genuinely mixed-case STORED values (e.g. "BETA") on both paths. */
+    public void testCaseInsensitiveTermMatchesStoredMixedCase() {
+        assertSelectsSameRows(QueryBuilders.termQuery("label", "beta").caseInsensitive(true));
     }
 
     /** A decimal against an integral field matches nothing on both paths — never a truncated match (B2). */

@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -152,13 +153,21 @@ public final class QueryDslTranslator {
     /**
      * A case-insensitive term folds both sides to lower case before the any-value equality, mirroring the index's
      * {@code case_insensitive} term (which lower-cases both the term and the keyword). {@code TO_LOWER} maps over each
-     * value of a multivalue field, so {@code mv_contains} keeps the two-valued any-value shape; both sides fold with the
-     * query's locale, so the comparison is internally consistent. Only {@code keyword} supports it: the index rejects
-     * {@code case_insensitive} on a non-string field, and analyzed {@code text} has no faithful structural equality — so
-     * a present non-keyword field degrades, while a missing field stays null-bound and folds to false like every other
-     * leaf (the case distinction is moot there, so it takes the ordinary equality leaf). The one residual divergence
-     * from the index is that {@code TO_LOWER} folds with the request locale where Lucene folds locale-independently — a
-     * non-issue for the ASCII keyword values this targets.
+     * value of a multivalue field, so {@code mv_contains} keeps the two-valued any-value shape. Only {@code keyword}
+     * supports it: the index rejects {@code case_insensitive} on a non-string field, and analyzed {@code text} has no
+     * faithful structural equality — so a present non-keyword field degrades, while a missing field stays null-bound and
+     * folds to false like every other leaf (the case distinction is moot there, so it takes the ordinary equality leaf).
+     *
+     * <p>Fidelity to the index has a hard edge. The index folds case <em>locale-independently</em> (Lucene's
+     * per-codepoint automaton). {@code TO_LOWER} folds with the <em>request</em> locale, and cannot be pinned to
+     * {@code ROOT}: {@code ToLower} rebinds its {@code Configuration} from the request on the data node
+     * ({@code ToLower(StreamInput)} reads {@code PlanStreamInput.configuration()}), so a {@code ROOT}-wrapped config would
+     * be dropped at the wire and the two sides would fold with different locales. Folding both sides with the request
+     * locale is therefore the only wire-consistent choice, and it matches the index only for an ASCII value under a
+     * locale whose ASCII case-folding equals {@code ROOT}. A Turkish/Azeri locale lower-cases {@code 'I'} to dotless
+     * {@code 'ı'}, and a non-ASCII value can fold differently from the automaton — outside that faithful set we
+     * <em>fail closed</em> rather than silently under-match. The guard sees only the query value and locale (all that is
+     * knowable at plan time); a non-ASCII value stored in the field itself is an accepted residual.
      */
     private Expression caseInsensitiveEquality(Expression field, Object value) {
         if (isPresent(field) == false) {
@@ -167,13 +176,24 @@ public final class QueryDslTranslator {
         if (field.dataType() != DataType.KEYWORD) {
             throw new TranslationUnsupportedException("term[case_insensitive on " + field.dataType().typeName() + "]");
         }
-        Expression lowered = new ToLower(Source.EMPTY, field, configuration);
-        Literal literal = new Literal(
-            Source.EMPTY,
-            new BytesRef(String.valueOf(value).toLowerCase(configuration.locale())),
-            DataType.KEYWORD
-        );
-        return checkedLeaf(field, new MvContains(Source.EMPTY, lowered, literal));
+        String raw = String.valueOf(value);
+        String lowered = raw.toLowerCase(configuration.locale());
+        if (isAscii(raw) == false || lowered.equals(raw.toLowerCase(Locale.ROOT)) == false) {
+            throw new TranslationUnsupportedException("term[case_insensitive fold not faithful to the index for this value or locale]");
+        }
+        Expression loweredField = new ToLower(Source.EMPTY, field, configuration);
+        Literal literal = new Literal(Source.EMPTY, new BytesRef(lowered), DataType.KEYWORD);
+        return checkedLeaf(field, new MvContains(Source.EMPTY, loweredField, literal));
+    }
+
+    /** A string is all-ASCII when no char exceeds {@code 0x7F} — the range where {@code TO_LOWER} and the index automaton agree. */
+    private static boolean isAscii(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) > 0x7F) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

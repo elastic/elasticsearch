@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -73,6 +74,10 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
         return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb);
+    }
+
+    private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
+        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb);
     }
 
     /** Fail-closed: an unsupported construct throws — the caller (a query function, the request filter) turns it into an error. */
@@ -311,6 +316,24 @@ public class QueryDslTranslatorTests extends ESTestCase {
         Expression e = translate(QueryBuilders.termQuery("nope", "X").caseInsensitive(true));
         assertThat(e, instanceOf(MvContains.class));
         assertEquals(Literal.NULL, ((MvContains) e).children().get(0));
+    }
+
+    /**
+     * The request locale's ASCII case-fold must match the index's locale-independent fold. A Turkish locale lower-cases
+     * `I` to dotless `ı`, so `case_insensitive` there would silently under-match the index — fail closed instead.
+     */
+    public void testCaseInsensitiveTermFailsClosedUnderDivergentLocale() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.termQuery("tags", "WINDOWS").caseInsensitive(true), Locale.forLanguageTag("tr-TR"))
+        );
+        // The same value under a ROOT-equivalent ASCII locale is fine.
+        assertThat(translate(QueryBuilders.termQuery("tags", "WINDOWS").caseInsensitive(true), Locale.US), instanceOf(MvContains.class));
+    }
+
+    /** A non-ASCII value can fold differently from the index's per-codepoint automaton, so it fails closed, not silently. */
+    public void testCaseInsensitiveTermFailsClosedOnNonAsciiValue() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("tags", "café").caseInsensitive(true)));
     }
 
     /** The case-insensitive leaf is two-valued, so it composes under negation like every other leaf: NOT over mv_contains. */

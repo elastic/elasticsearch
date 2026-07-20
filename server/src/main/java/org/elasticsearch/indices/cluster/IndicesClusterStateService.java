@@ -692,11 +692,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 final var indexService = indicesService.indexService(index);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
-                    final var stateIndexMetadata = state.metadata().findIndex(index);
-                    assert stateIndexMetadata.isEmpty() == false;
+                    final IndexMetadata indexMetadata = state.metadata().findIndex(index).orElse(null);
+                    assert indexMetadata != null : "null index metadata but non-null new shard routing " + shardRouting;
                     sendFailShard(
                         shardRouting,
-                        stateIndexMetadata.get().primaryTerm(shardId.id()),
+                        indexMetadata.primaryTerm(shardId.id()),
                         "master marked shard as active, but shard has not been created, mark shard as failed",
                         null,
                         state
@@ -718,7 +718,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final var project = state.metadata().lookupProject(index);
             assert project.isEmpty() == false;
             final IndexMetadata indexMetadata = project.get().index(index);
-            assert indexMetadata != null;
+            assert indexMetadata != null : "null index metadata but non-null new shard routings " + entry.getValue();
             try {
                 logger.debug("creating index [{}] in project [{}]", index, project.get().id());
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);

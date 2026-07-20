@@ -943,6 +943,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         );
     }
 
+    public long getCacheSize() {
+        return cacheSize;
+    }
+
     public void removeFromCache(KeyType cacheKey) {
         forceEvict(cacheKey.shardId(), cacheKey::equals);
     }

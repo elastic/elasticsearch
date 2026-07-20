@@ -706,6 +706,59 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getGlobalCheckpoint(), equalTo((long) nextActiveLocalCheckpoint));
     }
 
+    /**
+     * Mirrors {@link #testRaceUpdatingGlobalCheckpoint} for the case where the thread marking an allocation ID as in-sync is
+     * interrupted (as happens when a peer recovery is cancelled) while it is still pending in-sync and blocking global checkpoint
+     * advancement. Removing the allocation ID from the pending set on the way out unblocks advancement, so the global checkpoint
+     * must be recomputed; otherwise it is left stale and an assertion in {@link ReplicationTracker} is violated on the next operation
+     * with a "global checkpoint is not up-to-date" assertion error.
+     */
+    public void testGlobalCheckpointUpdateAfterInterruptedMarkAsInSync() throws Exception {
+        final AllocationId active = AllocationId.newInitializing();
+        final AllocationId initializing = AllocationId.newInitializing();
+
+        final long activeLocalCheckpoint = randomIntBetween(1, 1024);
+        final ReplicationTracker tracker = newTracker(active);
+        tracker.updateFromMaster(
+            randomNonNegativeLong(),
+            Collections.singleton(active.getId()),
+            routingTable(Collections.singleton(initializing), active)
+        );
+        tracker.activatePrimaryMode(activeLocalCheckpoint);
+        addPeerRecoveryRetentionLease(tracker, initializing);
+        tracker.initiateTracking(initializing.getId());
+
+        // Mark the initializing shard as in-sync with a local checkpoint below the global checkpoint on a separate thread. This
+        // adds it to the pending-in-sync set and blocks the thread waiting for its local checkpoint to advance.
+        final long initializingLocalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, activeLocalCheckpoint - 1);
+        final AtomicBoolean interrupted = new AtomicBoolean();
+        final Thread markingThread = new Thread(() -> {
+            try {
+                tracker.markAllocationIdAsInSync(initializing.getId(), initializingLocalCheckpoint);
+            } catch (final InterruptedException e) {
+                interrupted.set(true);
+            }
+        });
+        markingThread.start();
+
+        assertBusy(() -> assertTrue(tracker.pendingInSync.contains(initializing.getId())));
+
+        // Advance the active (in-sync) shard's local checkpoint. The global checkpoint cannot advance yet because the initializing
+        // shard is still pending in-sync and blocks advancement.
+        final long nextActiveLocalCheckpoint = randomLongBetween(activeLocalCheckpoint + 1, Integer.MAX_VALUE);
+        tracker.updateLocalCheckpoint(active.getId(), nextActiveLocalCheckpoint);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(activeLocalCheckpoint));
+
+        // Interrupt the marking thread while it is still pending in-sync, simulating a cancelled peer recovery. Removing the
+        // initializing shard from the pending set unblocks advancement, so the global checkpoint must now reflect the advanced
+        // local checkpoint of the sole remaining in-sync shard.
+        markingThread.interrupt();
+        markingThread.join();
+        assertTrue(interrupted.get());
+
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(nextActiveLocalCheckpoint));
+    }
+
     public void testPrimaryContextHandoff() throws IOException {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         final ShardId shardId = new ShardId("test", "_na_", 0);

@@ -174,7 +174,7 @@ public class RecoveryDirectCancellationService {
             final var dedupedCancellations = new ArrayList<ShardRecoveryCancellation>();
             for (ShardRecoveryCancellation cancellation : request.cancellations()) {
                 final ShardRecoveryCancellation cached = sentCancellations.get(cancellation.allocationId());
-                assert cached == null || cached.shardId() == cancellation.shardId();
+                assert cached == null || cached.shardId().equals(cancellation.shardId());
                 if (cached == null || (cached.cancelIfStarted() == false && cancellation.cancelIfStarted())) {
                     dedupedCancellations.add(cancellation);
                 }

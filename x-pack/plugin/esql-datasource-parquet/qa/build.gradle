@@ -5,7 +5,10 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -42,7 +45,7 @@ dependencies {
   // Hadoop types even though our PlainParquetReadOptions bypasses them at runtime.
   javaRestTestCompileOnly("org.apache.hadoop:hadoop-common:3.4.3") { transitive = false }
   javaRestTestCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:3.4.3") { transitive = false }
-  
+
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
   // Repository GCS module for cluster
@@ -68,7 +71,7 @@ ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixture
 def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv', 'uint32_pushdown', 'uint64_pushdown']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -118,11 +121,81 @@ generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
 // parquet_ubn_a.csv has [name:keyword, age:integer, score:double]
 // parquet_ubn_b.csv has [age:long, name:keyword, city:keyword]
 // Under UBN the unified schema is: name:keyword, age:long (widened), score:double (null in B), city:keyword (null in A)
+// The mixed-temporal (ts) and lossy-representation (code) columns live in the separate multifile_temporal and
+// multifile_type_drift fixtures below, kept out of this shared fixture so its FFW/widened-column tests are stable.
 def multifileUbnDir = file("${parquetFixtureOutputDir}/multifile_ubn")
 ['parquet_ubn_a', 'parquet_ubn_b'].each { baseName ->
   def taskName = "generateMultifileUbnParquet_${baseName}"
   def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
   def parquetFile = file("${multifileUbnDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+// Generate multifile_type_drift fixtures: two Parquet files where the same `code` column is INTEGER in
+// file A and KEYWORD in file B. Isolates the lossy int->keyword UNION_BY_NAME widening (and its response
+// Warning) to the one representation-safe-miss test, so it does not pollute the other multifile_ubn tests.
+def multifileTypeDriftDir = file("${parquetFixtureOutputDir}/multifile_type_drift")
+['parquet_type_drift_a', 'parquet_type_drift_b'].each { baseName ->
+  def taskName = "generateMultifileTypeDriftParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${multifileTypeDriftDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+// Generate multifile_temporal fixtures: two Parquet files with a mixed-temporal `ts` column (date in file A,
+// date_nanos in file B) that union_by_name widens LOSSLESSLY to date_nanos (no warning). Isolated from the
+// shared multifile_ubn fixture so the extra column does not perturb its FFW/widened-column tests.
+def multifileTemporalDir = file("${parquetFixtureOutputDir}/multifile_temporal")
+['parquet_temporal_a', 'parquet_temporal_b'].each { baseName ->
+  def taskName = "generateMultifileTemporalParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${multifileTemporalDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+// Generate multifile_perm fixtures: two Parquet files with the same three columns in different
+// physical order (anchor [p,q,r]; non-anchor reversed [r,q,p]) and distinct column types so any
+// cross-file column-order swap surfaces as a type mismatch rather than passing silently.
+// parquet_perm_a.csv has [p:integer, q:keyword, r:double]
+// parquet_perm_b.csv has [r:double, q:keyword, p:integer]
+def multifilePermDir = file("${parquetFixtureOutputDir}/multifile_perm")
+['parquet_perm_a', 'parquet_perm_b'].each { baseName ->
+  def taskName = "generateMultifilePermParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${multifilePermDir}/${baseName}.parquet")
   tasks.register(taskName, JavaExec) {
     dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
     dependsOn testFixturesProject.tasks.named('processResources')
@@ -184,7 +257,7 @@ tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks
 }
 
-sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+sourceSets.javaRestTest.resources.srcDir layout.buildDirectory.get().dir("parquet-fixtures")
 tasks.named('processJavaRestTestResources').configure {
   dependsOn generateParquetFixtures
 }
@@ -206,9 +279,11 @@ tasks.named('javaRestTest') {
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
 
-  // Increase timeouts for S3/Parquet operations which may take longer than standard queries
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
+  // The http datasource fetch triggered by runEsqlSync() retries transient failures against
+  // raw.githubusercontent.com with its own bounded backoff (~30s) before giving up; give the
+  // REST client enough headroom to outlast that plus real transfer time.
+  systemProperty 'tests.rest.client_timeout', '120'
+  systemProperty 'tests.rest.socket_timeout', '120'
 
   // Enable more verbose logging for debugging
   testLogging {
@@ -218,11 +293,42 @@ tasks.named('javaRestTest') {
   }
 }
 
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
-  }
+// The csvSpecTest source set (created by the plugin above) hosts ParquetFormatSpecIT,
+// ParquetCompressedFormatSpecIT, and ParquetCompressedMultifileSpecIT plus their shared
+// abstract base. Keeping them out of javaRestTest prevents ClickBenchParquetSpecIT (which
+// fires EsqlSpecTestCase.INGEST with an empty indicesToLoad) from poisoning the JVM-global
+// INGEST guard before the spec ITs run.
+// No variants are declared — the IT classes are hand-written in src/csvSpecTest/java/ because
+// the generator hardcodes a 6-parameter constructor and parquet tests need 7+ (StorageBackend,
+// codec).
+esqlCsvSpecTests {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  packageName = 'org.elasticsearch.xpack.esql.qa.parquet'
 }
+
+// Provide the generated Parquet fixtures as test resources for the csvSpecTest source set,
+// mirroring the javaRestTest resource wiring above.
+sourceSets.csvSpecTest.resources.srcDir layout.buildDirectory.get().dir("parquet-fixtures")
+tasks.named('processCsvSpecTestResources').configure {
+  dependsOn generateParquetFixtures
+}
+
+// Runs the three csv-spec ITs (ParquetFormatSpecIT, ParquetCompressedFormatSpecIT,
+// ParquetCompressedMultifileSpecIT) in their own JVM, separate from javaRestTest.
+// All three extend AbstractParquetExternalSpecTestCase, which declares the shared
+// ElasticsearchCluster at the abstract-class level — INGEST fires exactly once for the
+// entire suite. Isolation from ClickBenchParquetSpecIT (which fires INGEST with an empty
+// indicesToLoad) is achieved by having the spec ITs live in the csvSpecTest source set.
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  dependsOn generateParquetFixtures
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}
+
+tasks.named('check').configure { dependsOn csvSpecTests }

@@ -62,7 +62,11 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     @Override
     public TelemetryProvider getTelemetryProvider(Environment environment) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
-        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(environment.settings(), diskBufferPath);
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
+            environment.settings(),
+            diskBufferPath,
+            environment.configDir()
+        );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
     }
@@ -82,7 +86,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
         final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
-        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
+        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) ? "enabled" : "disabled");
+        telemetryProvider.get().initCertReload(services.resourceWatcherService());
 
         return List.of(apmTracer, apmMeter, loggingService);
     }
@@ -94,37 +99,37 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.APM_AGENT_SETTINGS,
             APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING,
             APMAgentSettings.TELEMETRY_API_KEY_SETTING,
+            // Resource attributes (all signals)
+            OtelSdkSettings.TELEMETRY_RESOURCE_ATTRIBUTES,
+            // Shared OTLP export transport (metrics + traces)
+            OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT,
+            OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL,
+            OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT,
             // Metrics
             APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE,
-            OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS,
-            OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF,
-            OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER,
-            OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT,
-            OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE,
+            OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL,
+            OtelSdkSettings.TELEMETRY_METRICS_DISABLED,
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS,
-            OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT,
-            OtelSdkSettings.TELEMETRY_OTEL_RESOURCE_ATTRIBUTES,
-            OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH,
+            OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE,
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE,
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_BATCH_SIZE,
+            OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
+            // Logs
+            OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY
         );
     }
 }

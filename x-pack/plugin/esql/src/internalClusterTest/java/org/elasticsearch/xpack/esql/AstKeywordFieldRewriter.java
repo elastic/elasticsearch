@@ -11,7 +11,10 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -144,8 +147,6 @@ public final class AstKeywordFieldRewriter {
         MATCH_OPERATOR_LHS,
         /** Body of a {@code LOOKUP JOIN <index> ON <field>[, <field>]*} command. */
         LOOKUP_JOIN_ON,
-        /** Body of an {@code INSIST_🐔 <field>[, <field>]*} developer-only command. */
-        INSIST_BODY,
         /** Identifier inside an ES|QL qualified-name reference of the form {@code [<index>].[<field>]}. */
         QUALIFIED_NAME_BRACKETS
     }
@@ -165,10 +166,49 @@ public final class AstKeywordFieldRewriter {
      * @param modified            {@code true} iff the rewritten query differs from the original
      * @param rewrittenFieldNames the set of keyword field names that were actually wrapped at least once
      * @param skipEvents          every in-scope keyword reference that was left unwrapped, in pipeline order
+     * @param wrappedMatchFunctionArg {@code true} iff a {@code MATCH(...)} function argument was wrapped in
+     *                            {@code field_extract(...)}, so the caller can enable runtime lexical search
+     * @param coveredArguments    the {@code function:argIndex} contexts in which an in-scope reference was wrapped
      */
-    public record RewriteResult(String rewrittenQuery, boolean modified, Set<String> rewrittenFieldNames, List<SkipEvent> skipEvents) {}
+    public record RewriteResult(
+        String rewrittenQuery,
+        boolean modified,
+        Set<String> rewrittenFieldNames,
+        List<SkipEvent> skipEvents,
+        boolean wrappedMatchFunctionArg,
+        Set<String> coveredArguments
+    ) {}
 
     private AstKeywordFieldRewriter() {}
+
+    private static final Map<String, String> CLASS_NAME_TO_OPERATOR_NAME = new java.util.HashMap<>();
+    static {
+        for (DocsV3Support.OperatorConfig config : DocsV3Support.OPERATORS.values()) {
+            CLASS_NAME_TO_OPERATOR_NAME.put(config.clazz().getName(), config.name().toUpperCase(Locale.ROOT));
+        }
+    }
+
+    private static String getExpressionName(Expression expression) {
+        if (expression instanceof org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction unf) {
+            String name = unf.name().toUpperCase(Locale.ROOT);
+            if (name.equals("TO_INT")) {
+                // TODO remove the weird hack for TO_INT.
+                return "TO_INTEGER";
+            }
+            return name;
+        }
+
+        String opName = CLASS_NAME_TO_OPERATOR_NAME.get(expression.getClass().getName());
+        if (opName != null) {
+            return opName;
+        }
+
+        if (expression instanceof Function function) {
+            return function.functionName().toUpperCase(Locale.ROOT);
+        }
+
+        return null;
+    }
 
     /**
      * Rewrites {@code query} by parsing it, walking its pipeline commands, and wrapping every
@@ -181,7 +221,7 @@ public final class AstKeywordFieldRewriter {
     public static RewriteResult rewrite(String query, ScopeResolver scopeResolver, String wrapperSubKey, List<String> expectedColumnOrder) {
         Set<String> initialScope = scopeResolver.resolveScope(query);
         if (initialScope.isEmpty()) {
-            return new RewriteResult(query, false, Set.of(), List.of());
+            return new RewriteResult(query, false, Set.of(), List.of(), false, Set.of());
         }
         LogicalPlan plan;
         try {
@@ -190,14 +230,21 @@ public final class AstKeywordFieldRewriter {
             // The query uses grammar this parser configuration rejects (or relies on bound params);
             // leave it unmodified so the unmodified spec runs and any failure is attributable to the
             // engine rather than to a malformed rewrite.
-            return new RewriteResult(query, false, Set.of(), List.of());
+            return new RewriteResult(query, false, Set.of(), List.of(), false, Set.of());
         }
         Walker walker = new Walker(query, scopeResolver, wrapperSubKey);
         Set<String> endScope = walker.processPipeline(plan, initialScope);
         String body = walker.applyEdits();
         String rewritten = appendTopLevelTailRecovery(body, endScope, expectedColumnOrder, wrapperSubKey, walker.rewrittenNames);
         boolean modified = rewritten.equals(query) == false;
-        return new RewriteResult(rewritten, modified, Set.copyOf(walker.rewrittenNames), List.copyOf(walker.skipEvents));
+        return new RewriteResult(
+            rewritten,
+            modified,
+            Set.copyOf(walker.rewrittenNames),
+            List.copyOf(walker.skipEvents),
+            walker.wrappedMatchFunctionArg,
+            Set.copyOf(walker.coveredArguments)
+        );
     }
 
     /**
@@ -310,6 +357,8 @@ public final class AstKeywordFieldRewriter {
         private final Map<String, Edit> editsByKey = new LinkedHashMap<>();
         final Set<String> rewrittenNames = new HashSet<>();
         final List<SkipEvent> skipEvents = new ArrayList<>();
+        boolean wrappedMatchFunctionArg = false;
+        final Set<String> coveredArguments = new HashSet<>();
 
         Walker(String query, ScopeResolver scopeResolver, String wrapperSubKey) {
             this.query = query;
@@ -420,7 +469,7 @@ public final class AstKeywordFieldRewriter {
         private Set<String> processNode(LogicalPlan node, Set<String> scope) {
             if (node instanceof Eval eval) {
                 for (Alias field : eval.fields()) {
-                    wrapExpression(field, scope);
+                    wrapExpression(field, scope, null);
                 }
                 return removeAll(scope, aliasNames(eval.fields()));
             }
@@ -429,7 +478,7 @@ public final class AstKeywordFieldRewriter {
             }
             if (node instanceof OrderBy orderBy) {
                 for (Expression order : orderBy.order()) {
-                    wrapExpression(order, scope);
+                    wrapExpression(order, scope, null);
                 }
                 return scope;
             }
@@ -456,7 +505,7 @@ public final class AstKeywordFieldRewriter {
                 return processAggregate(aggregate, scope, false);
             }
             if (node instanceof RegexExtract regexExtract) {
-                wrapExpression(regexExtract.input(), scope);
+                wrapExpression(regexExtract.input(), scope, null);
                 return removeAll(scope, attributeNames(regexExtract.extractedFields()));
             }
             if (node instanceof Join join) {
@@ -472,14 +521,10 @@ public final class AstKeywordFieldRewriter {
             if (node instanceof Fork fork) {
                 return processFork(fork, scope);
             }
-            if (isInsist(node)) {
-                recordSkips(node.expressions(), scope, SkipSite.INSIST_BODY);
-                return scope;
-            }
             // Source commands (FROM/TS/ROW), subquery sources and any other command: wrap whatever
             // own expressions the node exposes (a no-op for leaf sources) and preserve scope.
             for (Expression expression : node.expressions()) {
-                wrapExpression(expression, scope);
+                wrapExpression(expression, scope, null);
             }
             return scope;
         }
@@ -497,7 +542,7 @@ public final class AstKeywordFieldRewriter {
         private Set<String> processFilter(Filter filter, Set<String> scope) {
             Set<String> hoist = collectInSubqueryLhsHoist(filter.condition(), scope);
             Set<String> wrapScope = removeAll(scope, hoist);
-            wrapExpression(filter.condition(), wrapScope);
+            wrapExpression(filter.condition(), wrapScope, null);
             hoistBeforeCommand(filter.source(), hoist);
             return wrapScope;
         }
@@ -616,7 +661,7 @@ public final class AstKeywordFieldRewriter {
                     // backtick alias before wrapping.
                     int start = startOffset(alias.source());
                     addEdit(start, start, "`" + alias.source().text() + "` = ");
-                    wrapExpression(alias.child(), scope);
+                    wrapExpression(alias.child(), scope, null);
                     return;
                 }
                 if (scope.contains(alias.name())) {
@@ -627,13 +672,13 @@ public final class AstKeywordFieldRewriter {
                     }
                     shadowed.add(alias.name());
                 }
-                wrapExpression(alias.child(), scope);
+                wrapExpression(alias.child(), scope, null);
                 return;
             }
             if (mentionsInScope(piece, scope) && spanMatches(piece.source())) {
                 int start = startOffset(piece.source());
                 addEdit(start, start, "`" + piece.source().text() + "` = ");
-                wrapExpression(piece, scope);
+                wrapExpression(piece, scope, null);
             }
         }
 
@@ -774,9 +819,15 @@ public final class AstKeywordFieldRewriter {
          * Recursively wraps in-scope references inside {@code expression}. Stops at attribute leaves
          * (wrapping in-scope ones), protects the LHS of the match operator {@code :}, and recurses
          * into {@code IN (subquery)} by wrapping the left-hand side and rewriting the subquery.
+         *
+         * @param trackingContext the tracking context for function arguments, or {@code null}
+         *                        when the expression is not directly inside a function call
          */
-        private void wrapExpression(Expression expression, Set<String> scope) {
+        private void wrapExpression(Expression expression, Set<String> scope, String trackingContext) {
             if (expression instanceof UnresolvedAttribute attr) {
+                if (trackingContext != null && scope.contains(attr.name()) && spanMatches(attr.source())) {
+                    coveredArguments.add(trackingContext);
+                }
                 wrapAttribute(attr, scope);
                 return;
             }
@@ -785,7 +836,7 @@ public final class AstKeywordFieldRewriter {
                 // attribute there is hoisted into a preceding EVAL (the IN-subquery resolver rejects
                 // a field_extract(...) LHS), and is excluded from this scope so it is not wrapped in
                 // place. A non-attribute LHS (constant/expression) is wrapped here as usual.
-                wrapExpression(inSubquery.value(), scope);
+                wrapExpression(inSubquery.value(), scope, null);
                 processInSubquery(inSubquery);
                 return;
             }
@@ -796,8 +847,39 @@ public final class AstKeywordFieldRewriter {
                 recordSkips(List.of(matchOperator), scope, SkipSite.MATCH_OPERATOR_LHS);
                 return;
             }
+
+            String expressionName = getExpressionName(expression);
+            if ("FIELD_EXTRACT".equals(expressionName)) {
+                expressionName = null;
+            }
+
+            int i = 0;
             for (Expression child : expression.children()) {
-                wrapExpression(child, scope);
+                // A MATCH(field, "...") whose in-scope keyword field argument is wrapped in
+                // field_extract(...) is pushed to Lucene as a synthetic field attribute, which only
+                // the runtime lexical search path can score; record it so the caller enables that pragma.
+                if (expression instanceof UnresolvedFunction uf
+                    && "match".equalsIgnoreCase(uf.name())
+                    && child instanceof UnresolvedAttribute attr
+                    && scope.contains(attr.name())
+                    && spanMatches(attr.source())) {
+                    wrappedMatchFunctionArg = true;
+                }
+                // Heuristic to map variadic args to the last named param, or just skip if we don't care
+                // but IN and CONCAT can just cap at 1.
+                // TODO use a `kind` marker for varargs somehow.
+                int argIndex = i;
+                if (expressionName != null) {
+                    if (expressionName.equals("CONCAT") && argIndex > 1) {
+                        argIndex = 1;
+                    }
+                    if (expressionName.equals("IN") && argIndex > 1) {
+                        argIndex = 1;
+                    }
+                }
+                String nextTrackingContext = expressionName != null ? expressionName + ":" + argIndex : trackingContext;
+                wrapExpression(child, scope, nextTrackingContext);
+                i++;
             }
         }
 
@@ -952,10 +1034,6 @@ public final class AstKeywordFieldRewriter {
 
         private static Set<String> attributeNames(List<? extends NamedExpression> attributes) {
             return namedExpressionNames(attributes);
-        }
-
-        private static boolean isInsist(LogicalPlan node) {
-            return node.getClass().getSimpleName().toLowerCase(Locale.ROOT).startsWith("insist");
         }
     }
 }

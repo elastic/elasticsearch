@@ -11,7 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -36,11 +36,11 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByPaginatedSearchRequest<Self extends AbstractBulkByPaginatedSearchRequest<Self>> extends
-    LegacyActionRequest {
+    UntypedActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    public static final int DEFAULT_SCROLL_SIZE = 1000;
+    public static final int DEFAULT_PAGINATED_SEARCH_BATCH_SIZE = 1000;
 
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
@@ -97,8 +97,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search
+     * context keep-alive to make sure that it contains any time that we might wait.
      */
     private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
@@ -167,7 +167,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
         if (setDefaults) {
             searchRequest.scroll(DEFAULT_SCROLL_TIMEOUT);
             searchRequest.source(new SearchSourceBuilder());
-            searchRequest.source().size(DEFAULT_SCROLL_SIZE);
+            searchRequest.source().size(DEFAULT_PAGINATED_SEARCH_BATCH_SIZE);
         }
     }
 
@@ -369,8 +369,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context
+     * keep-alive to make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
         return requestsPerSecond;
@@ -378,8 +378,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context
+     * keep-alive to make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {
@@ -454,7 +454,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
     }
 
     /**
-     * Sets resumption data to continue from a previously-acquired scroll ID.
+     * Sets resumption data to continue from a previously-acquired worker state (for both scroll and point-in-time).
      */
     public Self setResumeInfo(ResumeInfo resumeInfo) {
         this.resumeInfo = Objects.requireNonNull(resumeInfo);

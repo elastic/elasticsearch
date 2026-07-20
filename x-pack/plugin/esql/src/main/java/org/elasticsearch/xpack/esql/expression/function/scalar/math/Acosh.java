@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,12 +36,17 @@ public class Acosh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Acosh::new)
         .description("Calculates the inverse hyperbolic cosine of all elements in the input vector.")
         .example("acosh(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For inputs below 1, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns."
+        )
         .name("acosh");
 
     private static final double LN2 = Math.log(2);
     private static final double LARGE = (double) (1L << 28);
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
         briefSummary = "Returns the inverse hyperbolic cosine of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic cosine] of a number.",

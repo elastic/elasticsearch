@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -39,9 +41,16 @@ public class Abs extends UnaryScalarFunction {
         .unaryValueTransformation(Abs::new)
         .description("Returns the input vector with all sample values converted to their absolute value.")
         .example("abs(rate(http_requests_total[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns "
+                + "`null` and emits a warning. Prometheus, which operates on floating-point values, returns the "
+                + "absolute value instead."
+        )
         .name("abs");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long", "unsigned_long" },
         briefSummary = "Returns the absolute value of a number.",
         description = "Returns the absolute value.",

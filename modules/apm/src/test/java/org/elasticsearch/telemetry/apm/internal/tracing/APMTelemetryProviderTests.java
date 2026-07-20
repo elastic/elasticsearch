@@ -59,7 +59,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             }
         };
 
-        APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true, 5_000);
+        APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true);
         provider.attemptFlush();
 
         assertThat(calls, containsInAnyOrder("metrics", "traces"));
@@ -107,11 +107,11 @@ public class APMTelemetryProviderTests extends ESTestCase {
         completer.start();
 
         long start = System.nanoTime();
-        APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true, 5_000);
+        APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true);
         provider.attemptFlush();
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
-        assertTrue("should wait for results but return before full timeout", elapsedMs >= 50 && elapsedMs < 5_000);
+        assertTrue("should block until both results complete", elapsedMs >= 50 && elapsedMs < 10_000);
     }
 
     public void testAttemptFlushAllIsNoopWhenBothDisabled() {
@@ -143,7 +143,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             }
         };
 
-        APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, false, false, 5_000);
+        APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, false, false);
         provider.attemptFlush();
 
         assertTrue("flush must not be called when disabled", calls.isEmpty());
@@ -153,8 +153,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
         MeterSupplier meterSupplier,
         TraceSupplier traceSupplier,
         boolean metricsEnabled,
-        boolean tracingEnabled,
-        long flushTimeoutMillis
+        boolean tracingEnabled
     ) {
         Settings settings = Settings.builder()
             .put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
@@ -162,6 +161,6 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
         APMTracer tracer = new APMTracer(settings, traceSupplier, false, 0, false);
-        return new APMTelemetryProvider(meterService, tracer, new APMLoggingService(Settings.EMPTY), flushTimeoutMillis);
+        return new APMTelemetryProvider(meterService, tracer, new APMLoggingService(Settings.EMPTY, createTempDir()));
     }
 }

@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -49,7 +48,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -215,6 +216,9 @@ public class FieldNameUtils {
             } else if (p instanceof CompoundOutputEval<?> coe) {
                 // keep the input field needed by the CompoundOutputEval
                 referencesBuilder.get().addAll(coe.getInput().references());
+            } else if (p instanceof UnresolvedIpLocation ipLocation) {
+                // IP_LOCATION resolves into a CompoundOutputEval during analysis; keep its input field just like the resolved form
+                referencesBuilder.get().addAll(ipLocation.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -427,7 +431,6 @@ public class FieldNameUtils {
             || p instanceof Filter
             || p instanceof Fork
             || p instanceof InlineStats
-            || p instanceof Insist
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand
@@ -435,9 +438,10 @@ public class FieldNameUtils {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof CompoundOutputEval<?>
+            || p instanceof UnresolvedIpLocation
             || p instanceof Rename
             || p instanceof TopN
-            || p instanceof UnresolvedRelation) == false;
+            || p instanceof UnresolvedSourceRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

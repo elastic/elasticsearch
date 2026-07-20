@@ -18,6 +18,7 @@ def otelInstrumentationVersion = '2.26.1-alpha'
 def otelContribDiskBufferingVersion = '1.57.0-alpha'
 
 dependencies {
+  implementation project(":libs:ssl-config")
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk:${otelVersion}"
@@ -34,6 +35,7 @@ dependencies {
   // disk-buffering's serialization layer (Wire) depends on Okio.
   implementation "com.squareup.okio:okio-jvm:3.17.0"
   implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry:${otelInstrumentationVersion}"
+  implementation "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:${otelInstrumentationVersion}"
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"
@@ -42,7 +44,6 @@ dependencies {
   implementation "com.squareup.okhttp3:okhttp-jvm:5.3.2"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
-  runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}"
   runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.6"
 

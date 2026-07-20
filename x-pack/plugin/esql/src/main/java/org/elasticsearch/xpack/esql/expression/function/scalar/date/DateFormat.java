@@ -21,12 +21,15 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -56,6 +59,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     private final Expression format;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
         briefSummary = "Returns a string representation of a date, in the provided format.",
         description = "Returns a string representation of a date, in the provided format.",
@@ -182,7 +186,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
                 source(),
                 fieldEvaluator,
                 formatEvaluator,
-                configuration().zoneId(),
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
                 configuration().locale()
             );
         }
@@ -190,7 +194,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             source(),
             fieldEvaluator,
             formatEvaluator,
-            configuration().zoneId(),
+            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
             configuration().locale()
         );
     }
@@ -202,14 +206,19 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             return getConstantEvaluator(
                 field().dataType(),
                 fieldEvaluator,
-                DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()).withLocale(configuration().locale())
+                DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()))
+                    .withLocale(configuration().locale())
             );
         }
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().zoneId(), configuration().locale());
+            DateFormatter formatter = toFormatter(
+                format.fold(toEvaluator.foldCtx()),
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().locale()
+            );
             return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);

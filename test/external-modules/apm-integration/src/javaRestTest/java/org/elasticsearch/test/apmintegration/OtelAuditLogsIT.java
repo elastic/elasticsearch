@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,13 +35,14 @@ import java.util.function.Consumer;
  * programmatically by {@code OtelSdkExportLogsSupplier}) → {@code SdkLoggerProvider} →
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
+@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public class OtelAuditLogsIT extends AbstractTelemetryIT {
 
     private static final Logger logger = LogManager.getLogger(OtelAuditLogsIT.class);
 
     private static final String API_USER = "api_user";
 
-    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
+    public static RecordingApmServer recordingApmServer = RecordingApmServer.withMtls();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
@@ -58,9 +61,14 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_node_id", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_name", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
-        .setting("telemetry.otel.logs.enabled", "true")
-        // OTLP/gRPC endpoint: scheme http, no path (different shape than HTTP-protobuf endpoint).
-        .setting("telemetry.otel.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        .setting("telemetry.logs.audit.enabled", "true")
+        // OTLP/gRPC endpoint: scheme https for mTLS, no path (different shape than HTTP-protobuf endpoint).
+        .setting("telemetry.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        // mTLS: ES node verifies the recording server's cert and presents a client cert.
+        // Lambdas are evaluated after recordingApmServer.before() writes the cert files.
+        .setting("telemetry.logs.ssl.certificate_authorities", () -> recordingApmServer.getMtlsServerCaCertPath())
+        .setting("telemetry.logs.ssl.certificate", () -> recordingApmServer.getMtlsClientCertPath())
+        .setting("telemetry.logs.ssl.key", () -> recordingApmServer.getMtlsClientKeyPath())
         .user(API_USER, "api-password", "superuser", false)
         .build();
 

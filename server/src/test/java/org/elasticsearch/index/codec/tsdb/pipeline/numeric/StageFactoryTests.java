@@ -22,6 +22,15 @@ public class StageFactoryTests extends ESTestCase {
         }
     }
 
+    public void testSpecFromStageIdRebuildsSplitDeltaWithMaxKMax() {
+        final StageSpec spec = StageFactory.specFromStageId(StageId.SPLIT_DELTA_STAGE);
+        assertEquals(
+            "decoder must be sized for the largest kMax any encoder can use",
+            StageSpec.SplitDeltaStage.MAX_K_MAX,
+            ((StageSpec.SplitDeltaStage) spec).kMax()
+        );
+    }
+
     public void testTransformStageCreationMatchesSpec() {
         final StageSpec.TransformSpec[] specs = {
             new StageSpec.DeltaStage(),

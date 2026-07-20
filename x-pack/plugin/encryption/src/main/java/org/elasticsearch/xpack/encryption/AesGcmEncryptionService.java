@@ -10,8 +10,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
 
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import javax.crypto.SecretKey;
 
@@ -49,16 +53,20 @@ class AesGcmEncryptionService implements EncryptionService {
     }
 
     private final KeyProvider keyProvider;
+    private final Supplier<EncryptionServiceState> stateSupplier;
+    private final BooleanSupplier isEncryptionRequiredSupplier;
 
-    AesGcmEncryptionService(KeyProvider keyProvider) {
+    AesGcmEncryptionService(KeyProvider keyProvider, Supplier<EncryptionServiceState> stateSupplier, BooleanSupplier isEncryptionRequired) {
         this.keyProvider = keyProvider;
+        this.stateSupplier = stateSupplier;
+        this.isEncryptionRequiredSupplier = isEncryptionRequired;
     }
 
     @Override
     public EncryptedData encrypt(byte[] bytes) {
         ActiveKey activeKey = keyProvider.getActiveKey();
         if (activeKey == null) {
-            throw new EncryptionKeyNotYetAvailableException("project encryption key is not yet available");
+            throw throwUnavailable(null);
         }
         return new EncryptedData(activeKey.keyId(), AesGcm.encrypt(activeKey.key(), bytes));
     }
@@ -68,10 +76,25 @@ class AesGcmEncryptionService implements EncryptionService {
         String keyId = encryptedData.keyId();
         SecretKey key = keyProvider.getKey(keyId);
         if (key == null) {
-            throw new EncryptionKeyNotYetAvailableException("decryption key with id [{}] is not yet available", keyId);
+            throw throwUnavailable(keyId);
         }
         byte[] payload = encryptedData.payload();
         return AesGcm.decrypt(key, payload, 0, payload.length);
+    }
+
+    @Override
+    public boolean isEncryptionRequired() {
+        return isEncryptionRequiredSupplier.getAsBoolean();
+    }
+
+    private RuntimeException throwUnavailable(@Nullable String keyId) {
+        EncryptionServiceState state = stateSupplier.get();
+        if (state == EncryptionServiceState.READY) {
+            throw keyId != null
+                ? new EncryptionKeyNotYetAvailableException("project encryption key [{}] is not yet available", keyId)
+                : new EncryptionKeyNotYetAvailableException("project encryption key is not yet available");
+        }
+        throw new EncryptionServiceUnavailableException(state);
     }
 
 }

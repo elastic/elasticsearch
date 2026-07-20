@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
@@ -39,6 +40,10 @@ import java.util.Set;
  *     this covers the {@link ExternalException} family (400/500/503) raised at the reader/storage
  *     boundary, as well as {@code CircuitBreakingException} (429) and {@code TaskCancelledException}
  *     (400).</li>
+ *     <li>An {@link EsRejectedExecutionException} — a thread pool refusing the task (e.g. the node shutting
+ *     down) — is client-actionable backpressure, not a server fault. It already maps to 429 (TOO_MANY_REQUESTS)
+ *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
+ *     invariant and reported as 500.</li>
  *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>
  *     <li>An {@link IOException}/{@link UncheckedIOException}, or one of the specific third-party
  *     decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}, means we could not read or interpret
@@ -84,13 +89,21 @@ public final class ExternalFailures {
         if (t instanceof ElasticsearchException ese) {
             return ese;
         }
+        if (t instanceof EsRejectedExecutionException rejected) {
+            // A thread pool refusing the task (e.g. the node shutting down) is client-actionable backpressure,
+            // not a server fault. The type already maps to 429 (TOO_MANY_REQUESTS) via ExceptionsHelper.status,
+            // so it is returned unchanged rather than falling through to the 500 ExternalServerException below.
+            return rejected;
+        }
         if (t instanceof IllegalArgumentException iae) {
             return iae;
         }
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", t.getMessage());
+            return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
         }
-        return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
+        // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
+        // its class name instead of a useless "null", while the original cause stays chained for the stack.
+        return new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
     }
 
     /**

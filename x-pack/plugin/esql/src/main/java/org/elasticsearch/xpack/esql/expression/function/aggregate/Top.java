@@ -13,22 +13,31 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBytesRefBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBytesRefDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBytesRefFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBytesRefIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBytesRefLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopFloatBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopFloatDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopFloatFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopFloatIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopFloatLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIntBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongIntAggregatorFunctionSupplier;
@@ -47,6 +56,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -78,12 +89,16 @@ public class Top extends AggregateFunction
         SurrogateExpression,
         PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class).quaternary(Top::new).name("top");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class)
+        .quaternary(Top::new)
+        .capabilities("output_field_string")
+        .name("top");
 
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
         briefSummary = "Collects the top values for a field, including repeated values.",
         description = "Collects the top values for a field. Includes repeated values.",
@@ -97,17 +112,23 @@ public class Top extends AggregateFunction
             type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
             description = "The field to collect the top values for."
         ) Expression field,
-        @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
+        @Param(
+            name = "limit",
+            type = { "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "The maximum number of values to collect."
+        ) Expression limit,
         @Param(
             optional = true,
             name = "order",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT, allowedValues = { "asc", "desc" }),
             description = "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         ) Expression order,
         @Param(
             optional = true,
             name = "outputField",
-            type = { "double", "integer", "long", "date" },
+            type = { "double", "integer", "long", "date", "keyword", "text" },
             description = "The extra field that, if present, will be the output of the TOP call instead of `field`."
                 + "{applies_to}`stack: ga 9.3`"
         ) Expression outputField
@@ -196,23 +217,25 @@ public class Top extends AggregateFunction
             typeResolution = typeResolution.and(
                 isType(
                     outputField(),
-                    dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                    dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || DataType.isString(dt),
                     sourceText(),
                     FOURTH,
                     "date",
-                    "numeric except unsigned_long or counter types"
+                    "numeric except unsigned_long or counter types",
+                    "string"
                 )
             )
                 .and(
                     isType(
                         field(),
-                        dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                        dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || DataType.isString(dt),
                         "when fourth argument is set, ",
                         sourceText(),
                         FIRST,
                         false,
                         "date",
-                        "numeric except unsigned_long or counter types"
+                        "numeric except unsigned_long or counter types",
+                        "string"
                     )
                 );
         }
@@ -361,7 +384,31 @@ public class Top extends AggregateFunction
             Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.INTEGER), TopDoubleIntAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.LONG), TopDoubleLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.FLOAT), TopDoubleFloatAggregatorFunctionSupplier::new),
-            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.DOUBLE), TopDoubleDoubleAggregatorFunctionSupplier::new)
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.DOUBLE), TopDoubleDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.KEYWORD), TopLongBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.TEXT), TopLongBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.KEYWORD), TopLongBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.TEXT), TopLongBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.KEYWORD), TopIntBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.TEXT), TopIntBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.KEYWORD), TopDoubleBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.TEXT), TopDoubleBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.KEYWORD), TopFloatBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.TEXT), TopFloatBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.INTEGER), TopBytesRefIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.INTEGER), TopBytesRefIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.LONG), TopBytesRefLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.LONG), TopBytesRefLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.DATETIME), TopBytesRefLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.DATETIME), TopBytesRefLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.FLOAT), TopBytesRefFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.FLOAT), TopBytesRefFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.DOUBLE), TopBytesRefDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.DOUBLE), TopBytesRefDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.KEYWORD), TopBytesRefBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.KEYWORD, DataType.TEXT), TopBytesRefBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.KEYWORD), TopBytesRefBytesRefAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.TEXT, DataType.TEXT), TopBytesRefBytesRefAggregatorFunctionSupplier::new)
         );
 
     @Override

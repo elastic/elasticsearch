@@ -23,6 +23,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 public class IRDecorations {
@@ -370,6 +371,14 @@ public class IRDecorations {
     public static class IRDMaxAllocationBytes extends IRDecoration<Long> {
 
         public IRDMaxAllocationBytes(Long value) {
+            super(value);
+        }
+    }
+
+    /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
+    public static class IRDAllocationEstimator extends IRDecoration<Method> {
+
+        public IRDAllocationEstimator(Method value) {
             super(value);
         }
     }

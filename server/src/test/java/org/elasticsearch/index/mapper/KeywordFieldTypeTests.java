@@ -17,6 +17,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -57,11 +58,11 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -108,6 +109,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testTermQueryWithSingleValueDocValues() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
@@ -140,7 +142,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesTermQuery("field", new BytesRef("foo")), ft.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesTermQuery("field", new BytesRef("foo"), false), ft.termQuery("foo", MOCK_CONTEXT));
     }
 
     public void testTermQueryWithNormalizer() {
@@ -159,6 +161,105 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         };
         MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
         assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", MOCK_CONTEXT));
+    }
+
+    public void testNormalizeWildcardPatternReescapesOperators() {
+        // A normalizer can map fullwidth forms to the ASCII wildcard control characters (#150699). Operators the
+        // normalizer produces out of literal data are re-escaped, and escape contents are normalized like any literal.
+        Analyzer normalizer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, fullwidthToAsciiFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return fullwidthToAsciiFilter(in);
+            }
+        };
+        NamedAnalyzer named = new NamedAnalyzer("fullwidth_nfkc", AnalyzerScope.INDEX, normalizer);
+
+        // An escaped fullwidth '＊' is normalized to an escaped ASCII '*': still the literal star.
+        assertEquals("foo\\*bar", StringFieldType.normalizeWildcardPattern("f", "foo\\＊bar", named));
+        // A bare fullwidth '＊' also normalizes to the literal star, not a wildcard operator.
+        assertEquals("foo\\*bar", StringFieldType.normalizeWildcardPattern("f", "foo＊bar", named));
+        // Same for the fullwidth '？'.
+        assertEquals("foo\\?bar", StringFieldType.normalizeWildcardPattern("f", "foo？bar", named));
+        // Real ASCII wildcard operators are preserved verbatim, including at the start and end of the pattern.
+        assertEquals("foo*bar", StringFieldType.normalizeWildcardPattern("f", "foo*bar", named));
+        assertEquals("foo?bar*", StringFieldType.normalizeWildcardPattern("f", "foo?bar*", named));
+        assertEquals("*bar", StringFieldType.normalizeWildcardPattern("f", "*bar", named));
+        assertEquals("foo*", StringFieldType.normalizeWildcardPattern("f", "foo*", named));
+        // A fullwidth backslash '＼' that normalizes to '\' is re-escaped to a literal backslash, whether the user
+        // wrote it bare or escaped.
+        assertEquals("foo\\\\bar", StringFieldType.normalizeWildcardPattern("f", "foo＼bar", named));
+        assertEquals("foo\\\\bar", StringFieldType.normalizeWildcardPattern("f", "foo\\＼bar", named));
+        // A trailing lone backslash is literal data and is re-escaped.
+        assertEquals("abc\\\\", StringFieldType.normalizeWildcardPattern("f", "abc\\", named));
+        // An escape before a line terminator is still an escape (WILDCARD_PATTERN is DOTALL): "a\<LF>b" is the literal
+        // "a<LF>b", and the backslash must not be re-introduced as a literal backslash.
+        assertEquals("a\nb", StringFieldType.normalizeWildcardPattern("f", "a\\\nb", named));
+    }
+
+    private static TokenFilter fullwidthToAsciiFilter(TokenStream in) {
+        // Mimics the ICU NFKC mapping of the wildcard control characters: ＊ -> *, ？ -> ?, ＼ -> \
+        return new TokenFilter(in) {
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (input.incrementToken() == false) {
+                    return false;
+                }
+                String normalized = termAtt.toString().replace('＊', '*').replace('？', '?').replace('＼', '\\');
+                termAtt.setEmpty().append(normalized);
+                return true;
+            }
+        };
+    }
+
+    public void testNormalizeWildcardPatternNormalizesContiguousLiteralRunAcrossEscape() {
+        // Regression test for #150699: an escape sequence in the middle of a literal run must not split normalization.
+        // A context-sensitive normalizer (here a multi-character mapping "ab" -> "x") must see the whole run "ab",
+        // even when it is written as "a\b".
+        Analyzer normalizer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, mappingFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return mappingFilter(in);
+            }
+        };
+        NamedAnalyzer named = new NamedAnalyzer("ab_to_x", AnalyzerScope.INDEX, normalizer);
+
+        // "a\b" is the literal "ab" in Lucene; normalizing the whole contiguous run yields "x".
+        assertEquals("x", StringFieldType.normalizeWildcardPattern("f", "a\\b", named));
+        // Adjacent escapes accumulate into the same run, so "\a\b" (also literal "ab") yields "x" too.
+        assertEquals("x", StringFieldType.normalizeWildcardPattern("f", "\\a\\b", named));
+        // A wildcard operator between the two characters keeps them in separate runs, so the mapping does not apply.
+        assertEquals("a*b", StringFieldType.normalizeWildcardPattern("f", "a*b", named));
+    }
+
+    private static TokenFilter mappingFilter(TokenStream in) {
+        // A deliberately context-sensitive normalizer: it only maps the two-character sequence "ab" to "x".
+        return new TokenFilter(in) {
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (input.incrementToken() == false) {
+                    return false;
+                }
+                String normalized = termAtt.toString().replace("ab", "x");
+                termAtt.setEmpty().append(normalized);
+                return true;
+            }
+        };
     }
 
     public void testTermsQuery() {
@@ -234,8 +335,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", false), ft.prefixQuery("foo", null, false, MOCK_CONTEXT));
-        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", true), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
+        assertEquals(
+            new ScanningBinaryDocValuesPrefixQuery("field", "foo", false, false),
+            ft.prefixQuery("foo", null, false, MOCK_CONTEXT)
+        );
+        assertEquals(new ScanningBinaryDocValuesPrefixQuery("field", "foo", true, false), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
     }
 
     public void testWildcardQueryHighCardinality() {
@@ -249,7 +353,51 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesWildcardQuery("field", "foo*", false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesWildcardQuery("field", "foo*", false, false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+    }
+
+    public void testRegexpQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
+            ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
+        );
+    }
+
+    public void testRegexpQueryHighCardinalityWithNormalizer() {
+        Analyzer lowercaseAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, new LowerCaseFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return new LowerCaseFilter(in);
+            }
+        };
+        NamedAnalyzer normalizer = new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, lowercaseAnalyzer);
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        TextSearchInfo textSearchInfo = new TextSearchInfo(KeywordFieldMapper.Defaults.FIELD_TYPE, null, normalizer, normalizer);
+        MappedFieldType ft = new KeywordFieldType("field", IndexType.docValuesOnly(), textSearchInfo, normalizer, builder, true);
+
+        // The normalizer must lowercase the pattern before building the regexp query
+        assertEquals(
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
+            ft.regexpQuery("FOO.*", 0, 0, 10, null, MOCK_CONTEXT)
+        );
     }
 
     public void testRegexpQuery() {
@@ -277,10 +425,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertThat(q, instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
+        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, false), q);
     }
 
     public void testFuzzyQuery() {
@@ -551,7 +699,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefaultForColumnarLogsdbIndices() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -683,6 +830,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                             @Override
                             public TokenStream create(TokenStream tokenStream) {
                                 return new org.apache.lucene.analysis.core.LowerCaseFilter(tokenStream);
+                            }
+
+                            @Override
+                            public Object sharingKey() {
+                                return this;
                             }
                         } }
                     )

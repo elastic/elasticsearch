@@ -138,6 +138,18 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
                 List.of(10.0),
                 true },
             new Object[] {
+                "no explicit bounds with single bucket count without sum",
+                HistogramDataPoint.newBuilder().addBucketCounts(5L).setCount(5L).build(),
+                List.of(5L),
+                List.of(0.0),
+                true },
+            new Object[] {
+                "no explicit bounds with single zero bucket count",
+                HistogramDataPoint.newBuilder().addBucketCounts(0L).setCount(0L).build(),
+                List.of(),
+                List.of(),
+                true },
+            new Object[] {
                 "no explicit bounds with zero count",
                 HistogramDataPoint.newBuilder().setCount(0L).setSum(0.0).build(),
                 List.of(),

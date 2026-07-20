@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Use this progress listener for cross-cluster searches where a single
@@ -33,14 +34,16 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
     private SearchResponse.Clusters clusters;
     private TransportSearchAction.SearchTimeProvider timeProvider;
+    private boolean fetchPhaseExpected;
+    private final Map<Integer, String> clusterAliasByShardIndex = new ConcurrentHashMap<>();
 
     /**
      * Executed when shards are ready to be queried (after can-match)
      *
-     * @param shards The list of shards to query.
+     * @param shards                The list of shards to query.
      * @param skippedByClusterAlias The number of skipped shards per cluster.
-     * @param clusters The statistics for remote clusters included in the search.
-     * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
+     * @param clusters              The statistics for remote clusters included in the search.
+     * @param fetchPhase            <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
      **/
     @Override
     public void onListShards(
@@ -54,6 +57,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         this.clusters = clusters;
         this.timeProvider = timeProvider;
+        this.fetchPhaseExpected = fetchPhase;
 
         // Partition by clusterAlias and get counts
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
@@ -63,6 +67,13 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
 
+            // Skip aliases that are not present in the clusters map.
+            // This can occur if stale skipped-shard accounting is received for a cluster that
+            // does not participate in this search response.
+            if (clusters.getCluster(clusterAlias) == null) {
+                assert false : "cluster alias [" + clusterAlias + "] not present in clusters map";
+                continue;
+            }
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
                     : "total shards should not be set on a Cluster before onListShards, except skipped";
@@ -105,25 +116,24 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
-        // we only need to update Cluster state here if the search has timed out, since:
-        // 1) this is the only callback that gets search timedOut info and
-        // 2) the onFinalReduce will get all these shards again so the final accounting can be done there
-        // for queries that did not time out
-        if (queryResult.searchTimedOut() && clusters.hasClusterObjects()) {
-            SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
-            String clusterAlias = shardTarget.getClusterAlias();
-            if (clusterAlias == null) {
-                clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            }
-
+        SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+        rememberClusterAliasForShardIndex(shardIndex, shardTarget);
+        // We need to update Cluster state here to keep track of the number of successful shards since otherwise, if we don't progress to
+        // the next phase, the counts will not be accurate
+        String clusterAlias = clusterAliasOrLocal(shardTarget);
+        if (clusters.hasClusterObjects()) {
             clusters.swapCluster(clusterAlias, (k, v) -> {
-                if (v.isTimedOut()) {
-                    return v; // cluster has already been marked as timed out on some other shard
+                if (v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
+                    // don't swap in a new Cluster if the final state has already been set as a result of the search being cancelled before
+                    // all results were received
+                    return v;
                 }
-                if (v.getStatus() == SearchResponse.Cluster.Status.FAILED || v.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
-                    return v; // safety check to make sure it hasn't hit a terminal FAILED/SKIPPED state where timeouts don't matter
+                int numSuccessfulShards = v.getSuccessfulShards() == null ? 1 : v.getSuccessfulShards() + 1;
+                SearchResponse.Cluster.Builder builder = new SearchResponse.Cluster.Builder(v).setSuccessfulShards(numSuccessfulShards);
+                if (queryResult.searchTimedOut()) {
+                    builder.setTimedOut(true);
                 }
-                return new SearchResponse.Cluster.Builder(v).setTimedOut(true).build();
+                return builder.build();
             });
         }
     }
@@ -140,18 +150,21 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         if (clusters.hasClusterObjects() == false) {
             return;
         }
-        String clusterAlias = shardTarget.getClusterAlias();
-        if (clusterAlias == null) {
-            clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }
-
+        rememberClusterAliasForShardIndex(shardIndex, shardTarget);
+        String clusterAlias = clusterAliasOrLocal(shardTarget);
         clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
+                // don't swap in a new Cluster if the final state has already been set as a result of the search being cancelled before all
+                // results were received
+                return v;
+            }
             TimeValue took;
             SearchResponse.Cluster.Status status;
             int numFailedShards = v.getFailedShards() == null ? 1 : v.getFailedShards() + 1;
 
             assert v.getTotalShards() != null : "total shards should be set on the Cluster but not for " + k;
             if (v.getTotalShards() == numFailedShards) {
+                // All shards failed
                 took = null;
                 if (v.isSkipUnavailable()) {
                     status = SearchResponse.Cluster.Status.SKIPPED;
@@ -160,9 +173,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     // TODO in the fail-fast ticket, should we throw an exception here to stop the search?
                 }
             } else if (v.getTotalShards() == numFailedShards + v.getSuccessfulShards()) {
+                // Final shard failed
                 status = SearchResponse.Cluster.Status.PARTIAL;
                 took = new TimeValue(timeProvider.buildTookInMillis());
             } else {
+                // Still in progress
                 took = null;
                 status = SearchResponse.Cluster.Status.RUNNING;
             }
@@ -208,8 +223,12 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     status = v.isTimedOut() ? SearchResponse.Cluster.Status.PARTIAL : SearchResponse.Cluster.Status.SUCCESSFUL;
                     took = new TimeValue(timeProvider.buildTookInMillis());
                 } else if (successfulShards + v.getFailedShards() == v.getTotalShards()) {
+                    // Final shard, partial failure
                     status = SearchResponse.Cluster.Status.PARTIAL;
                     took = new TimeValue(timeProvider.buildTookInMillis());
+                } else if (successfulShards == v.getSuccessfulShards()) {
+                    // Successful shard count is up to date, no update needed
+                    return v;
                 }
                 return new SearchResponse.Cluster.Builder(v).setStatus(status).setSuccessfulShards(successfulShards).setTook(took).build();
             });
@@ -240,12 +259,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             int successfulCount = entry.getValue();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
-                SearchResponse.Cluster.Status status = v.getStatus();
-                if (status != SearchResponse.Cluster.Status.RUNNING) {
+                if (v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
                     // don't swap in a new Cluster if the final state has already been set
                     return v;
                 }
-                TimeValue took = new TimeValue(timeProvider.buildTookInMillis());
+                SearchResponse.Cluster.Status status;
                 int successfulShards = successfulCount + v.getSkippedShards();
                 assert successfulShards + v.getFailedShards() == v.getTotalShards()
                     : "successfulShards("
@@ -262,7 +280,10 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                         : "successful (" + successfulShards + ") should equal total(" + v.getTotalShards() + ") if get here";
                     status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 }
-                return new SearchResponse.Cluster.Builder(v).setStatus(status).setSuccessfulShards(successfulShards).setTook(took).build();
+                return new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setSuccessfulShards(successfulShards)
+                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                    .build();
             });
         }
     }
@@ -291,7 +312,9 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
      */
     @Override
-    public void onFetchResult(int shardIndex) {}
+    public void onFetchResult(int shardIndex) {
+        maybeRefreshTookAfterFetch(shardIndex);
+    }
 
     /**
      * Executed when a shard reports a fetch failure.
@@ -301,7 +324,88 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * @param exc The cause of the failure.
      */
     @Override
-    public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+    public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        maybeRefreshTookAfterFetch(clusterAliasOrLocal(shardTarget));
+    }
+
+    /**
+     * Executed when a phase fails. Ensures that the cluster details are updated before being returned to the user in the event that the
+     * phase failed before they were set. Any shards for which results haven't been received will be treated as failed.
+     * @param exc The cause of the failure.
+     */
+    @Override
+    public void onPhaseFailure(Exception exc) {
+        if (clusters.hasClusterObjects() == false) {
+            return;
+        }
+        clusters.getClusterAliases().forEach(clusterAlias -> clusters.swapCluster(clusterAlias, (k, v) -> {
+            // Do not modify a cluster if the status has already been set
+            if (v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
+                return v;
+            } else {
+                SearchResponse.Cluster.Status status;
+                TimeValue took = null;
+                int missingShardCount = v.getTotalShards() - v.getSuccessfulShards() - v.getFailedShards();
+                if (v.isTimedOut()) {
+                    status = SearchResponse.Cluster.Status.PARTIAL;
+                    took = new TimeValue(timeProvider.buildTookInMillis());
+                } else if (v.getTotalShards().equals(v.getSuccessfulShards())) {
+                    // All succeeded
+                    status = SearchResponse.Cluster.Status.SUCCESSFUL;
+                    took = new TimeValue(timeProvider.buildTookInMillis());
+                } else if (v.getTotalShards().equals(v.getFailedShards() + missingShardCount)) {
+                    // All failed
+                    if (v.isSkipUnavailable()) {
+                        status = SearchResponse.Cluster.Status.SKIPPED;
+                    } else {
+                        status = SearchResponse.Cluster.Status.FAILED;
+                    }
+                } else {
+                    // Partial failure
+                    status = SearchResponse.Cluster.Status.PARTIAL;
+                    took = new TimeValue(timeProvider.buildTookInMillis());
+                }
+                // Assume any shards we didn't get a result for failed. This can happen if the search is cancelled during the DfsPhase
+                return new SearchResponse.Cluster.Builder(v).setFailedShards(missingShardCount + v.getFailedShards())
+                    .setStatus(status)
+                    .setTook(took)
+                    .build();
+            }
+        }));
+    }
+
+    private void maybeRefreshTookAfterFetch(int shardIndex) {
+        String clusterAlias = clusterAliasByShardIndex.get(shardIndex);
+        maybeRefreshTookAfterFetch(clusterAlias);
+    }
+
+    private void maybeRefreshTookAfterFetch(String clusterAlias) {
+        if (fetchPhaseExpected == false || clusters.hasClusterObjects() == false) {
+            return;
+        }
+        if (clusterAlias == null) {
+            return;
+        }
+        TimeValue took = new TimeValue(timeProvider.buildTookInMillis());
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v == null) {
+                return null;
+            }
+            if (v.getStatus() == SearchResponse.Cluster.Status.SUCCESSFUL || v.getStatus() == SearchResponse.Cluster.Status.PARTIAL) {
+                return new SearchResponse.Cluster.Builder(v).setTook(took).build();
+            }
+            return v;
+        });
+    }
+
+    private void rememberClusterAliasForShardIndex(int shardIndex, SearchShardTarget shardTarget) {
+        clusterAliasByShardIndex.put(shardIndex, clusterAliasOrLocal(shardTarget));
+    }
+
+    private static String clusterAliasOrLocal(SearchShardTarget shardTarget) {
+        assert shardTarget != null : "shardTarget must not be null";
+        return Objects.requireNonNullElse(shardTarget.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+    }
 
     private Map<String, Integer> partitionCountsByClusterAlias(List<SearchShard> shards) {
         final Map<String, Integer> res = new HashMap<>();

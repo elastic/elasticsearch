@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -36,9 +37,13 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -55,10 +60,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -125,7 +132,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    () -> 0L
                 )
             ) {
                 Page page = queryOperator.getOutput();
@@ -189,7 +197,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    () -> 0L
                 )
             ) {
                 Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
@@ -235,7 +244,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                () -> 0L
             );
 
             // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
@@ -306,7 +316,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                () -> 0L
             );
 
             // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
@@ -379,7 +390,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    () -> 0L
                 )
             ) {
                 Page page = queryOperator.getOutput();
@@ -397,6 +409,107 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
             );
+        }
+    }
+
+    /**
+     * Regression test for a bug where {@link QueryList#getOrComputeSingleValueFilter} used to route
+     * its private, non-shared {@link SingleValueMatchQuery} through the shared {@link QueryWarnings}
+     * bridge and never unbound it (because the query is scored repeatedly over the lifetime of the
+     * {@link QueryList} instance, well past the method call that built it). Once {@link QueryWarnings}
+     * became a true singleton ({@link QueryWarnings#EMIT}), that permanently-open binding would wedge
+     * the shared thread-local for this thread forever, breaking every subsequent, unrelated use of
+     * {@code EMIT} on the same thread with {@code IllegalStateException: already bound}.
+     * {@link QueryList} now binds directly to the already-known {@link Warnings} instead, without
+     * touching {@link QueryWarnings} at all, so {@code EMIT} must come out of this path completely
+     * unbound.
+     */
+    public void testOnlySingleValuesDoesNotLeakSharedQueryWarningsBinding() throws Exception {
+        try (
+            var directoryData = makeDirectoryWith(
+                List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
+            );
+            var inputTerms = makeTermsBlock(List.of(List.of("a3")))
+        ) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
+                .onlySingleValues(warnings(), "multi-value found");
+            Page inputPage = new Page(inputTerms);
+            Query builtQuery = queryList.getQuery(0, inputPage, directoryData.searchExecutionContext);
+            assertNotNull(builtQuery);
+        }
+
+        // QueryWarnings.EMIT must have no lingering bound state on this thread: a subsequent,
+        // unrelated bind()/registerException() cycle -- mirroring how LuceneOperator.getOutput() uses
+        // the bridge -- must succeed normally rather than hitting the reentrancy guard.
+        SingleValueMatchQuery unrelated = new SingleValueMatchQuery(
+            mock(IndexFieldData.class),
+            QueryWarnings.EMIT,
+            new TestWarningsSource("unrelated"),
+            "unrelated"
+        );
+        try (
+            Releasable ignored = QueryWarnings.EMIT.bind(
+                Map.of(unrelated, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("unrelated")))
+            )
+        ) {
+            // no exception -- the binding above proves EMIT was left unbound by the onlySingleValues path
+        }
+    }
+
+    public void testBytesRead() throws Exception {
+        long countStep = 31L;
+        AtomicLong counter = new AtomicLong();
+        // Each call to the supplier increments the counter by countStep
+        var directoryBytesRead = (java.util.function.LongSupplier) () -> counter.addAndGet(countStep);
+
+        // Use enough terms to guarantee multiple pages with small maxPageSize
+        int numTerms = 30;
+        List<List<String>> directoryTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+        List<List<String>> inputTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+            Page inputPage = new Page(inputTerms);
+            // Small maxPageSize forces multiple getOutput() calls
+            int maxPageSize = 5;
+            try (
+                EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                    blockFactory,
+                    maxPageSize,
+                    queryList,
+                    inputPage,
+                    BlockOptimization.NONE,
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                    0,
+                    directoryData.searchExecutionContext,
+                    warnings(),
+                    directoryBytesRead
+                )
+            ) {
+                // Initial status: no bytes read yet
+                assertThat(queryOperator.status().bytesRead(), equalTo(0L));
+
+                int pages = 0;
+                long lastBytesRead = 0L;
+                while (queryOperator.isFinished() == false) {
+                    Page page = queryOperator.getOutput();
+                    if (page != null) {
+                        pages++;
+                        // bytes_read should be monotonically increasing across pages
+                        long currentBytesRead = queryOperator.status().bytesRead();
+                        assertThat(currentBytesRead, greaterThan(lastBytesRead));
+                        lastBytesRead = currentBytesRead;
+                        page.releaseBlocks();
+                    }
+                }
+                // With 30 terms and maxPageSize=5, expect multiple pages
+                assertThat(pages, greaterThan(1));
+
+                // This doesn't actually test the real bytes read, just tests that if there were any bytes counted,
+                // the operator would retain the correct count.
+                long bytesRead = queryOperator.status().bytesRead();
+                assertThat(bytesRead, equalTo(pages * countStep));
+            }
         }
     }
 

@@ -23,12 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ColumnarIndexModeTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarFromString() {
         assertThat(IndexMode.fromString("columnar"), equalTo(IndexMode.COLUMNAR));
         assertThat(IndexMode.fromString("COLUMNAR"), equalTo(IndexMode.COLUMNAR));
@@ -87,10 +81,6 @@ public class ColumnarIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue(
-            "index_disabled_by_default feature flag must be enabled",
-            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
-        );
         Settings settings = IndexSettingsTests.newIndexMeta(
             "test",
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()

@@ -21,4 +21,9 @@ public interface CacheRegion<KeyType extends SharedBlobCacheService.KeyBase> {
      * Returns the key identifying the cache region.
      */
     KeyType key();
+
+    /**
+     * Returns the representative data timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
+     */
+    long timestampMillis();
 }

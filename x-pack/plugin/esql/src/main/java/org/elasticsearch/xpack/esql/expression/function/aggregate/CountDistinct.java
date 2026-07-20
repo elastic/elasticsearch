@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -79,6 +81,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     private final Expression precision;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
         briefSummary = "Returns the approximate number of distinct values.",
         description = "Returns the approximate number of distinct values.",
@@ -145,6 +148,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             optional = true,
             name = "precision",
             type = { "integer", "long", "unsigned_long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."

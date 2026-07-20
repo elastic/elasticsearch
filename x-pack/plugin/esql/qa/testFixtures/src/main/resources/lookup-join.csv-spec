@@ -1870,7 +1870,7 @@ required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
 
-from *,-keyword_languages_lookup
+from *,-keyword_languages_lookup,-date_nanos_union_types
 | enrich languages_policy on cluster
 | rename languages.byte as language_code
 | lookup join languages_lookup on language_code
@@ -6053,7 +6053,6 @@ message:keyword | type:keyword
 
 // See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchOnEmployees
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: join_lookup_v12
 required_capability: match_function
 required_capability: propagate_empty_relation_past_joins

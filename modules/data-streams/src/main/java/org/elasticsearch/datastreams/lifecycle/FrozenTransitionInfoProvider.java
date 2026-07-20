@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Extension point implemented by the DLM frozen tier transition plugin to expose the execution status of an index's
@@ -28,12 +29,13 @@ public interface FrozenTransitionInfoProvider {
 
     /**
      * Returns the current execution status of the frozen tier transition for the given index, as tracked by the
-     * transition executor.
+     * transition executor, or {@code null} if no implementation is installed (callers must gate on {@link #infoAvailable()}).
      * <p>
      * This status is best-effort: it reflects only the in-process state of whichever node is currently the elected
      * master, and resets to {@link ExplainIndexFrozenTransition.Status#NOT_STARTED} across a master failover, even
      * for an index whose transition was genuinely in progress on the previous master.
      */
+    @Nullable
     ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName);
 
     /**
@@ -48,7 +50,7 @@ public interface FrozenTransitionInfoProvider {
 
             @Override
             public ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName) {
-                return ExplainIndexFrozenTransition.Status.NOT_AVAILABLE;
+                return null;
             }
         };
     }

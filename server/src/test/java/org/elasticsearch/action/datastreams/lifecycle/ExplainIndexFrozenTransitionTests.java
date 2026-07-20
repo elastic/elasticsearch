@@ -40,7 +40,6 @@ public class ExplainIndexFrozenTransitionTests extends AbstractWireSerializingTe
         assertThat(ExplainIndexFrozenTransition.Status.NOT_STARTED.toString(), equalTo("not_started"));
         assertThat(ExplainIndexFrozenTransition.Status.QUEUED.toString(), equalTo("queued"));
         assertThat(ExplainIndexFrozenTransition.Status.RUNNING.toString(), equalTo("running"));
-        assertThat(ExplainIndexFrozenTransition.Status.NOT_AVAILABLE.toString(), equalTo("not_available"));
     }
 
     @Override

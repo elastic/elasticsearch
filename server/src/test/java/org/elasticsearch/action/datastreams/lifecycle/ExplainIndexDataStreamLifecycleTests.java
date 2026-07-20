@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -252,7 +251,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         );
         ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
             withFrozen,
-            TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current())
+            TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_FROZEN_TRANSITION)
         );
         assertThat(roundTripped.getFrozenTransition(), is(nullValue()));
     }

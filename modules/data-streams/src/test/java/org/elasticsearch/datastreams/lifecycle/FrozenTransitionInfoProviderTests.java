@@ -9,20 +9,16 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FrozenTransitionInfoProviderTests extends ESTestCase {
 
     public void testNoop() {
         FrozenTransitionInfoProvider provider = FrozenTransitionInfoProvider.noop();
         assertThat(provider.infoAvailable(), is(false));
-        assertThat(
-            provider.getTransitionStatus(randomProjectIdOrDefault(), randomAlphaOfLength(10)),
-            equalTo(ExplainIndexFrozenTransition.Status.NOT_AVAILABLE)
-        );
+        assertThat(provider.getTransitionStatus(randomProjectIdOrDefault(), randomAlphaOfLength(10)), is(nullValue()));
     }
 }

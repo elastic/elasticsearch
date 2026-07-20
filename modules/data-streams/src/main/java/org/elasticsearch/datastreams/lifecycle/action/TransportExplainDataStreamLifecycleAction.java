@@ -159,13 +159,12 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         Map<String, Set<Index>> pastFrozenAfterByDataStream
     ) {
         if (frozenTransitionInfoProvider.infoAvailable() == false
+            || lifecycle == null
+            || lifecycle.frozenAfter() == null
             || parentDataStream.isFailureStoreIndex(idxMetadata.getIndex().getName())) {
             return null;
         }
-
-        boolean completed = DataStreamLifecycleService.frozenTransitionCompleted(idxMetadata);
-        boolean frozenAfterConfigured = lifecycle != null && lifecycle.frozenAfter() != null;
-        if (frozenAfterConfigured == false || completed) {
+        if (DataStreamLifecycleService.frozenTransitionCompleted(idxMetadata)) {
             return null;
         }
 

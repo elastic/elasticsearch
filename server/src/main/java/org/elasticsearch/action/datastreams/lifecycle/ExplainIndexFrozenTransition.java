@@ -67,8 +67,7 @@ public record ExplainIndexFrozenTransition(boolean eligible, boolean markedForTr
     public enum Status {
         NOT_STARTED,
         QUEUED,
-        RUNNING,
-        NOT_AVAILABLE;
+        RUNNING;
 
         @Override
         public String toString() {

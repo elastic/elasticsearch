@@ -43,7 +43,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ParseField FROZEN_FIELD = new ParseField("frozen");
 
-    private static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
+    static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
 
     private final String index;
     private final boolean managedByLifecycle;

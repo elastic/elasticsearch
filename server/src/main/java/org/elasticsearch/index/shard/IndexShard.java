@@ -2356,11 +2356,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         getRelativeTimeInNanos()
                     );
                 } catch (Exception e) {
-                    logger.warn(
-                        "failed to prepare index op [seqNo={}] in batch during translog replay, falling back to sequential replay",
-                        indexOp.seqNo(),
-                        e
-                    );
+                    logger.warn("failed to prepare index op [seqNo={}] in batch during replay with exception={}", indexOp.seqNo(), e);
                     return null;
                 }
 

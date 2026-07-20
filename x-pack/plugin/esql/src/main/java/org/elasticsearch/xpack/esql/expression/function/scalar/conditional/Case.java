@@ -372,17 +372,7 @@ public final class Case extends EsqlScalarFunction {
         return switch (newChildren.size()) {
             // CASE(false, a) -> NULL
             case 0 -> new Literal(source(), null, dataType());
-            /*
-             * CASE(false, a, b) -> b
-             *
-             * We *must* return something of dataType or downstream stuff will
-             * blow up. `b` can be:
-             *   - dataType - return as-is
-             *   - TEXT when dataType is keyword - return as-is - which is safe because
-             *     TEXT is the same as KEYWORD everywhere that matters downstream from here
-             *   - any NULL-typed expression — cast it to dataType so callers
-             *     see the right type (e.g. KEYWORD, not NULL)
-             */
+            // CASE(false, a, b) -> b, casting a NULL arm to dataType() so callers see KEYWORD, not NULL.
             case 1 -> {
                 Expression child = newChildren.getFirst();
                 if (child.dataType() == NULL && dataType() != NULL) {

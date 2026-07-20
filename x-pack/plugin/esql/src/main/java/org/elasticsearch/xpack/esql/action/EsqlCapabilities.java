@@ -470,6 +470,12 @@ public class EsqlCapabilities {
         CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
+         * Partial folding of {@code CASE} keeps the KEYWORD type declared at analysis time when the
+         * surviving branch is TEXT, instead of letting the plan output drift to TEXT. See #154278.
+         */
+        FIX_CASE_PARTIAL_FOLD_KEYWORD_TYPE,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -2751,6 +2757,15 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND,
 
         /**
+         * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
+         * {@code PUT/GET/DELETE /_query/dataset/{name}}) are exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        DATA_SOURCES_SERVERLESS_SCOPE,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
@@ -3390,6 +3405,13 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
          */
         SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Fix {@code ReplaceRoundToWithQueryAndTags} throwing a {@code ClassCastException} when {@code ROUND_TO}'s first argument
+         * is a function (e.g. {@code ROUND_TO(BYTE_LENGTH(field), ...)}) rather than a bare field.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
+         */
+        FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

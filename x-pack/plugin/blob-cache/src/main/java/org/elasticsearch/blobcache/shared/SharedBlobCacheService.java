@@ -106,7 +106,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /// A cache region's data timestamp (epoch millis) is a plain `long` partitioned into four domains:
-    /// - a non-negative epoch-millis value (`> MINIMAL_TIMESTAMP`);
+    /// - a non-negative epoch-millis value (`>= MINIMAL_CACHE_TIMESTAMP`); real timestamps below the minimal are set to the minimal value
     /// - [#UNKNOWN_TIMESTAMP] (`-1`): the content has no representative timestamp;
     /// - [#BACKFILL_IN_PROGRESS_TIMESTAMP] (`-2`): the timestamp is temporarily unknown, e.g. pending backfill.
     ///
@@ -1169,9 +1169,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
-        // Representative data timestamp (epoch millis) of the content in this region, or a sentinel when unknown.
-        // Written at construction and then possibly backfilled away from BACKFILL_IN_PROGRESS_TIMESTAMP to a real (positive) value via
-        // #backfillTimestampFromBackfillInProgress.
+        // Representative data timestamp (epoch millis) of the content in this region, or a negative sentinel value
+        // if it's unknown (temporarily or inexistent). Written at construction and then possibly backfilled away from
+        // BACKFILL_IN_PROGRESS_TIMESTAMP to a real (non-sentinel) value via #backfillTimestampFromBackfillInProgress.
         private volatile long timestampMillis;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).

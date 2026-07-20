@@ -133,6 +133,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             // neighboring BCCs.
             byCacheKey.put(
                 new FileCacheKey(shardId, entry.getKey().primaryTerm(), entry.getKey().blobName()),
+                // Note: that this fallback value is not backfilled later on.
                 Math.max(entry.getValue(), SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
             );
         }

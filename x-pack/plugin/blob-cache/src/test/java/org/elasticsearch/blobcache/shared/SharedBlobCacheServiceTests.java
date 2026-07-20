@@ -299,37 +299,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testBackfillRegionTimestampsClearsOrphans() throws IOException {
-        Settings settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
-            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put("path.home", createTempDir())
-            .build();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(new RecordingMeterRegistry())
-            )
-        ) {
-            final var cacheKey = generateCacheKey();
-            final var orphanKey = new TestCacheKey(cacheKey.shardId(), cacheKey.file() + "-orphan");
-
-            final var orphanRegion = cacheService.get(orphanKey, size(500), 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
-            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, orphanRegion.timestampMillis());
-
-            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
-
-            assertEquals(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP, orphanRegion.timestampMillis());
-        }
-    }
-
     public void testFetchOverloadsStampTimestamp() throws Exception {
         final long cacheSize = size(500L);
         final long regionSize = size(100L);

@@ -13,6 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
@@ -33,6 +35,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -70,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -576,7 +580,19 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
                     .build();
+            }
+
+            @Override
+            protected SearchDirectory createSearchDirectory(
+                StatelessSharedBlobCacheService sharedCacheService,
+                ShardId shardId,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
+            ) {
+                return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, true);
             }
 
             @Override
@@ -641,7 +657,143 @@ public class SearchDirectoryTests extends ESTestCase {
                 capturedWithoutTs.getFirst(),
                 equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
             );
+
+            final var metadataBlobName = StatelessCompoundCommit.blobNameFromGeneration(3L);
+            final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
+            searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
+            var metadataReadDirectory = searchDirectory.createNewBlobStoreCacheDirectoryForMetadataRead();
+            metadataReadDirectory.updateMetadata(
+                Map.of(
+                    metadataBlobName,
+                    new BlobFileRanges(new BlobLocation(new BlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
+                ),
+                regionSize.getBytes()
+            );
+            try (var input = metadataReadDirectory.openInput(metadataBlobName, IOContext.DEFAULT)) {
+                input.readByte();
+            }
+            final var metadataKey = new FileCacheKey(node.shardId, 1L, metadataBlobName);
+            assertThat(
+                "BCC metadata reads stamp cache regions with BACKFILL_IN_PROGRESS until backfill runs",
+                capturingPolicy.capturedTimestamps(metadataKey),
+                contains(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
+            );
         }
+    }
+
+    /**
+     * Recovery-time backfill with {@code clearOrphans=true} must re-stamp orphaned BACKFILL_IN_PROGRESS_TIMESTAMP
+     * regions to MINIMAL_CACHE_TIMESTAMP while resolving re-read blobs to their real timestamps.
+     */
+    public void testRecoveryBackfillClearsOrphanedBackfillInProgressRegions() throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        final var capturingPolicy = new TimestampCapturingEvictionPolicy();
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+                    .build();
+            }
+
+            @Override
+            protected SearchDirectory createSearchDirectory(
+                StatelessSharedBlobCacheService sharedCacheService,
+                ShardId shardId,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
+            ) {
+                // Force time-based caching on so metadata reads stamp BACKFILL_IN_PROGRESS.
+                return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, true);
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                return new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    capturingPolicy,
+                    System::nanoTime,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {};
+            }
+        }) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            assertTrue(
+                "test requires metadata-read backfill (time-based caching + cache boost preference) to be enabled",
+                searchDirectory.timestampBackfillEnabled()
+            );
+
+            final long primaryTerm = 1L;
+            final var orphanTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 1L);
+            final var reReadTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 2L);
+            final var orphanBlobName = StatelessCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
+            final var reReadBlobName = StatelessCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
+
+            final var orphanKey = new FileCacheKey(node.shardId, primaryTerm, orphanBlobName);
+            final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);
+            // During real operations a region is assigned the BACKFILL_IN_PROGRESS_TIMESTAMP when a BCC/CC metadata is read. If this read
+            // fails then the region is left in cache with this sentinel timestamp. Such failures lead to shard closure which would normally
+            // result in regions getting evicted through usual cache eviction. However, if the shard is re-opened on the same node, then
+            // eviction policy will no longer evict such orphaned regions. Here, we simulate this scenario.
+            populateBackfillInProgressRegion(node.sharedCacheService, orphanKey, regionSize.getBytes());
+            populateBackfillInProgressRegion(node.sharedCacheService, reReadKey, regionSize.getBytes());
+
+            // At cache time both regions were stamped with the sentinel and neither has been evicted.
+            assertThat(capturingPolicy.capturedTimestamps(orphanKey), contains(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP));
+            assertThat(capturingPolicy.capturedTimestamps(reReadKey), contains(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP));
+            assertThat(capturingPolicy.liveTimestamps(orphanKey), contains(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP));
+            assertThat(capturingPolicy.liveTimestamps(reReadKey), contains(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP));
+
+            // A subsequent recovery on the same node re-reads only the latest BCC blob and backfills it with its real timestamp, clearing
+            // any orphaned sentinel regions left behind by earlier (unfinished) reads.
+            final long reReadTimestamp = randomLongBetween(1L, 1_000_000L);
+            searchDirectory.backfillMetadataReadTimestamps(Map.of(new BlobFile(reReadBlobName, reReadTermAndGen), reReadTimestamp), true);
+
+            assertThat(
+                "the re-read blob's region is resolved to its real timestamp",
+                capturingPolicy.liveTimestamps(reReadKey),
+                contains(reReadTimestamp)
+            );
+            assertThat(
+                "the orphaned sentinel region is cleared to the minimal timestamp so it is no longer pinned",
+                capturingPolicy.liveTimestamps(orphanKey),
+                contains(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
+            );
+        }
+    }
+
+    private static void populateBackfillInProgressRegion(
+        StatelessSharedBlobCacheService cacheService,
+        FileCacheKey cacheKey,
+        long blobLength
+    ) {
+        var future = new PlainActionFuture<Boolean>();
+        cacheService.maybeFetchRegion(
+            cacheKey,
+            0,
+            blobLength,
+            (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
+                progressUpdater.accept(length);
+                completionListener.onResponse(null);
+            },
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP,
+            future
+        );
+        assertTrue("populating a sentinel region must succeed", future.actionGet());
     }
 
     private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations, List<String> files) {

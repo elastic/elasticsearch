@@ -557,7 +557,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         }
         var termAndGen = batchedCompoundCommit.primaryTermAndGeneration();
         var blobName = BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation());
-        long timestampMillis = SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        // We are working with time-based index here, so we use minimal timestamp as a fallback and not an unknown timestamp.
+        long timestampMillis = SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
         for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
             timestampMillis = BlobFileRanges.mostRecentKnownTimestamp(
                 timestampMillis,

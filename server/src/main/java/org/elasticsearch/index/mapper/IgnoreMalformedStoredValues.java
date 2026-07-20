@@ -124,6 +124,28 @@ public abstract class IgnoreMalformedStoredValues {
     }
 
     /**
+     * Writes a pre-encoded malformed value to binary doc values (new indices) or to a stored field
+     * (old indices). Callers that have already encoded the value (e.g. via
+     * {@link XContentDataHelper#encodeToken}) should prefer this over re-parsing; callers that hold
+     * a live {@link XContentParser} should use
+     * {@link #storeMalformedValueForSyntheticSource(DocumentParserContext, String, XContentParser)}
+     * instead.
+     *
+     * @param context   the current document parsing context
+     * @param fieldPath the full field path (suffix {@value #IGNORE_MALFORMED_FIELD_NAME_SUFFIX}
+     *                  is appended internally)
+     * @param encoded   the value pre-encoded via {@link XContentDataHelper#encodeToken}
+     */
+    static void writeEncoded(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            context.doc().add(new StoredField(name(fieldPath), encoded.bytes, encoded.offset, encoded.length));
+        }
+    }
+
+    /**
      * Build a {@link IgnoreMalformedStoredValues} that never contains any values.
      */
     public static IgnoreMalformedStoredValues empty() {

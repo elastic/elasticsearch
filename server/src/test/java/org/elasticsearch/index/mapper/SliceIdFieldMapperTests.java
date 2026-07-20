@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.IdFieldMapper.AbstractIdFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
@@ -84,6 +85,32 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         for (IndexableField f : idFields) {
             assertThat("document mode must not use doc values", f.fieldType().docValuesType(), equalTo(DocValuesType.NONE));
         }
+    }
+
+    /**
+     * The stored {@code _id} holds the compound {@code id#slice}, so generic stored-field readers (such as the
+     * {@code _fields} lookup used by scripts and runtime fields) must decode it through the field type to expose the
+     * plain, user-visible id.
+     */
+    public void testStoredIdDecodesToPlainIdNotCompound() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        String id = randomAlphaOfLengthBetween(1, 16);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(id, b -> {}, "slice-1"));
+        BytesRef stored = null;
+        for (IndexableField f : doc.rootDoc().getFields(IdFieldMapper.NAME)) {
+            if (f.fieldType().stored()) {
+                stored = f.binaryValue();
+            }
+        }
+        assertNotNull("document mode stores the compound _id", stored);
+        byte[] storedBytes = Arrays.copyOfRange(stored.bytes, stored.offset, stored.offset + stored.length);
+
+        // The raw stored bytes hold the compound, which must never reach a user.
+        assertThat(Uid.decodeId(storedBytes), equalTo(id + "#slice-1"));
+        assertThat(IdFieldMapper.decodeStoredId(mapperService.fieldType(IdFieldMapper.NAME), storedBytes), equalTo(id));
     }
 
     public void testColumnarModeStoresCompoundIdInBinaryDocValues() throws Exception {

@@ -65,6 +65,15 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         }
 
         /**
+         * The stored {@code _id} is the compound {@code id#slice} term; strip the slice so that generic stored-field
+         * readers (such as the {@code _fields} lookup) only ever expose the user-visible id.
+         */
+        @Override
+        public String decodeStoredId(byte[] value) {
+            return decodeCompoundId(new BytesRef(value));
+        }
+
+        /**
          * Seek the slice-free search term {@code encodeId(id + "#")} for each value. This is derived only from the
          * id, so {@code ids}/{@code term} search needs no slice context and works across slices (incl. {@code _slice=_all}).
          */

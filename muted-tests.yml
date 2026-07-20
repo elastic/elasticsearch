@@ -331,9 +331,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testFromStatsGroupingByDate
   issue: https://github.com/elastic/elasticsearch/issues/152475
-- class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
-  method: testStartFailedTransform
-  issue: https://github.com/elastic/elasticsearch/issues/153065
 - class: org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/153693

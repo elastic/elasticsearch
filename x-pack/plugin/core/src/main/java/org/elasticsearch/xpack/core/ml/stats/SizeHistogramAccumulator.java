@@ -95,7 +95,7 @@ public class SizeHistogramAccumulator implements Writeable {
     public void merge(SizeHistogramAccumulator other) {
         count += other.count;
         total += other.total;
-        // note: not using Math.min/max as some internal prefetch optimization causes an NPE
+        // note: not using Math.min/max as nullable Long min/max would autounbox and NPE when either side is null
         min = min == null ? other.min : (other.min == null ? min : other.min < min ? other.min : min);
         max = max == null ? other.max : (other.max == null ? max : other.max > max ? other.max : max);
         for (Map.Entry<String, Long> entry : other.buckets.entrySet()) {

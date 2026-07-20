@@ -60,11 +60,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeSt
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.MlConfigSizeUsage;
-import org.elasticsearch.xpack.core.ml.stats.MlConfigSizeUtils;
-import org.elasticsearch.xpack.core.ml.stats.SizeHistogramAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
@@ -281,7 +278,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             response -> jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                 addJobsUsage(response, jobs.results(), jobsUsage);
                 addAuxiliaryAdConfigUsage(
-                    jobs.results(),
                     jobsUsage,
                     ActionListener.wrap(
                         ignored -> client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener),
@@ -532,6 +528,9 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private void addInferenceEndpointConfigSizes(Map<String, Object> inferenceUsage, ActionListener<Map<String, Object>> listener) {
+        // Endpoint config_sizes live in the ML usage generic map to avoid a TransportVersion-gated field on
+        // InferenceFeatureSetUsage; this duplicates TransportInferenceUsageAction's GetInferenceModelAction fetch
+        // during full _xpack/usage, but endpoint count is bounded.
         client.execute(
             GetInferenceModelAction.INSTANCE,
             new GetInferenceModelAction.Request("_all", TaskType.ANY, false),
@@ -731,7 +730,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         return asMap;
     }
 
-    private void addAuxiliaryAdConfigUsage(List<Job> jobs, Map<String, Object> jobsUsage, ActionListener<Void> listener) {
+    private void addAuxiliaryAdConfigUsage(Map<String, Object> jobsUsage, ActionListener<Void> listener) {
         GetCalendarsAction.Request calendarsRequest = new GetCalendarsAction.Request();
         calendarsRequest.setCalendarId(GetCalendarsAction.Request.ALL);
         calendarsRequest.setPageParams(new PageParams(0, 10_000));
@@ -757,47 +756,35 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                         "scheduled_events",
                         MlConfigSizeUsage.collectScheduledEventConfigSizes(eventsResponse.getResources().results())
                     );
-                    collectModelSnapshotConfigSizes(jobs, 0, new SizeHistogramAccumulator(), jobsUsage, listener);
+                    collectModelSnapshotConfigSizes(jobsUsage, listener);
                 }, e -> {
                     logger.warn("Failed to get scheduled events to include in ML usage", e);
-                    collectModelSnapshotConfigSizes(jobs, 0, new SizeHistogramAccumulator(), jobsUsage, listener);
+                    collectModelSnapshotConfigSizes(jobsUsage, listener);
                 }));
             }, e -> {
                 logger.warn("Failed to get filters to include in ML usage", e);
-                collectModelSnapshotConfigSizes(jobs, 0, new SizeHistogramAccumulator(), jobsUsage, listener);
+                collectModelSnapshotConfigSizes(jobsUsage, listener);
             }));
         }, e -> {
             logger.warn("Failed to get calendars to include in ML usage", e);
-            collectModelSnapshotConfigSizes(jobs, 0, new SizeHistogramAccumulator(), jobsUsage, listener);
+            collectModelSnapshotConfigSizes(jobsUsage, listener);
         }));
     }
 
-    private void collectModelSnapshotConfigSizes(
-        List<Job> jobs,
-        int jobIndex,
-        SizeHistogramAccumulator descriptionSizes,
-        Map<String, Object> jobsUsage,
-        ActionListener<Void> listener
-    ) {
-        if (jobIndex >= jobs.size()) {
+    private void collectModelSnapshotConfigSizes(Map<String, Object> jobsUsage, ActionListener<Void> listener) {
+        GetModelSnapshotsAction.Request snapshotsRequest = new GetModelSnapshotsAction.Request(Metadata.ALL, null);
+        // Sample at most 10_000 snapshots across all jobs for description-size histograms.
+        snapshotsRequest.setPageParams(new PageParams(0, 10_000));
+        client.execute(GetModelSnapshotsAction.INSTANCE, snapshotsRequest, ActionListener.wrap(response -> {
             MlConfigSizeUsage.putAuxiliaryConfigSizes(
                 jobsUsage,
                 "model_snapshots",
-                MlConfigSizeUtils.configSizesMap(Map.of("description", descriptionSizes))
+                MlConfigSizeUsage.collectModelSnapshotConfigSizes(response.getPage().results())
             );
             listener.onResponse(null);
-            return;
-        }
-        GetModelSnapshotsAction.Request snapshotsRequest = new GetModelSnapshotsAction.Request(jobs.get(jobIndex).getId(), null);
-        snapshotsRequest.setPageParams(new PageParams(0, 1_000));
-        client.execute(GetModelSnapshotsAction.INSTANCE, snapshotsRequest, ActionListener.wrap(response -> {
-            for (ModelSnapshot snapshot : response.getPage().results()) {
-                descriptionSizes.add(MlConfigSizeUtils.stringLength(snapshot.getDescription()));
-            }
-            collectModelSnapshotConfigSizes(jobs, jobIndex + 1, descriptionSizes, jobsUsage, listener);
         }, e -> {
             logger.warn("Failed to get model snapshots to include in ML usage", e);
-            collectModelSnapshotConfigSizes(jobs, jobIndex + 1, descriptionSizes, jobsUsage, listener);
+            listener.onResponse(null);
         }));
     }
 

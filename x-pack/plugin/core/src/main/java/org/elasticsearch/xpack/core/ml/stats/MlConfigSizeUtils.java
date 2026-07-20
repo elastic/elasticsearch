@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.ml.stats;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -26,6 +28,8 @@ import java.util.Map;
  * Helpers for measuring approximate serialized sizes of ML config fields.
  */
 public final class MlConfigSizeUtils {
+
+    private static final Logger logger = LogManager.getLogger(MlConfigSizeUtils.class);
 
     private MlConfigSizeUtils() {}
 
@@ -67,6 +71,7 @@ public final class MlConfigSizeUtils {
             builder.map(map);
             return BytesReference.bytes(builder).length();
         } catch (IOException e) {
+            logger.debug("Failed to measure approximate map size for config size telemetry", e);
             return 0L;
         }
     }
@@ -79,6 +84,7 @@ public final class MlConfigSizeUtils {
             object.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return BytesReference.bytes(builder).length();
         } catch (IOException e) {
+            logger.debug("Failed to measure approximate ToXContentObject size for config size telemetry", e);
             return 0L;
         }
     }
@@ -91,6 +97,7 @@ public final class MlConfigSizeUtils {
             fragment.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return BytesReference.bytes(builder).length();
         } catch (IOException e) {
+            logger.debug("Failed to measure approximate ToXContentFragment size for config size telemetry", e);
             return 0L;
         }
     }
@@ -102,6 +109,7 @@ public final class MlConfigSizeUtils {
         try {
             return mapApproxSizeBytes(XContentObjectTransformer.queryBuilderTransformer(NamedXContentRegistry.EMPTY).toMap(query));
         } catch (IOException e) {
+            logger.debug("Failed to measure approximate QueryBuilder size for config size telemetry", e);
             return 0L;
         }
     }

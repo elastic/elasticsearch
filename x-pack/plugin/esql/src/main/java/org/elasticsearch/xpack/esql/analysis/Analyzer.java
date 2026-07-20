@@ -1917,7 +1917,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 rerank = rerank.withScoreAttribute(resolved);
             }
 
-            return rerank;
+            return resolveAllLambdas(rerank, childrenOutput);
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
@@ -2550,7 +2550,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression queryVector = resolved.queryVector();
 
             if (queryVector != null && (queryVector.dataType().isNumeric() || queryVector.dataType() == KEYWORD)) {
-                return new MMR(
+                resolved = new MMR(
                     resolved.source(),
                     resolved.child(),
                     resolved.diversifyField(),
@@ -2560,7 +2560,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
 
-            return resolved;
+            return resolveAllLambdas(resolved, childrenOutput);
         }
 
         private static final List<DataType> GEO_TYPES = List.of(GEO_POINT, GEO_SHAPE);

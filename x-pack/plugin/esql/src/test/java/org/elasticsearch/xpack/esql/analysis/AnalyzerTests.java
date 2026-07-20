@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -5617,6 +5618,49 @@ public class AnalyzerTests extends ESTestCase {
         var groupKey = as(stats.groupings().get(0), Alias.class);
         var anyMatch = as(groupKey.child(), AnyMatch.class);
         assertTrue("any_match in GROUP BY should be resolved", anyMatch.resolved());
+        assertThat(anyMatch.lambda().parameters().get(0), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testAnyMatchInWhere() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | WHERE any_match(first_name, x -> x == \"Alice\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var anyMatch = as(filter.condition(), AnyMatch.class);
+        assertTrue("any_match in WHERE should be resolved", anyMatch.resolved());
+        assertThat(anyMatch.lambda().parameters().get(0), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testAnyMatchBeforeRerank() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = books().query("""
+            FROM books METADATA _score
+            | EVAL tag = any_match(book_no, x -> x == "1234")
+            | RERANK "test query" ON title WITH { "inference_id" : "reranking-inference-id" }
+            """);
+        var limit = as(plan, Limit.class);
+        var rerank = as(limit.child(), Rerank.class);
+        var eval = as(rerank.child(), Eval.class);
+        var anyMatch = as(as(eval.fields().getFirst(), Alias.class).child(), AnyMatch.class);
+        assertTrue("any_match before RERANK should be resolved", anyMatch.resolved());
+        assertThat(anyMatch.lambda().parameters().get(0), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testAnyMatchBeforeMMR() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        // allTypes() mapping has both a keyword field and a dense_vector field on index "books"
+        var plan = allTypes().query("""
+            FROM books METADATA _score
+            | EVAL tag = any_match(keyword, x -> x == "Alice")
+            | LIMIT 5
+            | MMR on dense_vector LIMIT 3
+            """);
+        var limit = as(plan, Limit.class);
+        var mmr = as(limit.child(), MMR.class);
+        var innerLimit = as(mmr.child(), Limit.class);
+        var eval = as(innerLimit.child(), Eval.class);
+        var anyMatch = as(as(eval.fields().getFirst(), Alias.class).child(), AnyMatch.class);
+        assertTrue("any_match before MMR should be resolved", anyMatch.resolved());
         assertThat(anyMatch.lambda().parameters().get(0), instanceOf(ReferenceAttribute.class));
     }
 

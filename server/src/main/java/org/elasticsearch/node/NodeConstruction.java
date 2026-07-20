@@ -171,6 +171,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.AnalyzerMetrics;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.monitor.metrics.SystemMetrics;
@@ -1323,6 +1324,7 @@ class NodeConstruction {
             clusterService,
             systemIndices
         );
+        final AnalyzerMetrics analyzerMetrics = new AnalyzerMetrics(telemetryProvider.getMeterRegistry(), analysisRegistry);
         boolean emitOTelMetrics = settings.getAsBoolean("telemetry.otel.metrics.enabled", false);
         final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry(), emitOTelMetrics);
 
@@ -1454,6 +1456,7 @@ class NodeConstruction {
             b.bind(TransportService.class).toInstance(transportService);
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
+            b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
             b.bind(SystemMetrics.class).toInstance(systemMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);

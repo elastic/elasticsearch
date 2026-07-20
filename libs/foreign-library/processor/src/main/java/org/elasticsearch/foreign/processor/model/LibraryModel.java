@@ -72,6 +72,9 @@ public record LibraryModel(
     public static final String RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
     public static final String DEFAULT_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
     public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
+    public static final String ARRAY_FIELD_FQN = org.elasticsearch.foreign.ArrayField.class.getName();
+    public static final String STRUCT_SPECIFICATION_FQN = org.elasticsearch.foreign.StructSpecification.class.getName();
+    public static final String ADDRESSABLE_FQN = org.elasticsearch.foreign.Addressable.class.getName();
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -136,10 +139,7 @@ public record LibraryModel(
                 continue;
             }
             TypeElement typeElement = (TypeElement) enclosed;
-            AnnotationMirror structSpecMirror = ModelUtil.findAnnotationMirror(
-                typeElement,
-                "org.elasticsearch.foreign.StructSpecification"
-            );
+            AnnotationMirror structSpecMirror = ModelUtil.findAnnotationMirror(typeElement, STRUCT_SPECIFICATION_FQN);
             if (structSpecMirror == null) {
                 continue;
             }
@@ -448,7 +448,7 @@ public record LibraryModel(
         Messager messager
     ) {
         String methodName = method.getSimpleName().toString();
-        AnnotationMirror arrayFieldMirror = ModelUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.ArrayField");
+        AnnotationMirror arrayFieldMirror = ModelUtil.findAnnotationMirror(method, ARRAY_FIELD_FQN);
 
         if (arrayFieldMirror != null) {
             if (method.getParameters().size() != 1 || method.getParameters().get(0).asType().getKind() != TypeKind.INT) {
@@ -517,7 +517,7 @@ public record LibraryModel(
     private static boolean extendsAddressable(TypeElement typeElement, ProcessingEnvironment env) {
         for (TypeMirror iface : typeElement.getInterfaces()) {
             TypeElement ifaceElement = (TypeElement) env.getTypeUtils().asElement(iface);
-            if (ifaceElement != null && ifaceElement.getQualifiedName().contentEquals("org.elasticsearch.foreign.Addressable")) {
+            if (ifaceElement != null && ifaceElement.getQualifiedName().contentEquals(ADDRESSABLE_FQN)) {
                 return true;
             }
         }

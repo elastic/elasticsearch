@@ -78,7 +78,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
-    private final boolean timeBasedCaching;
+    private final boolean timestampBackfillEnabled;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -100,19 +100,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
-        this.timeBasedCaching = timeBasedCaching;
-    }
-
-    public boolean timeBasedCaching() {
-        return timeBasedCaching;
+        this.timestampBackfillEnabled = timeBasedCaching && cacheService.isCacheBoostPreferenceEnabled();
     }
 
     /**
      * Whether BCC metadata reads should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled after
      * parsing.
      */
-    public boolean metadataReadTimestampBackfillEnabled() {
-        return timeBasedCaching && cacheService.isCacheBoostPreferenceEnabled();
+    public boolean timestampBackfillEnabled() {
+        return timestampBackfillEnabled;
     }
 
     /**
@@ -124,7 +120,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      *                        stamped with {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP};
      */
     public void backfillMetadataReadTimestamps(Map<BlobFile, Long> timestampByBlob, boolean clearOrphans) {
-        if (metadataReadTimestampBackfillEnabled() == false) {
+        if (timestampBackfillEnabled() == false) {
             return;
         }
         if (clearOrphans == false && timestampByBlob.isEmpty()) {
@@ -549,7 +545,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         ) {
             @Override
             protected long unknownRegionTimestampMillis() {
-                return forMetadataRead && SearchDirectory.this.metadataReadTimestampBackfillEnabled()
+                return forMetadataRead && SearchDirectory.this.timestampBackfillEnabled()
                     ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
                     : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
             }

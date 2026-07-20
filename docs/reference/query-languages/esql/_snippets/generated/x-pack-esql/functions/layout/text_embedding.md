@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: ga 9.4.0, preview 9.3.0
+serverless: ga
 ```
+
+
+:::{include} ../briefSummary/text_embedding.md
+:::
 
 ## Syntax
 

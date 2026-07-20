@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
@@ -33,9 +35,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -47,6 +47,19 @@ import static java.util.stream.Collectors.joining;
  */
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
+    /**
+     * Default target rows per output page when chunking partial/intermediate output, i.e. the default of the
+     * {@code esql.time_series.target_chunk_rows} setting. In partial/intermediate mode the operator slices its single
+     * emitted result into pages of about this many rows, bounding the size of each page sent to the coordinator. A
+     * {@code _tsid} may straddle a page boundary; the coordinator re-merges groups by key.
+     */
+    public static final int DEFAULT_TARGET_CHUNK_ROWS = 100_000;
+
+    /**
+     * @param targetChunkRows target number of rows per output page when chunking partial/intermediate output. The
+     *        operator slices its emitted result into pages of about this many rows. Only takes effect in
+     *        partial/intermediate mode; final output is not chunked here.
+     */
     public record Factory(
         Rounding.Prepared timeBucket,
         boolean dateNanos,
@@ -54,7 +67,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
-        Rounding.Prepared outputTimeBucket
+        Rounding.Prepared outputTimeBucket,
+        int targetChunkRows
     ) implements OperatorFactory {
 
         public Factory(
@@ -68,9 +82,23 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null);
         }
 
+        public Factory(
+            Rounding.Prepared timeBucket,
+            boolean dateNanos,
+            List<BlockHash.GroupSpec> groups,
+            AggregatorMode aggregatorMode,
+            List<GroupingAggregator.Factory> aggregators,
+            int aggregationBatchSize,
+            Rounding.Prepared outputTimeBucket
+        ) {
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, outputTimeBucket, Integer.MAX_VALUE);
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
-            final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
+            final boolean outputPartial = aggregatorMode.isOutputPartial();
+            final boolean outputFinal = outputPartial == false;
+            final int effectiveTargetChunkRows = outputPartial ? targetChunkRows : Integer.MAX_VALUE;
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
@@ -91,6 +119,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
+                effectiveTargetChunkRows,
                 driverContext
             );
         }
@@ -118,9 +147,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         Rounding.Prepared outputTimeBucket,
+        int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;
@@ -510,13 +540,45 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 nextGroupIds.fill(0, numGroups, -1);
                 prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 prevGroupIds.fill(0, numGroups, -1);
-                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                LongLongHashMap nextTimestamps = new LongLongHashMap(); // cached the rounded up timestamps
                 for (int groupId = 0; groupId < numGroups; groupId++) {
                     long tsid = tsBlockHash.tsidForGroup(groupId);
                     long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
+                    int cacheIndex = nextTimestamps.indexOf(bucketTs);
+                    long nextBucketTs;
+                    if (cacheIndex >= 0) {
+                        nextBucketTs = nextTimestamps.indexGet(cacheIndex);
+                    } else {
+                        nextBucketTs = fastRounding.nextRoundingValue(bucketTs);
+                        nextTimestamps.put(bucketTs, nextBucketTs);
+                    }
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
+                        // https://github.com/elastic/elasticsearch/issues/152758
+                        assert tsBlockHash.tsidForGroup(nextGroupId) == tsid
+                            : "adjacent groups must share the same tsid: group "
+                                + groupId
+                                + " (tsid="
+                                + tsid
+                                + ") -> nextGroup "
+                                + nextGroupId
+                                + " (tsid="
+                                + tsBlockHash.tsidForGroup(nextGroupId)
+                                + ")";
+                        assert tsBlockHash.timestampForGroup(nextGroupId) == nextBucketTs
+                            : "next group timestamp mismatch: expected "
+                                + nextBucketTs
+                                + " but group "
+                                + nextGroupId
+                                + " has "
+                                + tsBlockHash.timestampForGroup(nextGroupId);
+                        assert prevGroupIds.get(nextGroupId) == -1
+                            : "prevGroupIds["
+                                + nextGroupId
+                                + "] already set to "
+                                + prevGroupIds.get(nextGroupId)
+                                + " when linking from group "
+                                + groupId;
                         nextGroupIds.set(groupId, nextGroupId);
                         prevGroupIds.set(nextGroupId, groupId);
                     }

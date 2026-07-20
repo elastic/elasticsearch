@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 99575
-pr: 148519
-summary: Avoid long overflows on AVG by casting to double
-type: bug

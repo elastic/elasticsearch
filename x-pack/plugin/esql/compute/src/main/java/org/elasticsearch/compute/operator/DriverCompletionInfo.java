@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -28,8 +29,12 @@ import java.util.concurrent.atomic.AtomicLong;
  *                     fields per document. Except {@code null} values don't count.
  *                     And multivalued fields count as many times as there are values.
  * @param rowsEmitted Total rows emitted by source operators across all drivers.
- * @param bytesRead Total pre-decompression bytes pulled from external storage across all drivers.
- *                  Lucene operators contribute 0; only external-source operators populate this.
+ * @param bytesRead Total bytes read across all drivers. Includes pre-decompression bytes pulled from
+ *                  external storage by external-source operators, bytes read by Lucene-source and
+ *                  values-source operators on worker threads, and planner-time Lucene directory I/O
+ *                  on the data node SEARCH thread (query rewriting, weight construction,
+ *                  {@code SearchStats} field lookups, sort builders, etc.).
+ *                  TODO: Lookup join streaming reads are not included yet here.
  * @param readNanos Total wall time format readers spent reading on producer threads, in nanoseconds.
  *                  Lucene contributes 0; only external-source operators populate this.
  * @param cpuNanos Total CPU time across all drivers (sum of per-driver CPU time).
@@ -45,6 +50,10 @@ import java.util.concurrent.atomic.AtomicLong;
  *                               consumers because the merge algorithm lives in
  *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on
  *                               esql-module types this compute module cannot reach.
+ * @param partial Whether any driver returned partial results because a lenient policy dropped data during
+ *                the read (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}).
+ *                OR-aggregated across drivers/nodes and consumed by the coordinator to flip the response's
+ *                {@code is_partial} flag — the structured counterpart of the client-visible truncation warning.
  */
 public record DriverCompletionInfo(
     long documentsFound,
@@ -55,7 +64,8 @@ public record DriverCompletionInfo(
     long cpuNanos,
     List<DriverProfile> driverProfiles,
     List<PlanProfile> planProfiles,
-    Map<String, List<Map<String, Object>>> capturedSourceMetadata
+    Map<String, List<Map<String, Object>>> capturedSourceMetadata,
+    boolean partial
 ) implements Writeable {
 
     /**
@@ -63,7 +73,7 @@ public record DriverCompletionInfo(
      * Usually this is returned with an error, but it's also used when receiving
      * responses from very old nodes.
      */
-    public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of());
+    public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false);
 
     public DriverCompletionInfo {
         capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
@@ -71,6 +81,11 @@ public record DriverCompletionInfo(
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers including their profile output.
+     *
+     * @param planningBytesRead Bytes read on the data node SEARCH thread during planner setup
+     *                          (query rewriting, weight construction, {@code SearchStats} lookups,
+     *                          sort builders, etc.) before drivers were dispatched. Added to the
+     *                          aggregate {@code bytesRead}.
      */
     public static DriverCompletionInfo includingProfiles(
         List<Driver> drivers,
@@ -79,12 +94,13 @@ public record DriverCompletionInfo(
         String nodeName,
         String planTree,
         String logicalPlanTree,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        long planningBytesRead
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
-        long bytesRead = 0;
+        long bytesRead = planningBytesRead;
         long readNanos = 0;
         long cpuNanos = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
@@ -109,18 +125,24 @@ public record DriverCompletionInfo(
             cpuNanos,
             collectedProfiles,
             List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
-            collectCapturedSourceMetadata(drivers)
+            collectCapturedSourceMetadata(drivers),
+            collectPartial(drivers)
         );
     }
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers excluding their profile output.
+     *
+     * @param planningBytesRead Bytes read on the data node SEARCH thread during planner setup
+     *                          (query rewriting, weight construction, {@code SearchStats} lookups,
+     *                          sort builders, etc.) before drivers were dispatched. Added to the
+     *                          aggregate {@code bytesRead}.
      */
-    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers) {
+    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers, long planningBytesRead) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
-        long bytesRead = 0;
+        long bytesRead = planningBytesRead;
         long readNanos = 0;
         long cpuNanos = 0;
         for (Driver d : drivers) {
@@ -144,7 +166,8 @@ public record DriverCompletionInfo(
             cpuNanos,
             List.of(),
             List.of(),
-            collectCapturedSourceMetadata(drivers)
+            collectCapturedSourceMetadata(drivers),
+            collectPartial(drivers)
         );
     }
 
@@ -176,10 +199,27 @@ public record DriverCompletionInfo(
         return perFile == null ? Map.of() : perFile;
     }
 
+    /**
+     * ORs the {@link CapturingExternalSourceStatus#partial()} flag across every completed operator. True when
+     * any external-source read on any driver dropped data under a lenient policy (e.g. {@code max_record_size}
+     * truncation), so the coordinator can flip the response's {@code is_partial} flag.
+     */
+    private static boolean collectPartial(List<Driver> drivers) {
+        for (Driver d : drivers) {
+            for (OperatorStatus o : d.status().completedOperators()) {
+                if (o.status() instanceof CapturingExternalSourceStatus capturing && capturing.partial()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
     private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
     // Also gates AsyncExternalSourceOperator.Status fields and EsqlQueryProfile.datasetResolution.
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
+    private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
 
     public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
         long documentsFound = in.readVLong();
@@ -219,6 +259,7 @@ public record DriverCompletionInfo(
         } else {
             captured = Map.of();
         }
+        boolean partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
@@ -228,7 +269,8 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverProfiles,
             planProfiles,
-            captured
+            captured,
+            partial
         );
     }
 
@@ -257,6 +299,9 @@ public record DriverCompletionInfo(
                 }
             }
         }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS)) {
+            out.writeBoolean(partial);
+        }
     }
 
     public static class Accumulator {
@@ -269,6 +314,7 @@ public record DriverCompletionInfo(
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
+        private boolean partial;
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound += info.documentsFound;
@@ -280,6 +326,7 @@ public record DriverCompletionInfo(
             this.driverProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
             mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
+            this.partial |= info.partial;
         }
 
         public DriverCompletionInfo finish() {
@@ -292,7 +339,8 @@ public record DriverCompletionInfo(
                 cpuNanos,
                 driverProfiles,
                 planProfiles,
-                capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata)
+                capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata),
+                partial
             );
         }
     }
@@ -307,6 +355,7 @@ public record DriverCompletionInfo(
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
+        private final AtomicBoolean partial = new AtomicBoolean();
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound.addAndGet(info.documentsFound);
@@ -319,6 +368,9 @@ public record DriverCompletionInfo(
             this.planProfiles.addAll(info.planProfiles);
             synchronized (capturedSourceMetadata) {
                 mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
+            }
+            if (info.partial) {
+                this.partial.set(true);
             }
         }
 
@@ -336,7 +388,8 @@ public record DriverCompletionInfo(
                 cpuNanos.get(),
                 collectedProfiles,
                 planProfiles,
-                snapshot
+                snapshot,
+                partial.get()
             );
         }
     }

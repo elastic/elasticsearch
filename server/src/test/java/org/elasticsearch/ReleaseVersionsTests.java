@@ -24,7 +24,7 @@ public class ReleaseVersionsTests extends ESTestCase {
         assertThat(versions.apply(14), equalTo("8.1.0-8.1.1"));
         assertThat(versions.apply(21), equalTo("8.2.0"));
         assertThat(versions.apply(22), equalTo("8.2.1"));
-        assertThat(versions.apply(23), equalTo(Version.CURRENT.toString()));
+        assertThat(versions.apply(23), equalTo(Build.current().version()));
     }
 
     public void testReturnsRange() {

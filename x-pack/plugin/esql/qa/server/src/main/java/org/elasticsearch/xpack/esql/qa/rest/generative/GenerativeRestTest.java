@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -35,6 +36,9 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -89,6 +93,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // type differences as a hard error instead of merging them via union types like plain "FROM a, b" would.
             // This message is "expected" here, as predicting type conflicts has to be implemented first
             "has conflicting data types in subqueries"
+        ),
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD,
+        Set.of(
+            // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
+            "missing references \\[.*\\]",
+            // https://github.com/elastic/elasticsearch/issues/142026
+            "column \\[.*\\] already resolved",
+            // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
+            // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
+            "is not supported with unmapped_fields",
+            "does not support full-text search function",
+            "type \\[null\\] .* not supported",
+            // https://github.com/elastic/elasticsearch/issues/145555
+            "Multiple index patterns should be disabled with unmapped fields",
+            // https://github.com/elastic/elasticsearch/issues/146036
+            "argument of \\[.*\\] must be \\[unsupported\\], found value",
+            // https://github.com/elastic/elasticsearch/issues/146074
+            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
         )
     );
 
@@ -104,7 +126,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         "sub-plan execution results too large",  // INLINE STATS limitations
         // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
         "Inference endpoint not found \\[foo_inference_id\\]",
@@ -136,9 +158,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
-        // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
-        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
+
+        // https://github.com/elastic/elasticsearch/issues/153622
+        "ImmutableCollections\\$ListN cannot be cast to class .*",
+
+        // repeat() returns validation error when the Number parameter is a negative foldable
+        "Number parameter cannot be negative, found \\[",
+
+        // need to refine the MATCH function generation
+        "query value .* does not match the type .* of non-index-mapped field",
+        "Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -158,7 +187,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/pull/141196
 
         // TopNOperator type mismatch in ValueExtractor
-        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
+
+        // https://github.com/elastic/elasticsearch/issues/154068
+        "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*",
+
+        // https://github.com/elastic/elasticsearch/pull/153514
+        "can't lookup values from DateRangeBlock",
+
+        // https://github.com/elastic/elasticsearch/issues/154079
+        "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
+
+        // https://github.com/elastic/elasticsearch/issues/154080
+        "unexpected data type \\[NULL\\]"
     );
 
     /**
@@ -209,6 +250,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
 
+    /**
+     * Matches "argument of [X] is [keyword] so ... argument must also be [keyword] but was [Y]" errors.
+     * This happens when an unmapped field that is force-loaded as keyword is used in a binary operation
+     * with a non-keyword typed value (e.g. {@code unmapped_field > 31}).
+     */
+    private static final Pattern KEYWORD_TYPE_MISMATCH_FOR_LOADED_FIELD_PATTERN = Pattern.compile(
+        ".*argument of \\[([^]]+)] is \\[keyword] so .* argument must also be \\[keyword] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
@@ -233,7 +284,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     protected abstract boolean supportsSourceFieldMapping();
 
     protected boolean requiresTimeSeries() {
-        return false;
+        return isFeatureEnabled(GenerativeFeature.METRICS) || isFeatureEnabled(GenerativeFeature.PROMQL);
     }
 
     @AfterClass
@@ -371,6 +422,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected CommandGenerator sourceCommand() {
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD)) {
+            return FromLoadGenerator.INSTANCE;
+        }
+        if (isFeatureEnabled(GenerativeFeature.METRICS)) {
+            return EsqlQueryGenerator.timeSeriesSourceCommand();
+        }
+        if (isFeatureEnabled(GenerativeFeature.PROMQL)) {
+            return PromQLGenerator.INSTANCE;
+        }
         return EsqlQueryGenerator.sourceCommand();
     }
 
@@ -380,6 +440,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     protected Set<GenerativeFeature> enabledFeatures() {
         return Set.of();
+    }
+
+    protected boolean isFeatureEnabled(GenerativeFeature feature) {
+        return enabledFeatures().contains(feature);
     }
 
     /**
@@ -436,20 +500,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
         ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
-        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isWildcardLongRangeTopNConnectionBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUserAgentLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -477,6 +541,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (rule.matches(ctx)) {
                 return true;
             }
+        }
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) && isUnmappedFieldsLoadAllowedFailure(ctx)) {
+            return true;
         }
         return false;
     }
@@ -589,7 +656,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
-        if (query.startsWith(prefix) == false) {
+        if (query == null || query.startsWith(prefix) == false) {
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
@@ -614,6 +681,26 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return UNMAPPED_NAMES.stream().anyMatch(name -> functionExpression.contains(name) || foundValue.contains(name));
         }
 
+        if (isKeywordTypeMismatchForLoadedField(errorWithoutLineBreaks)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isUnmappedFieldsLoadAllowedFailure(FailureContext ctx) {
+        if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, FromLoadGenerator.SET_LOAD_PREFIX)) {
+            return true;
+        }
+        return isKeywordTypeMismatchForLoadedField(ctx.normalizedErrorMessage);
+    }
+
+    private static boolean isKeywordTypeMismatchForLoadedField(String errorMessage) {
+        Matcher matcher = KEYWORD_TYPE_MISMATCH_FOR_LOADED_FIELD_PATTERN.matcher(errorMessage);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
         return false;
     }
 
@@ -628,6 +715,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(
         ".*cannot operate on \\[([^]]+)\\], which is not a field from an index mapping.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * Matches "Options are not supported for [MATCH] function call on non-index-mapped field [X]".
+     * This is the error MATCH raises when called with options on a renamed/computed field.
+     */
+    private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
+        ".*Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[([^]]+)\\].*",
         Pattern.DOTALL
     );
 
@@ -790,6 +886,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static List<Column> handleRenameIndexMapped(List<Column> newSchema, Map<String, Boolean> prevMapped, String commandString) {
         Map<String, Boolean> mapped = new HashMap<>(prevMapped);
+        Set<String> renamed = new HashSet<>();
         String body = commandString.replaceFirst("(?i)^\\s*\\|\\s*rename\\s+", "");
         for (String pair : body.split(",")) {
             Matcher m = RENAME_PAIR_PATTERN.matcher(pair);
@@ -799,28 +896,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 boolean wasMapped = mapped.getOrDefault(oldName, false);
                 mapped.remove(oldName);
                 mapped.put(newName, wasMapped);
+                renamed.add(newName);
             }
         }
+        // After RENAME, the new name is a ReferenceAttribute, not a FieldAttribute.
+        // ES|QL's Match.isRuntimeSearch() uses fieldAsFieldAttribute() which cannot resolve renamed
+        // fields → options are not allowed on them. Mark renamed targets as non-index-mapped so the
+        // generator won't try to use them in match() with options.
         return newSchema.stream().map(col -> {
-            Boolean isMapped = mapped.get(col.name());
-            return new Column(col.name(), col.type(), col.originalTypes(), isMapped != null && isMapped);
+            boolean isMapped = mapped.getOrDefault(col.name(), false) && renamed.contains(col.name()) == false;
+            return new Column(col.name(), col.type(), col.originalTypes(), isMapped);
         }).toList();
     }
 
     /**
      * Checks if the error is a full-text function/operator rejecting a field that is not from an index mapping.
-     * Uses the {@link Column#indexMapped()} flag from the current schema when available; falls back to
-     * command-history heuristics otherwise.
+     * Uses the {@link Column#indexMapped()} flag from the current schema.
      */
-    static boolean isFieldFullTextError(
-        String errorMessage,
-        String query,
-        List<CommandGenerator.CommandDescription> previousCommands,
-        List<Column> currentSchema
-    ) {
+    static boolean isFieldFullTextError(String errorMessage, List<Column> currentSchema) {
         Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
-            return false;
+            m = MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN.matcher(errorMessage);
+            if (m.matches() == false) {
+                return false;
+            }
         }
         String fieldName = unquote(m.group(1));
 
@@ -856,15 +955,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b).*",
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
+            + "\\(\\s*FROM\\b).*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
      * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
-     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.) or when full-text functions/operators
-     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. Gated on a
-     * parenthesised inner {@code FROM}.
+     * pipeline-breaking command ({@code LIMIT}, {@code DEDUP}, {@code INLINE STATS}, etc.) or when full-text functions/operators
+     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. It also rejects full-text after the
+     * {@code UnionAll} formed by a multi-source {@code FROM} (the union of subqueries / indices): there the verifier embeds the
+     * union's source text, which it truncates to {@code Node.TO_STRING_MAX_WIDTH} chars plus {@code "..."}, so the message may end
+     * mid-branch (before the comma separating the branches). Gated on a parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
@@ -889,23 +991,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern TS_OUTPUT_CHANGED_PATTERN = Pattern.compile(
-        ".*Output has changed from \\[.*\\] to \\[.*\\].*",
-        Pattern.DOTALL
-    );
-
-    // https://github.com/elastic/elasticsearch/issues/134794
-    static boolean isTsOutputChangedError(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (TS_OUTPUT_CHANGED_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        String trimmed = query.trim().toUpperCase(Locale.ROOT);
-        return trimmed.startsWith("TS ");
     }
 
     /**
@@ -970,27 +1055,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
 
-    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
-    private static final Pattern DEDUP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*DEDUP\\b");
-
-    /**
-     * See https://github.com/elastic/elasticsearch/issues/148513
-     * <p>
-     * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
-     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy). DEDUP uses the same LimitBy
-     * plan internally, so it has the same missing-reference failure after MV_EXPAND.
-     */
-    static boolean isLimitByMvExpandBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
-            && (LIMIT_BY_COMMAND_PATTERN.matcher(query).find() || DEDUP_COMMAND_PATTERN.matcher(query).find());
-    }
-
     private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");
     private static final Pattern DROP_RENAME_KEEP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(?:DROP|RENAME|KEEP)\\b");
 
@@ -1024,27 +1088,28 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
     }
 
-    private static final Pattern CONNECTION_FAILURE_PATTERN = Pattern.compile(
-        ".*(?:Connection is closed|Connection reset|Connection refused).*",
-        Pattern.DOTALL
-    );
-    private static final Pattern WILDCARD_SOURCE_PATTERN = Pattern.compile("(?i)\\bFROM\\b[^|;]*\\*");
+    private static final Pattern USER_AGENT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*USER_AGENT\\b");
+    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\d+\\s+BY\\b");
+    private static final Pattern EVAL_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*EVAL\\b");
+    private static final Pattern WHERE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*WHERE\\b");
 
     /**
-     * Wildcard sources can crash while decoding long-range values out of {@code TopNOperator} /
-     * {@code GroupedTopNOperator}. The REST test observes the resulting connection failure, so this must match the
-     * transport symptom and query shape rather than the underlying assertion.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>.
+     * The LIMIT BY optimizer prunes the {@code USER_AGENT} input field from {@code ProjectExec}
+     * because it does not appear in the LIMIT BY output columns, but {@code UserAgentExec} still
+     * needs it as its source reference.
+     * See https://github.com/elastic/elasticsearch/issues/154069
      */
-    static boolean isWildcardLongRangeTopNConnectionBug(String errorMessage, String query) {
+    static boolean isUserAgentLimitByBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
             return false;
         }
-        return CONNECTION_FAILURE_PATTERN.matcher(errorMessage).matches() && WILDCARD_SOURCE_PATTERN.matcher(query).find();
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return USER_AGENT_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
-
     private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(
         ".*Plan \\[Aggregate\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*",
         Pattern.DOTALL
@@ -1091,6 +1156,36 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
     }
 
+    /**
+     * EVAL reassigning an existing index field followed by WHERE causes the optimizer to incorrectly
+     * prune the original field reference, leaving the Filter plan node with a missing reference.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154146">#154146</a>.
+     */
+    static boolean isEvalWhereFilterBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find() && WHERE_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * RENAME followed by INLINE STATS causes the optimizer to drop renamed field references from the
+     * projection, leaving the Project plan node with missing references for the renamed aliases.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isRenameInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return RENAME_COMMAND_PATTERN.matcher(query).find() && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
     @Override
     public boolean isAllowedFailure(
         QueryExecuted result,
@@ -1108,8 +1203,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public QueryExecuted execute(String query, int depth) {
         QueryExecuted result;
         try {
+            RestEsqlTestCase.RequestObjectBuilder requestBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+            // Occasionally cap shard concurrency per node at 1. Combined with the wide index patterns
+            // EsqlQueryGenerator#indexPattern already produces, this increases coverage of per-shard local
+            // planning (e.g. constant_keyword folding) across many shards. See
+            // https://github.com/elastic/elasticsearch/issues/150055
+            if (rarely()) {
+                requestBuilder.pragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+                requestBuilder.pragmasOk();
+            }
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
+                requestBuilder.build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC

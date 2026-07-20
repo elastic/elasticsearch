@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -44,7 +46,9 @@ public class StY extends SpatialUnaryDocValuesFunction {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StY.class).unary(StY::new).name("st_y");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
+        briefSummary = "Extracts the y coordinate from the supplied point.",
         description = "Extracts the `y` coordinate from the supplied point.\n"
             + "If the point is of type `geo_point` this is equivalent to extracting the `latitude` value.",
         examples = @Example(file = "spatial", tag = "st_x_y"),

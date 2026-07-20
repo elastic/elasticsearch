@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -61,6 +63,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     private final Expression field, start, end;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
             "boolean",
             "cartesian_point",
@@ -80,6 +83,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns a subset of a multi-value field using start and end indexes.",
         description = """
             Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
             This is most useful when reading from a function that emits multivalued columns

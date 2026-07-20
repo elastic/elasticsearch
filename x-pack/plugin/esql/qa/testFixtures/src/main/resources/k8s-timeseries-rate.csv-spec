@@ -448,6 +448,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 sum_rate_per_region
+skip_flattened_rewrite: mv_dimension
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
 required_capability: pack_dimensions_in_ts

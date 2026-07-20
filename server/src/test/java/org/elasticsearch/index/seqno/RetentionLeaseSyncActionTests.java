@@ -40,6 +40,8 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -60,8 +62,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
     private TransportService transportService;
     private ShardStateAction shardStateAction;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
@@ -78,13 +80,13 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void stopServices() throws Exception {
         try {
             IOUtils.close(transportService, clusterService, transport);
         } finally {
             terminate(threadPool);
         }
-        super.tearDown();
     }
 
     public void testRetentionLeaseSyncActionOnPrimary() {
@@ -115,7 +117,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // the retention leases on the shard should be persisted
             verify(indexShard).persistRetentionLeases();
             // we should forward the request containing the current retention leases to the replica
@@ -155,7 +157,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
         PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = new PlainActionFuture<>();
-        action.dispatchedShardOperationOnReplica(request, indexShard, listener);
+        action.shardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);

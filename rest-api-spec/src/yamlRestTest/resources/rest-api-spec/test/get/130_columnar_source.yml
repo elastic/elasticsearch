@@ -367,3 +367,88 @@ dynamic mapping - columnar stored:
       _source:
         kwd: foo
         num: 42
+
+---
+
+dynamic false drops unmapped fields - columnar synthetic source:
+  - requires:
+      cluster_features: ["mapper.columnar.drops_dynamic_false_fields"]
+      reason: "columnar mode drops unmapped dynamic:false fields rather than storing in ignored source"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: mapped_value
+          unmapped_leaf: dropped
+          unmapped_obj:
+            key: also_dropped
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: mapped_value
+  - is_false: _source.unmapped_leaf
+  - is_false: _source.unmapped_obj
+
+---
+
+dynamic false drops unmapped fields - columnar stored source:
+  - requires:
+      cluster_features: ["mapper.columnar.drops_dynamic_false_fields"]
+      reason: "columnar mode drops unmapped dynamic:false fields rather than storing in ignored source"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            dynamic: false
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: mapped_value
+          unmapped_leaf: dropped
+          unmapped_arr:
+            - 1
+            - 2
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: mapped_value
+  - is_false: _source.unmapped_leaf
+  - is_false: _source.unmapped_arr

@@ -235,6 +235,37 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         }
     }
 
+    public void testOnCompleteReleasesBufferWhenItLosesTheCompletionRace() throws Exception {
+        // If a concurrent exceptionOccurred fails the future before onComplete completes it, onComplete's
+        // complete() returns false; it then solely owns the buffer it took via getAndSet and must release it,
+        // or the direct memory leaks. The child allocator surfaces any leak as non-zero allocated bytes.
+        try (BufferAllocator child = ALLOCATOR.newChildAllocator("onComplete-race", 0, Long.MAX_VALUE)) {
+            DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
+            byte[] payload = randomByteArrayOfLength(256);
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+                payload.length,
+                factory
+            );
+            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+            transformer.onResponse(response(payload.length));
+
+            RuntimeException raced = new RuntimeException("exceptionOccurred won the completion race");
+            transformer.onStream(new SdkPublisher<>() {
+                @Override
+                public void subscribe(Subscriber<? super ByteBuffer> s) {
+                    s.onSubscribe(new TestSubscription());
+                    s.onNext(ByteBuffer.wrap(payload)); // fills the destination: offset == capacity
+                    future.completeExceptionally(raced); // a concurrent exceptionOccurred fails the future first
+                    s.onComplete(); // onComplete loses the race; it must release the buffer it could not hand off
+                }
+            });
+
+            ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+            assertSame(raced, ex.getCause());
+            assertEquals("onComplete must release the buffer it could not hand off", 0L, child.getAllocatedMemory());
+        }
+    }
+
     public void testResponseObjectExposedViaGetter() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(8, 256));
         GetObjectResponse expectedResponse = response(payload.length);

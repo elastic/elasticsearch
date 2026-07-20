@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.ExternalAccountCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.IdentityPoolCredentials;
@@ -18,6 +21,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -40,15 +44,20 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Google Cloud Storage.
  * <p>
- * Supports the {@code gs://} URI scheme. Authentication must be provided explicitly via:
+ * Supports the {@code gs://} URI scheme. The {@code auth} mode selects the credential; {@code auto} (the default)
+ * infers it from the fields present:
  * <ul>
- *   <li>Explicit service account JSON credentials</li>
- *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
- *       {@code service_account_impersonation_url}</li>
- *   <li>{@code auth=none} for anonymous access to public buckets</li>
+ *   <li>{@code auth=static_credentials} — a service account JSON key or a short-lived OAuth2 access token</li>
+ *   <li>{@code auth=federated_identity} — workload identity federation via {@code jwt_audience}, {@code sts_audience},
+ *       and {@code service_account_impersonation_url}</li>
+ *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
+ *   <li>{@code auth=managed_identity} — the node's GCE/GKE metadata-server credentials
+ *       ({@link ComputeEngineCredentials}); requires the {@code esql.datasource.managed_identity.enabled}
+ *       cluster setting</li>
  * </ul>
- * The node's ambient credentials (Application Default Credentials) are never used: a data source must
- * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
+ * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
+ * file) are excluded because file reads are blocked by entitlements. GKE Workload Identity
+ * Federation is handled separately via {@code auth=federated_identity}.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -58,17 +67,18 @@ import java.util.NoSuchElementException;
  * The async path blocks a worker thread (not truly non-blocking like HTTP sendAsync or S3AsyncClient)
  * but avoids the byte[] allocation overhead of the default InputStream-based wrappers.
  */
-public final class GcsStorageProvider implements StorageProvider {
+public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
 
+    @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
-        // When explicit credentials, keyless auth, or anonymous mode are configured, build the client
-        // eagerly so misconfigurations are caught early. When no credentials are configured (config is null),
-        // defer client creation to first use so the plugin can load; the missing-credentials error then
-        // surfaces only when a gs:// query is actually executed.
-        if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
+        // With a configuration present, build the client eagerly so misconfigurations are caught early (every
+        // validated config resolves to a mode). When there is no configuration (config is null), defer client
+        // creation to first use so the plugin can load; the missing-config error then surfaces only when a gs://
+        // query is actually executed.
+        if (config != null) {
             this.storage = buildStorageClient(config);
         }
     }
@@ -98,48 +108,34 @@ public final class GcsStorageProvider implements StorageProvider {
         return storage;
     }
 
-    private static Storage buildStorageClient(GcsConfiguration config) {
+    private Storage buildStorageClient(GcsConfiguration config) {
+        // Connection pooling: unlike S3 (Netty maxConcurrency) and Azure (reactor-netty ConnectionProvider), the
+        // google-cloud-storage client's default NetHttpTransport is backed by HttpURLConnection, whose
+        // http.maxConnections (default 5) bounds only the idle keep-alive cache — NOT the number of concurrent
+        // connections, which HttpURLConnection opens on demand. So GCS has no SDK-side pool cap. It does not need
+        // one: GCS reads are blocking, so their concurrency is bounded by the per-scheme permit semaphore in
+        // StorageProviderRegistry (sized by esql.external.max_concurrent_requests). Sizing an SDK pool would mean
+        // swapping in ApacheHttpTransport + a PoolingHttpClientConnectionManager — a production dependency that
+        // neither this plugin nor repository-gcs carries (apache-httpclient is test-scope only there).
+        if (config == null) {
+            // The datasource layer always builds a provider from a validated configuration.
+            throw new IllegalArgumentException("GCS data source requires a configuration");
+        }
         try {
-            if (config != null && config.isAnonymous()) {
-                StorageOptions.Builder builder = StorageOptions.getUnauthenticatedInstance().toBuilder();
-                if (config.projectId() != null) {
-                    builder.setProjectId(config.projectId());
-                }
-                if (config.endpoint() != null) {
-                    builder.setHost(config.endpoint());
-                }
-                return builder.build().getService();
-            }
-
-            StorageOptions.Builder builder = StorageOptions.newBuilder();
-
-            if (config != null && config.hasCredentials()) {
-                ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
-                    new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
-                );
-                // Override the token server URI if provided (used for testing with mock GCS fixtures)
-                if (config.tokenUri() != null) {
-                    credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
-                }
-                builder.setCredentials(credentials);
-            } else if (config != null && config.hasKeylessAuth()) {
-                builder.setCredentials(buildIdentityPoolCredentials(config));
-            } else {
-                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
-                throw new IllegalArgumentException(
-                    "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
-                        + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
-                );
-            }
-
-            if (config != null && config.projectId() != null) {
+            // Select the client credential from the resolved auth mode. Anonymous uses the unauthenticated
+            // StorageOptions; every other mode sets a Credentials on the standard builder.
+            StorageOptions.Builder builder = switch (config.resolveAuthMode()) {
+                case ANONYMOUS -> StorageOptions.getUnauthenticatedInstance().toBuilder();
+                case STATIC_CREDENTIALS -> StorageOptions.newBuilder().setCredentials(buildStaticCredentials(config));
+                case FEDERATED_IDENTITY -> StorageOptions.newBuilder().setCredentials(buildIdentityPoolCredentials(config));
+                case MANAGED_IDENTITY -> StorageOptions.newBuilder().setCredentials(buildManagedIdentityCredentials());
+            };
+            if (config.projectId() != null) {
                 builder.setProjectId(config.projectId());
             }
-
-            if (config != null && config.endpoint() != null) {
+            if (config.endpoint() != null) {
                 builder.setHost(config.endpoint());
             }
-
             return builder.build().getService();
         } catch (IOException e) {
             throw new IllegalStateException(
@@ -152,16 +148,56 @@ public final class GcsStorageProvider implements StorageProvider {
         }
     }
 
+    /**
+     * Builds the static Google credential for {@code STATIC_CREDENTIALS}: a service-account JSON key
+     * ({@link ServiceAccountCredentials}) when present, otherwise a short-lived {@code access_token}. Validation
+     * guarantees one of the two static forms is set for this mode, so this always yields a credential.
+     */
+    static GoogleCredentials buildStaticCredentials(GcsConfiguration config) throws IOException {
+        if (Strings.hasText(config.serviceAccountCredentials())) {
+            ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
+                new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
+            );
+            // Override the token server URI if provided (used for testing with mock GCS fixtures)
+            if (config.tokenUri() != null) {
+                credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
+            }
+            return credentials;
+        }
+        return GoogleCredentials.create(new AccessToken(config.accessToken(), null));
+    }
+
+    /**
+     * Builds the credential used when {@code auth=managed_identity} is configured. Default returns
+     * {@link ComputeEngineCredentials#create()}, which contacts the GCE/GKE metadata server.
+     * <p>
+     * {@code GoogleCredentials.getApplicationDefault()} is deliberately not used: it reads
+     * {@code GOOGLE_APPLICATION_CREDENTIALS} and the well-known gcloud credential file, both
+     * blocked by the entitlement system. {@code ComputeEngineCredentials} contacts only the
+     * metadata server over the network (covered by the {@code outbound_network} entitlement).
+     * GKE Workload Identity Federation is handled separately via {@code auth=federated_identity}.
+     * <p>
+     * Tests may override this method (anonymous subclass) to inject a credential built with a
+     * mock {@link com.google.api.client.http.HttpTransport} — the same pattern used by
+     * {@code GoogleCloudStorageAdcTests} in {@code repository-gcs}.
+     */
+    protected Credentials buildManagedIdentityCredentials() {
+        return ComputeEngineCredentials.create();
+    }
+
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException(
+                "GCS federated authentication requires the workload-identity feature to be enabled on this node"
+            );
         }
 
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : config.stsAudience();
         IdentityPoolCredentials.Builder credentialsBuilder = IdentityPoolCredentials.newBuilder()
             .setAudience(config.stsAudience())
             .setSubjectTokenType(ExternalAccountCredentials.SubjectTokenTypes.JWT)
-            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, config.jwtAudience()));
+            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, jwtAudience));
 
         // Optional: when absent, the federated identity maps directly to a principal without impersonation.
         if (config.serviceAccountImpersonationUrl() != null) {
@@ -239,15 +275,15 @@ public final class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)", e);
+            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)" + credentialHint(), e);
         }
     }
 
     private String credentialHint() {
-        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
-            return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (credentials = '...'), configure keyless authentication settings, "
-                + "or set GOOGLE_APPLICATION_CREDENTIALS";
+        if (config == null || config.resolveAuthModeOrNull() == null) {
+            return ". If accessing a public bucket, set auth=anonymous. "
+                + "Otherwise, provide credentials via credentials or access_token, "
+                + "or configure federated authentication with sts_audience";
         }
         return "";
     }

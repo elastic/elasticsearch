@@ -41,7 +41,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -61,6 +60,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
@@ -117,6 +117,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
         AtomicReference<InferenceService> service = new AtomicReference<>();
+        AtomicReference<Model> existingParsedModelRef = new AtomicReference<>();
+        AtomicReference<Model> mergedParsedModelRef = new AtomicReference<>();
 
         var inferenceEntityId = request.getInferenceEntityId();
 
@@ -134,6 +136,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     );
                     return;
                 }
+
+                validateEndpointIsNotDefault(inferenceEntityId);
 
                 if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
                     listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
@@ -173,6 +177,9 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                existingParsedModelRef.set(existingParsedModel);
+                mergedParsedModelRef.set(mergedParsedModel);
+
                 if (isInClusterService(serviceName)) {
                     updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);
                 } else {
@@ -184,9 +191,21 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                         .validate(
                             service.get(),
                             mergedParsedModel,
-                            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType),
+                            resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
                             updateModelListener
                         );
+                }
+            })
+            .<Boolean>andThen((listener, didUpdate) -> {
+                if (didUpdate && existingParsedModelRef.get() != null && mergedParsedModelRef.get() != null) {
+                    service.get()
+                        .onModelUpdated(
+                            existingParsedModelRef.get(),
+                            mergedParsedModelRef.get(),
+                            listener.delegateFailureAndWrap((delegate, v) -> delegate.onResponse(true))
+                        );
+                } else {
+                    listener.onResponse(didUpdate);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
@@ -211,6 +230,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 (listener, modelConfig) -> listener.onResponse(new UpdateInferenceModelAction.Response(modelConfig))
             )
             .addListener(masterListener);
+    }
+
+    private static void validateEndpointIsNotDefault(String inferenceEntityId) {
+        if (inferenceEntityId.startsWith(".")) {
+            throw ExceptionsHelper.badRequestException("Default endpoint [{}] cannot be updated", inferenceEntityId);
+        }
     }
 
     protected static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {

@@ -3,54 +3,67 @@ setup:
   - requires:
       cluster_features: [ "mapper.patterned_text" ]
       reason: "pattern_text mappings are used in this test"
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      indices.create:
-        index:  test
+      indices.put_index_template:
+        name: logs-pattern-esql-template
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              message:
-                type: pattern_text
-                # defaults to index_options: docs
+          index_patterns: [ "logs-pattern-esql-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                message:
+                  type: pattern_text
+      allowed_warnings:
+        - "index template [logs-pattern-esql-template] has index patterns [logs-pattern-esql-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-pattern-esql-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-pattern-esql-test
 
   - do:
       bulk:
-        index: test
+        index: logs-pattern-esql-test
         refresh: true
         body:
-          - { "index": { "_id": "1" } }
+          - { "create": { "_id": "1" } }
           - { "@timestamp": "2025-07-17T00:00:01Z" }
-          - { "index": { "_id": "2" } }
+          - { "create": { "_id": "2" } }
           - { "message": "Found 5 errors for service [cheddar1]", "@timestamp": "2025-07-17T00:00:02Z" }
           # template_id: mOVsnxlxdac
-          - { "index": { "_id": "3"  } }
+          - { "create": { "_id": "3"  } }
           - { "message": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]", "@timestamp": "2025-07-17T00:00:03Z"  }
           # template_id: 1l_PtCLQ5xY
-          - { "index": { "_id": "4" } }
+          - { "create": { "_id": "4" } }
           - { "message": "Found some errors for cheddar data service", "@timestamp": "2025-07-17T00:00:04Z"}
           # template_id: k-2qtjujOCw
-          - { "index": { "_id": "5" } }
+          - { "create": { "_id": "5" } }
           - { "message": "Found 123 errors for service [gorgonzola-24]",  "@timestamp": "2025-07-17T00:00:05Z" }
           # template_id: mOVsnxlxdac
 
 ---
 teardown:
   - do:
-      indices.delete:
-        index: test
+      indices.delete_data_stream:
+        name: logs-pattern-esql-*
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-pattern-esql-template
+        ignore: 404
 
 ---
 "Simple from":
   - do:
       esql.query:
         body:
-          query: 'FROM test | SORT @timestamp | KEEP message, message.template_id | LIMIT 10'
+          query: 'FROM logs-pattern-esql-test | SORT @timestamp | KEEP message, message.template_id | LIMIT 10'
 
   - match: {columns.0.name: "message"}
   - match: {columns.0.type: "text"}
@@ -74,7 +87,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM test | WHERE MATCH(message, "gorgonzola-24") | KEEP message | LIMIT 10'
+          query: 'FROM logs-pattern-esql-test | WHERE MATCH(message, "gorgonzola-24") | KEEP message | LIMIT 10'
 
   - length: {values: 1}
   - match: {values.0.0: "Found 123 errors for service [gorgonzola-24]" }
@@ -84,7 +97,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM test | WHERE MATCH_PHRASE(message, "123 errors") | SORT @timestamp | KEEP message | LIMIT 10'
+          query: 'FROM logs-pattern-esql-test | WHERE MATCH_PHRASE(message, "123 errors") | SORT @timestamp | KEEP message | LIMIT 10'
 
   - length: {values: 2}
   - match: {values.0.0: "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
@@ -95,7 +108,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM test | STATS count(*) BY message.template_id | SORT message.template_id | LIMIT 10'
+          query: 'FROM logs-pattern-esql-test | STATS count(*) BY message.template_id | SORT message.template_id | LIMIT 10'
 
   - length: {values: 4}
   - match: {values.0.0: 1 }

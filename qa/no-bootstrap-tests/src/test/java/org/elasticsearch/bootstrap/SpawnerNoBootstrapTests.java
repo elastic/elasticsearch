@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -87,9 +87,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "a_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "a_plugin",
             "java.version",
@@ -138,9 +138,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "test_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "test_plugin",
             "java.version",
@@ -161,9 +161,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "other_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "other_plugin",
             "java.version",
@@ -223,9 +223,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "test_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "test_plugin",
             "java.version",
@@ -241,6 +241,71 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Spawner spawner = new Spawner();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> spawner.spawnNativeControllers(environment));
         assertThat(e.getMessage(), equalTo("module [test_plugin] does not have permission to fork native controller"));
+    }
+
+    /**
+     * A module can declare, via the {@code native.controller.enabled.settings} descriptor property, that its controller should only
+     * be spawned when certain node settings are {@code true}. Unset settings default to {@code true}, preserving prior behavior for
+     * modules that opt in but leave the setting unconfigured.
+     */
+    public void testControllerSpawnGatedBySettings() throws Exception {
+        assertControllerSpawnGating(null, true);
+        assertControllerSpawnGating(true, true);
+        assertControllerSpawnGating(false, false);
+    }
+
+    private void assertControllerSpawnGating(Boolean gatingSettingValue, boolean expectSpawn) throws Exception {
+        /*
+         * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
+         * file as an argument and that's out of the remit of the controller daemon process spawner.
+         */
+        assumeFalse("This test does not work on Windows", Constants.WINDOWS);
+
+        final String gatingSetting = "some.gated.plugin.enabled";
+
+        Path esHome = createTempDir().resolve("esHome");
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
+        if (gatingSettingValue != null) {
+            settingsBuilder.put(gatingSetting, gatingSettingValue);
+        }
+        Settings settings = settingsBuilder.build();
+
+        Environment environment = TestEnvironment.newEnvironment(settings);
+
+        Path plugin = environment.modulesDir().resolve("gated_plugin");
+        Files.createDirectories(environment.modulesDir());
+        Files.createDirectories(plugin);
+        PluginTestUtil.writePluginProperties(
+            plugin,
+            "description",
+            "gated_plugin",
+            "version",
+            Build.current().version(),
+            "elasticsearch.version",
+            Build.current().version(),
+            "name",
+            "gated_plugin",
+            "java.version",
+            "1.8",
+            "classname",
+            "GatedPlugin",
+            "has.native.controller",
+            "true",
+            "native.controller.enabled.settings",
+            gatingSetting
+        );
+        Path controllerProgram = Platforms.nativeControllerPath(plugin);
+        createControllerProgram(controllerProgram);
+
+        try (Spawner spawner = new Spawner()) {
+            spawner.spawnNativeControllers(environment);
+            if (expectSpawn) {
+                assertThat(spawner.getProcesses(), hasSize(1));
+            } else {
+                assertThat(spawner.getProcesses(), is(empty()));
+            }
+        }
     }
 
     public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {

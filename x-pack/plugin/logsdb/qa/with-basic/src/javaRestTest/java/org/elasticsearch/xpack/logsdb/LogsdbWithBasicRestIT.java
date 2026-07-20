@@ -21,6 +21,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
@@ -181,6 +182,56 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testColumnarIndexGetsColumnarStoredSource() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(index, Settings.builder().put("index.mode", "columnar").build());
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testColumnarOverrideSyntheticSourceSetting() throws IOException {
+        assumeTrue("columnar index mude must be supported by this cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(
+            index,
+            Settings.builder().put("index.mode", "columnar").put("index.mapping.source.mode", SourceFieldMapper.Mode.SYNTHETIC).build()
+        );
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbColumnarIndexGetsColumnarStoredSource() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(index, Settings.builder().put("index.mode", "logsdb_columnar").build());
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb_columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbColumnarOverrideSyntheticSourceSetting() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(
+            index,
+            Settings.builder()
+                .put("index.mode", "logsdb_columnar")
+                .put("index.mapping.source.mode", SourceFieldMapper.Mode.SYNTHETIC)
+                .build()
+        );
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb_columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    private static boolean isColumnarIndexModeSupported() throws IOException {
+        Optional<Boolean> supported = clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes"));
+        return supported.orElse(false);
     }
 
     public void testLogsdbRouteOnSortFields() throws IOException {

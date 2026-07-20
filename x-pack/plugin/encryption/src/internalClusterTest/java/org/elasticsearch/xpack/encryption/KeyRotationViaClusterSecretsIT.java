@@ -68,14 +68,6 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     private final AtomicLong fileSettingsVersionCounter = new AtomicLong(1);
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -83,15 +75,13 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         MockSecureSettings secure = new MockSecureSettings();
         secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, INITIAL_PASSWORD_ID);
         secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + INITIAL_PASSWORD_ID, INITIAL_PASSWORD);
         // Fast tick to catch any race conditions within the test timeout
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), "1s")
-            .setSecureSettings(secure)
-            .build();
+        builder.put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), "1s").setSecureSettings(secure);
+        return builder.build();
     }
 
     @Override
@@ -120,7 +110,7 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
         ProjectEncryptionKeyMetadata installMetadata = metadataOnMaster();
         String installKeyId = installMetadata.getActiveKeyId();
-        byte[] installWrappedBytes = installMetadata.getKeys().get(installKeyId).bytes().clone();
+        byte[] installPlaintextBytes = installMetadata.getKeys().get(installKeyId).bytes().clone();
         assertThat(installMetadata.getPasswordId(), equalTo(INITIAL_PASSWORD_ID));
 
         // Publish v1+v2 + active=v2 via the operator file-settings JSON. v1 must remain available so the rewrap can unwrap the
@@ -135,9 +125,9 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
             assertThat("metadata should record the new active password id", m.getPasswordId(), equalTo(ROTATED_PASSWORD_ID));
             ProjectEncryptionKeyMetadata.KeyEntry installKeyAfter = m.getKeys().get(installKeyId);
             assertThat("install key must still be present after password rotation", installKeyAfter, notNullValue());
-            assertFalse(
-                "install key's wrapped bytes must change (rewrap under v2)",
-                Arrays.equals(installWrappedBytes, installKeyAfter.bytes())
+            assertTrue(
+                "plaintext key bytes must be preserved across password rotation",
+                Arrays.equals(installPlaintextBytes, installKeyAfter.bytes())
             );
         }, 30, TimeUnit.SECONDS);
 

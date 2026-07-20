@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -53,6 +54,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
+import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED;
+import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_COLUMNAR_ENABLED;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED;
 
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
@@ -78,14 +81,26 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private final SetOnce<Boolean> supportFallbackLogsdbRouting = new SetOnce<>();
 
     private volatile boolean isLogsdbEnabled;
+    private volatile boolean isLogsdbColumnarEnabled;
+    private volatile boolean isColumnarEnabled;
 
     LogsdbIndexModeSettingsProvider(LogsdbLicenseService licenseService, final Settings settings) {
         this.licenseService = licenseService;
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
+        this.isLogsdbColumnarEnabled = CLUSTER_LOGSDB_COLUMNAR_ENABLED.get(settings);
+        this.isColumnarEnabled = CLUSTER_COLUMNAR_ENABLED.get(settings);
     }
 
     void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
         this.isLogsdbEnabled = isLogsdbEnabled;
+    }
+
+    void updateClusterIndexModeLogsdbColumnarEnabled(boolean isLogsdbColumnarEnabled) {
+        this.isLogsdbColumnarEnabled = isLogsdbColumnarEnabled;
+    }
+
+    void updateColumnarEnabled(boolean isColumnarEnabled) {
+        this.isColumnarEnabled = isColumnarEnabled;
     }
 
     void init(
@@ -125,13 +140,36 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName);
 
+        if (isColumnarEnabled == false && isTemplateValidation == false) {
+            IndexMode requestedMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
+            if (requestedMode == null) {
+                requestedMode = templateIndexMode;
+            }
+            if (requestedMode != null && requestedMode.isStrictColumnar()) {
+                throw new IllegalArgumentException(
+                    "creation of indices with a columnar index mode ["
+                        + requestedMode.getName()
+                        + "] is disabled; set ["
+                        + CLUSTER_COLUMNAR_ENABLED.getKey()
+                        + "] to [true] to allow it"
+                );
+            }
+        }
+
         // Inject logsdb index mode, based on the logs pattern.
         if (isLogsdbEnabled
             && dataStreamName != null
             && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
             && matchesLogsPattern(dataStreamName)) {
-            additionalSettings.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).put(settings).build();
+            IndexMode indexMode;
+            if (isLogsdbColumnarEnabled && isColumnarEnabled && Build.current().isSnapshot()) {
+                indexMode = IndexMode.LOGSDB_COLUMNAR;
+            } else {
+                indexMode = IndexMode.LOGSDB;
+            }
+            LOGGER.debug("selecting index mode [{}] for index [{}]", indexMode, indexName);
+            additionalSettings.put(IndexSettings.MODE.getKey(), indexMode.getName());
+            settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).put(settings).build();
             isLogsDB = true;
         }
 
@@ -148,7 +186,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             );
             if (licenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-                additionalSettings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
+                SourceFieldMapper.Mode fallbackMode = fallbackSourceMode(settings, templateIndexMode);
+                additionalSettings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), fallbackMode.toString());
             }
         }
 
@@ -253,7 +292,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
                 || indexMode == IndexMode.LOGSDB
                 || indexMode == IndexMode.LOGSDB_COLUMNAR
-                || indexMode == IndexMode.TIME_SERIES) {
+                || IndexMode.isTsdb(indexMode)) {
                 // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
                 // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,
                 // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
@@ -369,8 +408,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false);  // Avoid warnings for non-system indexes.
 
-        if (templateIndexMode == IndexMode.TIME_SERIES) {
-            finalResolvedSettings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        if (IndexMode.isTsdb(templateIndexMode)) {
+            finalResolvedSettings.put(IndexSettings.MODE.getKey(), templateIndexMode);
             // Avoid failing because index.routing_path is missing (in case fields are marked as dimension)
             finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
         }
@@ -380,10 +419,24 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     /**
+     * Returns the source mode to fall back to when synthetic source is not licensed.
+     * Strictly-columnar index modes ({@code columnar} and {@code logsdb_columnar}) do not support
+     * {@link SourceFieldMapper.Mode#STORED}, so they fall back to {@link SourceFieldMapper.Mode#COLUMNAR_STORED}.
+     * All other index modes fall back to {@link SourceFieldMapper.Mode#STORED}.
+     */
+    private static SourceFieldMapper.Mode fallbackSourceMode(Settings settings, IndexMode templateIndexMode) {
+        IndexMode indexMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
+        if (indexMode == null) {
+            indexMode = templateIndexMode;
+        }
+        return indexMode != null && indexMode.isStrictColumnar() ? SourceFieldMapper.Mode.COLUMNAR_STORED : SourceFieldMapper.Mode.STORED;
+    }
+
+    /**
      * The GA-ed use cases in which synthetic source usage is allowed with gold or platinum license.
      */
     private boolean isLegacyLicensedUsageOfSyntheticSourceAllowed(IndexMode templateIndexMode, String indexName, String dataStreamName) {
-        if (templateIndexMode == IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(templateIndexMode)) {
             return true;
         }
 

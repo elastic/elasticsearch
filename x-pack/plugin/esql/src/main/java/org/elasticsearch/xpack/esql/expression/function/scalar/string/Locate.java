@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -47,10 +49,16 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     private final Expression substr;
     private final Expression start;
 
-    @FunctionInfo(returnType = "integer", description = """
-        Returns an integer that indicates the position of a keyword substring within another string.
-        Returns `0` if the substring cannot be found.
-        Note that string positions start from `1`.""", examples = @Example(file = "string", tag = "locate"))
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = "integer",
+        briefSummary = "Returns the position of a keyword substring within another string.",
+        description = """
+            Returns an integer that indicates the position of a keyword substring within another string.
+            Returns `0` if the substring cannot be found.
+            Note that string positions start from `1`.""",
+        examples = @Example(file = "string", tag = "locate")
+    )
     public Locate(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,

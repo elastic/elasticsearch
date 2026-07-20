@@ -99,6 +99,10 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.eirf.EirfBatch;
+import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -179,7 +183,7 @@ import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -227,14 +231,65 @@ import static org.mockito.Mockito.when;
 public class InternalEngineTests extends EngineTestCase {
 
     /**
-     * Randomly delegates to either {@link Engine#index} or {@link Engine#indexBatch} with a singleton list,
-     * so that existing tests exercise both paths.
+     * Randomly delegates to either {@link Engine#index} or {@link Engine#indexBatch} with a singleton batch,
+     * so that existing tests exercise both paths. Falls back to {@link Engine#index} when the operation's
+     * source isn't valid XContent (some tests use synthetic byte sources like {@code B_1} that EIRF can't encode).
      */
     private static Engine.IndexResult indexDoc(Engine engine, Engine.Index operation) throws IOException {
         if (randomBoolean()) {
-            return engine.indexBatch(List.of(operation)).getFirst();
+            EirfBatch batch = tryEncodeAsEirfBatch(List.of(operation));
+            if (batch != null) {
+                return engine.indexBatch(List.of(operation), batch).getFirst();
+            }
         }
         return engine.index(operation);
+    }
+
+    /**
+     * Encodes the given ops' sources into an {@link EirfBatch} that can be passed to
+     * {@link Engine#indexBatch(List, org.elasticsearch.sourcebatch.SourceBatch)}. The bytes are copied so the caller does not need to
+     * manage the encoder's recycler lifecycle.
+     */
+    private static EirfBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        // EirfEncoder encodes every source with a single XContentType, so the ops must share one. This holds for the
+        // tests that use this helper (all docs are created with the same type); assert it rather than silently
+        // mis-encoding if a future test mixes types in one batch.
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            assert op.parsedDoc().getXContentType() == xContentType
+                : "batch ops must share one XContentType, got [" + xContentType + "] and [" + op.parsedDoc().getXContentType() + "]";
+            sources.add(op.source().originalBytes());
+        }
+        try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
+            return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
+        }
+    }
+
+    private static EscfBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            assert op.parsedDoc().getXContentType() == xContentType
+                : "batch ops must share one XContentType, got [" + xContentType + "] and [" + op.parsedDoc().getXContentType() + "]";
+            sources.add(op.source().originalBytes());
+        }
+        try (EscfBatch batch = EscfEncoder.encode(sources, xContentType)) {
+            return EscfBatch.parse(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
+        }
+    }
+
+    /**
+     * Best-effort variant of {@link #encodeAsEirfBatch} that returns {@code null} when any source can't be
+     * parsed as XContent (e.g. {@code B_1}-style synthetic byte sources used by some engine tests). Callers
+     * should fall back to {@link Engine#index} in that case.
+     */
+    private static EirfBatch tryEncodeAsEirfBatch(List<Engine.Index> operations) {
+        try {
+            return encodeAsEirfBatch(operations);
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     /**
@@ -732,7 +787,7 @@ public class InternalEngineTests extends EngineTestCase {
                 store,
                 createTempDir(),
                 LocalCheckpointTracker::new,
-                (engine, operation) -> seqNos.get(counter.getAndIncrement())
+                (engine) -> seqNos.get(counter.getAndIncrement())
             );
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -1159,7 +1214,11 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L)); // no refresh; just read from translog
 
         if (randomBoolean()) {
-            indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
+            // Use the single-op index path directly: this test asserts realtime GET is served from the translog, which
+            // requires a tracked translog location. The batch path stores a null location (it cannot read a single op
+            // back from a Translog.IndexBatch record), so routing through indexDoc here would force a refresh instead.
+            // TODO: move back to indexDoc after batches support realtime get
+            engine.index(indexForDoc(createParsedDoc("1", null)));
         }
         try (
             Engine.GetResult get = engine.get(
@@ -1226,7 +1285,9 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertThat("no refresh, just read from translog or in-memory segment", engine.lastRefreshedCheckpoint(), equalTo(0L));
 
-        indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
+        // Single-op index path: the GET below asserts a translog read + in-memory segment build, which the batch path
+        // does not support (it stores a null translog location).
+        engine.index(indexForDoc(createParsedDoc("1", null)));
         try (
             Engine.GetResult get = engine.get(
                 new Engine.Get(true, true, "1"),
@@ -1697,7 +1758,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(reader, new BytesRef("1"), false));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new BytesRef("1"), false));
                 }
             }
         }
@@ -5029,13 +5090,13 @@ public class InternalEngineTests extends EngineTestCase {
      *                                number
      * @return a sequence number generator
      */
-    private ToLongBiFunction<Engine, Engine.Operation> getStallingSeqNoGenerator(
+    private ToLongFunction<Engine> getStallingSeqNoGenerator(
         final AtomicReference<CountDownLatch> latchReference,
         final CyclicBarrier barrier,
         final AtomicBoolean stall,
         final AtomicLong expectedLocalCheckpoint
     ) {
-        return (engine, operation) -> {
+        return (engine) -> {
             final long seqNo = generateNewSeqNo(engine);
             final CountDownLatch latch = latchReference.get();
             if (stall.get()) {
@@ -5296,7 +5357,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .build();
             noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
                 @Override
-                protected long doGenerateSeqNoForOperation(Operation operation) {
+                protected long doGenerateSeqNo() {
                     throw new UnsupportedOperationException();
                 }
             };
@@ -5770,7 +5831,7 @@ public class InternalEngineTests extends EngineTestCase {
                 null,
                 localCheckpointTrackerSupplier,
                 null,
-                (engine, operation) -> seqNoGenerator.getAndIncrement()
+                (engine) -> seqNoGenerator.getAndIncrement()
             )
         ) {
             final String id = "id";
@@ -6094,19 +6155,22 @@ public class InternalEngineTests extends EngineTestCase {
             long localCheckpoint = Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             return translog.totalOperationsByMinGen(translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration());
         };
-        final long extraTranslogSizeInNewEngine = engine.getTranslog().stats().getUncommittedSizeInBytes()
-            - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         int numDocs = between(10, 100);
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE);
             indexDoc(engine, indexForDoc(doc));
         }
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
-        long flushThreshold = RandomNumbers.randomLongBetween(
-            random(),
-            120,
-            engine.getTranslog().stats().getUncommittedSizeInBytes() - extraTranslogSizeInNewEngine
-        );
+        // Pick a threshold that is guaranteed to be exceeded by numDocs translog records regardless of
+        // format. indexDoc() randomly picks between Translog.Index (JSON) and Translog.IndexBatch (EIRF),
+        // and the two formats differ in size. Neither format applies compression, so every record must
+        // encode at least 4 long fields (seqNo, primaryTerm, version, autoGeneratedTimestamp) as raw
+        // bytes. The primaryTerm is written for the batch. 4 longs are still a conservative estimate.
+        // numDocs * 4 * Long.BYTES is therefore a conservative lower bound on the actual translog
+        // payload in either format, keeping the threshold well below what both the primary-ops and
+        // stale-ops phases produce. If compression is ever added to a translog format this bound should
+        // be revisited.
+        long flushThreshold = RandomNumbers.randomLongBetween(random(), 120, (long) numDocs * 4 * Long.BYTES);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(
@@ -8034,7 +8098,7 @@ public class InternalEngineTests extends EngineTestCase {
             ParsedDocument doc = createParsedDoc(Integer.toString(i), null);
             ops.add(indexForDoc(doc));
         }
-        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(ops.size()));
         for (int i = 0; i < results.size(); i++) {
             Engine.IndexResult result = results.get(i);
@@ -8053,7 +8117,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < batchSize; i++) {
             ops.add(indexForDoc(createParsedDoc(Integer.toString(i), null)));
         }
-        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         long prevSeqNo = -1;
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8065,7 +8129,8 @@ public class InternalEngineTests extends EngineTestCase {
     public void testIndexBatchSingletonEquivalentToIndex() throws IOException {
         ParsedDocument doc = createParsedDoc("1", null);
         Engine.Index op = indexForDoc(doc);
-        List<Engine.IndexResult> batchResults = engine.indexBatch(List.of(op));
+        List<Engine.Index> ops = List.of(op);
+        List<Engine.IndexResult> batchResults = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(batchResults, hasSize(1));
         Engine.IndexResult result = batchResults.getFirst();
         assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8098,7 +8163,8 @@ public class InternalEngineTests extends EngineTestCase {
             firstResult.getSeqNo() + 100, // wrong seq no
             firstResult.getTerm()
         );
-        List<Engine.IndexResult> results = engine.indexBatch(List.of(conflictingOp));
+        List<Engine.Index> ops = List.of(conflictingOp);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(1));
         assertThat(results.getFirst().getResultType(), equalTo(Engine.Result.Type.FAILURE));
         assertThat(results.getFirst().getFailure(), instanceOf(VersionConflictEngineException.class));
@@ -8114,7 +8180,7 @@ public class InternalEngineTests extends EngineTestCase {
             indexForDoc(createParsedDoc("1", null)),
             indexForDoc(createParsedDoc("2", null))
         );
-        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(3));
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8142,7 +8208,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (ParsedDocument doc : docs) {
             updates.add(indexForDoc(doc));
         }
-        List<Engine.IndexResult> results = engine.indexBatch(updates);
+        List<Engine.IndexResult> results = engine.indexBatch(updates, encodeAsEirfBatch(updates));
         assertThat(results, hasSize(count));
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8171,7 +8237,8 @@ public class InternalEngineTests extends EngineTestCase {
             firstResult.getSeqNo() + 100,
             firstResult.getTerm()
         );
-        List<Engine.IndexResult> results = engine.indexBatch(List.of(conflictingOp));
+        List<Engine.Index> ops = List.of(conflictingOp);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(1));
         assertThat(results.getFirst().getResultType(), equalTo(Engine.Result.Type.FAILURE));
         assertThat(results.getFirst().getFailure(), instanceOf(VersionConflictEngineException.class));
@@ -8188,7 +8255,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc2));
 
         List<Engine.Index> ops = List.of(indexForDoc(doc1), indexForDoc(doc2));
-        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(2));
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8226,7 +8293,8 @@ public class InternalEngineTests extends EngineTestCase {
         // causes planPrimarySubBatch to route the GC-expired entry to the Lucene lookup instead,
         // where the stale live document is found, and the operation is incorrectly treated as an
         // update rather than a create.
-        List<Engine.IndexResult> results = engine.indexBatch(List.of(indexForDoc(doc)));
+        List<Engine.Index> ops = List.of(indexForDoc(doc));
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(1));
         assertThat(results.getFirst().getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         assertThat(results.getFirst().isCreated(), equalTo(true));
@@ -8241,7 +8309,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < count; i++) {
             ops.add(appendOnlyPrimary(createParsedDoc(Integer.toString(i), null), false, timestamp + i));
         }
-        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(count));
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8250,8 +8318,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testIndexBatchTimeSeriesPhase2() throws IOException {
-        // planPrimarySubBatch Phase 2 uses a per-UID timeSeriesLoadDocIdAndVersion call
-        // instead of the batch scan when the index mode is TIME_SERIES.
+        // planPrimarySubBatch Phase 2 uses timeSeriesBatchLoadDocIdAndVersion for TIME_SERIES
+        // indices, which does a single sorted segment scan with timestamp-based segment skipping.
         IndexSettings tsSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -8291,13 +8359,219 @@ public class InternalEngineTests extends EngineTestCase {
                 for (ParsedDocument doc : docs) {
                     updates.add(indexForDoc(doc));
                 }
-                List<Engine.IndexResult> results = engine.indexBatch(updates);
+                List<Engine.IndexResult> results = engine.indexBatch(updates, encodeAsEirfBatch(updates));
                 assertThat(results, hasSize(count));
                 for (Engine.IndexResult result : results) {
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
             }
         }
+    }
+
+    public void testMixedPrimaryTermThrows() throws IOException {
+        ParsedDocument doc1 = createParsedDoc("1", null);
+        ParsedDocument doc2 = createParsedDoc("2", null);
+
+        Engine.Index op1 = new Engine.Index(newUid(doc1), primaryTerm.get(), doc1);
+        Engine.Index op2 = new Engine.Index(newUid(doc2), primaryTerm.get() + 1, doc2);
+        var updates = List.of(op1, op2);
+        expectThrows(AssertionError.class, () -> engine.indexBatch(updates, encodeAsEirfBatch(updates)));
+    }
+
+    public void testIndexBatchSeqNosAreContiguous() throws IOException {
+        // All successful ops in a primary batch should receive a contiguous range of sequence numbers.
+        int batchSize = randomIntBetween(2, 20);
+        List<Engine.Index> ops = new ArrayList<>(batchSize);
+        for (int i = 0; i < batchSize; i++) {
+            ops.add(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+        long seqNoBefore = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+
+        assertThat(results, hasSize(batchSize));
+        long firstSeqNo = seqNoBefore + 1;
+        for (int i = 0; i < batchSize; i++) {
+            assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(results.get(i).getSeqNo(), equalTo(firstSeqNo + i));
+        }
+    }
+
+    public void testIndexBatchProcessedCheckpointAdvancesAfterBatch() throws IOException {
+        int batchSize = randomIntBetween(2, 20);
+        List<Engine.Index> ops = new ArrayList<>(batchSize);
+        for (int i = 0; i < batchSize; i++) {
+            ops.add(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+        long checkpointBefore = engine.getProcessedLocalCheckpoint();
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+
+        assertThat(results, hasSize(batchSize));
+        long expectedCheckpoint = checkpointBefore + batchSize;
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(expectedCheckpoint));
+        for (Engine.IndexResult result : results) {
+            assertThat(engine.getLocalCheckpointTracker().hasProcessed(result.getSeqNo()), equalTo(true));
+        }
+    }
+
+    public void testIndexBatchCheckpointWithVersionConflicts() throws IOException {
+        // Version-conflict ops are preflight errors that do not get seq nos — the remaining ops
+        // should still form a contiguous range and advance the checkpoint correctly.
+        ParsedDocument doc = createParsedDoc("1", null);
+        Engine.IndexResult firstResult = indexDoc(engine, indexForDoc(doc));
+        assertThat(firstResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        engine.refresh("test");
+        engine.refresh("test");
+
+        // conflicting op: stale if-seq-no
+        Engine.Index conflicting = new Engine.Index(
+            newUid(doc),
+            doc,
+            UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            firstResult.getSeqNo() + 100,
+            firstResult.getTerm()
+        );
+        ParsedDocument doc2 = createParsedDoc("2", null);
+        Engine.Index goodOp = indexForDoc(doc2);
+
+        long checkpointBefore = engine.getProcessedLocalCheckpoint();
+        List<Engine.Index> ops = List.of(conflicting, goodOp);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+
+        assertThat(results, hasSize(2));
+        // conflicting op: failure, no seq no assigned
+        assertThat(results.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+        assertThat(results.get(0).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        // good op: success, gets exactly one new seq no
+        assertThat(results.get(1).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.get(1).getSeqNo(), equalTo(checkpointBefore + 1));
+        // processed checkpoint advances by exactly one (the one real op)
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
+    }
+
+    public void testBatchIndexRecordsRowIndex() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        try (
+            Engine.GetResult random = engine.get(
+                new Engine.Get(true, true, "1"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(random.exists());
+        }
+
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < 3; ++i) {
+            var doc = createParsedDoc(Integer.toString(i), null);
+            // i = 1 will result in failure since we already indexed it
+            ops.add(new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
+        }
+        final List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+        assertEquals(Engine.Result.Type.SUCCESS, results.get(0).getResultType());
+        assertEquals(Engine.Result.Type.FAILURE, results.get(1).getResultType());
+        assertThat(results.get(1).getFailure(), instanceOf(VersionConflictEngineException.class));
+        assertEquals(Engine.Result.Type.SUCCESS, results.get(2).getResultType());
+
+        final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
+        final Translog.Location loc0 = versionMap.get(ops.get(0).uid()).getLocation();
+        final Translog.Location loc2 = versionMap.get(ops.get(2).uid()).getLocation();
+
+        assertNotNull("0 must have a tracked batch-row location", loc0);
+        assertTrue(loc0.isBatchRow());
+        assertEquals(0, loc0.batchRowIndex());
+
+        assertNotNull("2 must have a tracked batch-row location", loc2);
+        assertTrue(loc2.isBatchRow());
+        assertEquals(2, loc2.batchRowIndex());   // crucially 2, not 1 — the failed row is not compacted
+
+        // Both point at the same physical batch record (same generation + offset), differing only by row.
+        assertEquals(loc0.generation(), loc2.generation());
+        assertEquals(loc0.translogLocation(), loc2.translogLocation());
+        assertNotEquals(loc0, loc2);
+    }
+
+    public void testSingleIndexRecordsNoBatchRow() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+        engine.index(indexForDoc(createParsedDoc("random", null)));
+        try (
+            Engine.GetResult res = engine.get(
+                new Engine.Get(true, true, "random"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(res.exists());
+        }
+
+        // A single-document index (engine.index, NOT a batch) records a whole-record location:
+        // batchRowIndex == -1, i.e. not a batch row
+        final Engine.Index op = indexForDoc(createParsedDoc("single", null));
+        engine.index(op);
+
+        final Translog.Location loc = engine.getVersionMap().get(op.uid()).getLocation();
+        assertNotNull("single-doc index must have a tracked translog location", loc);
+        assertFalse("single-doc location must not be a batch row", loc.isBatchRow());
+        assertEquals(-1, loc.batchRowIndex());
+    }
+
+    public void testRealtimeGetServesBatchedDoc() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+
+        engine.index(indexForDoc(createParsedDoc("random", null)));
+        try (
+            Engine.GetResult res = engine.get(
+                new Engine.Get(true, true, "random"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(res.exists());
+        }
+
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            ops.add(indexForDoc(createParsedDoc("doc-" + i, null)));
+        }
+        engine.indexBatch(ops, encodeAsEscfBatch(ops));
+
+        // A realtime GET on a batched doc is served straight from the translog batch row.
+        final long refreshedCheckpointBefore = engine.lastRefreshedCheckpoint();
+        final long translogGetsBefore = engine.translogGetCount.get();
+        try (
+            Engine.GetResult get = engine.get(
+                new Engine.Get(true, true, "doc-1"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue("doc-1 must be found", get.exists());
+            assertNotNull(get.docIdAndVersion());
+        }
+        assertEquals("served from the translog batch row", translogGetsBefore + 1, engine.translogGetCount.get());
+        assertEquals("no refresh should have been triggered", refreshedCheckpointBefore, engine.lastRefreshedCheckpoint());
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

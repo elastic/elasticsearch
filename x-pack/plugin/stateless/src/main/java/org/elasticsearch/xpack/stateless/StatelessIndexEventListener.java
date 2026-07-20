@@ -552,7 +552,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         SearchDirectory searchDirectory,
         BatchedCompoundCommit batchedCompoundCommit
     ) {
-        if (searchDirectory.timeBasedCaching() == false) {
+        if (searchDirectory.metadataReadTimestampBackfillEnabled() == false) {
             return;
         }
         var termAndGen = batchedCompoundCommit.primaryTermAndGeneration();

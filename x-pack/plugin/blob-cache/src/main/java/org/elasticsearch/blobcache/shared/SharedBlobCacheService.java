@@ -990,8 +990,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * left unchanged. When {@code timestampForKey} returns {@code null} for a region's blob key, that region is skipped.
      *
      * @param shard            the shard whose cached regions to scan
-     * @param timestampForKey  function from blob cache key to the real timestamp (epoch millis, {@code >= 0}) to assign,
-     *                         or {@code null} to leave a {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} region unchanged
+     * @param timestampForKey  function from blob cache key to the real timestamp (epoch millis,
+     *                         {@code >= MINIMAL_CACHE_TIMESTAMP}) to assign, or {@code null} to leave a
+     *                         {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} region unchanged
      */
     public void backfillRegionTimestamps(ShardId shard, Function<KeyType, Long> timestampForKey) {
         cache.backfillRegionTimestamps(shard, timestampForKey);

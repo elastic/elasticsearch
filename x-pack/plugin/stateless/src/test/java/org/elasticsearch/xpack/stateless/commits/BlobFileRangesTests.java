@@ -82,19 +82,19 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
             equalTo(1L)
         );
         assertThat(
-            "a zero midpoint (content at the epoch) is floored to the oldest representable instant",
+            "a zero midpoint (content at the epoch) is floored to the minimal cache timestamp",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(0L, 0L)),
-            equalTo(1L)
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat(
-            "a negative midpoint (content before the epoch) is floored to the oldest representable instant",
+            "a negative midpoint (content before the epoch) is floored to the minimal cache timestamp",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-3000L, -1000L)),
-            equalTo(1L)
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat(
             "a range whose midpoint would collide with the UNKNOWN_TIMESTAMP sentinel (-1) is floored, not treated as unknown",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-2L, 0L)),
-            equalTo(1L)
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
     }
 

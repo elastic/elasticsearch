@@ -108,14 +108,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
+     * Whether BCC metadata reads should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled after
+     * parsing.
+     */
+    public boolean metadataReadTimestampBackfillEnabled() {
+        return timeBasedCaching && cacheService.isCacheBoostPreferenceEnabled();
+    }
+
+    /**
      * Backfills the timestamps of every present sentinel region on this shard, using a single cache scan.
      *
      * @param timestampByBlob timestamps for blobs read during this backfill pass, keyed by blob file
+     *                        values are floored to {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP};
      * @param clearOrphans    when {@code true}, unmatched {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} regions are
      *                        stamped with {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP};
      */
     public void backfillMetadataReadTimestamps(Map<BlobFile, Long> timestampByBlob, boolean clearOrphans) {
-        if (timeBasedCaching == false) {
+        if (metadataReadTimestampBackfillEnabled() == false) {
             return;
         }
         if (clearOrphans == false && timestampByBlob.isEmpty()) {
@@ -540,7 +549,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         ) {
             @Override
             protected long unknownRegionTimestampMillis() {
-                return forMetadataRead && SearchDirectory.this.timeBasedCaching()
+                return forMetadataRead && SearchDirectory.this.metadataReadTimestampBackfillEnabled()
                     ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
                     : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
             }

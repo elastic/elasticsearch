@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 /// falls within a configurable pinned window.
 ///
 /// Regions are classified by their [CacheRegion#timestampMillis()] (for shards present on this node):
-///   - a positive timestamp (`> 0`) is pinned iff it falls within the pinned window;
+///   - a positive timestamp (`>= 0`) is pinned iff it falls within the pinned window;
 ///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned (no representative timestamp);
 ///   - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is always pinned until backfill completes.
 ///

@@ -88,6 +88,8 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             // Both recovery and new commit notifications backfill referenced BCC metadata-read regions only after parsing referenced CCs
             // via this path.
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            // Time-based caching (BACKFILL_IN_PROGRESS stamping + backfill) is only enabled when cache boost preference is on.
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             // Enough room to keep every region cached for the duration of the test (no eviction).
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(64))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
@@ -150,10 +152,12 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 blob.getValue()
             );
             var compoundCommit = iterator.next();
-            // The timestamp the backfill resolves for the blob: the most recent referenced CC midpoint, or 1L when none exist.
-            // Our docs all carry @timestamp, so this is the commit's value.
+            // The timestamp the backfill resolves for the blob: the most recent referenced CC midpoint, or MINIMAL_CACHE_TIMESTAMP
+            // when none exist. Our docs all carry @timestamp, so this is the commit's value.
             long midpoint = BlobFileRanges.midpointMillisOrUnknownForCache(compoundCommit.getTimestampFieldValueRange());
-            long dataTimestamp = midpoint != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? midpoint : 1L;
+            long dataTimestamp = midpoint != SharedBlobCacheService.UNKNOWN_TIMESTAMP
+                ? midpoint
+                : SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
             blobs.add(new BlobInfo(new FileCacheKey(shardId, primaryTerm, blobName), dataTimestamp));
         }
         assertThat("the test needs several referenced blobs to exercise the cross-blob backfill", blobs.size(), greaterThanOrEqualTo(2));

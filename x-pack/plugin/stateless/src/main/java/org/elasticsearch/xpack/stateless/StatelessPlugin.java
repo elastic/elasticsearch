@@ -1932,7 +1932,7 @@ public class StatelessPlugin extends Plugin
     }
 
     /**
-     * Resolves whether cache-region timestamps for this shard should follow time-based or non-time-based semantics.
+     * Resolves whether this shard's mapping is time-based (has a {@code @timestamp} field).
      * The result is frozen at search-directory creation; mapping changes after shard open are intentionally stale until
      * relocation or restart.
      */

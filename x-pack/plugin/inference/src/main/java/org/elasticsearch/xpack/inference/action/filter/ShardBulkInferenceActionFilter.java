@@ -861,6 +861,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int order,
             int sourceFieldInputIndex
         ) {
+            if (input.value() == null) {
+                setInferenceResponseFailure(
+                    itemIndex,
+                    new ElasticsearchStatusException(
+                        "Input for field [{}] from source field [{}] has no value to compute inference from."
+                            + " The [value] field is required for inference.",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        sourceField
+                    )
+                );
+                return -1;
+            }
             if (input.dataFormat() == DataFormat.BASE64) {
                 long decodedSize = base64BinarySize(input.value());
                 if (decodedSize == 0) {

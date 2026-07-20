@@ -25,6 +25,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
@@ -55,7 +56,8 @@ public class LuceneCountOperator extends LuceneOperator {
             List<ElementType> tagTypes,
             int limit,
             LongSupplier directoryBytesRead,
-            int minDocsPerSlice
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -72,7 +74,8 @@ public class LuceneCountOperator extends LuceneOperator {
                 shardContext -> ScoreMode.COMPLETE_NO_SCORES,
                 directoryBytesRead,
                 minDocsPerSlice,
-                LuceneCountOperator::leafHasCountShortcut
+                LuceneCountOperator::leafHasCountShortcut,
+                singleValueQueryWarnings
             );
             this.shardRefCounters = contexts;
             this.tagTypes = tagTypes;
@@ -80,7 +83,15 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(shardRefCounters, driverContext, sliceQueue, tagTypes, limit, directoryBytesRead);
+            return new LuceneCountOperator(
+                shardRefCounters,
+                driverContext,
+                sliceQueue,
+                tagTypes,
+                limit,
+                directoryBytesRead,
+                singleValueQueryWarnings
+            );
         }
 
         @Override
@@ -109,9 +120,10 @@ public class LuceneCountOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         List<ElementType> tagTypes,
         int limit,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardRefCounters, driverContext.blockFactory(), Integer.MAX_VALUE, sliceQueue, directoryBytesRead);
+        super(shardRefCounters, driverContext, Integer.MAX_VALUE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.tagTypes = tagTypes;
         this.remainingDocs = limit;
         this.driverContext = driverContext;

@@ -30,6 +30,8 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
+import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD_FQN;
+
 /**
  * Models a single method on a {@code @LibrarySpecification} interface. The method is either a
  * {@code @Function}-annotated native binding or a {@code @StructFactory} struct constructor.
@@ -195,7 +197,7 @@ public record MethodModel(
                 continue;
             }
             ExecutableElement arrayMethod = (ExecutableElement) enclosed;
-            AnnotationMirror arrayFieldMirror = ModelUtil.findAnnotationMirror(arrayMethod, "org.elasticsearch.foreign.ArrayField");
+            AnnotationMirror arrayFieldMirror = ModelUtil.findAnnotationMirror(arrayMethod, ARRAY_FIELD_FQN);
             if (arrayFieldMirror == null) {
                 continue;
             }
@@ -257,7 +259,7 @@ public record MethodModel(
         Messager messager,
         Types types
     ) {
-        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
+        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
         if (criticalMirror == null) {
             // Caller checked @Critical is present.
             return null;

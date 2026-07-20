@@ -155,18 +155,14 @@ abstract class EscfColumn implements SliceableColumn {
      * at {@code base} from {@code src}, re-indexed to {@code [0, count)}. Returns {@code null} when
      * {@code src} is {@code null} (all-present / dense) or when every bit in the window is set (also
      * all-present), preserving the invariant that a {@code null} validity means every document is present.
-     * Bits beyond {@code src.length()} are treated as absent (clear).
      */
     static FixedBitSet windowValidity(FixedBitSet src, int base, int count) {
         if (src == null) {
             return null;
         }
         FixedBitSet out = null;
-        int cap = src.length();
         for (int i = 0; i < count; i++) {
-            int idx = base + i;
-            boolean present = idx < cap && src.get(idx);
-            if (present) {
+            if (src.get(base + i)) {
                 if (out != null) {
                     out.set(i);
                 }
@@ -175,6 +171,7 @@ abstract class EscfColumn implements SliceableColumn {
                     out = new FixedBitSet(count);
                     out.set(0, i); // backfill all prior docs in the window as present
                 }
+                // leave bit[i] clear — this doc is absent
             }
         }
         return out;

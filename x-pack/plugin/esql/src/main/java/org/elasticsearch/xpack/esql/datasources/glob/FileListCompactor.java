@@ -51,9 +51,9 @@ final class FileListCompactor {
         PartitionMetadata pm = raw.partitionMetadata();
         FileList groupedCandidate = pm != null && pm.isEmpty() == false ? tryDirectoryGrouped(normalizedBase, raw) : null;
         FileList dictCandidate = tryDictionary(normalizedBase, raw);
-        // Materialise the listed keys once: both candidates verify against the same strings, so rendering
-        // them per candidate would pay the whole listing's string cost twice. Skipped entirely when neither
-        // encoding fits (both overflowed) — that is the largest listing there is, and nothing needs checking.
+        // Collect the listed keys once so both candidates verify against one array instead of walking the raw
+        // entries again per candidate. These are stored strings; the reconstruction cost sits on the candidate
+        // side. Skipped when neither encoding was built, since then there is nothing to verify.
         String[] listedPaths = groupedCandidate != null || dictCandidate != null ? listedPaths(raw) : null;
         FileList grouped = verified(groupedCandidate, raw, listedPaths);
         FileList dict = verified(dictCandidate, raw, listedPaths);
@@ -68,7 +68,7 @@ final class FileListCompactor {
         return raw;
     }
 
-    /** Renders every listed key once, so several candidate encodings can be verified against one rendering. */
+    /** Collects the listed keys once so several candidate encodings verify against a single walk of the raw entries. */
     private static String[] listedPaths(GenericFileList raw) {
         String[] paths = new String[raw.fileCount()];
         for (int i = 0; i < paths.length; i++) {
@@ -99,8 +99,8 @@ final class FileListCompactor {
      * produces on the first_file_wins rail. Path is compared as a string; a candidate whose reconstructed
      * key does not even parse is treated as a mismatch rather than allowed to throw. Size and mtime are
      * checked too because an encoding may collapse them per group (see {@link DirectoryGroupedFileList}).
-     * {@code listedPaths} carries the raw listing's keys already rendered, so verifying several candidates
-     * renders them once rather than once per candidate.
+     * {@code listedPaths} carries the raw listing's keys, collected once so verifying several candidates walks
+     * the raw entries once.
      */
     private static FileList verified(FileList candidate, GenericFileList raw, String[] listedPaths) {
         if (candidate == null) {

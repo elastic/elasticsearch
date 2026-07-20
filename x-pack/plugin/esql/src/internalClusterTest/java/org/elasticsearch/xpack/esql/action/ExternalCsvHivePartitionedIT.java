@@ -254,7 +254,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
      * the base path AND are claimed as partition columns — a compact listing that re-appends partition
      * columns to the base emits them twice and reads a key that does not exist. The zero-padded
      * {@code month=06} additionally pins value spelling ({@code month=06} must not come back as
-     * {@code month=6}), so this one end-to-end query covers both duplication and spelling.
+     * {@code month=6}), so these queries cover both duplication and spelling.
      *
      * <p>The glob uses {@code **} so the local provider descends recursively and no {@code key=*} segment is
      * spelled, so {@code WHERE month == 6} must prune from the reconstructed listing's partition values —

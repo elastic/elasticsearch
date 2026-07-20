@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
@@ -137,6 +138,71 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         }
         assertNotNull("columnar mode must keep the compound id in binary doc values", docValues);
         assertThat(docValues.binaryValue(), equalTo(SliceIdFieldMapper.encodeCompoundId(id, "slice-1")));
+    }
+
+    /**
+     * Nested children ride in the same Lucene {@code updateDocuments} batch as their root, which requires a consistent
+     * field schema, so every non-root document carries the root's compound {@code _id} doc values.
+     */
+    public void testColumnarModeAddsCompoundIdToNestedDocuments() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("nested").field("type", "nested").endObject())
+        );
+
+        String id = randomAlphaOfLengthBetween(1, 16);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(id, b -> {
+            b.startArray("nested");
+            b.startObject().field("field", "a").endObject();
+            b.startObject().field("field", "b").endObject();
+            b.endArray();
+        }, "slice-1"));
+
+        BytesRef compound = SliceIdFieldMapper.encodeCompoundId(id, "slice-1");
+        assertThat("expected nested documents in addition to the root", doc.docs().size(), greaterThan(1));
+        for (LuceneDocument nested : doc.docs()) {
+            if (nested == doc.rootDoc()) {
+                continue;
+            }
+            IndexableField idField = nested.getField(IdFieldMapper.NAME);
+            assertNotNull("nested documents must carry the _id doc values", idField);
+            assertThat(idField.binaryValue(), equalTo(compound));
+        }
+    }
+
+    /**
+     * Nested children copy the root's {@code _id} so that a soft-delete by uid removes the whole block. The engine's uid
+     * is the compound identity term, so that is the term the children must carry.
+     */
+    public void testNestedDocumentsCarryCompoundIdentityTerm() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("nested").field("type", "nested").endObject())
+        );
+
+        String id = randomAlphaOfLengthBetween(1, 16);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(id, b -> {
+            b.startArray("nested");
+            b.startObject().field("field", "a").endObject();
+            b.startObject().field("field", "b").endObject();
+            b.endArray();
+        }, "slice-1"));
+
+        assertThat("expected nested documents in addition to the root", doc.docs().size(), greaterThan(1));
+        BytesRef compound = SliceIdFieldMapper.encodeCompoundId(id, "slice-1");
+        for (LuceneDocument nested : doc.docs()) {
+            if (nested == doc.rootDoc()) {
+                continue;
+            }
+            assertThat(nested.getFields(IdFieldMapper.NAME), hasItem(indexedTerm(compound)));
+        }
     }
 
     private static SliceIdFieldMapper sliceIdMapper(MapperService mapperService) {

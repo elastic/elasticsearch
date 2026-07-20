@@ -112,11 +112,12 @@ public class SliceIdFieldMapper extends IdFieldMapper {
             throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
         }
         final String id = context.id();
-        // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
-        // uniqueness/versioning/GET/delete
-        context.doc().add(new StringField(NAME, searchTerm(id), Field.Store.NO));
+        // The compound term (== Engine.Operation.uid()) scopes uniqueness/versioning/GET/delete; the slice-free search
+        // term drives ids/term search. The compound is added first because nested children copy the root's first _id
+        // field, and they must carry the uid for the engine's soft-delete to remove them along with their root.
         final BytesRef compound = encodeCompoundId(id, slice);
         context.doc().add(new StringField(NAME, compound, Field.Store.NO));
+        context.doc().add(new StringField(NAME, searchTerm(id), Field.Store.NO));
         // The compound bytes are also stored as the _id value (stored field in document mode, binary doc values in
         // columnar mode).
         if (columnar) {
@@ -129,8 +130,9 @@ public class SliceIdFieldMapper extends IdFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         if (columnar) {
-            // Mirrors ProvidedIdFieldMapper#postParse. Nested (non-root) documents share the root's compound _id so that
-            // binary doc values on every segment doc carry the same opaque identity bytes as the root doc.
+            // Nested child documents are in the same Lucene updateDocuments batch as the root document, and Lucene
+            // requires a consistent field schema across the batch, so children must carry the _id doc values too.
+            // They share the root's compound id: a nested document has no identity of its own.
             var iterator = context.nonRootDocuments().iterator();
             if (iterator.hasNext()) {
                 final BytesRef compound = encodeCompoundId(context.id(), context.sourceToParse().routing());

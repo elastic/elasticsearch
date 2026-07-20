@@ -101,7 +101,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
 
     /** Nested children carry the compound identity term so a soft-delete by uid removes them with their root. */
     @Override
-    public BytesRef nestedIdentityTerm(DocumentParserContext context) {
+    BytesRef nestedIdentityTerm(DocumentParserContext context) {
         return encodeCompoundId(context.id(), context.sourceToParse().routing());
     }
 

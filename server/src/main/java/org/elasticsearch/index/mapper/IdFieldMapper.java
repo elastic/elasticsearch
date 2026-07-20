@@ -142,7 +142,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * block. Returns {@code null} when the id is not yet known during parsing (e.g. TSDB derives it in {@link #postParse}).
      */
     @Nullable
-    public BytesRef nestedIdentityTerm(DocumentParserContext context) {
+    BytesRef nestedIdentityTerm(DocumentParserContext context) {
         String id = context.id();
         return id == null ? null : Uid.encodeId(id);
     }

@@ -1174,6 +1174,46 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat((Map<String, Object>) mappingsProperties.get("test"), hasValue("keyword"));
     }
 
+    public void testStandaloneColumnarIndexKeepsSequenceNumbers() {
+        assertFalse(
+            "a standalone columnar index should keep sequence numbers so that it supports updates",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexDisablesSequenceNumbers() {
+        assertTrue(
+            "a columnar data-stream backing index disables sequence numbers by default",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream"))
+        );
+    }
+
+    private Settings aggregateColumnarSettings(@Nullable String dataStreamName) {
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        var request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "idx", "idx").settings(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .build()
+        );
+        if (dataStreamName != null) {
+            request.dataStreamName(dataStreamName);
+        }
+        return aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+    }
+
     private static ClusterState clusterStateWithSettings(ProjectId projectId, Settings persistentSettings) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().persistentSettings(persistentSettings).put(ProjectMetadata.builder(projectId)).build())

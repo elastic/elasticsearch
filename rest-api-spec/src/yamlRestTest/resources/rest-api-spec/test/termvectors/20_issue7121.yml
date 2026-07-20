@@ -4,6 +4,8 @@ setup:
       cluster.put_settings:
         body:
           transient:
+            # TRACE on IndexShard/Engine is enabled to capture unexpected refreshes
+            # if the found: false assertion fails again (see #138370)
             logger.org.elasticsearch.index.shard.IndexShard: TRACE
             logger.org.elasticsearch.index.engine.Engine: TRACE
 

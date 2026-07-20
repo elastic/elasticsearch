@@ -14,11 +14,17 @@
     "Team:Delivery",
     "auto-merge-without-approval"
   ],
-  "baseBranchPatterns": [
+  "baseBranches": [
     "main",
     "9.4",
     "9.3",
     "8.19"
+  ],
+  "ignorePaths": [
+    "x-pack/qa/repository-old-versions-compatibility/src/javaRestTest/resources/README.md",
+    "docs/**",
+    "build-tools-internal/gradle/wrapper/**",
+    "plugins/examples/gradle/wrapper/**"
   ],
   "packageRules": [
     {
@@ -36,28 +42,19 @@
       "enabled": true
     },
     {
-      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
-      "matchManagers": [
-        "gradle-wrapper"
-      ],
-      "matchBaseBranches": [
-        "main"
-      ],
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Only the root gradle/wrapper/gradle-wrapper.properties is managed via managerFilePatterns; build-tools-internal and plugins/examples wrappers are kept in sync manually via ./gradlew wrapper. respectLatest: false lets the same PR keep rolling forward through Gradle RCs/milestones until GA.",
+      "matchManagers": ["gradle-wrapper"],
+      "matchBaseBranches": ["main"],
       "enabled": true,
       "ignoreUnstable": false,
+      "respectLatest": false,
       "separateMinorPatch": true,
       "automerge": false,
       "rebaseWhen": "behind-base-branch",
-      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.x",
-      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
-      "schedule": [
-        "at any time"
-      ],
-      "labels": [
-        ":Delivery/Build",
-        ">non-issue",
-        "auto-backport"
-      ]
+      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
+      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
+      "schedule": ["at any time"],
+      "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
     }
   ],
   "baseBranches": [

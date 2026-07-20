@@ -321,6 +321,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.modules.add(module.map(RegularFile::getAsFile));
     }
 
+    /**
+     * Adds a module directory directly from a plain file provider.
+     * Used by {@link ElasticsearchCluster} when wiring a {@link org.gradle.api.tasks.Sync} task output,
+     * where the destination directory is already resolved as a {@link java.io.File} and does not need
+     * to go through the {@code Provider<RegularFile>} abstraction.
+     */
+    void addModuleDirectory(Provider<File> moduleDir) {
+        checkFrozen();
+        this.modules.add(moduleDir);
+    }
+
     public void module(TaskProvider<Sync> module) {
         throw new IllegalStateException("Not Supported API");
     }

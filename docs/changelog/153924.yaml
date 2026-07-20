@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 153924
-summary: "[8.19] Fetch phase circuit breaker for source loading"
+summary: Add a fetch phase circuit breaker for source loading
 type: enhancement

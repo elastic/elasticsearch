@@ -10,22 +10,22 @@ Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 === Breaking changes
 
 Inference::
-* [Inference API] Prevent overriding `secret_parameters` {es-pull}153309[#153309]
+* Prevent overriding `secret_parameters` in the Inference API {es-pull}153309[#153309]
 
 [[bug-8.19.19]]
 [float]
 === Bug fixes
 
 Aggregations::
-* Aggs: Avoid OOMs by accounting memory on cardinality agg reduction phase {es-pull}152773[#152773] (issue: {es-issue}150290[#150290])
-* Fix NPE when aggregation param scripts return null {es-pull}152152[#152152] (issue: {es-issue}136639[#136639])
+* Avoid out-of-memory errors by accounting for memory during the cardinality aggregation reduction phase {es-pull}152773[#152773] (issue: {es-issue}150290[#150290])
+* Fix error when aggregation parameter scripts return null {es-pull}152152[#152152] (issue: {es-issue}136639[#136639])
 
 Authorization::
 * Fix data stream privilege checking {es-pull}148179[#148179]
-* Improve simulate bulk action authz {es-pull}152148[#152148]
+* Improve authorization for the simulate bulk action {es-pull}152148[#152148]
 
 ES|QL::
-* Avoid dense run-len allocation in HLL {es-pull}152035[#152035]
+* Avoid dense run-length allocation in HyperLogLog {es-pull}152035[#152035]
 
 Geo::
 * Fix infinite loop in `GeoLineDecomposer` dateline crossing checks {es-pull}152096[#152096] (issue: {es-issue}152066[#152066])
@@ -54,22 +54,22 @@ Snapshot/Restore::
 === Enhancements
 
 ES|QL::
-* Implement watchdog timeout for GROK {es-pull}152851[#152851]
+* Implement watchdog timeout for `GROK` {es-pull}152851[#152851]
 
 Machine Learning::
-* Add exponential-backoff retry for AD job opening during system-initiated reassignments {es-pull}144478[#144478]
+* Add exponential-backoff retry for anomaly detection job opening during system-initiated reassignments {es-pull}144478[#144478]
 
 Search::
-* [8.19] Fetch phase circuit breaker for source loading {es-pull}153924[#153924]
+* Add a fetch phase circuit breaker for source loading {es-pull}153924[#153924]
 
 [[upgrade-8.19.19]]
 [float]
 === Upgrades
 
 Inference::
-* [Inference API] Bumping commons-text library version to match commons.lang3 {es-pull}152092[#152092]
+* Bump the `commons-text` library version to match `commons-lang3` {es-pull}152092[#152092]
 
 Infra/Core::
-* Upgrade jackson {es-pull}152163[#152163]
+* Upgrade Jackson {es-pull}152163[#152163]
 
 

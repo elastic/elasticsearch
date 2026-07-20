@@ -153,6 +153,11 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.termQuery("tags", "T2").caseInsensitive(true));
     }
 
+    /** A case-insensitive keyword term with no case-folding match selects nothing on both paths — never a silent over-match. */
+    public void testCaseInsensitiveTermNoMatch() {
+        assertSelectsSameRows(QueryBuilders.termQuery("tags", "T9").caseInsensitive(true));
+    }
+
     /** A decimal against an integral field matches nothing on both paths — never a truncated match (B2). */
     public void testDecimalTermOnIntegerMatchesNothing() {
         assertSelectsSameRows(QueryBuilders.termQuery("status", 300.5));

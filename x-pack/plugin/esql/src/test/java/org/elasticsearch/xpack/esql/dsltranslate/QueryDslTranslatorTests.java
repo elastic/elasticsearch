@@ -313,6 +313,15 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.NULL, ((MvContains) e).children().get(0));
     }
 
+    /** The case-insensitive leaf is two-valued, so it composes under negation like every other leaf: NOT over mv_contains. */
+    public void testCaseInsensitiveTermUnderMustNotComposes() {
+        Expression e = translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("tags", "A").caseInsensitive(true)));
+        assertThat(e, instanceOf(Not.class));
+        Expression inner = ((Not) e).children().get(0);
+        assertThat(inner, instanceOf(MvContains.class));
+        assertThat("the negated leaf still lower-cases the field", ((MvContains) inner).children().get(0), instanceOf(ToLower.class));
+    }
+
     /**
      * An explicit {@code minimum_should_match: 1} is exactly what Kibana's "is one of" pill and every KQL {@code or}
      * emit. It means "at least one should clause must match" — a plain OR — and must be honored, not refused.

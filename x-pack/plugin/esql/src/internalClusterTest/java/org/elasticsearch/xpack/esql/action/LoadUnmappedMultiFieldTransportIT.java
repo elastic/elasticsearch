@@ -85,6 +85,88 @@ public class LoadUnmappedMultiFieldTransportIT extends AbstractEsqlIntegTestCase
         }
     }
 
+    /**
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>.
+     * A PUNK {@code long} field (mapped in one index, absent in another) queried without
+     * an explicit {@code ::long} cast, with each index pinned to a different data node.
+     * The {@link org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveTwoLeggedPunksInEsRelation}
+     * rule rewrites the field to a {@code CompactMultiTypeEsField} whose unmapped leg loads
+     * from {@code _source} as BYTES_REF and converts to LONG via a {@code TypeConverter}.
+     * That converter must survive plan serialisation to remote data nodes; if it is dropped,
+     * {@code ValuesSourceReaderOperator.sanityCheckBlock} throws
+     * {@code element_type [BYTES_REF] NOT IN (NULL, LONG)}.
+     */
+    public void testPunkLongStatsImplicitAcrossNodes() {
+        assumeTrue(
+            "Requires two-legged PUNK auto-cast",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS.isEnabled()
+        );
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String mappedNode = randomDataNode().getName();
+        String unmappedNode = randomValueOtherThan(mappedNode, () -> randomDataNode().getName());
+
+        // event_duration mapped as long on one node ...
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("idx_mapped_duration")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.routing.allocation.require._name", mappedNode)
+                )
+                .setMapping("""
+                    { "properties": { "event_duration": { "type": "long" } } }""")
+        );
+        // ... and unmapped (but present in _source) on the other: the unmapped leg of the PUNK.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("idx_unmapped_duration")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.routing.allocation.require._name", unmappedNode)
+                )
+                .setMapping("""
+                    { "properties": { "message": { "type": "keyword" } } }""")
+        );
+
+        long expectedSum = 0;
+        for (int i = 0; i < 10; i++) {
+            long val = (i + 1) * 1000L;
+            indexDoc("idx_mapped_duration", Integer.toString(i), "event_duration", val);
+            expectedSum += val;
+        }
+        for (int i = 10; i < 20; i++) {
+            long val = (i + 1) * 1000L;
+            // Stored in _source without a mapping; the PUNK loads it via DefaultShardContextForUnmappedField.
+            indexDoc("idx_unmapped_duration", Integer.toString(i), "event_duration", val);
+            expectedSum += val;
+        }
+        refresh("idx_mapped_duration", "idx_unmapped_duration");
+
+        // Implicit access — no ::long cast — exercises ResolveTwoLeggedPunksInEsRelation.
+        try (
+            var resp = run(
+                "SET unmapped_fields=\"load\"; FROM idx_mapped_duration, idx_unmapped_duration"
+                    + " | STATS s = SUM(event_duration), c = COUNT(event_duration)"
+            )
+        ) {
+            assertThat(resp.isPartial(), equalTo(false));
+            assertColumnNames(resp.columns(), List.of("s", "c"));
+            assertColumnTypes(resp.columns(), List.of("long", "long"));
+
+            var values = getValuesList(resp);
+            assertThat(values.size(), equalTo(1));
+            assertThat(values.get(0).get(0), equalTo(expectedSum));
+            assertThat(values.get(0).get(1), equalTo(20L));
+        }
+    }
+
     private DiscoveryNode randomDataNode() {
         return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }

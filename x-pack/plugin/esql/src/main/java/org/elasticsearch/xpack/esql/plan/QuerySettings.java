@@ -85,7 +85,7 @@ public final class QuerySettings {
     @Param(
         name = "unmapped_fields",
         type = { "keyword" },
-        since = "9.5+, preview =9.3",
+        since = "preview 9.3-9.4, ga 9.5+",
         description = """
             Determines how unmapped fields are treated.
             For a conceptual overview and use cases, including performance considerations, refer to

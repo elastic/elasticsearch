@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,7 +21,7 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Source source = randomSource();
         Expression field = randomChild();
         Expression percentile = randomChild();
-        double tDigestStateCompression = randomCompression();
+        double tDigestStateCompression = randomDouble();
         return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
     }
 
@@ -34,15 +34,9 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         switch (between(0, 2)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
-            case 2 -> tDigestStateCompression = randomValueOtherThan(
-                tDigestStateCompression,
-                PercentileSerializationTests::randomCompression
-            );
+            case 2 -> tDigestStateCompression = randomValueOtherThan(tDigestStateCompression, ESTestCase::randomDouble);
         }
         return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
     }
 
-    private static double randomCompression() {
-        return randomFrom(50.0, 100.0, 200.0, QuantileStates.DEFAULT_COMPRESSION);
-    }
 }

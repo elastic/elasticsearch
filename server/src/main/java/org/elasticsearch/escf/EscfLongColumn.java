@@ -110,7 +110,7 @@ final class EscfLongColumn extends AbstractFixed64Column {
 
     private static final class DenseLongValuesCursor extends LongValuesCursor {
         private final BytesRefIterator iter;
-        private byte[] currentBytes = new byte[0];
+        private byte[] currentBytes = BytesRef.EMPTY_BYTES;
         private int currentBytesOffset;
         private int currentBytesEnd;
         private int pos;
@@ -118,11 +118,17 @@ final class EscfLongColumn extends AbstractFixed64Column {
         DenseLongValuesCursor(int count, EscfLongColumn column) {
             super(count);
             this.iter = column.data.iterator();
+            if (count > 0) {
+                nextChunk();
+            }
         }
 
         private void nextChunk() {
             try {
                 BytesRef chunk = iter.next();
+                if ((chunk.length & 7) != 0) {
+                    throw new IllegalStateException("long column chunk length " + chunk.length + " is not a multiple of 8");
+                }
                 currentBytes = chunk.bytes;
                 currentBytesOffset = chunk.offset;
                 currentBytesEnd = chunk.offset + chunk.length;

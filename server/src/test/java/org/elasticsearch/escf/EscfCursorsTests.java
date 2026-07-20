@@ -15,8 +15,10 @@ import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentString;
@@ -140,9 +142,59 @@ public class EscfCursorsTests extends ESTestCase {
         expectThrows(IllegalStateException.class, cursor::nextLong);
     }
 
-    // -------------------------------------------------------------------------
-    // Long array — multivalue tuple cursor
-    // -------------------------------------------------------------------------
+    public void testLongValuesCursorNextLongCrossesChunkBoundary() {
+        // Chunk 1: [10], Chunk 2: [20, 30] — nextLong() triggers nextChunk() between values 1 and 2.
+        BytesReference data = CompositeBytesReference.of(longChunk(10L), longChunk(20L, 30L));
+        EscfLongColumn col = new EscfLongColumn(3, null, data);
+        LongValuesCursor cursor = col.longValuesCursor();
+        assertEquals(3, cursor.size());
+        assertEquals(10L, cursor.nextLong());
+        assertEquals(20L, cursor.nextLong()); // crosses chunk boundary
+        assertEquals(30L, cursor.nextLong());
+    }
+
+    public void testLongValuesCursorFillDocValuesCrossesChunkBoundary() {
+        // Chunk 1: [10, 20], Chunk 2: [30, 40] — fillDocValues inner loop must span both chunks.
+        BytesReference data = CompositeBytesReference.of(longChunk(10L, 20L), longChunk(30L, 40L));
+        EscfLongColumn col = new EscfLongColumn(4, null, data);
+        LongValuesCursor cursor = col.longValuesCursor();
+        long[] dst = new long[4];
+        cursor.fillDocValues(dst, 0, 4);
+        assertArrayEquals(new long[] { 10L, 20L, 30L, 40L }, dst);
+    }
+
+    public void testLongValuesCursorFillDocValuesOverrunThrows() {
+        EscfLongColumn col = new EscfLongColumn(2, null, longChunk(1L, 2L));
+        LongValuesCursor cursor = col.longValuesCursor();
+        expectThrows(IllegalStateException.class, () -> cursor.fillDocValues(new long[3], 0, 3));
+    }
+
+    public void testLongTupleCursorConsecutiveAbsentRows() {
+        // [10, absent, absent, 40] — toSkip accumulates to 2 before the single skip() call.
+        FixedBitSet absent = new FixedBitSet(4);
+        absent.set(1);
+        absent.set(2);
+        EscfLongColumn col = new EscfLongColumn(4, absent, longChunk(10L, 0L, 0L, 40L));
+        List<long[]> tuples = drainLongTuples(col.longCursor());
+        assertEquals(2, tuples.size());
+        assertLongTuple(0, 10L, tuples.get(0));
+        assertLongTuple(3, 40L, tuples.get(1));
+    }
+
+    public void testLongTupleCursorAbsentRowsSpanChunkBoundary() {
+        // [10, absent, absent, 40], chunk split after row 1: [10, 0] | [0, 40].
+        // skip(2) must call nextChunk() mid-skip (exhausts chunk 1 after skipping row 1,
+        // then skips row 2 from chunk 2), and nextLong() reads row 3's value from chunk 2.
+        FixedBitSet absent = new FixedBitSet(4);
+        absent.set(1);
+        absent.set(2);
+        BytesReference data = CompositeBytesReference.of(longChunk(10L, 0L), longChunk(0L, 40L));
+        EscfLongColumn col = new EscfLongColumn(4, absent, data);
+        List<long[]> tuples = drainLongTuples(col.longCursor());
+        assertEquals(2, tuples.size());
+        assertLongTuple(0, 10L, tuples.get(0));
+        assertLongTuple(3, 40L, tuples.get(1));
+    }
 
     public void testLongArrayTupleCursorMultivalue() {
         // 4 rows: [[1, 2], [3], [], [4, 5, 6]]
@@ -246,10 +298,6 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 2, absentAll(2), new int[] { 0, 0, 0 }, BytesArray.EMPTY);
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumn.from(data).bytesRefCursor().nextDoc());
     }
-
-    // -------------------------------------------------------------------------
-    // String column — values cursor (dense only)
-    // -------------------------------------------------------------------------
 
     public void testStringValuesCursorDense() {
         EscfColumnBuilder b = new EscfColumnBuilder();
@@ -424,6 +472,15 @@ public class EscfCursorsTests extends ESTestCase {
     private static EscfColumnData longArrayChild(long[] values) {
         BytesReference data = longBytes(values);
         return EscfColumnData.ofFixed64(EscfColumnKind.LONG, values.length, null, data);
+    }
+
+    /** Packs a varargs long array into a single {@link BytesArray} chunk of little-endian 8-byte slots. */
+    private static BytesArray longChunk(long... values) {
+        byte[] bytes = new byte[values.length * 8];
+        for (int i = 0; i < values.length; i++) {
+            ByteUtils.writeLongLE(values[i], bytes, i * 8);
+        }
+        return new BytesArray(bytes);
     }
 
     /** Packs a long array into little-endian bytes suitable for {@link EscfColumnData#ofFixed64}. */

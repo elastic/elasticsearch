@@ -486,6 +486,12 @@ public class EsqlCapabilities {
         CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
+         * Partial folding of {@code CASE} keeps the KEYWORD type declared at analysis time when the
+         * surviving branch is TEXT, instead of letting the plan output drift to TEXT. See #154278.
+         */
+        FIX_CASE_PARTIAL_FOLD_KEYWORD_TYPE,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -3346,7 +3352,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V4(Build.current().isSnapshot()),
+        HIGHLIGHT_V5(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3433,6 +3439,13 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
          */
         FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
+
+        /**
+         * Fix {@code ReplaceRoundToWithQueryAndTags} throwing a {@code ClassCastException} when {@code ROUND_TO}'s first argument
+         * is a function (e.g. {@code ROUND_TO(BYTE_LENGTH(field), ...)}) rather than a bare field.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
+         */
+        FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
 
         /**
          * Support for the PromQL {@code topk()} order-statistic aggregation.

@@ -821,6 +821,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         });
+        task.getProgressListener().notifyPhaseFailure(exception);
         listener.onFailure(exception);
     }
 

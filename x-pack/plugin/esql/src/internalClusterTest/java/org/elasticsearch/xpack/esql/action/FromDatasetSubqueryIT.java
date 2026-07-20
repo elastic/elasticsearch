@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -917,18 +918,23 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testMatchPhraseOnDatasetFieldRejected() {
+    public void testMatchPhraseOnDatasetField() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(
-            ex,
-            "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
-                + "(the source is a federated data source, not an index)"
-        );
+        String query = "FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))";
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            try (var response = run(syncEsqlQueryRequest(query + " | KEEP first_name, last_name"), TIMEOUT)) {
+                assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+                assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+            }
+        } else {
+            Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT));
+            assertCauseMessageContains(
+                ex,
+                "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            );
+        }
     }
 
     public void testKQLOnDatasetRejected() {
@@ -959,18 +965,26 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         );
     }
 
-    public void testMatchPhraseAfterSubqueryRejected() {
+    public void testMatchPhraseAfterSubquery() {
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
+        String query = """
             FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
-            """), TIMEOUT));
-        assertCauseMessageContains(
-            ex,
-            "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
-                + "(the source is a federated data source, not an index)"
-        );
+            """;
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            try (var response = run(syncEsqlQueryRequest(query + " | KEEP first_name, last_name"), TIMEOUT)) {
+                assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+                assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+            }
+        } else {
+            Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT));
+            assertCauseMessageContains(
+                ex,
+                "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            );
+        }
     }
 
     // Mixed data types across subquery branches

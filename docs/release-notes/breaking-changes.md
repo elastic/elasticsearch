@@ -12,15 +12,13 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
 ```{applies_to}
 stack: ga 9.3.8
 ```
-## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
 
 Inference:
 * Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
-
-
 
 ## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
 

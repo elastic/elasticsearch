@@ -127,14 +127,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         );
 
         assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                VARIABLE_INFERENCE_ID_FIELD,
-                new TextEmbeddingQueryVectorBuilder(null, "   "),
-                10,
-                100,
-                10f,
-                null
-            ),
+            new KnnVectorQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "   "), 10, 100, 10f, null),
             QUERY_INDICES,
             List.of(
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
@@ -342,7 +335,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             searchRequestModifier
         );
     }
-
 
     public void testKnnVectorQueryOnlyDenseVector() throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);

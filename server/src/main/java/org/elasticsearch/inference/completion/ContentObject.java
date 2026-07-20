@@ -50,6 +50,13 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.thro
 public abstract sealed class ContentObject implements Accountable, NamedWriteable, ToXContent permits ContentObject.ContentObjectText,
     ContentObject.ContentObjectImage, ContentObject.ContentObjectFile {
 
+    @Override
+    public final long ramBytesUsed() {
+        return childRamBytesUsed();
+    }
+
+    protected abstract long childRamBytesUsed();
+
     public enum ContentObjectType {
         TEXT,
         IMAGE_URL,
@@ -161,7 +168,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         }
 
         @Override
-        public long ramBytesUsed() {
+        protected long childRamBytesUsed() {
             var fileFieldsRamBytesUsed = fileFields.ramBytesUsed();
             return SHALLOW_SIZE + fileFieldsRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
         }
@@ -303,7 +310,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         }
 
         @Override
-        public long ramBytesUsed() {
+        protected long childRamBytesUsed() {
             var imageUrlRamBytesUsed = imageUrl().ramBytesUsed();
             return SHALLOW_SIZE + imageUrlRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
         }
@@ -436,7 +443,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         }
 
         @Override
-        public long ramBytesUsed() {
+        protected long childRamBytesUsed() {
             var textRamBytesUsed = RamUsageEstimator.sizeOf(text);
             return SHALLOW_SIZE + textRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
         }

@@ -74,8 +74,8 @@ public record EstimatedHeapUsage(String nodeId, long totalBytes, NodeHeapEstimat
             nodeId,
             totalBytes,
             new NodeHeapEstimate(
-                nodeHeapEstimate.totalHeapUsage() + indexMetadataUsageDelta + hostedShardsUsageDelta,
-                nodeHeapEstimate.hostedShardsHeapUsage() + hostedShardsUsageDelta
+                Math.addExact(Math.addExact(nodeHeapEstimate.totalHeapUsage(), indexMetadataUsageDelta), hostedShardsUsageDelta),
+                Math.addExact(nodeHeapEstimate.hostedShardsHeapUsage(), hostedShardsUsageDelta)
             )
         );
     }

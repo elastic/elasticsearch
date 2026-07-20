@@ -161,18 +161,23 @@ abstract class EscfColumn implements SliceableColumn {
         if (src == null) {
             return null;
         }
-        FixedBitSet out = new FixedBitSet(Math.max(1, count));
+        FixedBitSet out = null;
         int cap = src.length();
-        boolean anyAbsent = false;
         for (int i = 0; i < count; i++) {
             int idx = base + i;
-            if (idx < cap && src.get(idx)) {
-                out.set(i);
+            boolean present = idx < cap && src.get(idx);
+            if (present) {
+                if (out != null) {
+                    out.set(i);
+                }
             } else {
-                anyAbsent = true;
+                if (out == null) {
+                    out = new FixedBitSet(count);
+                    out.set(0, i); // backfill all prior docs in the window as present
+                }
             }
         }
-        return anyAbsent ? out : null;
+        return out;
     }
 
     /**
@@ -185,17 +190,18 @@ abstract class EscfColumn implements SliceableColumn {
         if (src == null) {
             return null;
         }
-        FixedBitSet out = new FixedBitSet(Math.max(1, count));
+        FixedBitSet out = null;
         int cap = src.length();
-        boolean anySet = false;
         for (int i = 0; i < count; i++) {
             int idx = base + i;
             if (idx < cap && src.get(idx)) {
+                if (out == null) {
+                    out = new FixedBitSet(count);
+                }
                 out.set(i);
-                anySet = true;
             }
         }
-        return anySet ? out : null;
+        return out;
     }
 
     /**

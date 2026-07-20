@@ -201,10 +201,10 @@ public class RecoveryDirectCancellationService {
             CancelRecoveriesAction.TYPE.name(),
             request,
             new ActionListenerResponseHandler<>(ActionListener.wrap(response -> failShardsCancelledInQueue(node, response), e -> {
-                // Request was unsuccessful, invalidate cached entries so another request can try again later
-                // There is a possibility that another close-in-time request was deduplicated from this while we were
-                // waiting for it to respond but that should be fine, as in all likelihood, this subsequent request would
-                // have faced the same transport error and direct cancellation is best effort anyway
+                // Request was unsuccessful, invalidate cached entries so another request can try again later.
+                // There is a possibility that another close-in-time request was deduplicated from this while we were waiting
+                // for it to respond. That should be fine, as in all likelihood, this subsequent request would have faced
+                // the same transport error and direct cancellation is best-effort anyway.
                 for (ShardRecoveryCancellation cancellation : request.cancellations()) {
                     sentCancellations.invalidate(cancellation.allocationId());
                 }

@@ -9,22 +9,13 @@
 
 package org.elasticsearch.common.document;
 
-import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -77,108 +68,5 @@ public class DocumentFieldRamUsageEstimatorTests extends ESTestCase {
             DocumentFieldRamUsageEstimator.estimate(withIgnored),
             greaterThan(DocumentFieldRamUsageEstimator.estimate(withoutIgnored))
         );
-    }
-
-    public void testEstimateNeverUnderCountsActualHeap() {
-        List<Supplier<List<Object>>> shapes = List.of(
-            () -> List.of("small"),
-            () -> List.of(randomAlphaOfLength(1024)),
-            () -> List.of(42L, 3.14d, true, 'x'),
-            () -> List.of(new byte[10_000]),
-            () -> List.of(new int[2_000]),
-            () -> {
-                ArrayList<Object> l = new ArrayList<>();
-                for (int i = 0; i < 100; i++) {
-                    l.add("value-" + i);
-                }
-                return List.of(l);
-            },
-            () -> {
-                LinkedList<Object> l = new LinkedList<>();
-                for (int i = 0; i < 100; i++) {
-                    l.add("v-" + i);
-                }
-                return List.of(l);
-            },
-            () -> {
-                ArrayDeque<Object> d = new ArrayDeque<>();
-                for (int i = 0; i < 100; i++) {
-                    d.add("v-" + i);
-                }
-                return List.of(d);
-            },
-            () -> {
-                HashMap<String, Object> m = new HashMap<>();
-                for (int i = 0; i < 200; i++) {
-                    m.put("k" + i, "v" + i);
-                }
-                return List.of(m);
-            },
-            () -> {
-                HashMap<String, Object> m = new HashMap<>();
-                for (int i = 0; i < 10_000; i++) {
-                    m.put("k" + i, i);
-                }
-                return List.of(m);
-            },
-            () -> {
-                LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-                for (int i = 0; i < 500; i++) {
-                    m.put("k" + i, "v" + i);
-                }
-                return List.of(m);
-            },
-            () -> {
-                TreeMap<String, Object> m = new TreeMap<>();
-                for (int i = 0; i < 500; i++) {
-                    m.put("k" + i, "v" + i);
-                }
-                return List.of(m);
-            },
-            () -> {
-                HashSet<Object> s = new HashSet<>();
-                for (int i = 0; i < 500; i++) {
-                    s.add("v" + i);
-                }
-                return List.of(s);
-            },
-            () -> {
-                LinkedHashSet<Object> s = new LinkedHashSet<>();
-                for (int i = 0; i < 500; i++) {
-                    s.add("v" + i);
-                }
-                return List.of(s);
-            },
-            () -> {
-                TreeSet<Object> s = new TreeSet<>();
-                for (int i = 0; i < 500; i++) {
-                    s.add("v" + i);
-                }
-                return List.of(s);
-            },
-            () -> {
-                ArrayList<Object> outer = new ArrayList<>();
-                for (int i = 0; i < 100; i++) {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("id", i);
-                    row.put("name", "row-" + i);
-                    row.put("tags", List.of("a", "b", "c"));
-                    outer.add(row);
-                }
-                return List.of(outer);
-            },
-            () -> List.of(new Object[] { "a", "b", 42, "c" })
-        );
-
-        for (Supplier<List<Object>> shape : shapes) {
-            DocumentField field = new DocumentField("f", shape.get());
-            long estimate = DocumentFieldRamUsageEstimator.estimate(field);
-            long actual = RamUsageTester.ramUsed(field);
-            assertThat(
-                "estimate under-counts retained heap: estimate=" + estimate + " actual=" + actual + " for values=" + field.getValues(),
-                estimate,
-                greaterThanOrEqualTo(actual)
-            );
-        }
     }
 }

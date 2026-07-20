@@ -936,6 +936,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     commitState.splitTargetCopyExecutor.execute(() -> {
                         try {
                             for (ShardId targetShardId : splitTargets) {
+                                long retryDelayMs = 10L;
                                 while (commitState.isClosed() == false) {
                                     try {
                                         objectStoreService.copyCommit(virtualBcc, targetShardId);
@@ -945,15 +946,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                             cleanup();
                                             return;
                                         }
+                                        final long delayMs = retryDelayMs;
                                         logger.warn(
                                             () -> format(
-                                                "%s failed to copy commit [%s] to split target [%s], retrying",
+                                                "%s failed to copy commit [%s] to split target [%s], retrying in [%s]",
                                                 virtualBcc.getShardId(),
                                                 virtualBcc.getPrimaryTermAndGeneration().generation(),
-                                                targetShardId
+                                                targetShardId,
+                                                TimeValue.timeValueMillis(delayMs)
                                             ),
                                             e
                                         );
+                                        try {
+                                            Thread.sleep(delayMs);
+                                        } catch (InterruptedException ie) {
+                                            Thread.currentThread().interrupt();
+                                        }
+                                        retryDelayMs = Math.min(30_000L, retryDelayMs * 2);
                                     }
                                 }
                                 if (commitState.isClosed()) {

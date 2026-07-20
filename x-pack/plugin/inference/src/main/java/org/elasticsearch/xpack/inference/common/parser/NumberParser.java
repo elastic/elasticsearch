@@ -48,7 +48,7 @@ public final class NumberParser {
     }
 
     /**
-     * Validates that an optional integer service setting, when present, is higher than the max value, throwing an
+     * Validates that an optional integer service setting, when present, is less than or equal to the max value, throwing an
      * {@link IllegalArgumentException} otherwise.
      */
     public static void validatePositiveIntegerLessThanOrEqualToMax(@Nullable Integer value, String settingName, int maxValue) {

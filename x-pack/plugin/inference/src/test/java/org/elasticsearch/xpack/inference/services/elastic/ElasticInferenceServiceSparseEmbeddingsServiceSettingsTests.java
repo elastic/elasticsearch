@@ -43,7 +43,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         return ElasticInferenceServiceSparseEmbeddingsServiceSettings::new;
     }
 
-    private boolean ignoreUnknownFields = randomBoolean();
+    private final boolean ignoreUnknownFields = randomBoolean();
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -81,16 +81,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         }
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
     }
-    // public void testParseFromXContent() throws IOException {
-    // try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
-    // {"model_id": "my-model"}
-    // """)) {
-    // var settings = doParseInstance(parser);
-    // assertThat(settings.modelId(), is("my-model"));
-    // assertThat(settings.maxInputTokens(), is(512));
-    // assertThat(settings.maxBatchSize(), is(4));
-    // }
-    // }
 
     public void testFromMap() {
         var modelId = "my-model-id";

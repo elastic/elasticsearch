@@ -63,6 +63,15 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         "inference_api_disable_eis_rate_limiting"
     );
 
+    /**
+     * Creates a parser for the sparse embeddings service settings. In the {@link ConfigurationParseContext#REQUEST} context the
+     * {@code rate_limit} field is declared solely to reject it with a validation error, since this service does not permit
+     * user-supplied rate limits; in the {@link ConfigurationParseContext#PERSISTENT} context it is ignored like any other
+     * unknown field, so that previously persisted configurations remain readable.
+     *
+     * @param ignoreUnknownFields whether unknown fields are tolerated; {@code false} for user requests, {@code true} for persisted config
+     * @param context the parse context the returned parser is intended for
+     */
     public static ObjectParser<Builder, ConfigurationParseContext> createParser(
         boolean ignoreUnknownFields,
         ConfigurationParseContext context
@@ -289,6 +298,10 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
         }
 
+        /**
+         * Always throws: declared as the {@code rate_limit} setter on the request parser so that supplying the field produces a
+         * validation error rather than an unknown-field parse error.
+         */
         public void rejectRateLimit() {
             throw new ValidationException().addValidationError(
                 Strings.format(

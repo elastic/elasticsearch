@@ -633,6 +633,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/154395
 - class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
   issue: https://github.com/elastic/elasticsearch/issues/154350
+- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
+  issue: https://github.com/elastic/elasticsearch/issues/154349
 - class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
   method: testControllerSpawnGatedBySettings
   issue: https://github.com/elastic/elasticsearch/issues/154291

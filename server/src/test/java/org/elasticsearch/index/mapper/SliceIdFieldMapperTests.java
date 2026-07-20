@@ -169,9 +169,14 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
             if (nested == doc.rootDoc()) {
                 continue;
             }
-            IndexableField idField = nested.getField(IdFieldMapper.NAME);
-            assertNotNull("nested documents must carry the _id doc values", idField);
-            assertThat(idField.binaryValue(), equalTo(compound));
+            IndexableField docValues = null;
+            for (IndexableField f : nested.getFields(IdFieldMapper.NAME)) {
+                if (f.fieldType().docValuesType() == DocValuesType.BINARY) {
+                    docValues = f;
+                }
+            }
+            assertNotNull("nested documents must carry the _id doc values", docValues);
+            assertThat(docValues.binaryValue(), equalTo(compound));
         }
     }
 

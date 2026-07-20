@@ -1441,7 +1441,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         final String prefix = highlightPrefix(ctx);
         // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
         // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
-        Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
+        Expression query = ctx.queryExpression == null ? null : expression(ctx.queryExpression);
         // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
         List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
             .stream()

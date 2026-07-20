@@ -124,7 +124,9 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
         boolean closed;
         if (threadSafe) {
             int i = (int) VH_ATOMIC_REFCOUNT_FIELD.getAndAdd(this, -1);
-            assert i > 0 : AbstractRefCounted.INVALID_DECREF_MESSAGE;
+            if (i <= 0) {
+                throw new IllegalStateException("can't release already released object [" + this + "]");
+            }
             closed = (i == 1);
         } else {
             if (refCount <= 0) {

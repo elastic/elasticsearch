@@ -193,9 +193,17 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
         Expression result = c.partiallyFold(FoldContext.small());
         assertThat(result, equalToIgnoringIds(field("text_field", DataType.TEXT)));
-        // This should be KEYWORD so it lines up with the original value.
-        // It isn't because the conversion is difficult.
-        // But it's not likely to break anything as is.
+    }
+
+    public void testPartialFoldTrueConditionTextValue() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+            List.of(field("text_field", DataType.TEXT))
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small());
+        assertThat(result, equalToIgnoringIds(field("text_field", DataType.TEXT)));
     }
 
     public void testPartialFoldTrailingKeywordLeadingText() {

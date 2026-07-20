@@ -46,6 +46,10 @@ public class ES91OSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
+
+        // discretize rounds up to a multiple of 64, so length (dimensions / 8) is always a multiple of Long.BYTES
+        // so we can just handle tails with longs
+        assert length % Long.BYTES == 0;
     }
 
     /**
@@ -54,32 +58,16 @@ public class ES91OSQVectorsScorer {
      */
     public long quantizeScore(byte[] q) throws IOException {
         assert q.length == length * 4;
-        final int size = length;
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
-        int r = 0;
-        for (final int upperBound = size & -Long.BYTES; r < upperBound; r += Long.BYTES) {
+        for (int r = 0; r < length; r += Long.BYTES) {
             final long value = in.readLong();
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
-            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + size) & value);
-            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * size) & value);
-            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * size) & value);
-        }
-        for (final int upperBound = size & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
-            final int value = in.readInt();
-            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r) & value);
-            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + size) & value);
-            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 2 * size) & value);
-            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 3 * size) & value);
-        }
-        for (; r < size; r++) {
-            final byte value = in.readByte();
-            subRet0 += Integer.bitCount((q[r] & value) & 0xFF);
-            subRet1 += Integer.bitCount((q[r + size] & value) & 0xFF);
-            subRet2 += Integer.bitCount((q[r + 2 * size] & value) & 0xFF);
-            subRet3 += Integer.bitCount((q[r + 3 * size] & value) & 0xFF);
+            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + length) & value);
+            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * length) & value);
+            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * length) & value);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }

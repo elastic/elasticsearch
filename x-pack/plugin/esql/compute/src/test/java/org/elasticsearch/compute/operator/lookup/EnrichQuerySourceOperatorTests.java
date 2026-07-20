@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -36,9 +37,13 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -404,6 +409,50 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
             );
+        }
+    }
+
+    /**
+     * Regression test for a bug where {@link QueryList#getOrComputeSingleValueFilter} used to route
+     * its private, non-shared {@link SingleValueMatchQuery} through the shared {@link QueryWarnings}
+     * bridge and never unbound it (because the query is scored repeatedly over the lifetime of the
+     * {@link QueryList} instance, well past the method call that built it). Once {@link QueryWarnings}
+     * became a true singleton ({@link QueryWarnings#EMIT}), that permanently-open binding would wedge
+     * the shared thread-local for this thread forever, breaking every subsequent, unrelated use of
+     * {@code EMIT} on the same thread with {@code IllegalStateException: already bound}.
+     * {@link QueryList} now binds directly to the already-known {@link Warnings} instead, without
+     * touching {@link QueryWarnings} at all, so {@code EMIT} must come out of this path completely
+     * unbound.
+     */
+    public void testOnlySingleValuesDoesNotLeakSharedQueryWarningsBinding() throws Exception {
+        try (
+            var directoryData = makeDirectoryWith(
+                List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
+            );
+            var inputTerms = makeTermsBlock(List.of(List.of("a3")))
+        ) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
+                .onlySingleValues(warnings(), "multi-value found");
+            Page inputPage = new Page(inputTerms);
+            Query builtQuery = queryList.getQuery(0, inputPage, directoryData.searchExecutionContext);
+            assertNotNull(builtQuery);
+        }
+
+        // QueryWarnings.EMIT must have no lingering bound state on this thread: a subsequent,
+        // unrelated bind()/registerException() cycle -- mirroring how LuceneOperator.getOutput() uses
+        // the bridge -- must succeed normally rather than hitting the reentrancy guard.
+        SingleValueMatchQuery unrelated = new SingleValueMatchQuery(
+            mock(IndexFieldData.class),
+            QueryWarnings.EMIT,
+            new TestWarningsSource("unrelated"),
+            "unrelated"
+        );
+        try (
+            Releasable ignored = QueryWarnings.EMIT.bind(
+                Map.of(unrelated, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("unrelated")))
+            )
+        ) {
+            // no exception -- the binding above proves EMIT was left unbound by the onlySingleValues path
         }
     }
 

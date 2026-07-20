@@ -225,7 +225,9 @@ public final class StoreRecovery {
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
-                liveCommitData.put(Engine.NUMBER_OF_SHARDS_KEY, Integer.toString(indexMetadata.getNumberOfShards()));
+                if (indexMetadata != null) {
+                    liveCommitData.put(Engine.NUMBER_OF_SHARDS_KEY, Integer.toString(indexMetadata.getNumberOfShards()));
+                }
                 liveCommitData.put(Engine.ES_VERSION, IndexVersion.current().toString());
                 return liveCommitData.entrySet().iterator();
             });

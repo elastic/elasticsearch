@@ -134,7 +134,7 @@ This query keeps employees who do not speak the two languages, earn more than
 
 ### Use LOOKUP JOIN inside the subquery
 
-Enrich the subquery results with a lookup join before building the list of values:
+Use a lookup join inside the subquery before building the list of values:
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/in_subquery.csv-spec/in_subquery_with_lookup_join.md
 :::

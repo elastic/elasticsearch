@@ -183,14 +183,8 @@ tests:
   method: testFullClusterRestart
   issue: https://github.com/elastic/elasticsearch/issues/150960
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
-  method: plugin projects are wired into test cluster setup
-  issue: https://github.com/elastic/elasticsearch/issues/148014
-- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: yamlRestTest does nothing when there are no tests
   issue: https://github.com/elastic/elasticsearch/issues/150983
-- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
-  method: module projects are wired into test cluster setup
-  issue: https://github.com/elastic/elasticsearch/issues/150984
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
@@ -203,9 +197,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPluginFuncTest
   method: testing convention tasks are cacheable and uptodate
   issue: https://github.com/elastic/elasticsearch/issues/152371
-- class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
-  method: testUserSearchWithBindUserOpenLDAP
-  issue: https://github.com/elastic/elasticsearch/issues/152601
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/152607
@@ -266,6 +257,15 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/260_knn_lookup_query_builder/Test error when document not found}
   issue: https://github.com/elastic/elasticsearch/issues/154242
+- class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
+  method: testComputeNeighbours
+  issue: https://github.com/elastic/elasticsearch/issues/154321
+- class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
+  method: testUserSearchWithBindUserOpenLDAP
+  issue: https://github.com/elastic/elasticsearch/issues/152601
+- class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
+  method: testLinearRetrieverPartialSearchErrorsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/154370
 
 # Examples:
 #

@@ -100,6 +100,9 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             if (e.getCause() instanceof ValidationException ve) {
                 throw ve;
             }
+            if (e.getCause() instanceof IllegalArgumentException iae) {
+                throw new ValidationException().addValidationError(iae.getMessage());
+            }
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
@@ -277,6 +280,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         }
 
         public void setMaxBatchSize(Integer maxBatchSize) {
+            validatePositiveInteger(maxBatchSize, MAX_BATCH_SIZE);
             validatePositiveIntegerLessThanOrEqualToMax(maxBatchSize, MAX_BATCH_SIZE, MAX_BATCH_SIZE_UPPER_BOUND);
             this.maxBatchSize = maxBatchSize;
         }

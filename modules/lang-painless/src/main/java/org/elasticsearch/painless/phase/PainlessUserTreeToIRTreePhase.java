@@ -401,7 +401,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                     List.of(),
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    null
                 )
             );
 
@@ -478,7 +479,16 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.attachDecoration(new IRDExpressionType(Map.class));
                 irInvokeCallNode.setBox(Collections.class);
                 irInvokeCallNode.setMethod(
-                    new PainlessMethod(Collections.class.getMethod("emptyMap"), Collections.class, null, List.of(), null, null, Map.of())
+                    new PainlessMethod(
+                        Collections.class.getMethod("emptyMap"),
+                        Collections.class,
+                        null,
+                        List.of(),
+                        null,
+                        null,
+                        Map.of(),
+                        null
+                    )
                 );
 
                 irBinaryImplNode.setRightNode(irInvokeCallNode);

@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -188,7 +189,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker)
                 : AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, "wildcard-compiled:" + name());
+            context.addCircuitBreakerMemory(reservation, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
+
             if (caseInsensitive) {
                 query = method == null
                     ? new CaseInsensitiveWildcardQuery(term, dfa)
@@ -198,7 +200,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     ? new AutomatonQueryWithDescription(term, dfa, term.text())
                     : new AutomatonQuery(term, dfa, false, method);
             }
-            context.addCircuitBreakerMemory(0L, reservation, "wildcard-compiled:" + name());
+            context.addCircuitBreakerMemory(0L, reservation, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
         } else {
             if (caseInsensitive) {
                 query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
@@ -235,14 +237,14 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (circuitBreaker != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + name());
+            context.addCircuitBreakerMemory(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
                 : new AutomatonQuery(term, dfa, false, method);
             // Construction succeeded; refund the pre-flight reservation. The retained
             // ramBytesUsed() of the produced query is charged once per phase by the
             // visitor walk in AbstractQueryBuilder#toQuery.
-            context.addCircuitBreakerMemory(0L, reservation, "regexp-compiled:" + name());
+            context.addCircuitBreakerMemory(0L, reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         } else {
             query = method == null
                 ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)

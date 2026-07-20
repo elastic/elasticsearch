@@ -12,10 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -27,8 +25,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     Deque<ServerSentEvent>,
@@ -106,16 +103,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         XContentParserConfiguration parserConfig,
         String data
     ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            moveToFirstToken(jsonParser);
-
-            XContentParser.Token token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = ChatCompletionChunkParser.parse(jsonParser);
-
-            return Stream.of(chunk);
-        }
+        return parseObjects(parserConfig, data, p -> Stream.of(ChatCompletionChunkParser.parse(p)));
     }
 
     public static class ChatCompletionChunkParser {

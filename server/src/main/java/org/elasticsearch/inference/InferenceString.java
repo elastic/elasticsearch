@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -111,7 +112,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, @Nullabl
     public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, @Nullable String value, @Nullable String description) {
         this.dataType = Objects.requireNonNull(dataType);
         this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
-        validateTypeAndFormat();
+        validateTypeAndFormat(this.dataType, this.dataFormat);
         this.value = value;
         validateDataURIFormat();
         this.description = description;
@@ -129,19 +130,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, @Nullabl
         if (description != null && isText()) {
             throw new IllegalArgumentException(
                 Strings.format("Data type [%s] does not support a description, descriptions may only be set for non-text inputs", dataType)
-            );
-        }
-    }
-
-    private void validateTypeAndFormat() {
-        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Data type [%s] does not support data format [%s], supported formats are %s",
-                    dataType,
-                    dataFormat,
-                    dataType.getSupportedFormats()
-                )
             );
         }
     }
@@ -281,5 +269,54 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, @Nullabl
         }
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Resolves the {@link DataFormat} of an {@link InferenceString} from its {@link Map} representation, inspecting only the fields
+     * strictly required to determine the format: {@link #TYPE_FIELD} (required) and {@link #FORMAT_FIELD} (optional).
+     * <p>
+     * This is a lightweight alternative to fully parsing the map into an {@link InferenceString} for callers that only need the format.
+     * Fields unrelated to the format (e.g. {@link #VALUE_FIELD} and {@link #DESCRIPTION_FIELD}) are neither read nor validated, so a map
+     * that yields a valid format here may still be rejected when fully parsed.
+     *
+     * @param map the map representation of an {@link InferenceString}
+     * @return the resolved {@link DataFormat}, defaulting to the type's default format when {@link #FORMAT_FIELD} is absent
+     * @throws IllegalArgumentException if the type/format fields are missing, of the wrong type, or represent an invalid combination
+     */
+    public static DataFormat parseFormat(Map<String, Object> map) {
+        Object typeValue = map.get(TYPE_FIELD);
+        if (typeValue == null) {
+            throw new IllegalArgumentException(Strings.format("Required field [%s] is missing", TYPE_FIELD));
+        }
+        if (typeValue instanceof String == false) {
+            throw new IllegalArgumentException(Strings.format("Field [%s] must be a String", TYPE_FIELD));
+        }
+        DataType dataType = DataType.fromString((String) typeValue);
+
+        DataFormat dataFormat;
+        Object formatValue = map.get(FORMAT_FIELD);
+        if (formatValue == null) {
+            dataFormat = dataType.getDefaultFormat();
+        } else if (formatValue instanceof String formatString) {
+            dataFormat = DataFormat.fromString(formatString);
+        } else {
+            throw new IllegalArgumentException(Strings.format("Field [%s] must be a String", FORMAT_FIELD));
+        }
+
+        validateTypeAndFormat(dataType, dataFormat);
+        return dataFormat;
+    }
+
+    private static void validateTypeAndFormat(DataType dataType, DataFormat dataFormat) {
+        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Data type [%s] does not support data format [%s], supported formats are %s",
+                    dataType,
+                    dataFormat,
+                    dataType.getSupportedFormats()
+                )
+            );
+        }
     }
 }

@@ -700,9 +700,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSearchAtDone
   issue: https://github.com/elastic/elasticsearch/issues/154008
-- class: org.elasticsearch.xpack.transform.integration.TransformScheduleNowIT
-  method: testScheduleNowWithoutDefer
-  issue: https://github.com/elastic/elasticsearch/issues/154010
 - class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
   method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
   issue: https://github.com/elastic/elasticsearch/issues/153652

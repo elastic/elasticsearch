@@ -49,16 +49,14 @@ final class FileListCompactor {
         }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
+        FileList groupedCandidate = pm != null && pm.isEmpty() == false ? tryDirectoryGrouped(normalizedBase, raw) : null;
+        FileList dictCandidate = tryDictionary(normalizedBase, raw);
         // Materialise the listed keys once: both candidates verify against the same strings, so rendering
-        // them per candidate would pay the whole listing's string cost twice.
-        String[] listedPaths = new String[raw.fileCount()];
-        for (int i = 0; i < listedPaths.length; i++) {
-            listedPaths[i] = raw.path(i).toString();
-        }
-        FileList grouped = pm != null && pm.isEmpty() == false
-            ? verified(tryDirectoryGrouped(normalizedBase, raw), raw, listedPaths)
-            : null;
-        FileList dict = verified(tryDictionary(normalizedBase, raw), raw, listedPaths);
+        // them per candidate would pay the whole listing's string cost twice. Skipped entirely when neither
+        // encoding fits (both overflowed) — that is the largest listing there is, and nothing needs checking.
+        String[] listedPaths = groupedCandidate != null || dictCandidate != null ? listedPaths(raw) : null;
+        FileList grouped = verified(groupedCandidate, raw, listedPaths);
+        FileList dict = verified(dictCandidate, raw, listedPaths);
         // The directory-grouped encoding stores one string per directory while the dictionary shares path
         // segments across files, so which is smaller depends on the layout; keep whichever weighs less.
         if (grouped != null && (dict == null || grouped.estimatedBytes() <= dict.estimatedBytes())) {
@@ -68,6 +66,15 @@ final class FileListCompactor {
             return dict;
         }
         return raw;
+    }
+
+    /** Renders every listed key once, so several candidate encodings can be verified against one rendering. */
+    private static String[] listedPaths(GenericFileList raw) {
+        String[] paths = new String[raw.fileCount()];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = raw.path(i).toString();
+        }
+        return paths;
     }
 
     /**

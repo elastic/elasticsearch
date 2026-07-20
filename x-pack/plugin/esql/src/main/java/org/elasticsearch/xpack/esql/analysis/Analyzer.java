@@ -178,6 +178,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Embed;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -1122,6 +1123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case Embed e -> resolveEmbed(e, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1245,6 +1247,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
+        }
+
+        private LogicalPlan resolveEmbed(Embed p, List<Attribute> childrenOutput) {
+            Attribute targetField = p.targetField();
+            Expression input = p.input();
+
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), null, ua.name(), DENSE_VECTOR);
+            }
+
+            if (input.resolved() == false) {
+                input = input.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            return new Embed(p.source(), p.child(), p.inferenceId(), p.rowLimit(), input, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

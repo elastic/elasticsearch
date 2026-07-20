@@ -231,6 +231,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "long_csv_equiv",
         "long_parquet_equiv",
         "typed_strings_parquet",
+        "empty_string_double",
         "logs_deferred_coerce",
         "logs_bad_date_token",
         "logs_bad_date_failfast",

@@ -230,11 +230,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index
                     );
-                    // TODO: there is a possibility that a reconcile round from a recent balance is in progress while a
-                    // new balance gets computed, in which case the routing allocation captured in the DesiredBalanceInput
-                    // could miss an initializing shard created by that concurrent reconciliation. This is not a correctness
-                    // problem, as direct cancellation is a best effort optimization but we should probably catch those
-                    // (maybe by triggering another cancellation round after the first reconcile, after we add request deduplication?)
+                    // We prefer cancelling even on a partial (not-yet-converged) balance in order to avoid delaying freeing
+                    // recovery slots and waste ongoing work (especially for Decision.NO + cancelIfStarted cases).
+                    // This is consistent with reconciliation happening on a partially computed balance. However, this is
+                    // a tradeoff as it can also cause cancellation/allocation back and forth.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);
@@ -245,6 +244,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
+                    // TODO: there is a possibility that a reconcile round from a recent balance is in progress while a
+                    // new balance gets computed, in which case the routing allocation captured in the DesiredBalanceInput
+                    // could miss an initializing shard created by that concurrent reconciliation. This is not a correctness
+                    // problem, as direct cancellation is a best effort optimization but we should probably catch those
+                    // (maybe by triggering another cancellation round after the first reconcile, after we add request deduplication?)
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);

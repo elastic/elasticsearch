@@ -238,7 +238,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         final var blockingIndex = randomIndexName();
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
-        // Takes the only recovery slot on initialReplicaNode
+        // Takes the only recovery slot on initialPrimaryNode
         assertAcked(
             prepareCreate(blockingIndex).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", initialPrimaryNode))
                 .setWaitForActiveShards(ActiveShardCount.NONE)

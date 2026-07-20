@@ -65,10 +65,23 @@ public class DatasetResolver {
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      */
     public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
+        replaceDatasets(parsed, projectMetadata, listener, Federation.isEnabled());
+    }
+
+    /**
+     * Package-private overload that accepts the federation-enabled state as a parameter, allowing unit tests to exercise
+     * the kill-switch branch without relying on the {@code static final} field in {@link Federation}.
+     */
+    void replaceDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        ActionListener<LogicalPlan> listener,
+        boolean federationEnabled
+    ) {
         // Federation suppressed: do not attempt any dataset resolution, so the feature is indistinguishable from one
         // that was never registered (the FROM <dataset> name resolves as an unknown index). The EsqlResolveDatasetAction
         // is also unregistered in this mode, so dispatching it here would fail; skipping is both correct and required.
-        if (Federation.isEnabled() == false) {
+        if (federationEnabled == false) {
             listener.onResponse(parsed);
             return;
         }

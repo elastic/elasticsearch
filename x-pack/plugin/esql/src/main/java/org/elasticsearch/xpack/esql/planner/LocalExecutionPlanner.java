@@ -1851,11 +1851,12 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
-        // Federation kill switch, data-node backstop. This is the single point where an external source becomes a
-        // running operator on any node, so enforcing here guarantees no external I/O on a disabled node regardless of
-        // who planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled coordinator during
-        // a rolling restart that has not yet reached this node. It also catches the inline EXTERNAL command, which
-        // builds this exec at parse time and never passes through the coordinator DatasetResolver gate.
+        // Federation kill switch, data-node backstop. This is where an external source becomes a running operator, so
+        // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a disabled node regardless of who
+        // planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled coordinator during a
+        // rolling restart that has not yet reached this node. The coordinator FROM <dataset> path is closed earlier by
+        // the DatasetResolver gate; the snapshot-only inline EXTERNAL command bypasses that gate and is stopped only
+        // here, after its planning-time source resolution and split discovery have run.
         Federation.ensureEnabled();
 
         Layout.Builder layout = new Layout.Builder();

@@ -38,10 +38,14 @@ import java.util.function.Function;
  *       a nonexistent index gives.</li>
  *   <li>Every node keeps a backstop at the physical external-source operator build
  *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}.
- *       This guarantees no external I/O on a disabled node even when an already-rewritten plan arrives
- *       from elsewhere: an enabled coordinator in CCS/CPS, an enabled coordinator during a rolling
- *       restart that has not yet reached this node, or the inline {@code EXTERNAL} command (which
- *       bypasses the coordinator rewrite).</li>
+ *       This closes the data-node execution path: an already-rewritten {@code ExternalSourceExec}
+ *       shipped from an enabled coordinator (in CCS/CPS, or during a rolling restart that has not yet
+ *       reached this node) is refused before it can build a scanning operator, so a disabled node runs
+ *       no external scan. Coordinator-side work (the {@code FROM <dataset>} rewrite) is closed
+ *       separately by the {@code DatasetResolver} gate above; the snapshot-only inline {@code EXTERNAL}
+ *       command bypasses that gate and is only stopped here at operator build, so on a disabled
+ *       coordinator its planning-time source resolution and split discovery can still touch external
+ *       storage before this backstop fires.</li>
  * </ul>
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data

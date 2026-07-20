@@ -422,6 +422,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     public boolean usesParserForServiceSettings() {
         return true;
     }
+
     /**
      * This shouldn't be called because the configuration changes based on the authorization.
      * Instead, retrieve the authorization directly from the EIS gateway and use the static method

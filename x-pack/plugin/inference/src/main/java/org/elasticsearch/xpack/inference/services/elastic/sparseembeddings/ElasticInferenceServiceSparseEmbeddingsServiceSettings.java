@@ -9,17 +9,23 @@ package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -31,6 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveIntegerLessThanOrEqualToMax;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
@@ -43,14 +50,23 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
-    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
-    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
 
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
 
-    public static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+    public static ObjectParser<Builder, ConfigurationParseContext> createParser(
+        boolean ignoreUnknownFields,
+        ConfigurationParseContext context
+    ) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
             ignoreUnknownFields,
@@ -60,10 +76,17 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         parser.declareInt(Builder::setMaxBatchSize, new ParseField(MAX_BATCH_SIZE));
-        // Here I still declare the rate limit object even though we can't update it
-        // I do it so that I can reject it with a clear error message in the Builder
+        if (context == ConfigurationParseContext.REQUEST) {
+            parser.declareObject(
+                (builder, v) -> builder.rejectRateLimit(),
+                (p, c) -> RateLimitSettings.createParser(false, RateLimitSettings.DISABLED_INSTANCE).apply(p, null),
+                new ParseField(RateLimitSettings.FIELD_NAME)
+            );
+        }
+
         return parser;
     }
+
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
         Map<String, Object> map,
         ConfigurationParseContext context
@@ -73,6 +96,11 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
+        } catch (XContentParseException e) {
+            if (e.getCause() instanceof ValidationException ve) {
+                throw ve;
+            }
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
@@ -188,21 +216,34 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     public int hashCode() {
         return Objects.hash(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
     }
+
     /**
-     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code url}, {@code api_version}, {@code model_id}, or {@code project_id}) causes the strict parser to reject the request.
+     * Parses an update request. Only {@code max_batch_size} is mutable; immutable fields (e.g. {@code model_id},
+     * {@code max_input_tokens}) are rejected by the strict parser.
      */
     private static class Update {
 
         private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
+        private StatefulValue<Integer> maxBatchSize = StatefulValue.undefined();
+
+        static {
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxBatchSize = value, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_BATCH_SIZE);
+                validatePositiveIntegerLessThanOrEqualToMax(value, MAX_BATCH_SIZE, MAX_BATCH_SIZE_UPPER_BOUND);
+                return value;
+            }, new ParseField(MAX_BATCH_SIZE), ObjectParser.ValueType.INT_OR_NULL);
+        }
+
         public ElasticInferenceServiceSparseEmbeddingsServiceSettings mergeInto(
-                ElasticInferenceServiceSparseEmbeddingsServiceSettings existing
-            ) {
+            ElasticInferenceServiceSparseEmbeddingsServiceSettings existing
+        ) {
+            var updatedMaxBatchSize = applyUpdate(this.maxBatchSize, existing.maxBatchSize());
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(
                 existing.modelId(),
                 existing.maxInputTokens(),
-                existing.maxBatchSize()
+                updatedMaxBatchSize
             );
         }
     }
@@ -211,12 +252,17 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
             return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (XContentParseException e) {
+            if (e.getCause() instanceof IllegalArgumentException iae) {
+                throw new ValidationException().addValidationError(iae.getMessage());
+            }
+            throw new ElasticsearchParseException("Failed to parse Elastic Inference Sparse Embeddings service settings update", e);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse Elastic Inference Sparse Embeddings service settings update", e);
         }
     }
 
-    private static class Builder {
+    public static class Builder {
         private String modelId;
         private Integer maxInputTokens;
         private Integer maxBatchSize;
@@ -235,9 +281,19 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             this.maxBatchSize = maxBatchSize;
         }
 
-        public
-        ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
+        public ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
+        }
+
+        public void rejectRateLimit() {
+            throw new ValidationException().addValidationError(
+                Strings.format(
+                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ElasticInferenceService.NAME,
+                    TaskType.SPARSE_EMBEDDING.toString()
+                )
+            );
         }
     }
 }

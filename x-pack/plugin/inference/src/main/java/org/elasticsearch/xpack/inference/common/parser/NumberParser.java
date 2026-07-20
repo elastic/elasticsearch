@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 
@@ -47,20 +46,18 @@ public final class NumberParser {
             );
         }
     }
+
     /**
      * Validates that an optional integer service setting, when present, is higher than the max value, throwing an
      * {@link IllegalArgumentException} otherwise.
      */
-    public static void validatePositiveIntegerLessThanOrEqualToMax(
-        @Nullable Integer value,
-        String settingName,
-        int maxValue
-    ) {
+    public static void validatePositiveIntegerLessThanOrEqualToMax(@Nullable Integer value, String settingName, int maxValue) {
         if (value != null && value > maxValue) {
             throw new IllegalArgumentException(
                 mustBeLessThanOrEqualNumberErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value, maxValue)
             );
         }
     }
+
     private NumberParser() {}
 }

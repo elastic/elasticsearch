@@ -8,16 +8,11 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.Map;
-
-import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveIntegerLessThanOrEqualToMax;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
 
 public final class ElasticInferenceServiceSettingsUtils {
 

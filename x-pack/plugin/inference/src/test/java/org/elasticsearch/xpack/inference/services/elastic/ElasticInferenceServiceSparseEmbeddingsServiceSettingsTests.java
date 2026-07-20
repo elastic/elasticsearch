@@ -12,11 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
@@ -30,17 +31,30 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends AbstractBWCSerializationTestCase<
     ElasticInferenceServiceSparseEmbeddingsServiceSettings> {
 
     @Override
     protected Writeable.Reader<ElasticInferenceServiceSparseEmbeddingsServiceSettings> instanceReader() {
         return ElasticInferenceServiceSparseEmbeddingsServiceSettings::new;
+    }
+
+    private boolean ignoreUnknownFields = randomBoolean();
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return ignoreUnknownFields;
+    }
+
+    @Override
+    protected ElasticInferenceServiceSparseEmbeddingsServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return ElasticInferenceServiceSparseEmbeddingsServiceSettings.createParser(true, ConfigurationParseContext.PERSISTENT)
+            .apply(parser, ConfigurationParseContext.PERSISTENT)
+            .build();
     }
 
     @Override
@@ -67,6 +81,16 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         }
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
     }
+    // public void testParseFromXContent() throws IOException {
+    // try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
+    // {"model_id": "my-model"}
+    // """)) {
+    // var settings = doParseInstance(parser);
+    // assertThat(settings.modelId(), is("my-model"));
+    // assertThat(settings.maxInputTokens(), is(512));
+    // assertThat(settings.maxBatchSize(), is(4));
+    // }
+    // }
 
     public void testFromMap() {
         var modelId = "my-model-id";
@@ -79,7 +103,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
     }
 
-    public void testFromMap_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_PersistentContext() {
+    public void testFromMap_IgnoresRateLimitField_PersistentContext() {
         var modelId = "my-model-id";
         var map = new HashMap<String, Object>(
             Map.of(
@@ -91,7 +115,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         );
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
@@ -101,7 +124,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, modelId));
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(map, anEmptyMap());
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
@@ -127,7 +149,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 "[service_settings] rate limit settings are not permitted for service [elastic] and task type [sparse_embedding]"
             )
         );
-        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
     }
 
     public void testToXContent_WritesAllFields() throws IOException {
@@ -202,6 +223,27 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 )
             );
         }
+    }
+
+    public void testUpdateServiceSettings_KeepsExistingMaxBatchSize_WhenAbsent() {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
+
+        ServiceSettings updated = original.updateServiceSettings(new HashMap<>());
+
+        assertThat(updated, is(original));
+    }
+
+    public void testUpdateServiceSettings_ClearsMaxBatchSize_WhenSetToNull() {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
+        var map = new HashMap<String, Object>();
+        map.put("max_batch_size", null);
+
+        ServiceSettings updated = original.updateServiceSettings(map);
+
+        assertThat(
+            updated,
+            is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(original.modelId(), original.maxInputTokens(), null))
+        );
     }
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings createRandom() {

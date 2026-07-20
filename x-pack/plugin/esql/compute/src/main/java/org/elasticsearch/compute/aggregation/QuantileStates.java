@@ -68,9 +68,9 @@ public final class QuantileStates {
             this(breaker, percentile, DEFAULT_COMPRESSION);
         }
 
-        SingleState(CircuitBreaker breaker, double percentile, double compression) {
+        SingleState(CircuitBreaker breaker, double percentile, double tDigestStateCompression) {
             this.breaker = breaker;
-            this.digest = TDigestState.create(breaker, compression);
+            this.digest = TDigestState.create(breaker, tDigestStateCompression);
             this.percentile = percentileParam(percentile);
         }
 
@@ -128,12 +128,12 @@ public final class QuantileStates {
             this(breaker, bigArrays, percentile, DEFAULT_COMPRESSION);
         }
 
-        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile, double compression) {
+        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile, double tDigestStateCompression) {
             this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.digests = bigArrays.newObjectArray(1);
             this.percentile = percentileParam(percentile);
-            this.compression = compression;
+            this.compression = tDigestStateCompression;
         }
 
         private TDigestState getOrAddGroup(int groupId) {

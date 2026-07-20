@@ -40,8 +40,6 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
     }
 
     private static double randomCompression() {
-        // Small discrete set so randomValueOtherThan converges quickly,
-        // spanning the meaningful range including DEFAULT_COMPRESSION.
         return randomFrom(50.0, 100.0, 200.0, QuantileStates.DEFAULT_COMPRESSION);
     }
 }

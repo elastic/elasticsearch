@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
@@ -150,7 +150,7 @@ public class ApproximationPlan {
      * Bucket columns only need rough quantile estimates for BCa bootstrap CI computation,
      * so full compression is unnecessary and wastes significant memory.
      */
-    static final double BUCKET_COMPRESSION = 100.0;
+    static final double PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION = QuantileStates.DEFAULT_COMPRESSION / 10.0;
 
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
@@ -503,17 +503,9 @@ public class ApproximationPlan {
                 // values, that will be used to compute a confidence interval.
                 // For multivalued aggregations, confidence intervals do not make sense.
 
-                // For PERCENTILE and MEDIAN bucket columns, use reduced compression. The
-                // buckets only need rough quantile estimates for BCa bootstrap CI computation,
-                // so full DEFAULT_COMPRESSION (1000) is unnecessary and creates excessive
-                // memory pressure when there are many groups.
                 AggregateFunction bucketAggFn;
                 if (aggFn instanceof Percentile p) {
-                    bucketAggFn = p.withCompression(BUCKET_COMPRESSION);
-                } else if (aggFn instanceof Median m) {
-                    // Use Median.surrogate() as the single source of truth for the Median→Percentile(50) mapping.
-                    Expression surrogate = m.surrogate();
-                    bucketAggFn = surrogate instanceof Percentile sp ? sp.withCompression(BUCKET_COMPRESSION) : aggFn;
+                    bucketAggFn = p.withTDigestStateCompression(PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION);
                 } else {
                     bucketAggFn = aggFn;
                 }

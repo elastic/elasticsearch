@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -162,15 +163,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(
-            this,
-            (src, f, fil, w, p, comp) -> new Percentile(src, f, fil, w, p, comp),
-            field(),
-            filter(),
-            window(),
-            percentile,
-            (Double) compression  // boxed: Mockito cannot mock primitive double
-        );
+        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile, compression);
     }
 
     @Override
@@ -191,13 +184,13 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         return compression;
     }
 
-    public Percentile withCompression(double newCompression) {
+    public Percentile withTDigestStateCompression(double newCompression) {
         return new Percentile(source(), field(), filter(), window(), percentile, newCompression);
     }
 
     @Override
     public int hashCode() {
-        return 31 * super.hashCode() + Double.hashCode(compression);
+        return Objects.hash(super.hashCode(), compression);
     }
 
     @Override

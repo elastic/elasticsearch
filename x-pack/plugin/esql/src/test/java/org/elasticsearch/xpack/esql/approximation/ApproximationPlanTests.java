@@ -132,13 +132,20 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
     }
 
-    /**
-     * Bucket columns for PERCENTILE use reduced compression ({@link ApproximationPlan#BUCKET_COMPRESSION})
-     * because they only need rough quantile estimates for BCa CI computation, while the main aggregate
-     * retains full precision ({@link QuantileStates#DEFAULT_COMPRESSION}).
-     */
     public void testApproximationPlan_percentileBucketUsesReducedCompression() {
-        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS PERCENTILE(emp_no, 95)");
+        assertBucketUsesReducedCompression("FROM test | STATS PERCENTILE(emp_no, 95)");
+    }
+
+    /**
+     * MEDIAN is substituted by PERCENTILE(50) during optimization. Bucket columns therefore appear as
+     * Percentile with reduced compression while the main aggregate retains full precision.
+     */
+    public void testApproximationPlan_medianBucketUsesReducedCompression() {
+        assertBucketUsesReducedCompression("FROM test | STATS MEDIAN(emp_no)");
+    }
+
+    private void assertBucketUsesReducedCompression(String query) {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(query);
         LogicalPlan approximationPlan = ApproximationPlan.get(
             originalPlan,
             ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
@@ -159,51 +166,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             .toList();
         assertThat(bucketPercentiles, hasSize(ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT));
         for (Percentile bucketPercentile : bucketPercentiles) {
-            assertThat(bucketPercentile.compression(), equalTo(ApproximationPlan.BUCKET_COMPRESSION));
-        }
-
-        // Main aggregate retains full compression for accurate results.
-        List<Percentile> mainPercentiles = sampledAgg.aggregates()
-            .stream()
-            .filter(
-                ne -> ne instanceof Alias a
-                    && a.child() instanceof Percentile
-                    && ne.name().contains(ApproximationPlan.BUCKET_NAME_PART) == false
-            )
-            .map(ne -> (Percentile) ((Alias) ne).child())
-            .toList();
-        assertThat(mainPercentiles, hasSize(1));
-        assertThat(mainPercentiles.getFirst().compression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
-    }
-
-    /**
-     * MEDIAN is substituted by PERCENTILE(50) during optimization. Bucket columns therefore appear as
-     * Percentile with reduced compression ({@link ApproximationPlan#BUCKET_COMPRESSION}) while the main
-     * aggregate retains full precision ({@link QuantileStates#DEFAULT_COMPRESSION}).
-     */
-    public void testApproximationPlan_medianBucketUsesReducedCompression() {
-        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS MEDIAN(emp_no)");
-        LogicalPlan approximationPlan = ApproximationPlan.get(
-            originalPlan,
-            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
-            ApproximationSettings.DEFAULT
-        );
-
-        List<SampledAggregate> sampledAggs = approximationPlan.collect(SampledAggregate.class);
-        assertThat(sampledAggs, hasSize(1));
-        SampledAggregate sampledAgg = sampledAggs.getFirst();
-
-        // Bucket aggregates for MEDIAN (after surrogate substitution to Percentile(50)) use reduced compression.
-        List<Percentile> bucketPercentiles = sampledAgg.aggregates()
-            .stream()
-            .filter(
-                ne -> ne instanceof Alias a && a.child() instanceof Percentile && ne.name().contains(ApproximationPlan.BUCKET_NAME_PART)
-            )
-            .map(ne -> (Percentile) ((Alias) ne).child())
-            .toList();
-        assertThat(bucketPercentiles, hasSize(ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT));
-        for (Percentile bucketPercentile : bucketPercentiles) {
-            assertThat(bucketPercentile.compression(), equalTo(ApproximationPlan.BUCKET_COMPRESSION));
+            assertThat(bucketPercentile.compression(), equalTo(ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION));
         }
 
         // Main aggregate retains full compression for accurate results.

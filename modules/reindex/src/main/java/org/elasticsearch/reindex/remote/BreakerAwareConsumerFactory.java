@@ -21,26 +21,29 @@ import java.util.Objects;
  */
 final class BreakerAwareConsumerFactory implements HttpAsyncResponseConsumerFactory {
 
-    /** Matches the default response buffer limit used by the low-level REST client. */
-    static final int DEFAULT_BUFFER_LIMIT_BYTES = 100 * 1024 * 1024;
+    /**
+     * Mirrors {@code HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.DEFAULT_BUFFER_LIMIT}
+     * for known Content-Length responses.
+     */
+    static final int DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT = 100 * 1024 * 1024;
 
     private final CircuitBreaker breaker;
-    private final int bufferLimitBytes;
+    private final int knownContentLengthBufferLimitBytes;
 
     BreakerAwareConsumerFactory(CircuitBreaker breaker) {
-        this(breaker, DEFAULT_BUFFER_LIMIT_BYTES);
+        this(breaker, DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT);
     }
 
-    BreakerAwareConsumerFactory(CircuitBreaker breaker, int bufferLimitBytes) {
+    BreakerAwareConsumerFactory(CircuitBreaker breaker, int knownContentLengthBufferLimitBytes) {
         this.breaker = Objects.requireNonNull(breaker, "breaker");
-        if (bufferLimitBytes <= 0) {
-            throw new IllegalArgumentException("bufferLimitBytes must be > 0, was " + bufferLimitBytes);
+        if (knownContentLengthBufferLimitBytes <= 0) {
+            throw new IllegalArgumentException("knownContentLengthBufferLimitBytes must be > 0, was " + knownContentLengthBufferLimitBytes);
         }
-        this.bufferLimitBytes = bufferLimitBytes;
+        this.knownContentLengthBufferLimitBytes = knownContentLengthBufferLimitBytes;
     }
 
     @Override
     public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
-        return new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, bufferLimitBytes);
+        return new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, knownContentLengthBufferLimitBytes);
     }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.reindex.remote.BreakerAwareConsumerFactory.DEFAULT_BUFFER_LIMIT_BYTES;
+import static org.elasticsearch.reindex.remote.BreakerAwareConsumerFactory.DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -33,20 +33,20 @@ public class BreakerAwareConsumerFactoryTests extends ESTestCase {
         assertThat(second, instanceOf(BreakerAwareHeapBufferedAsyncResponseConsumer.class));
     }
 
-    public void testDefaultBufferLimitMatchesRestClientDefault() {
-        assertThat(DEFAULT_BUFFER_LIMIT_BYTES, equalTo(100 * 1024 * 1024));
+    public void testDefaultKnownContentLengthLimitMatchesRestClientDefault() {
+        assertThat(DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT, equalTo(100 * 1024 * 1024));
         var factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
         var consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) factory.createHttpAsyncResponseConsumer();
 
-        assertThat(consumer.getBufferLimit(), equalTo(DEFAULT_BUFFER_LIMIT_BYTES));
+        assertThat(consumer.getKnownContentLengthLimitBytes(), equalTo(DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT));
     }
 
-    public void testCustomBufferLimitIsUsed() {
+    public void testCustomKnownContentLengthLimitIsUsed() {
         int customLimit = between(1, 10_000);
         var factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), customLimit);
         var consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) factory.createHttpAsyncResponseConsumer();
 
-        assertThat(consumer.getBufferLimit(), equalTo(customLimit));
+        assertThat(consumer.getKnownContentLengthLimitBytes(), equalTo(customLimit));
     }
 
     public void testConstructorValidation() {

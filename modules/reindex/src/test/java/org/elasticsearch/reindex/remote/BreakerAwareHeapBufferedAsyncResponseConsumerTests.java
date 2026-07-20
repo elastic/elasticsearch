@@ -74,6 +74,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
         }
     }
 
+    // A decoder that simply advances the position in the buffer as bytes are read
     private static class FixedBytesContentDecoder implements ContentDecoder {
         private int remainingBytes;
         private boolean completed;
@@ -158,26 +159,29 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
         consumer.responseReceived(responseWithContentLength(-1));
         assertThat(breaker.getUsed(), equalTo(4096L));
 
-        IOException thrown = expectThrows(IOException.class, () -> consumer.consumeContent(new FixedBytesContentDecoder(10_000), null));
-        assertThat(thrown.getCause(), instanceOf(CircuitBreakingException.class));
-        assertThat(thrown.getCause().getMessage(), containsString(REMOTE_RESPONSE_BUFFER_BREAKER_LABEL));
+        CircuitBreakingException thrown = expectThrows(
+            CircuitBreakingException.class,
+            () -> consumer.consumeContent(new FixedBytesContentDecoder(10_000), null)
+        );
+        assertThat(thrown.getMessage(), containsString(REMOTE_RESPONSE_BUFFER_BREAKER_LABEL));
 
         consumer.failed(thrown);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testChunkedResponseIsCappedAtBufferLimit() throws Exception {
+    public void testChunkedResponseGrowsBeyondBufferLimit() throws Exception {
         var breaker = new TrackingBreaker();
+        // bufferLimitBytes only governs known-length responses now; chunked responses ignore it and
+        // are bounded by the circuit breaker instead.
         var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 8194);
 
         consumer.responseReceived(responseWithContentLength(-1));
-        ContentTooLongException thrown = expectThrows(
-            ContentTooLongException.class,
-            () -> consumer.consumeContent(new FixedBytesContentDecoder(10_000), null)
-        );
-        assertThat(thrown.getMessage(), containsString("response buffer exceeded limit [8194] bytes"));
+        // 10_000 bytes exceeds the 8194 limit, which would previously have thrown ContentTooLongException.
+        consumer.consumeContent(new FixedBytesContentDecoder(10_000), null);
+        consumer.responseCompleted(null);
+        assertThat("buffer grows past the limit: 4096 -> 8194 -> 16390", breaker.getUsed(), equalTo(16_390L));
 
-        consumer.failed(thrown);
+        ((Releasable) consumer.getResult().getEntity()).close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

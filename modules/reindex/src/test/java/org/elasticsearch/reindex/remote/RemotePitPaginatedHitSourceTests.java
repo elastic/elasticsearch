@@ -513,7 +513,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             BreakerAwareHeapBufferedAsyncResponseConsumer consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) invocationOnMock
                 .getArguments()[1];
             FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[3];
-            assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
+            assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getKnownContentLengthLimitBytes());
             callback.failed(tooLong);
             return null;
         });

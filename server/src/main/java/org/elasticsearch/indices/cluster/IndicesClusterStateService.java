@@ -815,7 +815,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShard(ShardRouting shardRouting, ClusterState state) {
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
         final var shardId = shardRouting.shardId();
-        final DiscoveryNode sourceNode;
         final ProjectMetadata project = state.metadata().lookupProject(shardRouting.index()).orElse(null);
         assert project != null : "null index project but non-null shard routing " + shardRouting;
         final IndexMetadata indexMetadata = project.index(shardId.getIndex());
@@ -823,6 +822,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final var primaryTerm = indexMetadata.primaryTerm(shardRouting.id());
 
         try {
+            final DiscoveryNode sourceNode;
             if (shardRouting.recoverySource().getType() == Type.PEER) {
                 sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
                 if (sourceNode == null) {
@@ -1051,10 +1051,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final IndexMetadata indexMetadata = project.index(shard.shardId().getIndex());
         assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
         final long primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
-        final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
-        final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(project.id())
-            .shardRoutingTable(shardRouting.shardId());
         try {
+            final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
+            final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(project.id())
+                .shardRoutingTable(shardRouting.shardId());
             shard.updateShardState(
                 shardRouting,
                 primaryTerm,

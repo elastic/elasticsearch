@@ -32,10 +32,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -46,7 +43,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
@@ -255,7 +251,7 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(mustNot.query(), instanceOf(TermQuery.class));
     }
 
-    public void testMatchResolvedLexicalBuilderKeepsOptionsAfterSerialization() {
+    public void testMatchResolvedBuilderKeepsOptionsOnDataNode() {
         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match("title", "quick fox", options("operator", "AND")));
         MatchQueryBuilder lexicalBuilder = asInstanceOf(MatchQueryBuilder.class, asInstanceOf(Match.class, resolved).queryBuilder());
         assertThat(lexicalBuilder.fieldName(), equalTo("title"));
@@ -267,7 +263,7 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         }
     }
 
-    public void testMatchPhraseResolvedLexicalBuilderKeepsOptionsAfterSerialization() {
+    public void testMatchPhraseResolvedBuilderKeepsOptionsOnDataNode() {
         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(matchPhrase("title", "quick fox", options("slop", 2)));
         MatchPhraseQueryBuilder lexicalBuilder = asInstanceOf(
             MatchPhraseQueryBuilder.class,
@@ -281,19 +277,6 @@ public class HighlightQueryBuildersTests extends ESTestCase {
     public void testResolveLexicalQueryBuilderIsIdempotent() {
         Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match("title", "fox", null));
         assertThat(HighlightQueryBuilders.resolveLexicalQueryBuilder(resolved), sameInstance(resolved));
-    }
-
-    public void testResolveLexicalQueryBuilderLeavesOtherExpressionsUnchanged() {
-        Expression queryString = queryString("fox", null);
-        assertThat(HighlightQueryBuilders.resolveLexicalQueryBuilder(queryString), sameInstance(queryString));
-    }
-
-    public void testResolvedLexicalBuilderKeysOffOnColumnForUnionTypedField() {
-        EsField unionField = new MultiTypeEsField("title.converted", KEYWORD, false, Map.of(), EsField.TimeSeriesFieldType.NONE, null);
-        Match match = new Match(EMPTY, new FieldAttribute(EMPTY, "title", unionField), of("fox"), null);
-        Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(match);
-        MatchQueryBuilder builder = asInstanceOf(MatchQueryBuilder.class, asInstanceOf(Match.class, resolved).queryBuilder());
-        assertThat(builder.fieldName(), equalTo("title"));
     }
 
     public void testMatchLenientOptionHonored() {

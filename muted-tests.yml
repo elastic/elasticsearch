@@ -652,3 +652,5 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/154395
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  issue: https://github.com/elastic/elasticsearch/issues/154350

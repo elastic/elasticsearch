@@ -343,12 +343,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected Parameter<Boolean> configureRetainBinaryParam() {
-            return Parameter.boolParam(
-                RETAIN_BINARY_FIELD,
-                false,
-                m -> ((SemanticFieldType) m.fieldType()).getRetainBinary(),
-                true
-            );
+            return Parameter.boolParam(RETAIN_BINARY_FIELD, false, m -> ((SemanticFieldType) m.fieldType()).getRetainBinary(), true);
         }
 
         protected Parameter<Map<String, String>> configureMetaParam() {

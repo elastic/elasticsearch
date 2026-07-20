@@ -19,6 +19,8 @@ import org.apache.lucene.search.TopDocs;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
+
 /**
  * Interface for KNN queries that support post-filtering with retry.
  * Implemented by the HNSW query classes ({@link ESKnnFloatVectorQuery},
@@ -66,6 +68,30 @@ public interface PostFilterableKnnQuery {
      */
     static double zMargin(int k, float selectivity) {
         return POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - selectivity) / selectivity);
+    }
+
+    record OversampledParams(int scaledK, int scaledNumCands) {}
+
+    /**
+     * Sizes round 1 of a post-filter search from the target {@code k}, the configured
+     * {@code numCands} and the estimated filter {@code selectivity}.
+     * <p>
+     * {@code scaledK} follows the binomial-variance model in {@link #POST_FILTER_OVERSAMPLE_Z_SCORE}:
+     * enough candidates that, after the filter drops a {@code (1 - selectivity)} fraction, {@code k}
+     * still survives with high probability, clamped below by {@link #POST_FILTER_OVERSAMPLE_FLOOR}×
+     * and above by {@code NUM_CANDS_LIMIT}. {@code scaledNumCands} keeps the exploration budget at
+     * least as wide as {@code scaledK}, otherwise the search cannot surface that many candidates,
+     * without exceeding {@code NUM_CANDS_LIMIT}.
+     */
+    static OversampledParams computeOversampledParams(int k, int numCands, float selectivity) {
+        double zMargin = zMargin(k, selectivity);
+        int scaledK = (int) Math.clamp(
+            Math.ceil((k + zMargin) / selectivity),
+            Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
+        );
+        int scaledNumCands = Math.clamp(numCands, scaledK, NUM_CANDS_LIMIT);
+        return new OversampledParams(scaledK, scaledNumCands);
     }
 
     /**

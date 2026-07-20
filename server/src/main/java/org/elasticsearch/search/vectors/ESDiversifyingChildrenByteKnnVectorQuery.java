@@ -25,8 +25,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
-
 public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery
     implements
         QueryProfilerProvider,
@@ -122,21 +120,13 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
-        int scaledK = (int) Math.clamp(
-            Math.ceil((kParam + zMargin) / filterSelectivity),
-            Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
-            NUM_CANDS_LIMIT
-        );
-        // numCands (the HNSW beam width) must be at least scaledK so round 1 can actually
-        // surface scaledK candidates, and must not exceed the overall candidate limit.
-        int scaledNumCands = Math.clamp(numCandsParam, scaledK, NUM_CANDS_LIMIT);
+        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
             null,
-            scaledK,
-            scaledNumCands,
+            params.scaledK(),
+            params.scaledNumCands(),
             parentsFilter,
             searchStrategy,
             earlyTermination,

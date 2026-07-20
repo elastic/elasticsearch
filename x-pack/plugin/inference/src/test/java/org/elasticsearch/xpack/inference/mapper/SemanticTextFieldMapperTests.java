@@ -1162,7 +1162,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             String fieldName = "field";
 
             MapperService mapperService = createSemanticMapperServiceWithIndexVersion(
-                mapping(b -> addSemanticMapping(b, fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions)),
+                semanticMapping(fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions),
                 indexVersion
             );
             var expectedIndexOptions = (indexOptions == null)
@@ -1184,9 +1184,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
             merge(
                 mapperService,
-                mapping(
-                    b -> addSemanticMapping(b, fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, newIndexOptions)
-                )
+                semanticMapping(fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, newIndexOptions)
             );
             assertSemanticField(mapperService, fieldName, false, newChunkingSettings, expectedIndexOptions);
         }
@@ -1653,15 +1651,12 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         String fieldName = "field";
 
         MapperService mapperService = createSemanticMapperService(
-            mapping(b -> addSemanticMapping(b, fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions))
+            semanticMapping(fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions)
         );
         assertSemanticField(mapperService, fieldName, false, chunkingSettings, indexOptions);
 
         ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
-        merge(
-            mapperService,
-            mapping(b -> addSemanticMapping(b, fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, indexOptions))
-        );
+        merge(mapperService, semanticMapping(fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, indexOptions));
         assertSemanticField(mapperService, fieldName, false, newChunkingSettings, indexOptions);
     }
 
@@ -1698,7 +1693,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         );
 
         MapperService mapperService = createSemanticMapperService(
-            mapping(b -> addSemanticMapping(b, "field", model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions))
+            semanticMapping("field", model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions)
         );
         SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
         DocumentParsingException ex = expectThrows(

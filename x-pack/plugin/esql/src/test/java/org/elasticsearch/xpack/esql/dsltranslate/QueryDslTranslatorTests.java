@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -15,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInte
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -33,6 +36,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
 import java.util.List;
@@ -60,11 +65,14 @@ public class QueryDslTranslatorTests extends ESTestCase {
     // A fixed query "now" so date-math bounds ("now-1d") resolve deterministically in tests.
     private static final long NOW = Instant.parse("2020-06-15T12:00:00Z").toEpochMilli();
 
+    // The query configuration carrying that fixed now (and the locale used to case-fold a case_insensitive term).
+    private static final Configuration CONFIG = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).now(Instant.ofEpochMilli(NOW)).build();
+
     // The schema field set (for multi_match expansion) — the names the BINDER resolves to a present attribute.
     private static final Set<String> FIELDS = Set.of("status", "tags", "bytes", "score", "@timestamp", "ts_nanos", "active", "body");
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, FIELDS, NOW).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb);
     }
 
     /** Fail-closed: an unsupported construct throws — the caller (a query function, the request filter) turns it into an error. */
@@ -268,11 +276,41 @@ public class QueryDslTranslatorTests extends ESTestCase {
                     .minimumShouldMatch(2)
             )
         );
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("tags", "a").caseInsensitive(true)));
         expectThrows(
             TranslationUnsupportedException.class,
             () -> translate(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01T00:00:00Z").timeZone("+02:00"))
         );
+    }
+
+    /**
+     * A case-insensitive term on a keyword folds both sides to lower case: {@code mv_contains(TO_LOWER(field), lowered)}.
+     * {@code TO_LOWER} maps over each value, so the any-value shape holds; the exact value (whitespace included — keyword
+     * is not analyzed) is lower-cased, not the field name.
+     */
+    public void testCaseInsensitiveTermOnKeyword() {
+        Expression e = translate(QueryBuilders.termQuery("tags", "AbC").caseInsensitive(true));
+        assertThat(e, instanceOf(MvContains.class));
+        MvContains c = (MvContains) e;
+        assertThat("the field side is lower-cased", c.children().get(0), instanceOf(ToLower.class));
+        Literal value = (Literal) c.children().get(1);
+        assertEquals(DataType.KEYWORD, value.dataType());
+        assertEquals("the value side is lower-cased", new BytesRef("abc"), value.value());
+    }
+
+    /**
+     * The index rejects {@code case_insensitive} on a non-string field, and analyzed {@code text} has no faithful
+     * structural equality — both degrade (fail-closed) rather than answering a narrower question.
+     */
+    public void testCaseInsensitiveTermOnNonKeywordIsUnsupported() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("status", "1").caseInsensitive(true)));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("body", "x").caseInsensitive(true)));
+    }
+
+    /** A missing field is null-bound and folds to false regardless of case — the ordinary null-bound equality leaf. */
+    public void testCaseInsensitiveTermOnMissingFieldFoldsLikeEquality() {
+        Expression e = translate(QueryBuilders.termQuery("nope", "X").caseInsensitive(true));
+        assertThat(e, instanceOf(MvContains.class));
+        assertEquals(Literal.NULL, ((MvContains) e).children().get(0));
     }
 
     /**

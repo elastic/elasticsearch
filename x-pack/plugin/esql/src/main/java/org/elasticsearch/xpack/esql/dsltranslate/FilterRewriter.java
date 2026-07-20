@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -51,12 +52,18 @@ public final class FilterRewriter {
      *                    source boundary). Prefer the lowest matching nodes: {@code transformUp} rebuilds a parent whose
      *                    child changed, so a predicate matching both a node and its ancestor may not see the rebuilt
      *                    ancestor.
-     * @param filter      the Query DSL to translate; must not be null (callers gate an absent filter themselves).
-     * @param nowInMillis the query's start time, epoch millis, anchoring {@code now} date math in the translated filter.
+     * @param filter        the Query DSL to translate; must not be null (callers gate an absent filter themselves).
+     * @param configuration the query configuration, carrying the {@code now} anchor for date math and the locale for
+     *                      case-folding in the translated filter.
      * @throws TranslationUnsupportedException if {@code filter} contains a construct outside the supported subset — the
      *                    translation is fail-closed, so this propagates for the caller to turn into an error.
      */
-    public static LogicalPlan rewrite(LogicalPlan plan, Predicate<? super LogicalPlan> target, QueryBuilder filter, long nowInMillis) {
+    public static LogicalPlan rewrite(
+        LogicalPlan plan,
+        Predicate<? super LogicalPlan> target,
+        QueryBuilder filter,
+        Configuration configuration
+    ) {
         Objects.requireNonNull(filter, "filter must not be null");
         LogicalPlan rewritten = plan.transformUp(LogicalPlan.class, node -> {
             if (target.test(node) == false) {
@@ -69,7 +76,7 @@ public final class FilterRewriter {
             QueryDslTranslator translator = new QueryDslTranslator(name -> {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
-            }, byName.keySet(), nowInMillis);
+            }, byName.keySet(), configuration);
             // Fail-closed: an unsupported construct throws TranslationUnsupportedException out of transformUp.
             Expression condition = translator.translate(filter);
             // A filter that translates to a supported no-op (match_all -> TRUE) leaves the node unwrapped.

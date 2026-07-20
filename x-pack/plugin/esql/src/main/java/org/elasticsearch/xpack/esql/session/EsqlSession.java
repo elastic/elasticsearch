@@ -467,12 +467,7 @@ public class EsqlSession {
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
                     try {
-                        plan = RequestFilterRewriter.rewrite(
-                            analyzedPlan.inner(),
-                            request.filter(),
-                            finalConfiguration.absoluteStartedTimeInMillis(),
-                            minimumVersion
-                        );
+                        plan = RequestFilterRewriter.rewrite(analyzedPlan.inner(), request.filter(), finalConfiguration, minimumVersion);
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;

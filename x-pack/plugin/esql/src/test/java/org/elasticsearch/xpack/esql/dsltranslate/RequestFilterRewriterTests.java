@@ -23,7 +23,10 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +40,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RequestFilterRewriterTests extends ESTestCase {
 
     private static final long NOW = 1_600_000_000_000L;
+    private static final Configuration CONFIG = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).now(Instant.ofEpochMilli(NOW)).build();
     private static final TransportVersion CURRENT = RequestFilterRewriter.ESQL_REQUEST_FILTER_ON_DATASET;
     private static final TransportVersion TOO_OLD = TransportVersion.minimumCompatible();
 
@@ -48,12 +52,12 @@ public class RequestFilterRewriterTests extends ESTestCase {
 
     public void testNullFilterLeavesPlanUnchanged() {
         ExternalRelation relation = relation();
-        assertSame(relation, RequestFilterRewriter.rewrite(relation, null, NOW, CURRENT));
+        assertSame(relation, RequestFilterRewriter.rewrite(relation, null, CONFIG, CURRENT));
     }
 
     public void testSupportedFilterIsInstalledAboveTheRelation() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), NOW, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, CURRENT);
         assertThat(result, instanceOf(Filter.class));
         assertThat(((Filter) result).child(), sameInstance(relation));
     }
@@ -63,7 +67,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         ExternalRelation relation = relation();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT)
+            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT)
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
     }
@@ -79,7 +83,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             () -> RequestFilterRewriter.rewrite(
                 relation,
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
-                NOW,
+                CONFIG,
                 CURRENT
             )
         );
@@ -89,7 +93,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
     /** The critical version gate: below the feature version the rewrite is skipped, so no plan an old node can't read ships. */
     public void testOldMinimumVersionSkipsTheRewriteEntirely() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertSame(relation, result);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
@@ -113,7 +117,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         EsRelation index = EsqlTestUtils.relation();
         ExternalRelation dataset = relation("ds", attr("a", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(index, dataset), List.of());
-        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), NOW, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, CURRENT);
 
         Map<Boolean, LogicalPlan> children = new HashMap<>();
         ((UnionAll) result).children().forEach(c -> children.put(c instanceof Filter, c));
@@ -129,7 +133,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             () -> RequestFilterRewriter.rewrite(
                 relation,
                 QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
-                NOW,
+                CONFIG,
                 CURRENT
             )
         );
@@ -143,7 +147,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertThat(result, sameInstance(union));
         assertWarnings(
             "The request filter was not applied to external dataset(s) [dsA, dsB] because the cluster contains a node "
@@ -158,7 +162,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             List.of(relation("ds", attr("a", DataType.INTEGER)), relation("ds", attr("a", DataType.INTEGER))),
             List.of()
         );
-        RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
                 + "too old to evaluate the translated filter; they were read unfiltered"
@@ -168,7 +172,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
     /** No datasets in the plan -> the version gate is silent (nothing to warn about). */
     public void testVersionGateOnPlanWithoutDatasetsStaysSilent() {
         EsRelation index = EsqlTestUtils.relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(index, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(index, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertThat(result, sameInstance(index));
         // no assertWarnings: the datasets.isEmpty() guard means nothing is emitted
     }
@@ -186,7 +190,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             Map.of(),
             null
         );
-        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), NOW, TOO_OLD);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [file:///data.csv] because the cluster contains a node "
                 + "too old to evaluate the translated filter; they were read unfiltered"
@@ -202,7 +206,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT)
+            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT)
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
     }
@@ -227,7 +231,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("region", "eu"))
                 .must(QueryBuilders.rangeQuery("status").gte(200).lte(400)),
-            NOW,
+            CONFIG,
             CURRENT
         );
 

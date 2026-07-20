@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -43,12 +44,18 @@ public final class RequestFilterRewriter {
     private RequestFilterRewriter() {}
 
     /**
-     * @param nowInMillis    the query's start time, epoch millis — anchors {@code now} date math so a request filter
-     *                       over an external source resolves {@code "now-15m"} to the same instant the index path would.
+     * @param configuration  the query configuration — anchors {@code now} date math so a request filter over an
+     *                       external source resolves {@code "now-15m"} to the same instant the index path would, and
+     *                       supplies the locale for case-folding.
      * @param minimumVersion the minimum transport version across the nodes this plan targets; below
      *                       {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class javadoc).
      */
-    public static LogicalPlan rewrite(LogicalPlan analyzed, QueryBuilder requestFilter, long nowInMillis, TransportVersion minimumVersion) {
+    public static LogicalPlan rewrite(
+        LogicalPlan analyzed,
+        QueryBuilder requestFilter,
+        Configuration configuration,
+        TransportVersion minimumVersion
+    ) {
         if (requestFilter == null) {
             return analyzed;
         }
@@ -59,7 +66,7 @@ public final class RequestFilterRewriter {
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
         // Translation is fail-closed: an unsupported construct throws out of FilterRewriter and becomes a 400.
         try {
-            return FilterRewriter.rewrite(analyzed, ExternalRelation.class::isInstance, requestFilter, nowInMillis);
+            return FilterRewriter.rewrite(analyzed, ExternalRelation.class::isInstance, requestFilter, configuration);
         } catch (TranslationUnsupportedException e) {
             throw new IllegalArgumentException(
                 "The request filter uses a Query DSL construct not supported on external datasets: [" + e.construct() + "]",

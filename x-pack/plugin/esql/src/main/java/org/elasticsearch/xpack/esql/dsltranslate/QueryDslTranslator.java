@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInte
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -79,22 +81,25 @@ public final class QueryDslTranslator {
 
     private final Function<String, Expression> fieldBinder;
     private final Set<String> fieldNames;
+    private final Configuration configuration;
     private final long nowInMillis;
 
     /**
      * A fail-closed translator: an unsupported construct raises {@link TranslationUnsupportedException}.
      *
-     * @param fieldBinder resolves a DSL field name to the ES|QL expression standing for it on this source — the
-     *                    source's attribute when the field exists, {@link Literal#NULL} when it does not.
-     * @param fieldNames  every field the source has, used to expand a {@code multi_match}'s field patterns (a bare
-     *                    function binder cannot be enumerated). Leaves still bind through {@code fieldBinder}.
-     * @param nowInMillis the query's start time, epoch millis — the anchor for {@code now} date math on date bounds, so
-     *                    that {@code "now-15m"} resolves to the same instant the index path would use for this request.
+     * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
+     *                      source's attribute when the field exists, {@link Literal#NULL} when it does not.
+     * @param fieldNames    every field the source has, used to expand a {@code multi_match}'s field patterns (a bare
+     *                      function binder cannot be enumerated). Leaves still bind through {@code fieldBinder}.
+     * @param configuration the query configuration — the source of {@code now} for date math (so {@code "now-15m"}
+     *                      resolves to the same instant the index path would use for this request) and of the locale
+     *                      used to case-fold a {@code case_insensitive} term.
      */
-    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, long nowInMillis) {
+    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, Configuration configuration) {
         this.fieldBinder = fieldBinder;
         this.fieldNames = fieldNames;
-        this.nowInMillis = nowInMillis;
+        this.configuration = configuration;
+        this.nowInMillis = configuration.absoluteStartedTimeInMillis();
     }
 
     /** Translate a DSL query into an ES|QL boolean predicate. */
@@ -137,11 +142,38 @@ public final class QueryDslTranslator {
     }
 
     private Expression term(TermQueryBuilder term) {
-        // A case-insensitive term is a different predicate; translating it as-is would silently under-match.
+        Expression field = fieldBinder.apply(term.fieldName());
         if (term.caseInsensitive()) {
-            throw new TranslationUnsupportedException("term[case_insensitive]");
+            return caseInsensitiveEquality(field, term.value());
         }
-        return equality(fieldBinder.apply(term.fieldName()), term.value(), false);
+        return equality(field, term.value(), false);
+    }
+
+    /**
+     * A case-insensitive term folds both sides to lower case before the any-value equality, mirroring the index's
+     * {@code case_insensitive} term (which lower-cases both the term and the keyword). {@code TO_LOWER} maps over each
+     * value of a multivalue field, so {@code mv_contains} keeps the two-valued any-value shape; both sides fold with the
+     * query's locale, so the comparison is internally consistent. Only {@code keyword} supports it: the index rejects
+     * {@code case_insensitive} on a non-string field, and analyzed {@code text} has no faithful structural equality — so
+     * a present non-keyword field degrades, while a missing field stays null-bound and folds to false like every other
+     * leaf (the case distinction is moot there, so it takes the ordinary equality leaf). The one residual divergence
+     * from the index is that {@code TO_LOWER} folds with the request locale where Lucene folds locale-independently — a
+     * non-issue for the ASCII keyword values this targets.
+     */
+    private Expression caseInsensitiveEquality(Expression field, Object value) {
+        if (isPresent(field) == false) {
+            return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value)));
+        }
+        if (field.dataType() != DataType.KEYWORD) {
+            throw new TranslationUnsupportedException("term[case_insensitive on " + field.dataType().typeName() + "]");
+        }
+        Expression lowered = new ToLower(Source.EMPTY, field, configuration);
+        Literal literal = new Literal(
+            Source.EMPTY,
+            new BytesRef(String.valueOf(value).toLowerCase(configuration.locale())),
+            DataType.KEYWORD
+        );
+        return checkedLeaf(field, new MvContains(Source.EMPTY, lowered, literal));
     }
 
     /**

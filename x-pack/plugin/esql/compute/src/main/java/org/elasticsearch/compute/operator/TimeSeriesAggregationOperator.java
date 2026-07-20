@@ -23,18 +23,14 @@ import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluat
 import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -163,126 +159,30 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         super.finish();
     }
 
+    /**
+     * On the output-filtered (sub-bucketed) final/SINGLE path, emit only the groups whose timestamp aligns to an output
+     * bucket boundary, and stash the full group set on the evaluation context so window aggregators can still reach every
+     * internal group through {@link TimeSeriesGroupingAggregatorEvaluationContext#allGroupIds()}. The base operator then
+     * slices this reduced selection into pages, so the sub-bucketed path is chunked the same way as the non-filtered path.
+     */
     @Override
-    protected void emit() {
-        if (rowsAddedInCurrentBatch == 0) {
-            return;
-        }
+    protected IntVector selectedKeysForEmit(GroupingAggregatorEvaluationContext ctx, IntVector allKeys) {
         if (needsOutputFiltering() == false) {
-            super.emit();
-            return;
+            return super.selectedKeysForEmit(ctx, allKeys);
         }
         TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
         int[] outputPositions = computeOutputAlignedPositions(tsBlockHash);
         if (outputPositions == null) {
-            super.emit();
-            return;
+            return super.selectedKeysForEmit(ctx, allKeys);
         }
-        long startInNanos = System.nanoTime();
-        try {
-            output = new OutputFilteredResult(outputPositions);
-        } finally {
-            rowsAddedInCurrentBatch = 0;
-            emitNanos += System.nanoTime() - startInNanos;
-            emitCount++;
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
+            tsCtx.setAllGroupIds(allKeys);
         }
-    }
-
-    /**
-     * Multi-page output for the output-filtered (sub-bucketed) final/SINGLE path. Each aggregator is prepared once over
-     * the full output-aligned selection so that window aggregators can still see every internal group through
-     * {@link TimeSeriesGroupingAggregatorEvaluationContext#allGroupIds()}; the selection is then sliced into pages of about
-     * {@link #maxPageSize()} rows, emitting one page per slice. This bounds the coordinator's peak memory the same way the
-     * generic {@link HashAggregationOperator} chunking does for the non-filtered path (before this the whole result was
-     * built as a single, potentially jumbo, page).
-     */
-    private final class OutputFilteredResult implements ReleasableIterator<Page> {
-        private final GroupingAggregatorEvaluationContext ctx;
-        // The full set of internal groups; kept for the window aggregators via ctx#allGroupIds and closed here (not owned
-        // by ctx, matching the previous emit path).
-        private final IntVector allSelected;
-        private final IntVector outputSelected;
-        private final IntVector[] aggsSelected;
-        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
-        private final int[] aggBlockCounts;
-        private int rowOffset = 0;
-
-        OutputFilteredResult(int[] outputPositions) {
-            this.aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            final int count = aggregators.size();
-            GroupingAggregatorEvaluationContext ctx = null;
-            IntVector allSelected = null;
-            IntVector outputSelected = null;
-            IntVector[] aggsSelected = new IntVector[count];
-            List<GroupingAggregatorFunction.PreparedForEvaluation> prepared = new ArrayList<>(count);
-            boolean success = false;
-            try {
-                allSelected = blockHash.nonEmpty();
-                try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
-                    for (int i = 0; i < outputPositions.length; i++) {
-                        builder.appendInt(i, outputPositions[i]);
-                    }
-                    outputSelected = builder.build();
-                }
-                ctx = evaluationContext(blockHash);
-                if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
-                    tsCtx.setAllGroupIds(allSelected);
-                }
-                for (int i = 0; i < count; i++) {
-                    aggsSelected[i] = customizeSelected(aggregators.get(i), outputSelected);
-                    prepared.add(aggregators.get(i).prepareForEvaluate(aggsSelected[i], ctx));
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(ctx, allSelected, outputSelected, Releasables.wrap(aggsSelected), Releasables.wrap(prepared));
-                }
+        try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
+            for (int i = 0; i < outputPositions.length; i++) {
+                builder.appendInt(i, outputPositions[i]);
             }
-            this.ctx = ctx;
-            this.allSelected = allSelected;
-            this.outputSelected = outputSelected;
-            this.aggsSelected = aggsSelected;
-            this.preparedAggregators = prepared;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return rowOffset < outputSelected.getPositionCount();
-        }
-
-        @Override
-        public Page next() {
-            long startInNanos = System.nanoTime();
-            int endOffset = Math.min(maxPageSize() + rowOffset, outputSelected.getPositionCount());
-            try (IntVector keySlice = outputSelected.slice(rowOffset, endOffset)) {
-                Block[] keys = blockHash.getKeys(keySlice);
-                Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-                System.arraycopy(keys, 0, blocks, 0, keys.length);
-                try {
-                    int offset = keys.length;
-                    for (int i = 0; i < preparedAggregators.size(); i++) {
-                        try (IntVector aggSlice = aggsSelected[i].slice(rowOffset, endOffset)) {
-                            preparedAggregators.get(i).evaluate(blocks, offset, aggSlice);
-                        }
-                        offset += aggBlockCounts[i];
-                    }
-                    Page page = new Page(blocks);
-                    blocks = null;
-                    rowOffset = endOffset;
-                    return page;
-                } finally {
-                    if (blocks != null) {
-                        Releasables.closeExpectNoException(blocks);
-                    }
-                }
-            } finally {
-                emitNanos += System.nanoTime() - startInNanos;
-            }
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(ctx, allSelected, outputSelected, Releasables.wrap(aggsSelected), Releasables.wrap(preparedAggregators));
+            return builder.build();
         }
     }
 

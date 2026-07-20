@@ -548,11 +548,17 @@ public class HashAggregationOperator implements Operator {
     }
 
     /**
-     * Target number of rows per emitted output page. Subclasses that build their own output iterator use this to slice a
-     * large result into multiple pages, matching the chunking the base operator applies on its own emit path.
+     * Selects which group ids ("keys") to emit, given the full set of non-empty groups. The default emits every group.
+     * Subclasses can override to emit a subset: the time-series operator emits only the groups aligned to the output
+     * time bucket, while still exposing the full group set to window aggregators through the evaluation context.
+     * <p>
+     * The returned vector is owned by the caller. {@code allKeys} remains owned by the caller and is released right after
+     * this method returns, so an implementation that needs to retain it (e.g. by stashing it in {@code ctx}) must
+     * increment its reference count.
      */
-    protected int maxPageSize() {
-        return maxPageSize;
+    protected IntVector selectedKeysForEmit(GroupingAggregatorEvaluationContext ctx, IntVector allKeys) {
+        allKeys.incRef();
+        return allKeys;
     }
 
     protected boolean shouldEmitPartialResultsPeriodically() {
@@ -886,7 +892,9 @@ public class HashAggregationOperator implements Operator {
                             .selectTopN(allKeys, topAggregation.limit(), topAggregation.asc());
                     }
                 } else {
-                    keys = blockHash.nonEmpty();
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = selectedKeysForEmit(ctx, allKeys);
+                    }
                 }
                 selected = new Selected(keys, new IntVector[count]);
                 for (int a = 0; a < count; a++) {

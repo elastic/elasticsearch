@@ -26,7 +26,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
+    : fieldExp=primaryExpression COLON matchQuery=constant
     ;
 
 valueExpression

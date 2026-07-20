@@ -26,12 +26,9 @@ import java.util.concurrent.ExecutorService;
  * Data source plugin providing Azure Blob Storage support for ESQL.
  * Supports the wasbs:// and wasb:// URI schemes.
  * <p>
- * Usage in ESQL:
- * <pre>
- *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *     WITH {"account": "myaccount", "key": "...", "endpoint": "https://myaccount.blob.core.windows.net"}
- * </pre>
+ * Usage in ESQL: register a dataset over a {@code wasbs://}/{@code wasb://} resource, optionally
+ * with the {@code account}, {@code key}, and {@code endpoint} settings, then query it with
+ * {@code FROM <dataset>}.
  * <p>
  * The node-level {@link Environment} needed to resolve the AKS Workload Identity token symlink
  * ({@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token}) arrives through the

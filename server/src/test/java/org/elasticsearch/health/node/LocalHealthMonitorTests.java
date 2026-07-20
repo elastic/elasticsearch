@@ -76,8 +76,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initLocalHealthMonitor() throws Exception {
         // Set-up cluster state
         healthMetadata = new HealthMetadata(
             HealthMetadata.Disk.newBuilder()
@@ -123,9 +122,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-
+    public void stopLocalHealthMonitor() throws Exception {
         // Kill monitoring process running in the background after each test.
         localHealthMonitor.setEnabled(false);
     }

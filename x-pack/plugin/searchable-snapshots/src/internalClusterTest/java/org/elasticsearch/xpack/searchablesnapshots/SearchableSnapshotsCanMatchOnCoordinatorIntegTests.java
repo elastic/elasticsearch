@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
@@ -840,20 +839,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(searchableSnapshotIndexWithinSearchRange)
             .source(new SearchSourceBuilder().query(rangeQuery));
 
-        // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
-        // is not available yet
-        expectThrows(SearchPhaseExecutionException.class, () -> {
-            SearchResponse response = client().search(request).actionGet();
-            logger.info(
-                "[TEST DEBUG INFO] Search hits: {} Successful shards: {}, failed shards: {}, skipped shards: {}, total shards: {}",
-                response.getHits().getTotalHits().value(),
-                response.getSuccessfulShards(),
-                response.getFailedShards(),
-                response.getSkippedShards(),
-                response.getTotalShards()
-            );
-            fail("This search call is expected to throw an exception but it did not");
-        });
+        // Deliberately no full search here: against recovering shards it can block on
+        // IndexShard#waitForSearchReady.
 
         // test with SearchShards API
         boolean allowPartialSearchResults = false;

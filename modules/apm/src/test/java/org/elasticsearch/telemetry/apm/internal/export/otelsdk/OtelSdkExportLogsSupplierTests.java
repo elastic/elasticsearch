@@ -73,6 +73,31 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         }
     }
 
+    public void testMaxQueueSizeDefault() {
+        assertThat(OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(Settings.EMPTY), equalTo(10_000));
+    }
+
+    public void testMaxQueueSizeBelowMinimumIsRejected() {
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.getKey(), 0).build();
+        expectThrows(IllegalArgumentException.class, () -> OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings));
+    }
+
+    public void testInstallWithCustomTimeoutRetryAndQueueSizeDoesNotThrow() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.getKey(), "1ms")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.getKey(), 42)
+            .build();
+        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
+        try {
+            supplier.install(); // must not throw despite the custom timeout/retry/queue-size settings
+        } finally {
+            supplier.close();
+        }
+    }
+
     public void testCloseWithoutInstallDoesNotThrow() {
         new OtelSdkExportLogsSupplier(Settings.EMPTY).close();
     }

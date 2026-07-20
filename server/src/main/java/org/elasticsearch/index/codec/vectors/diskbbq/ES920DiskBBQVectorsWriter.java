@@ -40,6 +40,8 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
+import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
 
@@ -487,6 +489,14 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         // no-op
     }
 
+    /**
+     * Information on parent centroid groups for two-layer centroid indexing.
+     *
+     * @param centroids                   the parent centroids
+     * @param vectors                     indexed by parent ordinal; {@code vectors[p]} holds the ordinals of the
+     *                                    child centroids assigned to parent {@code p}
+     * @param maxVectorsPerCentroidLength the largest number of children assigned to a single parent
+     */
     record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     @Override
@@ -655,15 +665,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         return calculateCentroids(fieldInfo, floatVectorValues);
     }
 
-    /**
-     * Calculate the centroids for the given field.
-     * We use the {@link HierarchicalKMeans} algorithm to partition the space of all vectors across merging segments
-     *
-     * @param fieldInfo merging field info
-     * @param floatVectorValues the float vector values to merge
-     * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
-     * @throws IOException if an I/O error occurs
-     */
     @Override
     public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
@@ -802,8 +803,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         private short bitSum;
         private int currOrd = -1;
         private int count;
-        private IntToBooleanFunction isOverspill = null;
-        private IntToIntFunction ordTransformer = null;
+        private IntPredicate isOverspill = null;
+        private IntUnaryOperator ordTransformer = null;
 
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
@@ -811,7 +812,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
         }
 
-        private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
+        private void reset(int count, IntPredicate isOverspill, IntUnaryOperator ordTransformer) {
             this.count = count;
             this.isOverspill = isOverspill;
             this.ordTransformer = ordTransformer;
@@ -829,8 +830,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
                 throw new IllegalStateException("No more vectors to read, current ord: " + currOrd + ", count: " + count);
             }
             currOrd++;
-            int ord = ordTransformer.apply(currOrd);
-            boolean isOverspill = this.isOverspill.apply(currOrd);
+            int ord = ordTransformer.applyAsInt(currOrd);
+            boolean isOverspill = this.isOverspill.test(currOrd);
             return getVector(ord, isOverspill);
         }
 

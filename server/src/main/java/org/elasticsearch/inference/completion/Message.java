@@ -142,23 +142,26 @@ public record Message(
 
     @Override
     public long ramBytesUsed() {
-        var contentRamBytesUsed = content() == null ? 0L : content().ramBytesUsed();
-        var roleRamBytesUsed = RamUsageEstimator.sizeOf(role());
-        var toolCallIdRamBytesUsed = RamUsageEstimator.sizeOf(toolCallId());
-        var toolCallsRamBytesUsed = toolCalls() == null
-            ? 0L
-            : RamUsageEstimator.shallowSizeOf(toolCalls()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + toolCalls().stream()
-                .mapToLong(ToolCall::ramBytesUsed)
-                .sum();
-        var reasoningRamBytesUsed = RamUsageEstimator.sizeOf(reasoning());
-        var reasoningDetailsRamBytesUsed = reasoningDetails() == null
-            ? 0L
-            : RamUsageEstimator.shallowSizeOf(reasoningDetails()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + reasoningDetails()
-                .stream()
-                .mapToLong(ReasoningDetail::ramBytesUsed)
-                .sum();
+        return SHALLOW_SIZE
+            + ramBytesUsed(content())
+            + RamUsageEstimator.sizeOf(role())
+            + RamUsageEstimator.sizeOf(toolCallId())
+            + listRamBytesUsed(toolCalls())
+            + RamUsageEstimator.sizeOf(reasoning())
+            + listRamBytesUsed(reasoningDetails());
+    }
 
-        return SHALLOW_SIZE + contentRamBytesUsed + roleRamBytesUsed + toolCallIdRamBytesUsed + toolCallsRamBytesUsed
-            + reasoningRamBytesUsed + reasoningDetailsRamBytesUsed;
+    private static long ramBytesUsed(@Nullable Accountable accountable) {
+        return accountable == null ? 0L : accountable.ramBytesUsed();
+    }
+
+    private static <T extends Accountable> long listRamBytesUsed(@Nullable List<T> list) {
+        if (list == null) {
+            return 0L;
+        }
+        return RamUsageEstimator.shallowSizeOf(list)
+            + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+            + (long) list.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            + list.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

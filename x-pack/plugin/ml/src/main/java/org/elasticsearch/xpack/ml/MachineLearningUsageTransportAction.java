@@ -772,7 +772,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private void collectModelSnapshotConfigSizes(Map<String, Object> jobsUsage, ActionListener<Void> listener) {
-        GetModelSnapshotsAction.Request snapshotsRequest = new GetModelSnapshotsAction.Request(Metadata.ALL, null);
+        GetModelSnapshotsAction.Request snapshotsRequest = new GetModelSnapshotsAction.Request("*", null);
         // Sample at most 10_000 snapshots across all jobs for description-size histograms.
         snapshotsRequest.setPageParams(new PageParams(0, 10_000));
         client.execute(GetModelSnapshotsAction.INSTANCE, snapshotsRequest, ActionListener.wrap(response -> {

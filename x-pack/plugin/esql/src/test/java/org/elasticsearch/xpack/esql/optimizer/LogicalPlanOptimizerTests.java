@@ -6358,6 +6358,19 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(languages.name(), is("emp_no"));
     }
 
+    public void testPartiallyFoldCaseKeepsKeywordForTextArm() {
+        var plan = optimizedPlan("""
+              FROM test
+            | EVAL c = CASE(true, TO_TEXT(first_name))
+            """);
+
+        var eval = as(plan, Eval.class);
+        var alias = eval.expressions().get(0);
+        assertThat(alias.dataType(), is(DataType.KEYWORD));
+        var toString = as(Alias.unwrap(alias), ToString.class);
+        assertThat(toString.dataType(), is(DataType.KEYWORD));
+    }
+
     private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
         LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
 

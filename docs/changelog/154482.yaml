@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 154482
+summary: Use `VarHandle` CAS for promoted block ref counts
+type: enhancement

@@ -15,6 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -26,6 +27,15 @@ import java.util.Set;
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
+ *
+ * <p>There are two ways to declare an ES|QL capability:
+ * <ol>
+ *   <li><strong>Global ({@link Cap} enum, this file)</strong>: use when a capability applies
+ *       across ES|QL generally, or when it touches many functions at once.</li>
+ *   <li><strong>Per-function ({@link FunctionDefinition.Builder#capabilities})</strong>:
+ *       use when a capability is specific to one function or a small number of functions.
+ *       These are auto-registered with the prefix {@code fn_<funcname>_<sub>}.</li>
+ * </ol>
  */
 public class EsqlCapabilities {
     /**
@@ -80,6 +90,12 @@ public class EsqlCapabilities {
         }
     }
 
+    /**
+     * Global ES|QL capabilities. Use this for capabilities that apply across ES|QL generally,
+     * or that touch many functions at once. For capabilities specific to one function or a small
+     * number of functions, use {@link FunctionDefinition.Builder#capabilities}
+     * instead.
+     */
     public enum Cap {
         /**
          * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -274,6 +290,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_CONVERT_FUNCTION,
 
         /**
+         * Fix for {@code <no-fields>} leaking into plans when {@code unmapped_fields="load"} loads fields from an empty mapping.
+         * See https://github.com/elastic/elasticsearch/issues/141990.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_EMPTY_MAPPING_NO_FIELDS,
+
+        /**
          * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
          * See https://github.com/elastic/elasticsearch/issues/141827
          */
@@ -464,6 +486,12 @@ public class EsqlCapabilities {
         CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
+         * Partial folding of {@code CASE} keeps the KEYWORD type declared at analysis time when the
+         * surviving branch is TEXT, instead of letting the plan output drift to TEXT. See #154278.
+         */
+        FIX_CASE_PARTIAL_FOLD_KEYWORD_TYPE,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -588,11 +616,6 @@ public class EsqlCapabilities {
          * Support multiple field mappings if appropriate conversion function is used (union types)
          */
         UNION_TYPES,
-
-        /**
-         * Support unmapped using the INSIST keyword.
-         */
-        UNMAPPED_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
@@ -2664,9 +2687,11 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access).
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
+         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
+         * grammar surface, rather than this capability mirroring a separate build-type check.
          */
-        EXTERNAL_COMMAND,
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -2746,6 +2771,15 @@ public class EsqlCapabilities {
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,
+
+        /**
+         * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
+         * {@code PUT/GET/DELETE /_query/dataset/{name}}) are exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -3117,9 +3151,10 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
-         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
+         * Requires the grammar change introduced in the same release.
          */
-        MATCH_RUNTIME_SEARCH,
+        MATCH_OPERATOR_LHS_EXPRESSION(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.
@@ -3151,6 +3186,13 @@ public class EsqlCapabilities {
          * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
          */
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
+
+        /**
+         * Under {@code unmapped_fields="load"} or {@code "nullify"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts
+         * as a mention, so the field is surfaced across the branches (materialized from {@code _source} under {@code load}, null-filled
+         * under {@code nullify}) and null-filled in the dropping one. Dropping it in every branch surfaces nothing.
+         */
+        OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -3308,10 +3350,9 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes
-         * generated columns named {@code <prefix><field>} ({@code highlight_} by default). Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V3(Build.current().isSnapshot()),
+        HIGHLIGHT_V5(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3380,6 +3421,36 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
          */
         SPATIAL_BBOX_VALIDATION_FIX,
+
+        /**
+         * Support for lambda expression syntax (e.g. {@code x -> x + 1}) as function arguments.
+         * Syntax only for now: no function accepts a lambda argument yet.
+         */
+        LAMBDA_SYNTAX(Build.current().isSnapshot()),
+
+        /**
+         * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
+         */
+        FIX_MATCH_FUZZINESS_ON_VERSION_FIELD,
+
+        /**
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
+         */
+        FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
+
+        /**
+         * Fix {@code ReplaceRoundToWithQueryAndTags} throwing a {@code ClassCastException} when {@code ROUND_TO}'s first argument
+         * is a function (e.g. {@code ROUND_TO(BYTE_LENGTH(field), ...)}) rather than a bare field.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
+         */
+        FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
+
+        /**
+         * Support for the PromQL {@code topk()} order-statistic aggregation.
+         */
+        PROMQL_TOPK,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

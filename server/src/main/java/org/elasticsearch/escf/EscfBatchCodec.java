@@ -98,9 +98,9 @@ final class EscfBatchCodec {
                 absent = bytesToFixedBitSet(data, pos, docCount);
                 pos += absentLen;
             }
-            byte[] typeVector = null;
+            BytesRef typeVector = null;
             if ((flags & FLAG_TYPE_VECTOR) != 0) {
-                typeVector = bytesToByteArray(data, pos, typeVecLen);
+                typeVector = new BytesRef(bytesToByteArray(data, pos, typeVecLen));
                 pos += typeVecLen;
             }
             int[] offsets = null;
@@ -155,7 +155,9 @@ final class EscfBatchCodec {
         for (int c = 0; c < colCount; c++) {
             EscfColumnData col = columns[c];
             absentPart[c] = col.absent() != null ? bitsetToRef(col.absent(), docCount) : null;
-            typeVecPart[c] = col.typeVector() != null ? new BytesArray(col.typeVector()) : null;
+            typeVecPart[c] = col.typeVector() != null
+                ? new BytesArray(col.typeVector().bytes, col.typeVector().offset, col.typeVector().length)
+                : null;
             offsetsPart[c] = col.offsets() != null ? intArrayToRef(col.offsets()) : null;
             // BOOL keeps its value bitset in the data slot; ARRAY flattens its native child column to
             // child_kind(1) | child_values bytes here (the only place ESCF serializes an ARRAY's child);

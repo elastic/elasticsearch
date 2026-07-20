@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -176,17 +177,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final LongSupplier directoryBytesRead;
 
+    private final QueryWarnings singleValueQueryWarnings;
+
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     @Override
@@ -483,7 +488,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 sortBuilders,
                 estimatedPerRowSortSize,
                 scoring,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -494,7 +500,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
@@ -508,7 +515,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 limit,
                 scoring,
                 directoryBytesRead,
-                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+                singleValueQueryWarnings
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -597,7 +605,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
             directoryBytesRead,
-            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+            singleValueQueryWarnings
         );
     }
 

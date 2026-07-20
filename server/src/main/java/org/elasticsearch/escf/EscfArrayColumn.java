@@ -41,7 +41,7 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.FIXED_ARRAY;
     }
 
@@ -60,6 +60,8 @@ final class EscfArrayColumn extends EscfColumn {
      * <p>For multi-valued rows the same row-id is returned once per element. Empty rows (zero-width
      * offset range) and absent rows (no elements) are skipped automatically.
      */
+    // TODO: this cursor is what we need for Lucene integration. At the mapper level we will eventually need a cursor which maintains empty
+    // arrays. Add that when needed.
     @Override
     LongTupleCursor longCursor() {
         if (!(child instanceof EscfLongColumn longChild)) {
@@ -96,6 +98,8 @@ final class EscfArrayColumn extends EscfColumn {
      * <p>For multi-valued rows the same row-id is returned once per element. Empty rows (zero-width
      * offset range) and absent rows (no elements) are skipped automatically.
      */
+    // TODO: this cursor is what we need for Lucene integration. At the mapper level we will eventually need a cursor which maintains empty
+    // arrays. Add that when needed.
     @Override
     ObjectTupleCursor<BytesRef> bytesRefCursor() {
         if (!(child instanceof AbstractVarColumn varChild)) {

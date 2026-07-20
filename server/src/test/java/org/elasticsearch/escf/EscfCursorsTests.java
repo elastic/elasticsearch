@@ -25,29 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Unit tests for ESCF column cursor methods:
- * <ul>
- *   <li>{@link EscfLongColumn#longCursor()} / {@link EscfLongColumn#longValuesCursor()}</li>
- *   <li>{@link AbstractVarColumn#bytesRefCursor()} / {@link AbstractVarColumn#bytesRefValuesCursor()}</li>
- *   <li>{@link EscfArrayColumn#longCursor()} — element-granular over array-of-long</li>
- *   <li>{@link EscfArrayColumn#bytesRefCursor()} — element-granular over array-of-string</li>
- * </ul>
- *
- * <p>Each cursor flavor covers three data shapes:
- * <ul>
- *   <li><b>Dense</b> — no absent rows; all rows present.</li>
- *   <li><b>Sparse (absent)</b> — single-value column with some absent rows (tracked by the
- *       {@code absent} bitset); the cursor skips absent rows.</li>
- *   <li><b>Multivalue (array)</b> — ARRAY column; cursor is element-granular, repeating the
- *       same row-id for multi-value rows, skipping empty and absent rows.</li>
- * </ul>
- */
 public class EscfCursorsTests extends ESTestCase {
-
-    // -------------------------------------------------------------------------
-    // Long column — tuple cursor
-    // -------------------------------------------------------------------------
 
     public void testLongTupleCursorDense() {
         EscfColumnBuilder b = new EscfColumnBuilder();
@@ -99,10 +77,6 @@ public class EscfCursorsTests extends ESTestCase {
         assertEquals(1, tuples.size());
         assertLongTuple(0, 42, tuples.get(0));
     }
-
-    // -------------------------------------------------------------------------
-    // Long column — values cursor (dense only)
-    // -------------------------------------------------------------------------
 
     public void testLongValuesCursorDenseNextLong() {
         EscfColumnBuilder b = new EscfColumnBuilder();
@@ -233,10 +207,6 @@ public class EscfCursorsTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, array::longCursor);
     }
 
-    // -------------------------------------------------------------------------
-    // String column — tuple cursor
-    // -------------------------------------------------------------------------
-
     public void testStringTupleCursorDense() {
         EscfColumnBuilder b = new EscfColumnBuilder();
         b.addString(utf8("alpha"));
@@ -305,10 +275,6 @@ public class EscfCursorsTests extends ESTestCase {
         expectThrows(IllegalStateException.class, cursor::nextValue);
     }
 
-    // -------------------------------------------------------------------------
-    // Binary column — tuple cursor
-    // -------------------------------------------------------------------------
-
     public void testBinaryTupleCursorDense() {
         byte[] rawData = { 0x01, 0x02, 0x03, 0x04 };
         int[] offs = { 0, 2, 4 };
@@ -340,10 +306,6 @@ public class EscfCursorsTests extends ESTestCase {
         assertArrayEquals(new byte[] { 0x02, 0x03 }, bytesOf((BytesRef) tuples.get(1)[1]));
     }
 
-    // -------------------------------------------------------------------------
-    // Binary column — values cursor (dense only)
-    // -------------------------------------------------------------------------
-
     public void testBinaryValuesCursorDense() {
         byte[] rawData = { 0x0A, 0x0B, 0x0C };
         int[] offs = { 0, 1, 2, 3 };
@@ -356,10 +318,6 @@ public class EscfCursorsTests extends ESTestCase {
         assertArrayEquals(new byte[] { 0x0B }, bytesOf(cursor.nextValue()));
         assertArrayEquals(new byte[] { 0x0C }, bytesOf(cursor.nextValue()));
     }
-
-    // -------------------------------------------------------------------------
-    // String array — multivalue bytesRef tuple cursor
-    // -------------------------------------------------------------------------
 
     public void testStringArrayTupleCursorMultivalue() {
         // 3 rows: [["hello", "world"], ["!"], []]
@@ -402,10 +360,6 @@ public class EscfCursorsTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, array::bytesRefCursor);
     }
 
-    // -------------------------------------------------------------------------
-    // Edge cases
-    // -------------------------------------------------------------------------
-
     public void testLongTupleCursorZeroDocs() {
         EscfLongColumn col = new EscfLongColumn(0, null, BytesArray.EMPTY);
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, col.longCursor().nextDoc());
@@ -421,10 +375,6 @@ public class EscfCursorsTests extends ESTestCase {
         EscfArrayColumn array = new EscfArrayColumn(0, null, child, intsRef(new int[] { 0 }));
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, array.longCursor().nextDoc());
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     private static List<long[]> drainLongTuples(LongTupleCursor cursor) {
         List<long[]> result = new ArrayList<>();

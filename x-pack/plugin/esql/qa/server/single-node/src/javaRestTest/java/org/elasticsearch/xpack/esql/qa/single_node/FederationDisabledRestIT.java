@@ -19,6 +19,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -45,10 +46,8 @@ import static org.hamcrest.Matchers.equalTo;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationDisabledRestIT extends ESRestTestCase {
 
-    private static final String FEDERATION_ENABLED_PROPERTY = "es.esql.federation.enabled";
-
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.systemProperty(FEDERATION_ENABLED_PROPERTY, "false"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.systemProperty(Federation.ENABLED_PROPERTY, "false"));
 
     @Override
     protected String getTestRestCluster() {
@@ -68,7 +67,7 @@ public class FederationDisabledRestIT extends ESRestTestCase {
         }
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(req));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString(FEDERATION_ENABLED_PROPERTY));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString(Federation.ENABLED_PROPERTY));
     }
 
     public void testPutDatasetIsForbidden() throws IOException {
@@ -81,7 +80,7 @@ public class FederationDisabledRestIT extends ESRestTestCase {
         // The kill switch must fire before parent-existence validation, so this is a 403, not the 404 a missing parent
         // would produce on an enabled node.
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString(FEDERATION_ENABLED_PROPERTY));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString(Federation.ENABLED_PROPERTY));
     }
 
     public void testGetDataSourceIsAllowed() throws IOException {

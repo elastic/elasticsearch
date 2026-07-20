@@ -128,27 +128,29 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
-    public void testReferencesDatasetTrueWhenAuthorizedDatasetPresent() {
-        assertTrue(DatasetResolver.referencesDataset(List.of(new DatasetRewriter.DatasetResolution(Set.of("logs"), Set.of(), Set.of()))));
+    public void testResolvesToExternalSourceTrueWhenExternalDatasetPresent() {
+        assertTrue(new DatasetRewriter.DatasetResolution(Set.of("logs"), Set.of(), Set.of()).resolvesToExternalSource());
     }
 
-    public void testReferencesDatasetFalseWhenNoResolutions() {
-        assertFalse(DatasetResolver.referencesDataset(List.of()));
-    }
-
-    public void testReferencesDatasetFalseForPlainIndexNames() {
+    public void testResolvesToExternalSourceFalseForPlainIndexNames() {
         // A resolution that only matched plain indices (no authorized dataset) is not federation and is not blocked.
-        assertFalse(
-            DatasetResolver.referencesDataset(List.of(new DatasetRewriter.DatasetResolution(Set.of(), Set.of("an_index"), Set.of())))
-        );
+        assertFalse(new DatasetRewriter.DatasetResolution(Set.of(), Set.of("an_index"), Set.of()).resolvesToExternalSource());
     }
 
-    public void testReferencesDatasetFalseForExplicitlyUnauthorizedDataset() {
+    public void testResolvesToExternalSourceFalseForExplicitlyUnauthorizedDataset() {
         // An explicitly-named dataset the caller may not read stays the existing 400 "Unknown index"; the kill switch
         // must not turn it into a 403, so it does not count as a dataset reference here.
-        assertFalse(
-            DatasetResolver.referencesDataset(List.of(new DatasetRewriter.DatasetResolution(Set.of(), Set.of(), Set.of("secret"))))
+        assertFalse(new DatasetRewriter.DatasetResolution(Set.of(), Set.of(), Set.of("secret")).resolvesToExternalSource());
+    }
+
+    public void testAnyResolvesToExternalSourceTrueWhenExternalDatasetPresent() {
+        assertTrue(
+            DatasetResolver.anyResolvesToExternalSource(List.of(new DatasetRewriter.DatasetResolution(Set.of("logs"), Set.of(), Set.of())))
         );
+    }
+
+    public void testAnyResolvesToExternalSourceFalseWhenNoResolutions() {
+        assertFalse(DatasetResolver.anyResolvesToExternalSource(List.of()));
     }
 
     // --- harness ---

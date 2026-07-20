@@ -19,6 +19,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -56,13 +57,11 @@ import static org.hamcrest.Matchers.equalTo;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationKillSwitchRestartRestIT extends ESRestTestCase {
 
-    private static final String FEDERATION_ENABLED_PROPERTY = "es.esql.federation.enabled";
-
     private static final AtomicReference<String> federationEnabled = new AtomicReference<>("true");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
-        spec -> spec.systemProperty(FEDERATION_ENABLED_PROPERTY, federationEnabled::get)
+        spec -> spec.systemProperty(Federation.ENABLED_PROPERTY, federationEnabled::get)
     );
 
     @Override
@@ -121,7 +120,7 @@ public class FederationKillSwitchRestartRestIT extends ESRestTestCase {
 
     private static void assertForbidden(ResponseException ex) throws IOException {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString(FEDERATION_ENABLED_PROPERTY));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString(Federation.ENABLED_PROPERTY));
     }
 
     private static void assertOkDelete(String kind, String name) throws IOException {

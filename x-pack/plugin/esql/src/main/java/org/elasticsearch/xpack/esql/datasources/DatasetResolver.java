@@ -124,20 +124,15 @@ public class DatasetResolver {
             // never a plain-index query that merely pattern-matches a dataset name. An explicitly-named but
             // unauthorized dataset is deliberately not blocked here: it stays the existing 400 "Unknown index"
             // (existence-hiding), so the kill switch adds no existence oracle.
-            if (referencesDataset(resolutions.values())) {
+            if (anyResolvesToExternalSource(resolutions.values())) {
                 Federation.ensureEnabled();
             }
             return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled);
         }).addListener(listener);
     }
 
-    /** Whether any per-relation resolution authorized a dataset the caller may read. */
-    static boolean referencesDataset(Collection<DatasetResolution> resolutions) {
-        for (DatasetResolution resolution : resolutions) {
-            if (resolution.authorizedDatasets().isEmpty() == false) {
-                return true;
-            }
-        }
-        return false;
+    /** Whether any per-relation resolution will produce external-source execs. */
+    static boolean anyResolvesToExternalSource(Collection<DatasetResolution> resolutions) {
+        return resolutions.stream().anyMatch(DatasetResolution::resolvesToExternalSource);
     }
 }

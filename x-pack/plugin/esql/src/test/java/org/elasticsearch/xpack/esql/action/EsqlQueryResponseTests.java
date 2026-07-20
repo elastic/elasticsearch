@@ -102,6 +102,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.ALL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -884,6 +885,40 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testSimpleXContentColumnarDropNullsWithoutAllColumns() {
+        try (EsqlQueryResponse response = simple(true)) {
+            assertThat(
+                Strings.toString(
+                    wrapAsToXContent(response),
+                    new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true", ALL_COLUMNS_OPTION, "false")),
+                    true,
+                    false
+                ),
+                equalTo("""
+                    {
+                      "documents_found" : 3,
+                      "values_loaded" : 100,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
+                      "columns" : [
+                        {
+                          "name" : "foo",
+                          "type" : "integer"
+                        }
+                      ],
+                      "values" : [
+                        [
+                          40,
+                          80
+                        ]
+                      ]
+                    }""")
+            );
+        }
+    }
+
     public void testSimpleXContentColumnarAsync() {
         try (EsqlQueryResponse response = simple(true, true)) {
             assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
@@ -1219,6 +1254,58 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "type" : "integer"
                         }
                       ],
+                      "columns" : [
+                        {
+                          "name" : "foo",
+                          "type" : "integer"
+                        }
+                      ],
+                      "values" : [
+                        [
+                          40
+                        ],
+                        [
+                          80
+                        ]
+                      ]
+                    }""")
+            );
+        }
+    }
+
+    public void testNullColumnsXContentDropNullsWithoutAllColumns() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "integer", null), new ColumnInfoImpl("all_null", "integer", null)),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), blockFactory.newConstantNullBlock(2))),
+                1,
+                3,
+                null,
+                false,
+                null,
+                false,
+                false,
+                randomZone(),
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(
+                Strings.toString(
+                    wrapAsToXContent(response),
+                    new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true", ALL_COLUMNS_OPTION, "false")),
+                    true,
+                    false
+                ),
+                equalTo("""
+                    {
+                      "documents_found" : 1,
+                      "values_loaded" : 3,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "columns" : [
                         {
                           "name" : "foo",

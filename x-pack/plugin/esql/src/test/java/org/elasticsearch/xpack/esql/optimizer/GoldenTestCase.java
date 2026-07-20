@@ -143,10 +143,6 @@ public abstract class GoldenTestCase extends ESTestCase {
         this(null);
     }
 
-    /**
-     * A null {@code goldenMode} is a suite that hasn't opted into the {@code {current}}/{@code {historical}} split:
-     * each test runs once, checked at one random version drawn from the whole covered window — the pre-split behavior.
-     */
     protected GoldenTestCase(String goldenMode) {
         if (goldenMode != null && MODE_CURRENT.equals(goldenMode) == false && MODE_HISTORICAL.equals(goldenMode) == false) {
             throw new IllegalArgumentException("unknown golden mode [" + goldenMode + "]");

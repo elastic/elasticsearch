@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.contains;
@@ -184,6 +186,59 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             .toList();
         assertThat(mainPercentiles, hasSize(1));
         assertThat(mainPercentiles.getFirst().tDigestStateCompression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
+    }
+
+    /**
+     * Shows that reducing t-digest compression from DEFAULT_COMPRESSION (1000) to
+     * PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION (100) produces bucket percentile estimates
+     * that are within 1% of each other. Since the BCa CI is computed from the mean, stddev, and
+     * skewness of the bucket values, near-identical bucket values produce near-identical CIs.
+     * The dominant source of error in BCa is sampling variance between buckets — far larger than
+     * the quantization difference between compression=100 and compression=1000.
+     */
+    public void testBucketCompressionDoesNotMateriallyAffectPercentileEstimates() {
+        var breaker = new NoopCircuitBreaker("test");
+        int totalDataPoints = 100_000;
+        int bucketCount = ApproximationPlan.BUCKET_COUNT;
+        double percentileRank = 95.0;
+
+        // Generate a fixed dataset (exponential distribution — similar to real latency data).
+        Random rng = new Random(42);
+        List<Double> data = new ArrayList<>(totalDataPoints);
+        for (int i = 0; i < totalDataPoints; i++) {
+            data.add(-Math.log(1.0 - rng.nextDouble()) * 100.0);
+        }
+
+        double maxRelativeDiff = 0.0;
+
+        for (int bucket = 0; bucket < bucketCount; bucket++) {
+            try (
+                TDigestState full = TDigestState.create(breaker, QuantileStates.DEFAULT_COMPRESSION);
+                TDigestState reduced = TDigestState.create(breaker, ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION)
+            ) {
+                // Each bucket gets every 16th data point starting at its index (simulates bucket split).
+                for (int i = bucket; i < totalDataPoints; i += bucketCount) {
+                    full.add(data.get(i));
+                    reduced.add(data.get(i));
+                }
+
+                double fullP = full.quantile(percentileRank / 100.0);
+                double reducedP = reduced.quantile(percentileRank / 100.0);
+                double relativeDiff = Math.abs(fullP - reducedP) / Math.abs(fullP);
+                maxRelativeDiff = Math.max(maxRelativeDiff, relativeDiff);
+            }
+        }
+
+        logger.info(
+            "Max relative difference in p{} bucket estimates between compression={} and compression={}: {}%",
+            (int) percentileRank,
+            (long) QuantileStates.DEFAULT_COMPRESSION,
+            (long) ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION,
+            String.format("%.4f", maxRelativeDiff * 100)
+        );
+
+        // Bucket percentile estimates are within 1% — negligible compared to BCa sampling variance.
+        assertTrue("Expected max relative difference < 1% but got " + (maxRelativeDiff * 100) + "%", maxRelativeDiff < 0.01);
     }
 
     /**

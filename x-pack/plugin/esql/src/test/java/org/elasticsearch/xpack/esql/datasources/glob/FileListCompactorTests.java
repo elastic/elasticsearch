@@ -250,4 +250,45 @@ public class FileListCompactorTests extends ESTestCase {
             listOf("s3://b/data/*" + "*/*.parquet", "s3://b/data/month=06/f.parquet", "s3://b/data/month=12/f.parquet")
         );
     }
+
+    // ------------------------------------------------------------------
+    // Encoding selected by measured size
+    // ------------------------------------------------------------------
+
+    /**
+     * A classic layout with many files per partition directory and unique leaf names favours the Hive
+     * encoding: the directory string is shared by every file in it, so the per-file cost is a single
+     * group index, whereas the dictionary must also store a segment index per directory level per file.
+     */
+    public void testManyFilesPerDirectoryPicksHive() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        int fileId = 0;
+        for (int year = 2023; year <= 2024; year++) {
+            for (int month = 1; month <= 12; month++) {
+                for (int part = 0; part < 20; part++) {
+                    keys.add(base + "year=" + year + "/month=" + month + "/part-" + (fileId++) + ".parquet");
+                }
+            }
+        }
+        FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        assertThat(compact, Matchers.instanceOf(HiveFileList.class));
+    }
+
+    /**
+     * A layout with one file per deeply-nested directory favours the dictionary encoding: whole
+     * directory strings share nothing, while the segment dictionary shares the repeated year/month
+     * tokens across every file.
+     */
+    public void testOneFilePerDirectoryPicksDictionary() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            for (int day = 1; day <= 28; day++) {
+                keys.add(base + "year=2024/month=" + month + "/day=" + day + "/data.parquet");
+            }
+        }
+        FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+    }
 }

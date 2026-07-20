@@ -51,13 +51,13 @@ final class FileListCompactor {
         }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
-        if (pm != null && pm.isEmpty() == false) {
-            FileList hive = verified(tryHive(normalizedBase, raw), raw);
-            if (hive != null) {
-                return hive;
-            }
-        }
+        FileList hive = pm != null && pm.isEmpty() == false ? verified(tryHive(normalizedBase, raw), raw) : null;
         FileList dict = verified(tryDictionary(normalizedBase, raw), raw);
+        // The Hive encoding stores one string per directory while the dictionary shares path segments
+        // across files, so which is smaller depends on the layout; keep whichever actually weighs less.
+        if (hive != null && (dict == null || hive.estimatedBytes() <= dict.estimatedBytes())) {
+            return hive;
+        }
         if (dict != null) {
             return dict;
         }

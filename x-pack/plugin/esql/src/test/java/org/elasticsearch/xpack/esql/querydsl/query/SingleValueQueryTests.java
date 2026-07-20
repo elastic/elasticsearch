@@ -16,10 +16,17 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -30,11 +37,14 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -179,13 +189,40 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                SearchExecutionContext baseCtx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                QueryWarnings bridge = QueryWarnings.EMIT;
+                EsqlSearchExecutionContext ctx = new EsqlSearchExecutionContext(baseCtx, bridge);
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
-                testCase.run(fieldValues, ctx.searcher().count(query));
+                try (Releasable ignored = bridge.bind(warningsFor(query))) {
+                    testCase.run(fieldValues, ctx.searcher().count(query));
+                }
                 assertEqualsAndHashcodeStable(query, rewritten.toQuery(ctx));
             }
         }
+    }
+
+    /**
+     * Walk {@code query} once, binding a fresh {@link Warnings} to every {@link SingleValueMatchQuery}
+     * node found. In production the bridge creates these lazily via the bound {@link DriverContext};
+     * here we pre-build them so the test uses the simpler pre-built {@link QueryWarnings#bind} overload.
+     */
+    private static Map<SingleValueMatchQuery, Warnings> warningsFor(Query query) {
+        Map<SingleValueMatchQuery, Warnings> warnings = new IdentityHashMap<>();
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query leaf) {
+                if (leaf instanceof SingleValueMatchQuery svmq) {
+                    warnings.computeIfAbsent(svmq, q -> Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, q.source()));
+                }
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                return this;
+            }
+        });
+        return warnings;
     }
 
     private void assertEqualsAndHashcodeStable(Query query1, Query query2) {

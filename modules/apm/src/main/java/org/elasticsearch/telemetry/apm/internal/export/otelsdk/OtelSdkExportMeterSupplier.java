@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporterBuilder;
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
@@ -24,14 +25,22 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.TrustEverythingConfig;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -45,6 +54,9 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     // Internal JVM system property that enables OTel RuntimeTelemetry JVM metrics.
     private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
+
+    // Per-instrument-stream cardinality limit
+    private static final int METRIC_CARDINALITY_LIMIT = 1000;
 
     private final Settings settings;
     private final Path diskBufferPath;
@@ -78,11 +90,26 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
         var systemProvider = buildSystemMeterProvider(meterProviderRef::get);
         meterProviderRef.set(systemProvider);
+        var readerExportInterval = registerReaderMetrics(systemProvider);
         var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
         var runtimeTelemetry = OTelJvmMetricsEnabled() ? RuntimeTelemetry.create(otelSdk) : null;
-        return new OTelMetricsResources(systemProvider, runtimeTelemetry);
+        return new OTelMetricsResources(systemProvider, runtimeTelemetry, readerExportInterval);
+    }
+
+    /**
+     * Registers a gauge reporting the configured metric reader export interval. Paired with the SDK's
+     * {@code otel.sdk.metric_reader.collection.duration}, it lets alerting compute collection overhead as a
+     * fraction of the cycle without hardcoding the interval, so the two stay in sync when the setting changes.
+     */
+    ObservableDoubleGauge registerReaderMetrics(SdkMeterProvider provider) {
+        double intervalSeconds = OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.get(settings).millis() / 1000.0;
+        return provider.get("elasticsearch")
+            .gaugeBuilder("es.apm.metrics.reader.export_interval")
+            .setDescription("Configured metric reader export interval, for computing collection overhead")
+            .setUnit("s")
+            .buildWithCallback(measurement -> measurement.record(intervalSeconds));
     }
 
     private static boolean OTelJvmMetricsEnabled() {
@@ -112,7 +139,10 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
+        return SdkMeterProvider.builder()
+            .setResource(OtelSdkResource.get(settings))
+            .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT)
+            .build();
     }
 
     private OtlpGrpcMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {
@@ -134,6 +164,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
+        configureTls(settings, builder::setSslContext);
         return builder.build();
     }
 
@@ -149,6 +180,20 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             }
         }
         return null;
+    }
+
+    static void configureTls(Settings settings, BiConsumer<SSLContext, X509TrustManager> sslContextSetter) {
+        if (OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT.get(settings)) {
+            return;
+        }
+        X509ExtendedTrustManager trustAll = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
+        try {
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[] { trustAll }, null);
+            sslContextSetter.accept(context, trustAll);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** Flushes the meter provider. Callers must join the result with an appropriate timeout. */
@@ -186,7 +231,11 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         }
     }
 
-    record OTelMetricsResources(SdkMeterProvider meterProvider, RuntimeTelemetry runtimeTelemetry) implements AutoCloseable {
+    record OTelMetricsResources(
+        SdkMeterProvider meterProvider,
+        RuntimeTelemetry runtimeTelemetry,
+        ObservableDoubleGauge readerExportInterval
+    ) implements AutoCloseable {
 
         OTelMetricsResources {
             Objects.requireNonNull(meterProvider, "meterProvider");
@@ -194,6 +243,9 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
         @Override
         public void close() {
+            if (readerExportInterval != null) {
+                readerExportInterval.close();
+            }
             if (runtimeTelemetry != null) {
                 runtimeTelemetry.close();
             }

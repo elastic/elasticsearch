@@ -1,0 +1,5 @@
+pr: 153682
+summary: Fix hint-blind external-dataset listing cache and rewrite-to-empty throw
+area: ES|QL
+type: bug
+issues: []

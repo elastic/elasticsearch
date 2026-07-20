@@ -246,6 +246,68 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         Files.writeString(p2025.resolve("data.csv"), "id,value,year\n3,gamma,1999\n4,delta,1999\n", StandardCharsets.UTF_8);
     }
 
+    /**
+     * The exact layout from the public report (elastic/elasticsearch#154289): the standard AWS S3 log tree
+     * {@code AWSLogs/aws-account-id=<id>/aws-service=vpcflowlogs/aws-region=<r>/year=<y>/month=<m>/day=<d>/…}
+     * under {@code schema_resolution: first_file_wins}. The registered resource's pattern prefix ends at
+     * {@code aws-service=vpcflowlogs/}, so {@code aws-account-id=} and {@code aws-service=} are BOTH inside
+     * the base path AND claimed as partition columns. On {@code main} the compacted listing re-appended
+     * them, doubling the prefix, and the read hit {@code NoSuchKey}. The zero-padded {@code month=06} also
+     * trips the typed-value sibling defect ({@code month=06} → integer {@code 6} → {@code month=6}), so this
+     * one end-to-end query covers both the prefix-doubling and the value-spelling bugs; red on {@code main}.
+     *
+     * <p>The glob uses {@code **} so the local provider descends recursively and no {@code key=*} segment is
+     * spelled, so {@code WHERE month == 6} must prune from the reconstructed listing's partition values —
+     * which only line up when the reconstructed key equals the listed one.
+     */
+    public void testAwsVpcFlowLogLayoutFirstFileWinsRoundTrips() throws Exception {
+        Path root = createTempDir().resolve("aws_vpcflow_csv");
+        Path prefix = root.resolve("AWSLogs").resolve("aws-account-id=123456789012").resolve("aws-service=vpcflowlogs");
+        Path region = prefix.resolve("aws-region=us-east-1").resolve("year=2024");
+        writeCsv(region.resolve("month=06").resolve("day=01").resolve("flow-0001.csv"), "id,val\n1,a\n2,b\n");
+        writeCsv(region.resolve("month=12").resolve("day=15").resolve("flow-0002.csv"), "id,val\n3,c\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(prefix) + "/**/*.csv";
+        String dataset = registerDataset(
+            "aws_vpcflow_csv",
+            glob,
+            Map.of("hive_partitioning", true, "schema_resolution", "first_file_wins")
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, val"))) {
+            assertThat(getValuesList(response).size(), is(3));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE month == 6 | KEEP id, val"))) {
+            assertThat(getValuesList(response).size(), is(2));
+        }
+    }
+
+    /**
+     * A comma-separated resource has no glob metacharacter, so its pattern prefix is the whole comma string
+     * and no listed key starts with it. On {@code main} the compacted listing prepended that base to each
+     * key; the round-trip guard now discards such an encoding and keeps the raw listing, so the reads
+     * succeed. Red on {@code main}. {@code first_file_wins} routes through the compactor (the default
+     * {@code union_by_name} never compacts).
+     */
+    public void testCommaSeparatedResourceFirstFileWinsRoundTrips() throws Exception {
+        Path root = createTempDir().resolve("comma_ffw_csv");
+        writeCsv(root.resolve("x.csv"), "id,val\n1,a\n");
+        writeCsv(root.resolve("y.csv"), "id,val\n2,b\n");
+
+        String uri = StoragePath.fileUri(root) + "/x.csv," + StoragePath.fileUri(root) + "/y.csv";
+        String dataset = registerDataset("comma_ffw_csv", uri, Map.of("schema_resolution", "first_file_wins"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, val"))) {
+            assertThat(getValuesList(response).size(), is(2));
+        }
+    }
+
+    private static void writeCsv(Path file, String content) throws Exception {
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+    }
+
     private static void writePartitionedCsvFiles(Path root) throws Exception {
         Path month01 = root.resolve("year=2024").resolve("month=01");
         Path month02 = root.resolve("year=2024").resolve("month=02");

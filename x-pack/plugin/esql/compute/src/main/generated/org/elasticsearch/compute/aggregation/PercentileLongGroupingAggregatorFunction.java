@@ -38,14 +38,14 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private final double percentile;
 
-  private final double compression;
+  private final double tDigestStateCompression;
 
   PercentileLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      double percentile, double compression) {
+      double percentile, double tDigestStateCompression) {
     this.percentile = percentile;
-    this.compression = compression;
+    this.tDigestStateCompression = tDigestStateCompression;
     this.channels = channels;
-    this.state = PercentileLongAggregator.initGrouping(driverContext, percentile, compression);
+    this.state = PercentileLongAggregator.initGrouping(driverContext, percentile, tDigestStateCompression);
     this.driverContext = driverContext;
   }
 

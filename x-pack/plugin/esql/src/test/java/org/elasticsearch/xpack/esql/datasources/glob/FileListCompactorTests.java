@@ -183,7 +183,7 @@ public class FileListCompactorTests extends ESTestCase {
             base,
             listOf(base + "**/*.parquet", base + "x=1/a.parquet", base + "x=1/b-01/f.parquet", base + "x=1/z.parquet")
         );
-        assertThat(compact, Matchers.instanceOf(HiveFileList.class));
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
     }
 
     /** The cross-file key check is order-insensitive, so a listing may mix directory orders. */
@@ -205,14 +205,15 @@ public class FileListCompactorTests extends ESTestCase {
     public void testCommaSeparatedResourceBaseMismatch() {
         String base = "s3://b/x.parquet,s3://b/y.parquet/";
         GenericFileList raw = listOf("s3://b/x.parquet,s3://b/y.parquet", "s3://b/x.parquet", "s3://b/y.parquet");
-        assertRoundTrip(base, raw);
+        // No encoding can reconstruct these keys from this base, so the guard falls all the way to raw.
+        assertSame(raw, FileListCompactor.compact(base, raw));
     }
 
     /** Same defect on the hive rail: a base unrelated to the listed keys must not be prepended. */
     public void testAlienBaseWithPartitionsIsNotPrepended() {
         String base = "s3://other/data/";
         GenericFileList raw = listOf("s3://b/*" + "*/*.parquet", "s3://b/year=2024/f.parquet", "s3://b/year=2025/f.parquet");
-        assertRoundTrip(base, raw);
+        assertSame(raw, FileListCompactor.compact(base, raw));
     }
 
     // ------------------------------------------------------------------
@@ -256,11 +257,12 @@ public class FileListCompactorTests extends ESTestCase {
     // ------------------------------------------------------------------
 
     /**
-     * A classic layout with many files per partition directory and unique leaf names favours the Hive
-     * encoding: the directory string is shared by every file in it, so the per-file cost is a single
-     * group index, whereas the dictionary must also store a segment index per directory level per file.
+     * A classic layout with many files per partition directory and unique leaf names favours the
+     * directory-grouped encoding: the directory string is shared by every file in it, so the per-file
+     * cost is a single group index, whereas the dictionary must also store a segment index per directory
+     * level per file.
      */
-    public void testManyFilesPerDirectoryPicksHive() {
+    public void testManyFilesPerDirectoryPicksDirectoryGrouped() {
         String base = "s3://b/data/";
         List<String> keys = new ArrayList<>();
         int fileId = 0;
@@ -272,7 +274,7 @@ public class FileListCompactorTests extends ESTestCase {
             }
         }
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
-        assertThat(compact, Matchers.instanceOf(HiveFileList.class));
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
     }
 
     /**
@@ -290,5 +292,119 @@ public class FileListCompactorTests extends ESTestCase {
         }
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+    }
+
+    // ------------------------------------------------------------------
+    // Modification-time fidelity (uniform vs per-file)
+    // ------------------------------------------------------------------
+
+    /**
+     * Files in one directory sharing a modification time exercise the group-collapsed {@code groupMtimes}
+     * path; the reconstructed mtime must still equal the listed one.
+     */
+    public void testUniformMtimesWithinDirectory() {
+        String base = "s3://b/data/";
+        long mtime = 1_700_000_000_000L;
+        GenericFileList raw = listOfMtimes(
+            base + "*" + "*/*.parquet",
+            new String[] { base + "month=06/a.parquet", base + "month=06/b.parquet" },
+            new long[] { mtime, mtime }
+        );
+        FileList compact = assertRoundTrip(base, raw);
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
+    }
+
+    /**
+     * Files in one directory with differing modification times force the per-file mtime array rather than
+     * the group collapse; every file's mtime must survive.
+     */
+    public void testNonUniformMtimesWithinDirectory() {
+        String base = "s3://b/data/";
+        GenericFileList raw = listOfMtimes(
+            base + "*" + "*/*.parquet",
+            new String[] { base + "month=06/a.parquet", base + "month=06/b.parquet" },
+            new long[] { 1_700_000_000_000L, 1_700_000_050_000L }
+        );
+        FileList compact = assertRoundTrip(base, raw);
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
+    }
+
+    // ------------------------------------------------------------------
+    // Overflow and non-partitioned fall-through
+    // ------------------------------------------------------------------
+
+    /**
+     * More distinct directories than the group index can hold: the directory-grouped encoding overflows
+     * to {@code null}, the dictionary's token table overflows too, and the raw list is returned unchanged.
+     */
+    public void testDirectoryCountOverflowFallsBackToRaw() {
+        String base = "s3://b/data/";
+        String[] keys = new String[65536];
+        for (int i = 0; i < keys.length; i++) {
+            keys[i] = base + "p=" + i + "/f.parquet";
+        }
+        GenericFileList raw = listOf(base + "*" + "*/*.parquet", keys);
+        assertSame(raw, FileListCompactor.compact(base, raw));
+    }
+
+    /**
+     * Flat files with no partition directories carry no partition metadata, so only the dictionary
+     * encoding is built; it must round-trip a leaf that sits directly under the base.
+     */
+    public void testFlatNonPartitionedListingUsesDictionary() {
+        String base = "s3://b/data/";
+        FileList compact = assertRoundTrip(base, listOf(base + "*.parquet", base + "a.parquet", base + "b.parquet"));
+        assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+    }
+
+    /**
+     * Many uniquely-named files in a handful of directories: the dictionary's token table overflows on
+     * the distinct leaf names while the directory-grouped encoding (a per-file leaf array, no leaf
+     * dictionary) fits — so the grouped encoding is kept even though the dictionary candidate is absent.
+     */
+    public void testDictionaryOverflowKeepsDirectoryGrouped() {
+        String base = "s3://b/data/";
+        String[] keys = new String[65536];
+        for (int i = 0; i < keys.length; i++) {
+            keys[i] = base + "p=" + (i % 2) + "/file-" + i + ".parquet";
+        }
+        FileList compact = assertRoundTrip(base, listOf(base + "*" + "*/*.parquet", keys));
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
+    }
+
+    // ------------------------------------------------------------------
+    // Additional layout fidelity
+    // ------------------------------------------------------------------
+
+    /** A percent-escaped sequence in the leaf name (not just a directory) must survive verbatim. */
+    public void testPercentEscapedLeafName() {
+        String base = "s3://b/data/";
+        assertRoundTrip(base, listOf(base + "*" + "*/*.parquet", base + "month=06/a%20b.parquet"));
+    }
+
+    /** Three partition levels with many files per leaf directory round-trip through the grouped encoding. */
+    public void testThreeLevelPartitionsRoundTrip() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        int fileId = 0;
+        for (int day = 1; day <= 3; day++) {
+            for (int part = 0; part < 5; part++) {
+                keys.add(base + "year=2024/month=06/day=0" + day + "/part-" + (fileId++) + ".parquet");
+            }
+        }
+        assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
+    }
+
+    /**
+     * Builds a raw listing with an explicit modification time per file, to drive the uniform / non-uniform
+     * modification-time branches deterministically.
+     */
+    private static GenericFileList listOfMtimes(String pattern, String[] keys, long[] mtimesMillis) {
+        List<StorageEntry> entries = new ArrayList<>(keys.length);
+        for (int i = 0; i < keys.length; i++) {
+            entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), Instant.ofEpochMilli(mtimesMillis[i])));
+        }
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
+        return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 }

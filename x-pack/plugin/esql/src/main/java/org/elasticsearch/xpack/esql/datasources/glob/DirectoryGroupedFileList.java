@@ -14,14 +14,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 /**
- * Directory-grouped file listing for Hive-partitioned data. Each file carries the index of the
- * relative directory it was listed under; {@link #path(int)} replays {@code basePath + directory +
- * leaf} verbatim, so the reconstructed key is byte-for-byte the one that was listed — value spelling,
- * segment order, and any non-partition directories all survive. Grouping on the directory string
- * (rather than on typed partition values) is what keeps the round-trip exact. Created by
- * {@link FileListCompactor} only when Hive partition metadata was detected.
+ * Compact file listing that groups files by the relative directory they were listed under. Each file
+ * carries the index of its directory; {@link #path(int)} replays {@code basePath + directory + leaf}
+ * verbatim, so the reconstructed key is byte-for-byte the one that was listed — value spelling, segment
+ * order, and any non-partition directories all survive, because nothing is re-derived from parsed
+ * partition values. Beats {@link DictionaryFileList} on layouts with many files per directory and few
+ * distinct directories; created by {@link FileListCompactor}.
  */
-final class HiveFileList implements FileList {
+final class DirectoryGroupedFileList implements FileList {
 
     private final String basePath;
     private final String[] groupDirs;
@@ -47,7 +47,7 @@ final class HiveFileList implements FileList {
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
 
-    HiveFileList(
+    DirectoryGroupedFileList(
         String basePath,
         String[] groupDirs,
         short[] fileGroups,

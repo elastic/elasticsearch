@@ -19,15 +19,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Compresses a {@link GenericFileList} into a compact representation.
- * Tries Hive-partitioned encoding first (if partition metadata exists),
- * then falls back to segment-dictionary encoding, and finally returns
- * the original list unchanged if neither encoding fits.
+ * Compresses a {@link GenericFileList} into a compact representation. Builds a
+ * {@link DirectoryGroupedFileList} (when partition metadata was detected) and a {@link DictionaryFileList},
+ * verifies each one replays the listed keys exactly, and keeps whichever verified candidate weighs less —
+ * falling back to the original list if neither fits.
  * <p>
- * Every candidate encoding is verified to replay the listed keys exactly before it is returned
- * (see {@link #verified}); one that cannot is discarded so the caller falls through to the next
- * encoding or the raw list. This keeps every compact representation faithful even for layouts an
- * encoding does not anticipate.
+ * The round-trip verification (see {@link #verified}) is the single point that keeps every compact
+ * representation faithful, even for a layout no encoding anticipates.
  */
 final class FileListCompactor {
 
@@ -36,14 +34,14 @@ final class FileListCompactor {
     private FileListCompactor() {}
 
     /**
-     * Compacts a raw file list into the most efficient representation available.
-     * Returns the original list when compaction is not applicable or overflows.
+     * Compacts a raw file list into the smallest faithful representation available, or returns the
+     * original list when compaction does not apply or overflows.
      * <p>
-     * The hive-partitioning flag is not passed explicitly; instead, the presence
-     * of {@link PartitionMetadata} on the raw list serves as the signal.
-     * When {@code hivePartitioning=false} upstream, {@link GlobExpander} never
-     * attaches partition metadata so the Hive branch here is skipped automatically
-     * and we go straight to dictionary encoding.
+     * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — not
+     * because it needs the partition values (it does not read them), but as a cost heuristic: that is
+     * the signal a layout has repeated directories worth grouping. {@link GlobExpander} attaches no
+     * partition metadata when hive partitioning is off, so such listings take the dictionary encoding
+     * directly.
      */
     static FileList compact(String basePath, GenericFileList raw) {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
@@ -51,12 +49,12 @@ final class FileListCompactor {
         }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
-        FileList hive = pm != null && pm.isEmpty() == false ? verified(tryHive(normalizedBase, raw), raw) : null;
+        FileList grouped = pm != null && pm.isEmpty() == false ? verified(tryDirectoryGrouped(normalizedBase, raw), raw) : null;
         FileList dict = verified(tryDictionary(normalizedBase, raw), raw);
-        // The Hive encoding stores one string per directory while the dictionary shares path segments
-        // across files, so which is smaller depends on the layout; keep whichever actually weighs less.
-        if (hive != null && (dict == null || hive.estimatedBytes() <= dict.estimatedBytes())) {
-            return hive;
+        // The directory-grouped encoding stores one string per directory while the dictionary shares path
+        // segments across files, so which is smaller depends on the layout; keep whichever weighs less.
+        if (grouped != null && (dict == null || grouped.estimatedBytes() <= dict.estimatedBytes())) {
+            return grouped;
         }
         if (dict != null) {
             return dict;
@@ -65,12 +63,27 @@ final class FileListCompactor {
     }
 
     /**
-     * Returns the candidate only if it reconstructs every listed path exactly; otherwise {@code null},
-     * so the caller falls through to the next encoding or the raw list. This is the chokepoint that
-     * keeps every compact representation faithful even for a layout no encoding anticipates — e.g. a
-     * base path that is not a prefix of the listed keys, as a comma-separated resource produces on the
-     * first_file_wins rail. The reconstruction is compared as a string; a candidate whose reconstructed
-     * key does not even parse is treated as a mismatch rather than allowed to throw.
+     * Strips {@code normalizedBase} from a listed key when it is genuinely a prefix, leaving the relative
+     * path both encodings reconstruct from. When the base is not a prefix — e.g. a comma-separated resource
+     * whose pattern prefix is the whole comma string — the full key is returned unchanged; the encoding
+     * then reconstructs a wrong key and is discarded by {@link #verified}. Owning this rule in one place
+     * keeps both encodings' notion of "relative" identical.
+     */
+    private static String relativize(String normalizedBase, String fullPath) {
+        if (normalizedBase.isEmpty() == false && fullPath.startsWith(normalizedBase)) {
+            return fullPath.substring(normalizedBase.length());
+        }
+        return fullPath;
+    }
+
+    /**
+     * Returns the candidate only if it reproduces every listed file exactly — path, size and modification
+     * time; otherwise {@code null}, so the caller falls through to the next encoding or the raw list. This
+     * is the chokepoint that keeps every compact representation faithful even for a layout no encoding
+     * anticipates — e.g. a base path that is not a prefix of the listed keys, as a comma-separated resource
+     * produces on the first_file_wins rail. Path is compared as a string; a candidate whose reconstructed
+     * key does not even parse is treated as a mismatch rather than allowed to throw. Size and mtime are
+     * checked too because an encoding may collapse them per group (see {@link DirectoryGroupedFileList}).
      */
     private static FileList verified(FileList candidate, GenericFileList raw) {
         if (candidate == null) {
@@ -84,7 +97,9 @@ final class FileListCompactor {
             } catch (IllegalArgumentException e) {
                 actual = null;
             }
-            if (expected.equals(actual) == false) {
+            if (expected.equals(actual) == false
+                || candidate.size(i) != raw.size(i)
+                || candidate.lastModifiedMillis(i) != raw.lastModifiedMillis(i)) {
                 logger.debug(
                     "discarding {} for pattern [{}]: listed file [{}] reconstructs as [{}]",
                     candidate.getClass().getSimpleName(),
@@ -107,18 +122,18 @@ final class FileListCompactor {
     }
 
     // ------------------------------------------------------------------
-    // Hive-partitioned encoding
+    // Directory-grouped encoding
     // ------------------------------------------------------------------
 
     /**
-     * Groups files by the relative directory they were listed under, in original listing order, and
-     * keeps one directory string per group. {@link HiveFileList#path(int)} then replays each file's
-     * exact listed key. Grouping on the directory string — not on typed partition values — is what
-     * makes the round-trip faithful: value spelling, segment order, non-partition directories, and a
-     * base path unrelated to the keys all survive, since none of them is re-derived from the parsed
-     * partition metadata.
+     * Groups files by the relative directory they were listed under, in original listing order, keeping
+     * one directory string per group. {@link DirectoryGroupedFileList#path(int)} then replays each file's
+     * exact listed key. Grouping on the directory string — not on typed partition values — is what makes
+     * the round-trip faithful: value spelling, segment order and non-partition directories all survive,
+     * since none of them is re-derived. Returns {@code null} when the directory count overflows the group
+     * index.
      */
-    private static FileList tryHive(String normalizedBase, GenericFileList raw) {
+    private static FileList tryDirectoryGrouped(String normalizedBase, GenericFileList raw) {
         List<StorageEntry> files = raw.files();
         int count = files.size();
 
@@ -136,11 +151,7 @@ final class FileListCompactor {
             sizes[f] = entry.length();
             mtimes[f] = entry.lastModified().toEpochMilli();
 
-            String fullPath = entry.path().toString();
-            String relative = fullPath;
-            if (normalizedBase.isEmpty() == false && fullPath.startsWith(normalizedBase)) {
-                relative = fullPath.substring(normalizedBase.length());
-            }
+            String relative = relativize(normalizedBase, entry.path().toString());
             int lastSlash = relative.lastIndexOf('/');
             String dir = lastSlash >= 0 ? relative.substring(0, lastSlash + 1) : "";
             String leaf = lastSlash >= 0 ? relative.substring(lastSlash + 1) : relative;
@@ -188,7 +199,7 @@ final class FileListCompactor {
             }
         }
 
-        return new HiveFileList(
+        return new DirectoryGroupedFileList(
             normalizedBase,
             dirs.toArray(new String[0]),
             fileGroups,
@@ -225,11 +236,7 @@ final class FileListCompactor {
             sizes[f] = entry.length();
             mtimes[f] = entry.lastModified().toEpochMilli();
 
-            String fullPath = entry.path().toString();
-            String relative = fullPath;
-            if (normalizedBase.isEmpty() == false && fullPath.startsWith(normalizedBase)) {
-                relative = fullPath.substring(normalizedBase.length());
-            }
+            String relative = relativize(normalizedBase, entry.path().toString());
 
             String leaf = relative;
             int lastSlash = relative.lastIndexOf('/');
@@ -268,11 +275,7 @@ final class FileListCompactor {
             List<short[]> rebuiltTokens = new ArrayList<>(count);
             for (int f = 0; f < count; f++) {
                 StorageEntry entry = files.get(f);
-                String fullPath = entry.path().toString();
-                String relative = fullPath;
-                if (normalizedBase.isEmpty() == false && fullPath.startsWith(normalizedBase)) {
-                    relative = fullPath.substring(normalizedBase.length());
-                }
+                String relative = relativize(normalizedBase, entry.path().toString());
 
                 String[] segments = relative.split("/");
                 String lastSeg = segments[segments.length - 1];

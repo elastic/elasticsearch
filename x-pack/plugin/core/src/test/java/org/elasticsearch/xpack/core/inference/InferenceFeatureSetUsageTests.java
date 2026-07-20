@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.stats.SizeHistogramAccumulator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,17 +51,55 @@ public class InferenceFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected InferenceFeatureSetUsage createTestInstance() {
-        return new InferenceFeatureSetUsage(randomList(10, ModelStatsTests::createRandomInstance));
+        Map<String, Object> configSizes = Map.of();
+        if (randomBoolean()) {
+            SizeHistogramAccumulator inferenceId = new SizeHistogramAccumulator();
+            inferenceId.add(randomLongBetween(1, 100));
+            configSizes = Map.of("inference_id", inferenceId.asMap());
+        }
+        return new InferenceFeatureSetUsage(randomList(10, ModelStatsTests::createRandomInstance), configSizes);
     }
 
     @Override
     protected InferenceFeatureSetUsage mutateInstance(InferenceFeatureSetUsage instance) throws IOException {
-        List<ModelStats> mutatedModelStats = new ArrayList<>(instance.modelStats());
-        if (mutatedModelStats.isEmpty()) {
-            mutatedModelStats.add(ModelStatsTests.createRandomInstance());
-        } else {
-            mutatedModelStats.remove(randomIntBetween(0, mutatedModelStats.size() - 1));
+        switch (randomInt(2)) {
+            case 0 -> {
+                List<ModelStats> mutatedModelStats = new ArrayList<>(instance.modelStats());
+                if (mutatedModelStats.isEmpty()) {
+                    mutatedModelStats.add(ModelStatsTests.createRandomInstance());
+                } else {
+                    mutatedModelStats.remove(randomIntBetween(0, mutatedModelStats.size() - 1));
+                }
+                return new InferenceFeatureSetUsage(mutatedModelStats, instance.configSizes());
+            }
+            case 1 -> {
+                Map<String, Object> configSizes = new HashMap<>(instance.configSizes());
+                if (configSizes.isEmpty()) {
+                    SizeHistogramAccumulator inferenceId = new SizeHistogramAccumulator();
+                    inferenceId.add(randomLongBetween(1, 100));
+                    configSizes.put("inference_id", inferenceId.asMap());
+                } else {
+                    configSizes.clear();
+                }
+                return new InferenceFeatureSetUsage(instance.modelStats(), configSizes);
+            }
+            default -> {
+                List<ModelStats> mutatedModelStats = new ArrayList<>(instance.modelStats());
+                if (mutatedModelStats.isEmpty()) {
+                    mutatedModelStats.add(ModelStatsTests.createRandomInstance());
+                } else {
+                    mutatedModelStats.remove(randomIntBetween(0, mutatedModelStats.size() - 1));
+                }
+                Map<String, Object> configSizes = new HashMap<>(instance.configSizes());
+                if (configSizes.isEmpty()) {
+                    SizeHistogramAccumulator inferenceId = new SizeHistogramAccumulator();
+                    inferenceId.add(randomLongBetween(1, 100));
+                    configSizes.put("inference_id", inferenceId.asMap());
+                } else {
+                    configSizes.clear();
+                }
+                return new InferenceFeatureSetUsage(mutatedModelStats, configSizes);
+            }
         }
-        return new InferenceFeatureSetUsage(mutatedModelStats);
     }
 }

@@ -37,6 +37,28 @@ public final class MlConfigSizeUtils {
         return collection == null ? 0L : collection.size();
     }
 
+    public static long stringCollectionTotalLength(@Nullable Collection<String> values) {
+        if (values == null || values.isEmpty()) {
+            return 0L;
+        }
+        long total = 0L;
+        for (String value : values) {
+            total += stringLength(value);
+        }
+        return total;
+    }
+
+    public static long stringArrayTotalLength(@Nullable String[] values) {
+        if (values == null || values.length == 0) {
+            return 0L;
+        }
+        long total = 0L;
+        for (String value : values) {
+            total += stringLength(value);
+        }
+        return total;
+    }
+
     public static long mapApproxSizeBytes(@Nullable Map<String, ?> map) {
         if (map == null || map.isEmpty()) {
             return 0L;

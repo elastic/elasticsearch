@@ -775,7 +775,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 descriptionSizes.add(MlConfigSizeUtils.stringLength(snapshot.getDescription()));
             }
             collectModelSnapshotConfigSizes(jobs, jobIndex + 1, descriptionSizes, jobsUsage, listener);
-        }, e -> collectModelSnapshotConfigSizes(jobs, jobIndex + 1, descriptionSizes, jobsUsage, listener)));
+        }, e -> {
+            logger.warn("Failed to get model snapshots to include in ML usage", e);
+            collectModelSnapshotConfigSizes(jobs, jobIndex + 1, descriptionSizes, jobsUsage, listener);
+        }));
     }
 
     private static int mlNodeCount(final ClusterState clusterState) {

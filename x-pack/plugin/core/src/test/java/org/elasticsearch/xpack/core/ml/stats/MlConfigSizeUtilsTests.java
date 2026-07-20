@@ -11,6 +11,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -21,6 +22,18 @@ public class MlConfigSizeUtilsTests extends ESTestCase {
     public void testStringLength() {
         assertThat(MlConfigSizeUtils.stringLength(null), is(0L));
         assertThat(MlConfigSizeUtils.stringLength("abc"), is(3L));
+    }
+
+    public void testStringCollectionTotalLength() {
+        assertThat(MlConfigSizeUtils.stringCollectionTotalLength(null), is(0L));
+        assertThat(MlConfigSizeUtils.stringCollectionTotalLength(List.of()), is(0L));
+        assertThat(MlConfigSizeUtils.stringCollectionTotalLength(List.of("ab", "cde")), is(5L));
+    }
+
+    public void testStringArrayTotalLength() {
+        assertThat(MlConfigSizeUtils.stringArrayTotalLength(null), is(0L));
+        assertThat(MlConfigSizeUtils.stringArrayTotalLength(new String[0]), is(0L));
+        assertThat(MlConfigSizeUtils.stringArrayTotalLength(new String[] { "ab", "cde" }), is(5L));
     }
 
     public void testMapApproxSizeBytes() {

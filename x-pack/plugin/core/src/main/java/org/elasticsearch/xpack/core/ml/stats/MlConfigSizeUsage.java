@@ -11,6 +11,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -34,11 +35,13 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassifica
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -117,10 +120,14 @@ public final class MlConfigSizeUsage {
 
     public static Map<String, Object> collectFilterConfigSizes(List<MlFilter> filters) {
         SizeHistogramAccumulator description = new SizeHistogramAccumulator();
+        SizeHistogramAccumulator itemsCount = new SizeHistogramAccumulator();
+        SizeHistogramAccumulator items = new SizeHistogramAccumulator();
         for (MlFilter filter : filters) {
             description.add(MlConfigSizeUtils.stringLength(filter.getDescription()));
+            itemsCount.add(MlConfigSizeUtils.collectionCount(filter.getItems()));
+            items.add(MlConfigSizeUtils.stringCollectionTotalLength(filter.getItems()));
         }
-        return MlConfigSizeUtils.configSizesMap(Map.of("description", description));
+        return MlConfigSizeUtils.configSizesMap(Map.of("description", description, "items_count", itemsCount, "items", items));
     }
 
     public static Map<String, Object> collectModelSnapshotConfigSizes(List<ModelSnapshot> snapshots) {
@@ -138,12 +145,14 @@ public final class MlConfigSizeUsage {
         accumulators.put("groups_count", new SizeHistogramAccumulator());
         accumulators.put("results_index_name", new SizeHistogramAccumulator());
         accumulators.put("categorization_filters_count", new SizeHistogramAccumulator());
+        accumulators.put("categorization_filters", new SizeHistogramAccumulator());
         accumulators.put("influencers_count", new SizeHistogramAccumulator());
         accumulators.put("categorization_field_name", new SizeHistogramAccumulator());
         accumulators.put("summary_count_field_name", new SizeHistogramAccumulator());
         accumulators.put("categorization_analyzer", new SizeHistogramAccumulator());
         accumulators.put("detector_description", new SizeHistogramAccumulator());
         accumulators.put("detector_rules_count", new SizeHistogramAccumulator());
+        accumulators.put("detector_rules", new SizeHistogramAccumulator());
         accumulators.put("detector_field_name", new SizeHistogramAccumulator());
         accumulators.put("time_field", new SizeHistogramAccumulator());
         accumulators.put("time_format", new SizeHistogramAccumulator());
@@ -158,6 +167,8 @@ public final class MlConfigSizeUsage {
 
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         accumulators.get("categorization_filters_count").add(MlConfigSizeUtils.collectionCount(analysisConfig.getCategorizationFilters()));
+        accumulators.get("categorization_filters")
+            .add(MlConfigSizeUtils.stringCollectionTotalLength(analysisConfig.getCategorizationFilters()));
         accumulators.get("influencers_count").add(MlConfigSizeUtils.collectionCount(analysisConfig.getInfluencers()));
         accumulators.get("categorization_field_name").add(MlConfigSizeUtils.stringLength(analysisConfig.getCategorizationFieldName()));
         accumulators.get("summary_count_field_name").add(MlConfigSizeUtils.stringLength(analysisConfig.getSummaryCountFieldName()));
@@ -169,6 +180,14 @@ public final class MlConfigSizeUsage {
         for (Detector detector : analysisConfig.getDetectors()) {
             accumulators.get("detector_description").add(MlConfigSizeUtils.stringLength(detector.getDetectorDescription()));
             accumulators.get("detector_rules_count").add(MlConfigSizeUtils.collectionCount(detector.getRules()));
+            List<DetectionRule> rules = detector.getRules();
+            if (rules.isEmpty() == false) {
+                long detectorRulesBytes = 0L;
+                for (DetectionRule rule : rules) {
+                    detectorRulesBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(rule);
+                }
+                accumulators.get("detector_rules").add(detectorRulesBytes);
+            }
             addFieldNameLength(accumulators.get("detector_field_name"), detector.getFieldName());
             addFieldNameLength(accumulators.get("detector_field_name"), detector.getByFieldName());
             addFieldNameLength(accumulators.get("detector_field_name"), detector.getOverFieldName());
@@ -176,8 +195,10 @@ public final class MlConfigSizeUsage {
         }
 
         DataDescription dataDescription = job.getDataDescription();
-        accumulators.get("time_field").add(MlConfigSizeUtils.stringLength(dataDescription.getTimeField()));
-        accumulators.get("time_format").add(MlConfigSizeUtils.stringLength(dataDescription.getTimeFormat()));
+        if (dataDescription != null) {
+            accumulators.get("time_field").add(MlConfigSizeUtils.stringLength(dataDescription.getTimeField()));
+            accumulators.get("time_format").add(MlConfigSizeUtils.stringLength(dataDescription.getTimeFormat()));
+        }
     }
 
     private static Map<String, SizeHistogramAccumulator> newDatafeedConfigAccumulators() {
@@ -186,7 +207,9 @@ public final class MlConfigSizeUsage {
         accumulators.put("aggregations", new SizeHistogramAccumulator());
         accumulators.put("runtime_mappings", new SizeHistogramAccumulator());
         accumulators.put("script_fields_count", new SizeHistogramAccumulator());
+        accumulators.put("script_fields", new SizeHistogramAccumulator());
         accumulators.put("indices_count", new SizeHistogramAccumulator());
+        accumulators.put("indices", new SizeHistogramAccumulator());
         return accumulators;
     }
 
@@ -195,7 +218,16 @@ public final class MlConfigSizeUsage {
         accumulators.get("aggregations").add(MlConfigSizeUtils.mapApproxSizeBytes(datafeed.getAggregations()));
         accumulators.get("runtime_mappings").add(MlConfigSizeUtils.mapApproxSizeBytes(datafeed.getRuntimeMappings()));
         accumulators.get("script_fields_count").add(MlConfigSizeUtils.collectionCount(datafeed.getScriptFields()));
+        List<SearchSourceBuilder.ScriptField> scriptFields = datafeed.getScriptFields();
+        if (scriptFields.isEmpty() == false) {
+            long scriptFieldBytes = 0L;
+            for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
+                scriptFieldBytes += MlConfigSizeUtils.toXContentFragmentApproxSizeBytes(scriptField);
+            }
+            accumulators.get("script_fields").add(scriptFieldBytes);
+        }
         accumulators.get("indices_count").add(MlConfigSizeUtils.collectionCount(datafeed.getIndices()));
+        accumulators.get("indices").add(MlConfigSizeUtils.stringCollectionTotalLength(datafeed.getIndices()));
     }
 
     private static Map<String, SizeHistogramAccumulator> newDataFrameAnalyticsConfigAccumulators() {
@@ -206,6 +238,8 @@ public final class MlConfigSizeUsage {
         accumulators.put("feature_processors", new SizeHistogramAccumulator());
         accumulators.put("analyzed_fields_includes_count", new SizeHistogramAccumulator());
         accumulators.put("analyzed_fields_excludes_count", new SizeHistogramAccumulator());
+        accumulators.put("analyzed_fields_includes", new SizeHistogramAccumulator());
+        accumulators.put("analyzed_fields_excludes", new SizeHistogramAccumulator());
         accumulators.put("source_query", new SizeHistogramAccumulator());
         accumulators.put("source_runtime_mappings", new SizeHistogramAccumulator());
         accumulators.put("dest_results_field", new SizeHistogramAccumulator());
@@ -250,6 +284,8 @@ public final class MlConfigSizeUsage {
         String[] excludes = analyzedFields.excludes();
         accumulators.get("analyzed_fields_includes_count").add(includes == null ? 0L : includes.length);
         accumulators.get("analyzed_fields_excludes_count").add(excludes == null ? 0L : excludes.length);
+        accumulators.get("analyzed_fields_includes").add(MlConfigSizeUtils.stringArrayTotalLength(includes));
+        accumulators.get("analyzed_fields_excludes").add(MlConfigSizeUtils.stringArrayTotalLength(excludes));
     }
 
     private static void accumulateDataFrameAnalyticsSourceSizes(
@@ -291,9 +327,13 @@ public final class MlConfigSizeUsage {
         accumulators.put("description", new SizeHistogramAccumulator());
         accumulators.put("metadata", new SizeHistogramAccumulator());
         accumulators.put("tags_count", new SizeHistogramAccumulator());
+        accumulators.put("tags", new SizeHistogramAccumulator());
         accumulators.put("input_field_names_count", new SizeHistogramAccumulator());
         accumulators.put("input_field_name", new SizeHistogramAccumulator());
         accumulators.put("classification_labels_count", new SizeHistogramAccumulator());
+        accumulators.put("classification_labels", new SizeHistogramAccumulator());
+        accumulators.put("default_field_map", new SizeHistogramAccumulator());
+        accumulators.put("prefix_strings", new SizeHistogramAccumulator());
         accumulators.put("vocabulary", new SizeHistogramAccumulator());
         return accumulators;
     }
@@ -305,6 +345,9 @@ public final class MlConfigSizeUsage {
         accumulators.get("description").add(MlConfigSizeUtils.stringLength(trainedModelConfig.getDescription()));
         accumulators.get("metadata").add(MlConfigSizeUtils.mapApproxSizeBytes(trainedModelConfig.getMetadata()));
         accumulators.get("tags_count").add(MlConfigSizeUtils.collectionCount(trainedModelConfig.getTags()));
+        accumulators.get("tags").add(MlConfigSizeUtils.stringCollectionTotalLength(trainedModelConfig.getTags()));
+        accumulators.get("default_field_map").add(MlConfigSizeUtils.mapApproxSizeBytes(trainedModelConfig.getDefaultFieldMap()));
+        accumulators.get("prefix_strings").add(MlConfigSizeUtils.toXContentApproxSizeBytes(trainedModelConfig.getPrefixStrings()));
 
         TrainedModelInput input = trainedModelConfig.getInput();
         if (input != null) {
@@ -317,13 +360,19 @@ public final class MlConfigSizeUsage {
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig();
         if (inferenceConfig instanceof NlpConfig nlpConfig) {
             accumulators.get("classification_labels_count").add(classificationLabelsCount(inferenceConfig));
+            accumulators.get("classification_labels")
+                .add(MlConfigSizeUtils.stringCollectionTotalLength(classificationLabels(inferenceConfig)));
             VocabularyConfig vocabularyConfig = nlpConfig.getVocabularyConfig();
-            if (vocabularyConfig != null) {
-                accumulators.get("vocabulary").add(MlConfigSizeUtils.toXContentApproxSizeBytes(vocabularyConfig));
-            }
             Tokenization tokenization = nlpConfig.getTokenization();
-            if (tokenization != null) {
-                accumulators.get("vocabulary").add(MlConfigSizeUtils.toXContentApproxSizeBytes(tokenization));
+            if (vocabularyConfig != null || tokenization != null) {
+                long vocabularyBytes = 0L;
+                if (vocabularyConfig != null) {
+                    vocabularyBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(vocabularyConfig);
+                }
+                if (tokenization != null) {
+                    vocabularyBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(tokenization);
+                }
+                accumulators.get("vocabulary").add(vocabularyBytes);
             }
         }
     }
@@ -357,16 +406,21 @@ public final class MlConfigSizeUsage {
     }
 
     private static long classificationLabelsCount(InferenceConfig inferenceConfig) {
+        return MlConfigSizeUtils.collectionCount(classificationLabels(inferenceConfig));
+    }
+
+    @Nullable
+    private static Collection<String> classificationLabels(InferenceConfig inferenceConfig) {
         if (inferenceConfig instanceof TextClassificationConfig textClassificationConfig) {
-            return MlConfigSizeUtils.collectionCount(textClassificationConfig.getClassificationLabels());
+            return textClassificationConfig.getClassificationLabels();
         }
         if (inferenceConfig instanceof NerConfig nerConfig) {
-            return MlConfigSizeUtils.collectionCount(nerConfig.getClassificationLabels());
+            return nerConfig.getClassificationLabels();
         }
         if (inferenceConfig instanceof ZeroShotClassificationConfig zeroShotClassificationConfig) {
-            return MlConfigSizeUtils.collectionCount(zeroShotClassificationConfig.getClassificationLabels());
+            return zeroShotClassificationConfig.getClassificationLabels();
         }
-        return 0L;
+        return null;
     }
 
     private static void addFieldNameLength(SizeHistogramAccumulator accumulator, String fieldName) {

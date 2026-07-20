@@ -23,6 +23,8 @@ import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureUsage {
 
+    static final TransportVersion INFERENCE_USAGE_CONFIG_SIZES = TransportVersion.fromName("inference_usage_config_sizes");
+
     public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of(), Map.of());
     // Public so tests can access it
     public static final String MODELS_FIELD = "models";
@@ -44,7 +46,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
     public InferenceFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.modelStats = in.readCollectionAsList(ModelStats::new);
-        this.configSizes = Map.of();
+        this.configSizes = in.getTransportVersion().supports(INFERENCE_USAGE_CONFIG_SIZES) ? in.readGenericMap() : Map.of();
     }
 
     @Override
@@ -60,6 +62,9 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeCollection(modelStats);
+        if (out.getTransportVersion().supports(INFERENCE_USAGE_CONFIG_SIZES)) {
+            out.writeGenericMap(configSizes);
+        }
     }
 
     @Override

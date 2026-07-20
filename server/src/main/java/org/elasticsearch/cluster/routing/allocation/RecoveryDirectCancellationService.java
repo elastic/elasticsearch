@@ -74,7 +74,7 @@ public class RecoveryDirectCancellationService {
     /// Time-based cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
     /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
     /// have taken effect on the data nodes.
-    final Cache<String, ShardRecoveryCancellation> sentCancellations;
+    final Cache<String, SentCancellation> sentCancellations;
 
     public RecoveryDirectCancellationService(
         TransportService transportService,
@@ -90,9 +90,7 @@ public class RecoveryDirectCancellationService {
             Priority.HIGH,
             new ShardFailedTaskExecutor(allocationService, rerouteService)
         );
-        this.sentCancellations = CacheBuilder.<String, ShardRecoveryCancellation>builder()
-            .setExpireAfterWrite(TimeValue.timeValueHours(3))
-            .build();
+        this.sentCancellations = CacheBuilder.<String, SentCancellation>builder().setExpireAfterWrite(TimeValue.timeValueHours(3)).build();
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
@@ -173,10 +171,16 @@ public class RecoveryDirectCancellationService {
             final CancelRecoveriesAction.Request request = nodeRequest.getValue();
             final var dedupedCancellations = new ArrayList<ShardRecoveryCancellation>();
             for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-                final ShardRecoveryCancellation cached = sentCancellations.get(cancellation.allocationId());
-                assert cached == null || cached.shardId().equals(cancellation.shardId());
-                if (cached == null || (cached.cancelIfStarted() == false && cancellation.cancelIfStarted())) {
+                final SentCancellation cached = sentCancellations.get(cancellation.allocationId());
+                if (cached == null) {
                     dedupedCancellations.add(cancellation);
+                } else {
+                    final ShardRecoveryCancellation cachedCancellation = cached.cancellation();
+                    assert cachedCancellation.shardId().equals(cancellation.shardId());
+                    if ((cachedCancellation.cancelIfStarted() == false && cancellation.cancelIfStarted())
+                        || cached.term() != request.term()) {
+                        dedupedCancellations.add(cancellation);
+                    }
                 }
             }
             if (dedupedCancellations.isEmpty() == false) {
@@ -199,7 +203,7 @@ public class RecoveryDirectCancellationService {
             new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
                 // We only record the cancellation in the cache once we know the data node processed it successfully
                 for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-                    sentCancellations.put(cancellation.allocationId(), cancellation);
+                    sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
                 }
                 failShardsCancelledInQueue(node, response);
             }, e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)),
@@ -289,4 +293,6 @@ public class RecoveryDirectCancellationService {
             .filter(ShardRouting::started)
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
+
+    record SentCancellation(long term, ShardRecoveryCancellation cancellation) {}
 }

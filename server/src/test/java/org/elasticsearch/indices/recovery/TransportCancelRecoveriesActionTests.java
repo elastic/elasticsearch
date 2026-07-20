@@ -10,9 +10,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,9 +48,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -210,25 +205,14 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
                 .build()
         );
 
-        final var listener = new ActionListener<CancelRecoveriesAction.Response>() {
-            @Override
-            public void onResponse(CancelRecoveriesAction.Response response) {
-                fail("unexpected success");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                final var cause = ExceptionsHelper.unwrap(e, ElasticsearchException.class);
-                assertThat(cause, notNullValue());
-                assertThat(cause.getMessage(), containsString("obsolete direct recovery cancellation request for term"));
-            }
-        };
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
         action.execute(
             mock(Task.class),
             new CancelRecoveriesAction.Request(0L, 0L, List.of(new ShardRecoveryCancellation(queuedShardId, queuedAllocationId, true))),
-            listener
+            responseFuture
         );
 
+        assertTrue(responseFuture.actionGet().cancelledInQueue().isEmpty());
         assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
     }
 

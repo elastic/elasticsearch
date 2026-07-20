@@ -21,8 +21,8 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Source source = randomSource();
         Expression field = randomChild();
         Expression percentile = randomChild();
-        double compression = randomCompression();
-        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, compression);
+        double tDigestStateCompression = randomCompression();
+        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
     }
 
     @Override
@@ -30,13 +30,16 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Source source = instance.source();
         Expression field = instance.field();
         Expression percentile = instance.percentile();
-        double compression = instance.compression();
+        double tDigestStateCompression = instance.tDigestStateCompression();
         switch (between(0, 2)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
-            case 2 -> compression = randomValueOtherThan(compression, PercentileSerializationTests::randomCompression);
+            case 2 -> tDigestStateCompression = randomValueOtherThan(
+                tDigestStateCompression,
+                PercentileSerializationTests::randomCompression
+            );
         }
-        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, compression);
+        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
     }
 
     private static double randomCompression() {

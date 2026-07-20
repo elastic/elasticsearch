@@ -166,7 +166,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             .toList();
         assertThat(bucketPercentiles, hasSize(ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT));
         for (Percentile bucketPercentile : bucketPercentiles) {
-            assertThat(bucketPercentile.compression(), equalTo(ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION));
+            assertThat(bucketPercentile.tDigestStateCompression(), equalTo(ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION));
         }
 
         // Main aggregate retains full compression for accurate results.
@@ -180,7 +180,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             .map(ne -> (Percentile) ((Alias) ne).child())
             .toList();
         assertThat(mainPercentiles, hasSize(1));
-        assertThat(mainPercentiles.getFirst().compression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
+        assertThat(mainPercentiles.getFirst().tDigestStateCompression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
     }
 
     public void testColumnMetadata() {

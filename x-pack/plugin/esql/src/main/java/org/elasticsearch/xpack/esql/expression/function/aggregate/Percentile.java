@@ -74,7 +74,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         .name("quantile");
 
     private final Expression percentile;
-    private final double compression;
+    private final double tDigestStateCompression;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -132,10 +132,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         this(source, field, filter, window, percentile, QuantileStates.DEFAULT_COMPRESSION);
     }
 
-    public Percentile(Source source, Expression field, Expression filter, Expression window, Expression percentile, double compression) {
+    public Percentile(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression percentile,
+        double tDigestStateCompression
+    ) {
         super(source, field, filter, window, singletonList(percentile));
         this.percentile = percentile;
-        this.compression = compression;
+        this.tDigestStateCompression = tDigestStateCompression;
     }
 
     private Percentile(StreamInput in) throws IOException {
@@ -157,31 +164,38 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     @Override
     protected void writeAdditionalTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(PERCENTILE_COMPRESSION)) {
-            out.writeDouble(compression);
+            out.writeDouble(tDigestStateCompression);
         }
     }
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile, compression);
+        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile, tDigestStateCompression);
     }
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), compression);
+        return new Percentile(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            tDigestStateCompression
+        );
     }
 
     @Override
     public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, window(), percentile, compression);
+        return new Percentile(source(), field(), filter, window(), percentile, tDigestStateCompression);
     }
 
     public Expression percentile() {
         return percentile;
     }
 
-    public double compression() {
-        return compression;
+    public double tDigestStateCompression() {
+        return tDigestStateCompression;
     }
 
     public Percentile withTDigestStateCompression(double newCompression) {
@@ -190,7 +204,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), compression);
+        return Objects.hash(super.hashCode(), tDigestStateCompression);
     }
 
     @Override
@@ -198,7 +212,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         if (super.equals(obj) == false) {
             return false;
         }
-        return Double.compare(((Percentile) obj).compression, compression) == 0;
+        return Double.compare(((Percentile) obj).tDigestStateCompression, tDigestStateCompression) == 0;
     }
 
     @Override
@@ -229,17 +243,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        return new PercentileLongAggregatorFunctionSupplier(percentileValue(), compression);
+        return new PercentileLongAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
     }
 
     @Override
     protected AggregatorFunctionSupplier intSupplier() {
-        return new PercentileIntAggregatorFunctionSupplier(percentileValue(), compression);
+        return new PercentileIntAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
     }
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier() {
-        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), compression);
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
     }
 
     private double percentileValue() {

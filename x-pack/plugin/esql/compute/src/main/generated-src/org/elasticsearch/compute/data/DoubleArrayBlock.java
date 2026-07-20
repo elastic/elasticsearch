@@ -247,6 +247,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

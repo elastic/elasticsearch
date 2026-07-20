@@ -247,6 +247,7 @@ public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBl
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

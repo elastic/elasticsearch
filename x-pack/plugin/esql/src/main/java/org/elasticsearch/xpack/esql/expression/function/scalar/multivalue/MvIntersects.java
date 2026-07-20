@@ -228,8 +228,13 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        // TODO: when one of the arguments has a null type, the expression can be folded early
+        if (left().dataType() == DataType.NULL || right().dataType() == DataType.NULL) {
+            return Translatable.NO;
+        }
+
         // TODO: Add Lucene pushdown for spatial types too
-        DataType dataType = left().dataType() == DataType.NULL ? right().dataType() : left().dataType();
+        DataType dataType = left().dataType();
         if (dataType.isNumeric() == false
             && DataType.isString(dataType) == false
             && dataType.isDate() == false

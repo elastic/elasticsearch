@@ -610,12 +610,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
-- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
-  method: testMatchInLookupJoinWithKeywordJoinField
-  issue: https://github.com/elastic/elasticsearch/issues/154357
-- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
-  method: testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError
-  issue: https://github.com/elastic/elasticsearch/issues/154359
 - class: org.elasticsearch.index.rankeval.RankEvalRequestIT
   method: testIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/154360

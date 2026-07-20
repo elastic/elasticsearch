@@ -99,6 +99,12 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         }
     }
 
+    /** Nested children carry the compound identity term so a soft-delete by uid removes them with their root. */
+    @Override
+    public BytesRef nestedIdentityTerm(DocumentParserContext context) {
+        return encodeCompoundId(context.id(), context.sourceToParse().routing());
+    }
+
     @Override
     public void preParse(DocumentParserContext context) {
         if (context.sourceToParse().id() == null) {
@@ -112,11 +118,11 @@ public class SliceIdFieldMapper extends IdFieldMapper {
             throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
         }
         final String id = context.id();
-        // The compound is added first: nested children copy the root's first _id field and must carry the uid so that a
-        // soft-delete removes them along with their root.
+        // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
+        // uniqueness/versioning/GET/delete.
+        context.doc().add(new StringField(NAME, searchTerm(id), Field.Store.NO));
         final BytesRef compound = encodeCompoundId(id, slice);
         context.doc().add(new StringField(NAME, compound, Field.Store.NO));
-        context.doc().add(new StringField(NAME, searchTerm(id), Field.Store.NO));
         // The compound bytes are also stored as the _id value (stored field in document mode, binary doc values in
         // columnar mode).
         if (columnar) {

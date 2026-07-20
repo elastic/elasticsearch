@@ -358,21 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecFoldingIT
-  method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
-  issue: https://github.com/elastic/elasticsearch/issues/152314
-- class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
-  method: the getRootProject baseline contains no stale entries
-  issue: https://github.com/elastic/elasticsearch/issues/152341
-- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
-  method: testGetAndGetBasicStats
-  issue: https://github.com/elastic/elasticsearch/issues/152351
-- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
-  method: testExplicitMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPartiallyRetainedByCcrLease
-  issue: https://github.com/elastic/elasticsearch/issues/152498
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506

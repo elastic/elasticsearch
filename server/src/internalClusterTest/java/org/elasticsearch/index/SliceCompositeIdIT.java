@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.HashSet;
@@ -431,6 +433,56 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         refresh("occ");
         assertThat(getDoc("occ", "sa", "1").getSource().get("field"), equalTo("va2"));
         assertThat(getDoc("occ", "sb", "1").getSource().get("field"), equalTo("vb2"));
+    }
+
+    /**
+     * Nested children carry their root's compound {@code _id}, so replacing or deleting the root removes the whole
+     * block. Children left behind would stay live and corrupt nested queries.
+     */
+    public void testNestedChildrenAreReplacedWithTheirRoot() {
+        assertAcked(
+            prepareCreate("nested_idx").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            ).setMapping("nested", "type=nested")
+        );
+        ensureGreen("nested_idx");
+
+        indexNested("nested_idx", "sa", "1", "a", "b");
+        refresh("nested_idx");
+        assertThat("root plus two children", liveDocs("nested_idx"), equalTo(3L));
+        assertResponse(searchSlice("nested_idx", "sa", nestedQuery("a")), r -> assertThat(r.getHits().getTotalHits().value(), equalTo(1L)));
+
+        indexNested("nested_idx", "sa", "1", "c");
+        refresh("nested_idx");
+        assertThat("root plus one child, the previous children are gone", liveDocs("nested_idx"), equalTo(2L));
+        assertResponse(searchSlice("nested_idx", "sa", nestedQuery("a")), r -> assertThat(r.getHits().getTotalHits().value(), equalTo(0L)));
+        assertResponse(searchSlice("nested_idx", "sa", nestedQuery("c")), r -> assertThat(r.getHits().getTotalHits().value(), equalTo(1L)));
+
+        deleteDoc("nested_idx", "sa", "1");
+        refresh("nested_idx");
+        assertThat("the whole block is deleted", liveDocs("nested_idx"), equalTo(0L));
+    }
+
+    private void indexNested(String index, String slice, String id, String... children) {
+        StringBuilder source = new StringBuilder("{\"nested\":[");
+        for (int i = 0; i < children.length; i++) {
+            source.append(i == 0 ? "" : ",").append("{\"field\":\"").append(children[i]).append("\"}");
+        }
+        source.append("]}");
+        client().index(new IndexRequest(index).id(id).routing(slice).setRoutingFromSlice(true).source(source.toString(), XContentType.JSON))
+            .actionGet();
+    }
+
+    private static QueryBuilder nestedQuery(String value) {
+        return QueryBuilders.nestedQuery("nested", QueryBuilders.termQuery("nested.field", value), ScoreMode.None);
+    }
+
+    /** Live Lucene documents on the primary, which includes nested children. */
+    private long liveDocs(String index) {
+        return indicesAdmin().prepareStats(index).get().getPrimaries().getDocs().getCount();
     }
 
     /** Drains one scroll-slice partition, recording each hit's source marker, and returns the number of hits seen. */

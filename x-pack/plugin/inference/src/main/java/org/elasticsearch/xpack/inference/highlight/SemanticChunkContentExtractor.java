@@ -47,7 +47,7 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> stringKeyedMap = (Map<String, Object>) map;
                 InferenceString inferenceString = SemanticTextUtils.parseInferenceStringValue(stringKeyedMap);
-                return inferenceString.value() != null ? inferenceString.value() : inferenceString.description();
+                return inferenceString.description() != null ? inferenceString.description() : inferenceString.value();
             } else if (resolved instanceof String string) {
                 return string;
             } else {

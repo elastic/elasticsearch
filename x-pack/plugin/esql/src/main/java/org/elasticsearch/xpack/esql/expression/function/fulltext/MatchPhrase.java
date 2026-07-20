@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -254,9 +257,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
 
     @Override
     public boolean isRuntimeSearch() {
-        // Runtime match_phrase currently supports only text expressions.
-        // TODO keyword expressions still require an index-mapped field.
-        return runtimeSearchEnabled() && fieldAsFieldAttribute() == null && (field.dataType() == TEXT || field.dataType() == NULL);
+        return runtimeSearchEnabled() && fieldAsFieldAttribute() == null;
     }
 
     @Override
@@ -290,6 +291,23 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toEvaluator(toEvaluator);
         }
 
-        return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+        if (field.dataType() == TEXT) {
+            return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+        }
+        // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
+        // falling through to exact matching would silently give it the wrong semantics. NULL fields never get
+        // here because the function folds to null.
+        if (field.dataType() != KEYWORD) {
+            throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+        }
+        // A pushed-down match_phrase on a keyword field rewrites to a term query, so the runtime path preserves
+        // that: exact, unanalyzed equality with the query string. Query types are strings only, so no conversion
+        // of the folded value is needed.
+        return new RuntimeSearchBytesRefEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            (BytesRef) Foldables.queryAsObject(query(), sourceText()),
+            context -> new BytesRef()
+        );
     }
 }

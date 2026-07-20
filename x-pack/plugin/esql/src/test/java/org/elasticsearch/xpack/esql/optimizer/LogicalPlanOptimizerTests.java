@@ -6278,7 +6278,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPartiallyFoldCaseKeepsKeywordForTextArm() {
         var plan = optimizedPlan("""
               FROM test
-            | EVAL c = CASE(true, TO_TEXT(first_name))
+            | EVAL c = CASE(true, gender)
             """);
 
         var eval = as(plan, Eval.class);

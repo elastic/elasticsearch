@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.highlight;
 
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
@@ -45,7 +46,8 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
             if (resolved instanceof Map<?, ?> map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> stringKeyedMap = (Map<String, Object>) map;
-                return SemanticTextUtils.parseInferenceStringValue(stringKeyedMap).value();
+                InferenceString inferenceString = SemanticTextUtils.parseInferenceStringValue(stringKeyedMap);
+                return inferenceString.value() != null ? inferenceString.value() : inferenceString.description();
             } else if (resolved instanceof String string) {
                 return string;
             } else {

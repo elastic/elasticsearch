@@ -715,7 +715,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertThat("recovery should have been cancelled from the queue", cancellationResponse.cancelledInQueue(), hasSize(1));
 
         try {
-            // Trigger another cluster state update while the shard failure is being processed.
+            // Trigger another cluster state update with the same initializing shard and its failed allocationId.
             disableAllocation();
 
             awaitClusterState(state -> state.routingTable().shardRoutingTable(shardId).primaryShard().unassigned());

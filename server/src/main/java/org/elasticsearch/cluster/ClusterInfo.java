@@ -70,11 +70,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     private static final TransportVersion DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO = TransportVersion.fromName(
         "default_shard_heap_usage_when_missing_in_cluster_info"
     );
+    static final TransportVersion CACHE_METADATA_IN_CLUSTER_INFO = TransportVersion.fromName("cache_metadata_in_cluster_info");
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     final Map<String, Long> shardSizes;
     final Map<ShardId, Long> shardDataSetSizes;
+    private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements;
+    private final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
@@ -109,7 +112,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             Map.of(),
             Map.of(),
             Map.of(),
-            Set.of()
+            Set.of(),
+            Map.of(),
+            Map.of()
         );
     }
 
@@ -129,6 +134,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
      * @see #shardIdentifierFromRouting
      * @param maxHeapSizePerNode node id to max heap size
      * @param nodeIdsWriteLoadHotspotting set of node ids that are hotspotting
+     * @param nodeCacheSizeAndCommitments cache size and cache commitment stats per node
+     * @param shardCacheRequirements boosted and unboosted cache requirements per shard
      */
     public ClusterInfo(
         Map<String, DiskUsage> leastAvailableSpaceUsage,
@@ -143,7 +150,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
         Map<ShardId, Double> shardWriteLoads,
         Map<String, ByteSizeValue> maxHeapSizePerNode,
-        Set<String> nodeIdsWriteLoadHotspotting
+        Set<String> nodeIdsWriteLoadHotspotting,
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements
     ) {
         this(
             leastAvailableSpaceUsage,
@@ -159,7 +168,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             shardWriteLoads,
             maxHeapSizePerNode,
             nodeIdsWriteLoadHotspotting,
-            computeShardToNodeIds(dataPath)
+            computeShardToNodeIds(dataPath),
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements
         );
     }
 
@@ -177,7 +188,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<ShardId, Double> shardWriteLoads,
         Map<String, ByteSizeValue> maxHeapSizePerNode,
         Set<String> nodeIdsWriteLoadHotspotting,
-        Map<ShardId, Set<String>> shardToNodeIds
+        Map<ShardId, Set<String>> shardToNodeIds,
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -194,6 +207,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.nodeIdsWriteLoadHotspotting = Set.copyOf(nodeIdsWriteLoadHotspotting);
         this.nodeMaxShardWriteLoadProportion = new ObjectDoubleHashMap<>(nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = shardToNodeIds;
+        this.nodeCacheSizeAndCommitments = Map.copyOf(nodeCacheSizeAndCommitments);
+        this.shardCacheRequirements = Map.copyOf(shardCacheRequirements);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -240,6 +255,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
         this.nodeMaxShardWriteLoadProportion = new ObjectDoubleHashMap<>(this.nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
+        if (in.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
+            this.shardCacheRequirements = in.readImmutableMap(ShardId::new, BoostedAndUnboostedCacheRequirements::new);
+            this.nodeCacheSizeAndCommitments = in.readImmutableMap(StreamInput::readString, NodeCacheSizeAndCommitments::new);
+        } else {
+            this.shardCacheRequirements = Map.of();
+            this.nodeCacheSizeAndCommitments = Map.of();
+        }
     }
 
     ClusterInfo updateWith(
@@ -266,7 +288,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             maxHeapSizePerNode,
             // nodes with write load hotspotting remain unchanged during simulation, as they reflect the original state
             nodeIdsWriteLoadHotspotting,
-            shardToNodeIds
+            shardToNodeIds,
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements
         );
     }
 
@@ -314,6 +338,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
         if (out.getTransportVersion().supports(DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO)) {
             out.writeWriteable(this.defaultShardHeapUsageForShardsWithoutMetrics);
+        }
+        if (out.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardCacheRequirements, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
+            out.writeMap(this.nodeCacheSizeAndCommitments, StreamOutput::writeString, StreamOutput::writeWriteable);
         }
     }
 
@@ -396,8 +424,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             }),
             endArray() // end "reserved_sizes"
             // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools/shardWriteLoads/maxHeapSizePerNode/
-            // nodeIdsWriteLoadHotspotting/estimatedShardHeapUsages at this stage, to avoid committing to API payloads until
-            // the features are settled
+            // nodeIdsWriteLoadHotspotting/estimatedShardHeapUsages/nodeCacheSizeAndCommitments/shardCacheRequirements at this stage, to
+            // avoid committing to API
+            // payloads until the features are settled
         );
     }
 
@@ -410,6 +439,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
      */
     public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
         return estimatedHeapUsages;
+    }
+
+    public Map<ShardId, BoostedAndUnboostedCacheRequirements> getShardCacheRequirements() {
+        return shardCacheRequirements;
+    }
+
+    public Map<String, NodeCacheSizeAndCommitments> getNodeCacheSizeAndCommitments() {
+        return nodeCacheSizeAndCommitments;
     }
 
     /**
@@ -573,7 +610,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools)
             && shardWriteLoads.equals(that.shardWriteLoads)
             && maxHeapSizePerNode.equals(that.maxHeapSizePerNode)
-            && nodeIdsWriteLoadHotspotting.equals(that.nodeIdsWriteLoadHotspotting);
+            && nodeIdsWriteLoadHotspotting.equals(that.nodeIdsWriteLoadHotspotting)
+            && nodeCacheSizeAndCommitments.equals(that.nodeCacheSizeAndCommitments)
+            && shardCacheRequirements.equals(that.shardCacheRequirements);
     }
 
     @Override
@@ -591,7 +630,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             nodeUsageStatsForThreadPools,
             shardWriteLoads,
             maxHeapSizePerNode,
-            nodeIdsWriteLoadHotspotting
+            nodeIdsWriteLoadHotspotting,
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements
         );
     }
 
@@ -719,6 +760,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         private Map<ShardId, Double> shardWriteLoads = Map.of();
         private Map<String, ByteSizeValue> maxHeapSizePerNode = Map.of();
         private Set<String> nodeIdsWriteLoadHotspotting = Set.of();
+        private Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
+        private Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
 
         public ClusterInfo build() {
             return new ClusterInfo(
@@ -734,7 +777,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
                 nodeUsageStatsForThreadPools,
                 shardWriteLoads,
                 maxHeapSizePerNode,
-                nodeIdsWriteLoadHotspotting
+                nodeIdsWriteLoadHotspotting,
+                nodeCacheSizeAndCommitments,
+                shardCacheRequirements
             );
         }
 
@@ -800,6 +845,16 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
         public Builder nodeIdsWriteLoadHotspotting(Set<String> nodeIdsWriteLoadHotspotting) {
             this.nodeIdsWriteLoadHotspotting = nodeIdsWriteLoadHotspotting;
+            return this;
+        }
+
+        public Builder shardCacheRequirements(Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements) {
+            this.shardCacheRequirements = shardCacheRequirements;
+            return this;
+        }
+
+        public Builder nodeCacheSizeAndCommitments(Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments) {
+            this.nodeCacheSizeAndCommitments = nodeCacheSizeAndCommitments;
             return this;
         }
     }

@@ -471,6 +471,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                 }
+                case AcrossSeriesReduction reduction -> {
+                    for (Attribute grouping : reduction.groupings()) {
+                        if (stepColumnName().equals(grouping.name())) {
+                            failures.add(
+                                fail(
+                                    reduction,
+                                    "label [{}] collides with the built-in [{}] output column [{}]",
+                                    stepColumnName(),
+                                    stepColumnName(),
+                                    reduction.sourceText()
+                                )
+                            );
+                        }
+                    }
+                }
                 case PromqlFunctionCall functionCall -> {
                     // ok — counter/gauge type mismatches are coerced during translation
                 }

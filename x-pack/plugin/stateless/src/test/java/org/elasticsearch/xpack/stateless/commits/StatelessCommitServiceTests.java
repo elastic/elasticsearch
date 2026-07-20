@@ -671,6 +671,94 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that when node shutdown begins while a copy to a split target is in-flight, the object store
+     * service blocks closing until the copy task completes and releases its permit. Without the permit, the
+     * blob store could close before the copy finishes, causing the copy to fail, potentially logging an
+     * unnecessary warning
+     */
+    public void testNodeShutdownWaitsForInFlightCopy() throws Exception {
+        CountDownLatch copyRunning = new CountDownLatch(1);
+        CountDownLatch copyCanProceed = new CountDownLatch(1);
+        AtomicReference<Exception> closeThreadException = new AtomicReference<>();
+        AtomicBoolean copySucceeded = new AtomicBoolean(false);
+
+        var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedContainer extends FilterBlobContainer {
+                    WrappedContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedContainer(child);
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        copyRunning.countDown();
+                        safeAwait(copyCanProceed);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        copySucceeded.set(true);
+                    }
+                }
+                return new WrappedContainer(innerContainer);
+            }
+        };
+
+        Thread closeThread = null;
+        try {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(1);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+
+            // Wait for the async copy to start and block inside copyBlob.
+            safeAwait(copyRunning);
+
+            // Begin closing the node concurrently. commitService.close() marks the shard state as CLOSED,
+            // then objectStoreService.doClose() blocks on the copy permit until it is released.
+            closeThread = new Thread(() -> {
+                try {
+                    testHarness.close();
+                } catch (Exception e) {
+                    closeThreadException.set(e);
+                }
+            }, "close-thread");
+            closeThread.start();
+
+            // Wait until the close thread is blocked on the semaphore drain inside objectStoreService.doClose().
+            final var awaitedCloseThread = closeThread;
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, awaitedCloseThread.getState()));
+
+            // Unblock the copy. It completes copyBlob, sees commitState.isClosed() == true, calls
+            // cleanup() and returns — releasing the copy permit and unblocking objectStoreService.doClose().
+            copyCanProceed.countDown();
+            closeThread.join(10_000);
+            assertFalse("node close should complete once the copy releases its permit", closeThread.isAlive());
+            assertNull("node close should not throw", closeThreadException.get());
+            assertTrue("copy should have succeeded: blob store must remain open until the permit is released", copySucceeded.get());
+        } finally {
+            // Unblock the copy in case the test failed before doing so, then wait for any in-progress close.
+            copyCanProceed.countDown();
+            if (closeThread != null) {
+                closeThread.join(10_000);
+            } else {
+                testHarness.close();
+            }
+        }
+    }
+
     public void testRelocationWaitsForAllPendingCommitsAndDoesNotAllowNew() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         AtomicReference<String> commitFileToBlock = new AtomicReference<>();

@@ -920,37 +920,51 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (splitTargets.isEmpty()) {
                     afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
                 } else {
+                    // Acquire a permit so that objectStoreService.doClose() waits for in-flight copies before
+                    // closing the blob store, mirroring the implicit drain the old synchronous copy code provided.
+                    final Releasable copyPermit;
+                    try {
+                        copyPermit = objectStoreService.acquireCopyPermit();
+                    } catch (Exception e) {
+                        // Service is already shutting down; treat the same as a closed shard.
+                        cleanup();
+                        return;
+                    }
                     // Serialise copies via a per-shard single-slot runner so that
                     // fireUploadedGenerationListeners is always called in generation order.
                     // (ES-12456)
                     commitState.splitTargetCopyExecutor.execute(() -> {
-                        for (ShardId targetShardId : splitTargets) {
-                            while (commitState.isClosed() == false) {
-                                try {
-                                    objectStoreService.copyCommit(virtualBcc, targetShardId);
-                                    break;
-                                } catch (Exception e) {
-                                    if (commitState.isClosed()) {
-                                        cleanup();
-                                        return;
+                        try {
+                            for (ShardId targetShardId : splitTargets) {
+                                while (commitState.isClosed() == false) {
+                                    try {
+                                        objectStoreService.copyCommit(virtualBcc, targetShardId);
+                                        break;
+                                    } catch (Exception e) {
+                                        if (commitState.isClosed()) {
+                                            cleanup();
+                                            return;
+                                        }
+                                        logger.warn(
+                                            () -> format(
+                                                "%s failed to copy commit [%s] to split target [%s], retrying",
+                                                virtualBcc.getShardId(),
+                                                virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                                targetShardId
+                                            ),
+                                            e
+                                        );
                                     }
-                                    logger.warn(
-                                        () -> format(
-                                            "%s failed to copy commit [%s] to split target [%s], retrying",
-                                            virtualBcc.getShardId(),
-                                            virtualBcc.getPrimaryTermAndGeneration().generation(),
-                                            targetShardId
-                                        ),
-                                        e
-                                    );
+                                }
+                                if (commitState.isClosed()) {
+                                    cleanup();
+                                    return;
                                 }
                             }
-                            if (commitState.isClosed()) {
-                                cleanup();
-                                return;
-                            }
+                            afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
+                        } finally {
+                            copyPermit.close();
                         }
-                        afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
                     });
                 }
             }

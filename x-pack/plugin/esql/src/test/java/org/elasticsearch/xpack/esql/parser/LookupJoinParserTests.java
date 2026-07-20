@@ -311,7 +311,13 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
         {
             var fromPatterns = randomIndexPattern();
             // Generate a syntactically invalid (partially quoted) pattern.
-            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
+            // Exclude keywords active in JOIN_MODE (on, as, join, using): when tokenized as a keyword rather
+            // than UNQUOTED_SOURCE, ANTLR produces "mismatched input" instead of "no viable alternative at input".
+            var clusterPrefix = randomValueOtherThanMany(
+                s -> List.of("on", "as", "join", "using").contains(s),
+                ESTestCase::randomIdentifier
+            );
+            var joinPattern = clusterPrefix + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted

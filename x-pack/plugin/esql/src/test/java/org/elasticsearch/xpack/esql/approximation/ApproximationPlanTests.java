@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -25,6 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -181,6 +184,48 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             .toList();
         assertThat(mainPercentiles, hasSize(1));
         assertThat(mainPercentiles.getFirst().tDigestStateCompression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
+    }
+
+    /**
+     * Proves that PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION reduces memory usage relative to DEFAULT_COMPRESSION.
+     * Each approximation plan creates TRIAL_COUNT * BUCKET_COUNT = 32 bucket copies per percentile aggregation,
+     * so the per-state saving is amplified significantly under high-cardinality group-by fields.
+     */
+    public void testBucketCompressionReducesMemoryFootprint() {
+        var breaker = new NoopCircuitBreaker("test");
+        int dataPoints = 10_000;
+
+        try (
+            TDigestState fullDigest = TDigestState.create(breaker, QuantileStates.DEFAULT_COMPRESSION);
+            TDigestState reducedDigest = TDigestState.create(breaker, ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION)
+        ) {
+            for (int i = 0; i < dataPoints; i++) {
+                fullDigest.add(i);
+                reducedDigest.add(i);
+            }
+
+            long fullMemory = fullDigest.ramBytesUsed();
+            long reducedMemory = reducedDigest.ramBytesUsed();
+
+            // Reduced compression must use meaningfully less memory than full compression.
+            assertThat(fullMemory, greaterThan(reducedMemory));
+
+            // Across all 32 bucket copies the saving compounds significantly.
+            int bucketCopies = ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT;
+            long totalSavingPerGroup = (fullMemory - reducedMemory) * bucketCopies;
+            assertThat(totalSavingPerGroup, greaterThan(0L));
+
+            logger.info(
+                "TDigestState memory — full compression ({}): {} bytes, reduced compression ({}): {} bytes; "
+                    + "saving per group across {} bucket copies: {} bytes",
+                (long) QuantileStates.DEFAULT_COMPRESSION,
+                fullMemory,
+                (long) ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION,
+                reducedMemory,
+                bucketCopies,
+                totalSavingPerGroup
+            );
+        }
     }
 
     public void testColumnMetadata() {

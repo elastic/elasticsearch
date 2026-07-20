@@ -35,6 +35,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -666,7 +667,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 INDEX_NAME
             );
 
-            Client coordOnlyNodeClient = client(coordOnlyNode);
+            // Shards on a node share one deserialized failingQuery; doWriteTo always serializes
+            // its failure field regardless of whether the shard throws. Without error_trace=true,
+            // SearchService strips the stack trace in place when INDEX_NAME shards throw it, so
+            // localIndex shards echo a stripped exception — fewer bytes despite more shards.
+            Client coordOnlyNodeClient = client(coordOnlyNode).filterWithHeader(Map.of("error_trace", "true"));
             // query only the local index and record the baseline for result bytes
             assertSearchHitsWithoutFailures(
                 coordOnlyNodeClient.prepareSearch(localIndex).setQuery(failingQuery).setAllowPartialSearchResults(true),

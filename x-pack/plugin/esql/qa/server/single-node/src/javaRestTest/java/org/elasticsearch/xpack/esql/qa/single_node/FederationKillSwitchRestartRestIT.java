@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -20,7 +19,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -74,11 +72,6 @@ public class FederationKillSwitchRestartRestIT extends ESRestTestCase {
         // federation routes are unregistered after the restart, so the created state cannot be cleaned up over REST
         // anyway.
         return true;
-    }
-
-    @BeforeClass
-    public static void disableForReleaseBuilds() {
-        assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
     }
 
     public void testFeatureLooksAbsentAfterRestart() throws Exception {

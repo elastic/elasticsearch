@@ -746,8 +746,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);
             // During real operations a region is assigned the BACKFILL_IN_PROGRESS_TIMESTAMP when a BCC/CC metadata is read. If this read
             // fails then the region is left in cache with this sentinel timestamp. Such failures lead to shard closure which would normally
-            // result in regions getting evicted through usual cache eviction. However, if the shard is re-opened on the same node, then
-            // eviction policy will no longer evict such orphaned regions. Here, we simulate this scenario.
+            // result in regions getting demoted and unpinned so normal eviction can reclaim them. However, if the shard reopens on the same
+            // node before that happens, they're pinned again and the sentinel lingers — which is what clearOrphans handles
             populateBackfillInProgressRegion(node.sharedCacheService, orphanKey, regionSize.getBytes());
             populateBackfillInProgressRegion(node.sharedCacheService, reReadKey, regionSize.getBytes());
 

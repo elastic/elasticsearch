@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,6 +32,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +43,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-// TODO: carry an analyzer name here once the "analyzer" option is supported.
 public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -49,12 +53,12 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     public static final String DEFAULT_PREFIX = "highlight_";
 
-    // Options honoured by HighlightOptions and the unified highlighter.
     public static final String PRE_TAGS = "pre_tags";
     public static final String POST_TAGS = "post_tags";
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
+    public static final String ANALYZER = "analyzer";
     public static final String NO_MATCH_SIZE = "no_match_size";
     public static final String BOUNDARY_SCANNER = "boundary_scanner";
     public static final String BOUNDARY_SCANNER_LOCALE = "boundary_scanner_locale";
@@ -73,6 +77,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         NUMBER_OF_FRAGMENTS,
         FRAGMENT_SIZE,
         ENCODER,
+        ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
         BOUNDARY_CHARS,
@@ -230,6 +235,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        verifyFieldTypes(failures);
         if (options == null) {
             return;
         }
@@ -238,6 +244,60 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         verifyEnum(failures, HighlightOptions.ORDER_OPTION);
         for (String name : VALID_OPTION_NAMES) {
             verifyValue(failures, name);
+        }
+    }
+
+    @Override
+    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+        postAnalysisVerification(failures);
+        Analyzer analyzer;
+        try {
+            analyzer = resolveAnalyzer(analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            // The analyzer name is a valid string but doesn't resolve.
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        } catch (IllegalArgumentException e) {
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue.
+            verifyQuery(null, failures);
+            return;
+        }
+        verifyQuery(analyzer, failures);
+    }
+
+    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        if (value == null) {
+            return null;
+        }
+        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+    }
+
+    private void verifyQuery(Analyzer analyzer, Failures failures) {
+        if (query == null || query.resolved() == false) {
+            return;
+        }
+        List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
+        try {
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer);
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+        }
+    }
+
+    private void verifyFieldTypes(Failures failures) {
+        for (NamedExpression field : fields) {
+            if (field.resolved() && DataType.isString(field.dataType()) == false) {
+                failures.add(
+                    fail(
+                        field,
+                        "HIGHLIGHT ON field [{}] must be [text] or [keyword], found [{}]",
+                        field.name(),
+                        field.dataType().typeName()
+                    )
+                );
+            }
         }
     }
 

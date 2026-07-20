@@ -229,7 +229,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor}.
      *
      * @param clusterState The cluster state used to determine which shard is where
-     * @return A map of node id to heap usage estimate in bytes
+     * @return A map of node id to node-heap-estimate objects
      */
     public Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(ClusterState clusterState) {
         final DiscoveryNodes discoveryNodes = clusterState.nodes();

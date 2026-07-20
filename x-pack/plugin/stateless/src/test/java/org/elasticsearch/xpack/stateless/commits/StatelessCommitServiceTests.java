@@ -434,8 +434,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         boolean failIfAlreadyExists
                     ) throws IOException {
                         super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                        String gen2Name = gen2BccNameRef.get();
-                        if (gen2Name != null && blobName.equals(gen2Name)) {
+                        if (blobName.equals(gen2BccNameRef.get())) {
                             gen2BccWritten.countDown();
                         }
                     }
@@ -535,8 +534,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         boolean failIfAlreadyExists
                     ) throws IOException {
                         super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                        String gen2Name = gen2BccNameRef.get();
-                        if (gen2Name != null && blobName.equals(gen2Name)) {
+                        if (blobName.equals(gen2BccNameRef.get())) {
                             gen2BccWritten.countDown();
                         }
                     }
@@ -559,8 +557,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         String blobName,
                         long blobSize
                     ) throws IOException {
-                        String gen1Name = gen1BccNameRef.get();
-                        if (gen1Name != null && blobName.equals(gen1Name)) {
+                        if (blobName.equals(gen1BccNameRef.get())) {
                             safeAwait(gen1CopyBlocker);
                         }
                         super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);

@@ -100,6 +100,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.RETAIN_BINARY_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
@@ -159,6 +160,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final Parameter<MinimalServiceSettings> modelSettings;
         protected final Parameter<SemanticIndexOptions> indexOptions;
         protected final Parameter<ChunkingSettings> chunkingSettings;
+        protected final Parameter<Boolean> retainBinary;
         protected final Parameter<Map<String, String>> meta;
 
         private ObjectMapper.Builder inferenceFieldBuilder = null;
@@ -183,6 +185,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.modelSettings = configureModelSettingsParam();
             this.indexOptions = configureIndexOptionsParam();
             this.chunkingSettings = configureChunkingSettingsParam();
+            this.retainBinary = configureRetainBinaryParam();
             this.meta = configureMetaParam();
         }
 
@@ -337,6 +340,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
+        }
+
+        protected Parameter<Boolean> configureRetainBinaryParam() {
+            return Parameter.boolParam(
+                RETAIN_BINARY_FIELD,
+                false,
+                m -> ((SemanticFieldType) m.fieldType()).getRetainBinary(),
+                true
+            );
         }
 
         protected Parameter<Map<String, String>> configureMetaParam() {
@@ -505,7 +517,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, meta };
+            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, retainBinary, meta };
         }
 
         @Override
@@ -588,6 +600,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     inferenceField,
                     // the semantic field always stores its input in doc values (written and read only under synthetic source or columnar)
                     true,
+                    retainBinary.getValue(),
                     meta.getValue()
                 ),
                 builderParams,
@@ -693,7 +706,14 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         ChunkingSettings fieldTypeChunkingSettings = fieldType().getChunkingSettings();
         Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
 
-        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields, asMap);
+        return new InferenceFieldMetadata(
+            fullPath(),
+            fieldType().getInferenceId(),
+            fieldType().getSearchInferenceId(),
+            copyFields,
+            asMap,
+            fieldType().getRetainBinary()
+        );
     }
 
     @Override
@@ -962,6 +982,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final SemanticIndexOptions indexOptions;
         protected final ObjectMapper inferenceField;
         protected final boolean storesOriginalValuesInDocValues;
+        protected final boolean retainBinary;
 
         public SemanticFieldType(
             String name,
@@ -972,6 +993,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean storesOriginalValuesInDocValues,
+            boolean retainBinary,
             Map<String, String> meta
         ) {
             super(name, IndexType.terms(true, false), false, meta);
@@ -982,6 +1004,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.indexOptions = indexOptions;
             this.inferenceField = inferenceField;
             this.storesOriginalValuesInDocValues = storesOriginalValuesInDocValues;
+            this.retainBinary = retainBinary;
         }
 
         @Override
@@ -1012,6 +1035,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         public SemanticIndexOptions getIndexOptions() {
             return indexOptions;
+        }
+
+        public boolean getRetainBinary() {
+            return retainBinary;
         }
 
         public ObjectMapper getInferenceField() {

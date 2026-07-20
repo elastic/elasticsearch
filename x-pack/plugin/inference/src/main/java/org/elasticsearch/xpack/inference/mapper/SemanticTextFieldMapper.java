@@ -318,6 +318,12 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
+        protected Parameter<?>[] getParameters() {
+            // retain_binary is intentionally excluded: it is only available on the semantic field type, not semantic_text
+            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, meta };
+        }
+
+        @Override
         public String contentType() {
             return CONTENT_TYPE;
         }
@@ -635,6 +641,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 indexOptions,
                 inferenceField,
                 storesOriginalValuesInDocValues,
+                true,
                 meta
             );
             this.useLegacyFormat = useLegacyFormat;

@@ -14,6 +14,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -125,7 +127,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * CSV-based integration testing. Subclasses pick up *.csv-specs and run
  * them against an {@link InternalTestCluster}. Test data is loaded lazily.
- * <h2>Static state is tricky</h2>
+ * <h2>Static state and data sharing</h2>
  * <p>
  *     {@link #cluster}, {@link #indexLoadStrategy}, {@code currentGroupName},
  *     and the {@code indices}/{@code enrich}/{@code inference}/{@code views}
@@ -134,15 +136,33 @@ import static org.hamcrest.Matchers.hasSize;
  *     that populates them runs inside the cluster's node processes and has no
  *     handle back to the JUnit test instance or a per-subclass identifier.
  *     It can only reach this state through statics shared by every generated
- *     subclass. That is safe only because Gradle runs one test class at a time
- *     per JVM fork and because {@link #setupCluster()} unconditionally replaces
- *     every one of these fields with a fresh value rather than merely clearing
- *     them. If a future change makes {@link #setupCluster()} reuse rather than
- *     replace any of these fields (e.g. to "optimize" by clearing a collection
- *     in place instead of reassigning it), the next generated class to run
- *     in the same JVM will silently inherit the previous class's already-closed
- *     cluster's loaded-resource bookkeeping and fail with confusing
- *     "resource not found" errors instead of loading its own data.
+ *     subclass.
+ * </p>
+ * <p>
+ *     Each {@code Csv*IT} class starts its own {@link InternalTestCluster} in
+ *     {@link #setupCluster()} and closes it fully in {@link #cleanupCluster()}.
+ *     To amortise the cost of dataset loading across classes, all
+ *     identity-strategy clusters boot from the same on-disk directory
+ *     ({@link #SHARED_DATA_DIR}). Because ES performs normal cluster recovery
+ *     when a node restarts from an existing data directory, indices loaded during
+ *     an earlier class are already present when a later class starts its cluster.
+ *     The {@link ResourceLoader} singletons ({@link #sharedIndices} etc.) persist
+ *     across classes and track which datasets have already been loaded, so
+ *     subsequent classes skip the indexing cost and pay only the cluster start-up
+ *     cost.
+ * </p>
+ * <p>
+ *     Subclasses that need an isolated cluster — typically because they install
+ *     a custom {@link IndexLoadStrategy} that rewrites mappings and would
+ *     conflict with identity-strategy data — call {@link #replaceWithOwnCluster()}
+ *     from their {@code @BeforeClass}. That method starts a fresh cluster in a
+ *     private temp directory with fresh {@link ResourceLoader} instances, so no
+ *     data from the shared directory is visible.
+ * </p>
+ * <p>
+ *     Because each class creates and fully closes its own cluster within its
+ *     {@code @BeforeClass}/{@code @AfterClass} boundary, the thread-leak and
+ *     file-handle-leak checkers work normally with no suppressions needed.
  * </p>
  */
 @TimeoutSuite(millis = TimeUnits.HOUR)
@@ -156,6 +176,21 @@ public abstract class AbstractCsvIT extends ESTestCase {
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
+
+    /**
+     * On-disk data directory shared by all identity-strategy {@code Csv*IT} clusters within
+     * a JVM fork. Each class starts a fresh {@link InternalTestCluster} pointing here so ES
+     * recovers previously-loaded datasets rather than re-indexing them.
+     * The PID suffix ensures parallel Gradle forks each use their own independent directory.
+     */
+    private static final java.nio.file.Path SHARED_DATA_DIR = java.nio.file.Paths.get(
+        System.getProperty("java.io.tmpdir"),
+        "esql-csv-" + ProcessHandle.current().pid()
+    );
+    private static ResourceLoader<CsvTestsDataLoader.TestDataset> sharedIndices = null;
+    private static ResourceLoader<CsvTestsDataLoader.EnrichConfig> sharedEnrich = null;
+    private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> sharedInference = null;
+    private static ResourceLoader<CsvTestsDataLoader.ViewConfig> sharedViews = null;
 
     /**
      * Hook for tests that want to load datasets with a transformed mapping and/or transformed source documents,
@@ -291,21 +326,59 @@ public abstract class AbstractCsvIT extends ESTestCase {
 
     @BeforeClass
     public static void setupCluster() throws Exception {
-        // Every one of these fields must be *replaced* here, not mutated in place -- see the
-        // "Static state caveat" note in the class-level Javadoc for why.
         indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
         currentGroupName = null;
-        indices = newIndicesLoader();
-        enrich = newEnrichLoader();
-        inference = newInferenceLoader();
-        views = newViewsLoader();
-        long start = System.currentTimeMillis();
+        cluster = createNewCluster();
+        if (sharedIndices == null) {
+            sharedIndices = newIndicesLoader();
+            sharedEnrich = newEnrichLoader();
+            sharedInference = newInferenceLoader();
+            sharedViews = newViewsLoader();
+        }
+        indices = sharedIndices;
+        enrich = sharedEnrich;
+        inference = sharedInference;
+        views = sharedViews;
+    }
+
+    /**
+     * Creates and starts a fresh single-node {@link InternalTestCluster} rooted at
+     * {@link #SHARED_DATA_DIR}. ES recovers any indices already on disk, so datasets
+     * loaded by earlier classes are immediately available without re-indexing.
+     * <p>
+     * Data loading ({@link CsvTestsDataLoader}) is currently fully deterministic —
+     * documents are read sequentially from fixed CSV files, mappings and settings
+     * come from JSON files. If an {@link IndexLoadStrategy} ever introduces
+     * randomisation in {@code transformDocument} or {@code transformSettings}, the
+     * result of that first load is frozen on disk for all later classes in the same
+     * JVM fork. The seed that governed the load would need to be emitted in the
+     * reproduction-info line (or stored statically) so that a re-run can reconstruct
+     * the same on-disk state. That is future work; for now, strategies that use
+     * randomisation should use {@link #replaceWithOwnCluster()}.
+     */
+    private static InternalTestCluster createNewCluster() throws Exception {
+        Files.createDirectories(SHARED_DATA_DIR);
+        return createNewCluster(SHARED_DATA_DIR, true);
+    }
+
+    /**
+     * Creates and starts a fresh single-node {@link InternalTestCluster} rooted at
+     * {@code nodeDirectory}. Used by {@link #replaceWithOwnCluster()} to get a fully
+     * isolated cluster in a private temp directory.
+     * <p>
+     * {@code forceSingleDataPath} must be {@code true} for the shared cluster: ES
+     * randomly varies the number of data-path directories (1–4) based on the cluster
+     * seed, and across classes the seed differs. Without forcing a single path the node
+     * data lands in seed-specific subdirectories ({@code d0}, {@code d1}, …) that a
+     * later class with a different seed will not find, so recovery silently starts
+     * from an empty directory and all previously-loaded indices are invisible.
+     */
+    private static InternalTestCluster createNewCluster(java.nio.file.Path nodeDirectory, boolean forceSingleDataPath) throws Exception {
         logger.info("Creating test cluster");
-        var nodeDirectory = createTempDir();
-        var configDirectory = nodeDirectory.resolve("config");
+        java.nio.file.Path configDirectory = nodeDirectory.resolve("config");
         createCustomRegexConfig(configDirectory);
         createGeoIpConfig(configDirectory);
-        cluster = new InternalTestCluster(
+        InternalTestCluster newCluster = new InternalTestCluster(
             randomLong(),
             nodeDirectory,
             false,
@@ -352,17 +425,64 @@ public abstract class AbstractCsvIT extends ESTestCase {
                 Wildcard.class
             ),
             Function.identity(),
+            true,
+            forceSingleDataPath,
+            true,
             TEST_ENTITLEMENTS::addEntitledNodePaths
         );
-        cluster.beforeTest(random());
-
-        long stop = System.currentTimeMillis();
-        logger.info("Started test cluster in {} ms", stop - start);
+        newCluster.beforeTest(random());
+        // When starting from an existing SHARED_DATA_DIR the cluster recovers indices
+        // from disk asynchronously. Wait for all primary shards to be active before
+        // returning so that tests do not hit NoShardAvailableActionException while
+        // recovery is still in progress.
+        //
+        // We wait for YELLOW (all primaries assigned) rather than GREEN (all replicas
+        // assigned), because plugin-owned system indices have replicas that can never
+        // be placed on a single-node cluster, so the cluster health is permanently
+        // YELLOW and GREEN is never reached. YELLOW is sufficient: our test indices
+        // are created with zero replicas, so they are GREEN once their primaries are
+        // active; waiting for "not RED" ensures every primary (user and system) is
+        // up. For a fresh (empty) data directory this returns immediately.
+        ClusterHealthResponse health = newCluster.masterClient()
+            .admin()
+            .cluster()
+            .prepareHealth(TimeValue.timeValueMinutes(2))
+            .setWaitForYellowStatus()
+            .get();
+        if (health.isTimedOut()) {
+            throw new AssertionError("Timed out waiting for cluster to reach YELLOW status; status=" + health.getStatus());
+        }
+        return newCluster;
     }
 
     @AfterClass
     public static void cleanupCluster() throws IOException {
         cluster.close();
+        cluster = null;
+    }
+
+    /**
+     * Replaces the currently-active shared cluster with a fresh isolated
+     * {@link InternalTestCluster} in a private temp directory, together with
+     * fresh {@link ResourceLoader} instances. {@link #cleanupCluster()} closes
+     * whichever cluster is current, so no special teardown logic is needed here.
+     * <p>
+     * Call this from a subclass {@code @BeforeClass} that runs after
+     * {@link #setupCluster()} (JUnit guarantees the superclass {@code @BeforeClass}
+     * runs first). The typical use case is a class that installs a custom
+     * {@link IndexLoadStrategy} that rewrites mappings: because the shared cluster
+     * may already contain datasets loaded under the identity mapping, running the
+     * rewrite strategy against the same cluster would produce index-already-exists
+     * or mapping-conflict errors.
+     */
+    protected static void replaceWithOwnCluster() throws Exception {
+        cluster.close();
+        currentGroupName = null;
+        cluster = createNewCluster(createTempDir(), false);
+        indices = newIndicesLoader();
+        enrich = newEnrichLoader();
+        inference = newInferenceLoader();
+        views = newViewsLoader();
     }
 
     public final void test() throws Throwable {
@@ -599,9 +719,8 @@ public abstract class AbstractCsvIT extends ESTestCase {
     }
 
     /**
-     * Not final: see the "Static state caveat" note in the class-level Javadoc. {@link #setupCluster()}
-     * replaces this with a fresh instance for every generated subclass it runs for, so no dataset ever
-     * appears already-loaded against a cluster from a previous class in the same JVM fork.
+     * The currently-active dataset loader. Points at {@code sharedIndices} for identity-strategy
+     * classes; replaced by {@link #replaceWithOwnCluster()} for classes that need an isolated cluster.
      */
     private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices;
 
@@ -616,14 +735,14 @@ public abstract class AbstractCsvIT extends ESTestCase {
                 String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
                 Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
                 assertAcked(
-                    cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings)
+                    cluster.masterClient().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings)
                 );
                 if (dataset.dataFileName() != null) {
-                    var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    var bulk = cluster.masterClient().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                     for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
                         String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
-                        var indexRequestBuilder = cluster.client()
+                        var indexRequestBuilder = cluster.masterClient()
                             .prepareIndex(dataset.indexName())
                             .setId(document.id())
                             .setSource(source, XContentType.JSON);
@@ -639,7 +758,7 @@ public abstract class AbstractCsvIT extends ESTestCase {
                                 "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
                                 result.hasFailures()
                             );
-                            bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                            bulk = cluster.masterClient().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                         }
                     }
                     if (bulk.numberOfActions() > 0) {
@@ -650,7 +769,7 @@ public abstract class AbstractCsvIT extends ESTestCase {
                         );
                     }
                 }
-                indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
+                indexLoadStrategy.afterIndexLoaded(dataset, cluster.masterClient());
             }
         };
     }
@@ -669,13 +788,13 @@ public abstract class AbstractCsvIT extends ESTestCase {
                     indices.maybeLoad(index, CSV_DATASET.get(index));
                 }
                 assertAcked(
-                    cluster.client()
+                    cluster.masterClient()
                         .execute(
                             PutEnrichPolicyAction.INSTANCE,
                             new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
                         )
                 );
-                var response = cluster.client()
+                var response = cluster.masterClient()
                     .execute(
                         ExecuteEnrichPolicyAction.INSTANCE,
                         new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
@@ -693,7 +812,7 @@ public abstract class AbstractCsvIT extends ESTestCase {
             @Override
             protected void load(CsvTestsDataLoader.InferenceConfig inference) {
                 logger.info("Loading inference [{}]", inference.id());
-                cluster.client()
+                cluster.masterClient()
                     .execute(
                         PutInferenceModelAction.INSTANCE,
                         new PutInferenceModelAction.Request(
@@ -717,7 +836,7 @@ public abstract class AbstractCsvIT extends ESTestCase {
             protected void load(CsvTestsDataLoader.ViewConfig view) {
                 logger.info("Loading view [{}]", view.name());
                 assertAcked(
-                    cluster.client()
+                    cluster.masterClient()
                         .execute(
                             PutViewAction.INSTANCE,
                             new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
@@ -729,7 +848,7 @@ public abstract class AbstractCsvIT extends ESTestCase {
             protected void unload(String name) {
                 logger.info("Unloading view [{}]", name);
                 assertAcked(
-                    cluster.client()
+                    cluster.masterClient()
                         .execute(
                             DeleteViewAction.INSTANCE,
                             new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
@@ -781,7 +900,7 @@ public abstract class AbstractCsvIT extends ESTestCase {
         Files.createDirectories(userAgentDir);
         try (InputStream is = AbstractCsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
             assert is != null : "custom-regexes.yml not found on classpath";
-            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
+            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

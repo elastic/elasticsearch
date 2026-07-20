@@ -3700,6 +3700,75 @@ c:long | network.cost:long | kw:keyword
 1      | 13                | 13
 ;
 
+################################
+# implicit PUNK access           #
+# (no explicit ::long cast)      #
+################################
+
+// Exercises the PUNK auto-cast path (ResolveTwoLeggedPunksInEsRelation) using
+// event_duration as a plain long field — no ::long cast. Without the two-legged
+// PUNK fix the unmapped shard would contribute nulls instead of long values.
+
+typeConflictLongUnmappedStatsImplicit
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| STATS sum_duration = SUM(event_duration), count_duration = COUNT(event_duration)
+;
+
+sum_duration:long | count_duration:long
+46462647          | 14
+;
+
+typeConflictLongUnmappedWhereImplicit
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE event_duration > 3000000
+| KEEP _index, event_duration
+| SORT _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
+sample_data            | 3450233
+sample_data            | 5033755
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortImplicit
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | 725447
+sample_data            | 725448
+no_mapping_sample_data | 1232381
+sample_data            | 1232382
+no_mapping_sample_data | 1756466
+sample_data            | 1756467
+no_mapping_sample_data | 2764888
+sample_data            | 2764889
+no_mapping_sample_data | 3450232
+sample_data            | 3450233
+no_mapping_sample_data | 5033754
+sample_data            | 5033755
+no_mapping_sample_data | 8268152
+sample_data            | 8268153
+;
+
 #####################################
 # reproducers from CI failures      #
 #####################################
@@ -3764,6 +3833,22 @@ warning:Line 6:3: java.lang.IllegalArgumentException: Invalid domain [Abidjan Po
 
 city:keyword | x:text             | y.domain:keyword | y.registered_domain:keyword | y.top_level_domain:keyword | y.subdomain:keyword
 Abidjan      | Abidjan Port Bouet | null              | null                         | null                        | null
+;
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/154011
+// Production failure: IllegalStateException in ValuesSourceReaderOperator.sanityCheckBlock
+// when a PUNK long field is accessed without an explicit ::long cast.
+issue-154011-punk-stats
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| STATS sum_duration = SUM(event_duration), count_duration = COUNT(event_duration)
+;
+
+sum_duration:long | count_duration:long
+46462647          | 14
 ;
 
 #####################################

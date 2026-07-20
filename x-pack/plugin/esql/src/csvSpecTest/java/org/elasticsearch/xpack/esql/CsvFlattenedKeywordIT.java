@@ -203,9 +203,13 @@ public class CsvFlattenedKeywordIT extends AbstractCsvIT {
      * on release builds.
      * <p>
      * This runs after {@link AbstractCsvIT#setupCluster()} (JUnit guarantees the superclass
-     * {@code @BeforeClass} runs first) and replaces the identity strategy with one that rewrites
-     * keyword fields to {@code flattened}, wraps source values, and wraps every query reference in
-     * {@code field_extract(<field>, "<sub-key>")}.
+     * {@code @BeforeClass} runs first) and calls {@link AbstractCsvIT#replaceWithOwnCluster()}
+     * to swap out the shared cluster for an isolated one, then installs the rewrite strategy.
+     * The isolated cluster is necessary because the shared cluster may already contain datasets
+     * indexed under the identity mapping; running this variant's keyword-to-flattened strategy
+     * against the same cluster would produce mapping conflicts. {@link AbstractCsvIT#cleanupCluster()}
+     * detects the swap after all {@code @AfterClass} methods in this class have run and closes
+     * the isolated cluster, restoring the shared state for any subsequent class in the JVM fork.
      * <p>
      * Both the {@code flattened} datatype ({@link DataType#FLATTENED}) and the {@code field_extract}
      * function are under construction and therefore active only in snapshot builds. In a release
@@ -217,12 +221,15 @@ public class CsvFlattenedKeywordIT extends AbstractCsvIT {
      * to reject the type, so the gate cannot drift from the condition it guards against.
      */
     @BeforeClass
-    public static void installKeywordToFlattenedStrategy() {
+    public static void installKeywordToFlattenedStrategy() throws Exception {
         assumeTrue(
             "keyword→flattened variant requires the flattened datatype and field_extract(), "
                 + "which are under construction (snapshot-only) and unavailable in release builds",
             DataType.FLATTENED.supportedVersion().supportedLocally()
         );
+        // The shared cluster may already contain identity-mapping data; this variant rewrites
+        // keyword fields to flattened and must not pollute or conflict with that data.
+        replaceWithOwnCluster();
         indexLoadStrategy = new KeywordToFlattenedStrategy();
     }
 

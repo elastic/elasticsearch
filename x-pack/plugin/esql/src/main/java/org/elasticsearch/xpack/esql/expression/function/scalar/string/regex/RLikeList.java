@@ -72,7 +72,12 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
     public RLikeList(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
-        @Param(name = "patterns", type = { "keyword", "text" }, description = "A list of regular expressions.") RLikePatternList patterns
+        @Param(
+            name = "patterns",
+            type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "A list of regular expressions."
+        ) RLikePatternList patterns
     ) {
         this(source, value, patterns, false);
     }

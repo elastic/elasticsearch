@@ -150,11 +150,8 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
         }, Set.of(TaskType.EMBEDDING, TaskType.TEXT_EMBEDDING));
     }
 
-    private void manyQueryClausesTestCase(
-        int clauseCount,
-        ClauseGenerator clauseGenerator,
-        Set<TaskType> taskTypesToTest
-    ) throws Exception {
+    private void manyQueryClausesTestCase(int clauseCount, ClauseGenerator clauseGenerator, Set<TaskType> taskTypesToTest)
+        throws Exception {
         List<FieldInfo> fields = new ArrayList<>(clauseCount);
         for (int i = 0; i < clauseCount; i++) {
             String fieldName = randomAlphaOfLength(10);

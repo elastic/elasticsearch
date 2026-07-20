@@ -52,7 +52,8 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
-            || params.syntheticSource();
+            || params.syntheticSource()
+            || params.isColumnarStored();
         if (hasDocValues && useDocValues) {
             // multi_value=false: only the first array element is indexed in doc values.
             if (supportsMultiValue(fieldMapping) == false) {

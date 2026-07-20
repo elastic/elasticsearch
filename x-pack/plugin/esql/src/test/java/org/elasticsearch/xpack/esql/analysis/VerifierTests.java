@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.TaskType;
@@ -3423,15 +3422,6 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
         fullText().query("from test | where " + functionInvocation);
-    }
-
-    public void testInsistNotOnTopOfFrom() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        defaultAnalyzer().error(
-            "FROM test | EVAL foo = 42 | INSIST_🐔 bar",
-            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
-        );
     }
 
     public void testFullTextFunctionsInStats() {

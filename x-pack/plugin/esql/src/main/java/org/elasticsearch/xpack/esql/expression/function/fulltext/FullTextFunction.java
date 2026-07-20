@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -80,6 +81,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
@@ -624,7 +626,22 @@ public abstract class FullTextFunction extends Function
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
         }
-        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+
+        if (fieldExpression instanceof FieldAttribute == false) {
+            return null;
+        }
+
+        FieldAttribute fieldAttribute = (FieldAttribute) fieldExpression;
+
+        // we do an explicit to_text conversion and not all underlying fields already have the TEXT type
+        // which means we cannot effectively push down a single lexical match query to the shards
+        if (field.dataType() == TEXT
+            && fieldAttribute.field() instanceof CompactMultiTypeEsField compactMultiTypeEsField
+            && compactMultiTypeEsField.getTypeToConversionExpressions().keySet().stream().anyMatch(dataType -> dataType != TEXT)) {
+            return null;
+        }
+
+        return fieldAttribute;
     }
 
     @Override

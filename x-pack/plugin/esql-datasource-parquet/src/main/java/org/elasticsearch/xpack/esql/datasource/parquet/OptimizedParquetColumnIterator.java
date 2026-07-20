@@ -28,6 +28,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -42,8 +43,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -68,6 +71,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
@@ -111,6 +115,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final String fileLocation;
     /** See {@link #coercionWarnings()}. */
     private SkipWarnings coercionWarnings;
+    /**
+     * Relay for this eager read's per-value coercion warnings, or {@code null} to fall back to
+     * emitting directly via {@code HeaderWarning}. This iterator
+     * runs on a background reader thread under the async source, so a non-null sink (the source
+     * buffer relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+     */
+    @Nullable
+    private final Consumer<String> warningSink;
     /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
     private final ErrorPolicy errorPolicy;
     private final ColumnInfo[] columnInfos;
@@ -153,7 +165,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final int rowPositionColumnIndex;
     /**
      * Owning {@link ParquetFormatReader}; only consulted when the iterator builds a matching
-     * {@link ColumnExtractor} via {@link #createColumnExtractor()}. Kept out of the regular emit
+     * {@link ColumnExtractor} via {@link #createColumnExtractor(Consumer)}. Kept out of the regular emit
      * paths so the iterator does not depend on the broader format reader's state for forward scan.
      */
     private final ParquetFormatReader formatReader;
@@ -168,9 +180,27 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final String sortColumnPath;
     private final PrimitiveType sortColumnPrimitiveType;
     /**
+     * How the sort column's raw statistics relate to the DECODED values the threshold bound is published in, or
+     * {@code null} when the column is not a rescaled temporal (a plain long is the identity and needs no mapping) or
+     * when no exact relation exists (decline the skip). Resolved once; the threshold rail is otherwise unit-blind and
+     * compares a decoded bound against raw stats, dropping the row groups holding the true extremes.
+     */
+    @Nullable
+    private final DeclaredTypeCoercions.RawDecodeRelation sortDecodeRelation;
+    /** Whether the sort column reads as a temporal type at all; a plain long keeps the raw pass-through. */
+    private final boolean sortColumnIsTemporal;
+    /**
+     * Whether the sort column's own parquet annotation makes decode scale relative to the raw statistics
+     * (TIMESTAMP/TIME(MICROS), DATE, DECIMAL) even when the ES|QL type is a plain LONG — e.g. a declared {@code long}
+     * over a TIMESTAMP(MICROS) column, or an inferred TIME(MICROS). Without this the raw stat would be compared
+     * against a decoded-unit bound and skip the wrong groups. Consulted alongside the declared relation; this is the
+     * same authority the pushdown side uses ({@code ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats}).
+     */
+    private final boolean sortColumnAnnotationScales;
+    /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
-     * The factory installs the id between {@link #createColumnExtractor()} and the first call to
+     * The factory installs the id between {@link #createColumnExtractor(Consumer)} and the first call to
      * {@link #next()}, so by the time we materialise {@code _rowPosition} we always have a value
      * for it. Stays at {@code -1} when the projection has no row-position column ({@link
      * #rowPositionColumnIndex} {@code < 0}); we never read the field in that case.
@@ -328,9 +358,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         DynamicThreshold dynamicThreshold,
         ColumnDescriptor sortColumnDescriptor,
         ParquetReaderCounters counters,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
     ) {
         this.errorPolicy = errorPolicy;
+        this.warningSink = warningSink;
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -359,6 +391,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.sortColumnDescriptor = sortColumnDescriptor;
         this.sortColumnPath = sortColumnDescriptor == null ? null : String.join(".", sortColumnDescriptor.getPath());
         this.sortColumnPrimitiveType = sortColumnDescriptor == null ? null : sortColumnDescriptor.getPrimitiveType();
+        ColumnInfo sortInfo = findSortColumnInfo(sortColumnPath, columnInfos);
+        DataType sortType = sortInfo == null ? null : sortInfo.esqlType();
+        this.sortColumnIsTemporal = sortType == DataType.DATETIME || sortType == DataType.DATE_NANOS;
+        this.sortColumnAnnotationScales = sortColumnPrimitiveType != null
+            && sortColumnPrimitiveType.getLogicalTypeAnnotation() != null
+            && ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(sortColumnPrimitiveType.getLogicalTypeAnnotation());
+        this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPrimitiveType, sortType, sortInfo);
         this.codecFactory = codecFactory;
         this.counters = counters;
         this.pushedExpressions = pushedExpressions;
@@ -589,9 +628,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         ElementType elementType = dynamicThreshold.elementType();
         return switch (elementType) {
-            case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64
-                ? ((Number) value).longValue()
-                : null;
+            case LONG -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+                    yield null;
+                }
+                long raw = ((Number) value).longValue();
+                // A plain long sort column has no relation and its raw value is its decoded value. A rescaled temporal
+                // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
+                // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
+                if (sortDecodeRelation == null) {
+                    // Decline the skip when decode scales relative to the raw stats but no exact relation was
+                    // resolved: a temporal column with no relation (TIME/DECIMAL/unsigned), OR a plain LONG whose
+                    // annotation still scales (declared long over TIMESTAMP(MICROS), inferred TIME(MICROS)) — the
+                    // comparison would otherwise skip the wrong groups. Only a genuinely non-scaling long passes its
+                    // raw value through.
+                    yield (sortColumnIsTemporal || sortColumnAnnotationScales) ? null : raw;
+                }
+                yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
+            }
             case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
                 ? (long) ((Number) value).intValue()
                 : null;
@@ -617,7 +671,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Parquet page-index bounds use the type's plain encoding; numeric plain values are little-endian.
         ByteBuffer ordered = value.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         return switch (dynamicThreshold.elementType()) {
-            case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64 ? ordered.getLong() : null;
+            case LONG -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+                    yield null;
+                }
+                long raw = ordered.getLong();
+                // Same mapping as rawValueFromStats: a rescaled temporal column's page bound must reach the decoded
+                // domain the threshold lives in; a plain long is the identity; a temporal column with no exact
+                // relation declines the page skip.
+                if (sortDecodeRelation == null) {
+                    yield (sortColumnIsTemporal || sortColumnAnnotationScales) ? null : raw;
+                }
+                yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
+            }
             case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
                 ? (long) ordered.getInt()
                 : null;
@@ -679,6 +745,47 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return 2;
         }
         return 1;
+    }
+
+    /**
+     * The projected {@link ColumnInfo} for the sort column, found in a single scan of {@code columnInfos}, or
+     * {@code null} when there is no sort column. Its {@link ColumnInfo#esqlType() esqlType} and
+     * {@link ColumnInfo#dateFormatter() dateFormatter} are both read from this one lookup — the sort column's ESQL
+     * type and its declared date format are no longer re-scanned independently.
+     */
+    @Nullable
+    private static ColumnInfo findSortColumnInfo(String sortColumnPath, ColumnInfo[] columnInfos) {
+        if (sortColumnPath == null) {
+            return null;
+        }
+        for (ColumnInfo info : columnInfos) {
+            if (info.descriptor() != null && String.join(".", info.descriptor().getPath()).equals(sortColumnPath)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its
+     * raw value IS its decoded value) or admits no exact relation. Consulted once so the per-row-group skip is not a
+     * per-consumer re-derivation of the unit rule. Both the ESQL type and the declared format come from the single
+     * {@link #findSortColumnInfo} lookup the constructor already performed.
+     */
+    @Nullable
+    private static DeclaredTypeCoercions.RawDecodeRelation resolveSortDecodeRelation(
+        PrimitiveType sortColumnPrimitiveType,
+        @Nullable DataType sortType,
+        @Nullable ColumnInfo sortInfo
+    ) {
+        if (sortColumnPrimitiveType == null || sortInfo == null) {
+            return null;
+        }
+        if (sortType != DataType.DATETIME && sortType != DataType.DATE_NANOS) {
+            return null;
+        }
+        DateFormatter formatter = sortInfo.dateFormatter();
+        return ParquetColumnDecoding.rawDecodeRelation(sortColumnPrimitiveType, sortType, formatter == null ? null : formatter.pattern());
     }
 
     private static Set<String> buildProjectedColumnPaths(ColumnInfo[] columnInfos) {
@@ -2278,14 +2385,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 "Parquet file ["
                     + fileLocation
                     + "] has values that could not be coerced to the declared column type; "
-                    + "they are returned as null"
+                    + "they are returned as null",
+                warningSink
             );
         }
         return coercionWarnings;
     }
 
     @Override
-    public ColumnExtractor createColumnExtractor() {
+    public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) {
         if (rowPositionColumnIndex < 0) {
             throw new IllegalStateException(
                 "createColumnExtractor called on iterator without [" + ColumnExtractor.ROW_POSITION_COLUMN + "] in projection"
@@ -2295,7 +2403,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // regardless of whether this iterator was opened on the full file or on a range. That's
         // the whole point of file-global addressing: any iterator that emits identities and any
         // extractor over the same file agree without coordination.
-        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter, errorPolicy);
+        // The extractor runs on the driver thread (the eager warningSink relays through the source
+        // buffer, which the driver drains before the extractor runs), so it takes the caller's
+        // driver-thread sink rather than this iterator's buffered one.
+        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter, errorPolicy, driverThreadWarningSink);
     }
 
     @Override

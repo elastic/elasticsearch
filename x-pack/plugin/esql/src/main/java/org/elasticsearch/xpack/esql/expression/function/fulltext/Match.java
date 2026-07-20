@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -106,7 +107,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternaryConfig(Match::new)
-        .capabilities("runtime_filter")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -436,11 +437,17 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             // Runtime search is disabled.
             return false;
         }
-        if (fieldAsFieldAttribute() == null) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
             // This *isn't* a field in the index OR a pushed block loader
             return true;
         }
-        if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return true;
+        }
+
+        if (fieldAttribute.field() instanceof FunctionEsField functionEsField) {
             // This is a pushed block loader.
             // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
             return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
@@ -450,9 +457,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (fieldAsFieldAttribute() == null) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
             return Translatable.NO;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
         return super.translatable(pushdownPredicates);
     }
 

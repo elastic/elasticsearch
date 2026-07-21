@@ -38,7 +38,7 @@ import java.util.Optional;
  *       (no colon) is treated as {@code data} with an empty value; any other bare field name is
  *       ignored. The spec treats any no-colon line as that field with an empty value.</li>
  *   <li><b>{@code id} and {@code retry} are not implemented (#5)</b> — intentionally omitted;
- *       we do not use reconnect state and have no plans to.</li>
+ *       we do not use reconnect state.</li>
  * </ul>
  */
 public class ServerSentEventParser {

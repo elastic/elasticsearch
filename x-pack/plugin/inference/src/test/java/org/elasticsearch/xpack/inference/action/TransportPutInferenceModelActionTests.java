@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,8 +42,8 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandEmbeddingModel;
-import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalTextEmbeddingServiceSettings;
 import org.junit.Before;
 
 import java.util.List;
@@ -70,7 +71,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
 
     private static final String INFERENCE_ID = "test-inference-id";
     private static final String MODEL_ID = "test-model-id";
-    private static final String PUT_REQUEST_BODY = """
+    private static final String PUT_REQUEST_BODY = Strings.format("""
         {
           "service": "elasticsearch",
           "service_settings": {
@@ -79,7 +80,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
             "num_threads": 1
           }
         }
-        """.formatted(MODEL_ID);
+        """, MODEL_ID);
 
     private ModelRegistry mockModelRegistry;
     private ElasticsearchInternalService mockService;
@@ -291,7 +292,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
     }
 
     private CustomElandEmbeddingModel createCustomElandEmbeddingModel() {
-        var mockServiceSettings = mock(CustomElandInternalTextEmbeddingServiceSettings.class);
+        var mockServiceSettings = mock(ElasticsearchInternalTextEmbeddingServiceSettings.class);
         when(mockServiceSettings.modelId()).thenReturn(MODEL_ID);
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(false);
         return new CustomElandEmbeddingModel(

@@ -295,7 +295,6 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testCreatesDeploymentForNotYetDeployedModel_TextEmbedding() throws IOException {
-        // reproduces https://github.com/elastic/elasticsearch/issues/144871
         var modelId = "text_embedding_model_not_deployed";
         var inferenceId = "inference_starts_deployment";
         CustomElandModelIT.createMlNodeTextEmbeddingModel(modelId, client()); // model exists, NOT deployed

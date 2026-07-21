@@ -167,7 +167,8 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                     context.blockFactory(),
                     eval,
                     subFieldIndex,
-                    Warnings.createWarnings(context.warningsMode(), source())
+                    // We use this factory method to be compatible with the AvgBlockLoader
+                    Warnings.createOnlyWarnings(context.warningsMode(), source())
                 );
             }
         };

@@ -16,6 +16,7 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -464,9 +465,9 @@ public class EscfCursorsTests extends ESTestCase {
         return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
     }
 
-    /** Wraps an int array into an {@link org.apache.lucene.util.IntsRef} starting at offset 0. */
-    private static org.apache.lucene.util.IntsRef intsRef(int[] ints) {
-        return new org.apache.lucene.util.IntsRef(ints, 0, ints.length);
+    /** Wraps an int array into an {@link IntsRef} starting at offset 0. */
+    private static IntsRef intsRef(int[] ints) {
+        return new IntsRef(ints, 0, ints.length);
     }
 
     /** Builds a fixed-64 {@link EscfColumnData} for a long array (all dense, no absent). */

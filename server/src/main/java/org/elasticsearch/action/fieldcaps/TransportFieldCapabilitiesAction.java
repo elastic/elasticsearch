@@ -59,6 +59,7 @@ import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidato
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
@@ -671,6 +672,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder = new HashMap<>();
         int lastPendingIndex = 0;
         for (int i = 1; i <= indexResponses.length; i++) {
+            if (i % 64 == 0) {
+                task.ensureNotCancelled();
+            }
             if (i == indexResponses.length || hasSameMappingHash(indexResponses[lastPendingIndex], indexResponses[i]) == false) {
                 final String[] subIndices;
                 if (lastPendingIndex == 0 && i == indexResponses.length) {
@@ -934,13 +938,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } catch (TooComplexToDeterminizeException e) {
                     throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
                 }
+                final CancellableTask cancellableTask = (CancellableTask) task;
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
+                    cancellableTask.ensureNotCancelled();
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
-                                (CancellableTask) task,
+                                cancellableTask,
                                 shardId,
                                 fieldNameFilter,
                                 request.filters(),
@@ -960,6 +966,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 unmatched.add(shardId);
                             }
                         } catch (Exception e) {
+                            if (e instanceof TaskCancelledException) {
+                                throw e;
+                            }
+                            cancellableTask.ensureNotCancelled();
                             failures.put(shardId, e);
                         }
                     }

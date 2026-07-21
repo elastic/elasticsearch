@@ -35,28 +35,23 @@ public class ReplacePotentiallyUnmappedFieldWithMappedField extends Parameterize
             if (fieldAttribute.field() instanceof PotentiallyUnmappedKeywordEsField potentiallyUnmapped) {
                 var fieldName = fieldAttribute.fieldName();
                 boolean hasDocValues = searchStats.hasDocValues(fieldName);
-                // Replace only when the field is mapped on every shard on this node. A plain keyword is read from each shard's mapping
-                // instead of from _source, so on a shard where the field is absent we would read null rather than its _source value.
                 // isIndexed and hasDocValues are AND-ed across shards (see SearchContextStats), so either being true proves the field is
-                // mapped everywhere here. We deliberately do not use exists(), which is OR-ed across shards and so is true even when the
-                // field is mapped on only some of them.
+                // mapped everywhere here. We deliberately do not use exists(), which is OR-ed across shards.
                 if (searchStats.isIndexed(fieldName) || hasDocValues) {
-                    return fieldAttribute.withField(asMappedKeyword(potentiallyUnmapped, hasDocValues));
+                    return fieldAttribute.withField(
+                        new KeywordEsField(
+                            potentiallyUnmapped.getName(),
+                            potentiallyUnmapped.getProperties(),
+                            hasDocValues,
+                            potentiallyUnmapped.getPrecision(),
+                            potentiallyUnmapped.getNormalized(),
+                            potentiallyUnmapped.isAlias(),
+                            potentiallyUnmapped.getTimeSeriesFieldType()
+                        )
+                    );
                 }
             }
             return fieldAttribute;
         });
-    }
-
-    private static KeywordEsField asMappedKeyword(PotentiallyUnmappedKeywordEsField potentiallyUnmapped, boolean hasDocValues) {
-        return new KeywordEsField(
-            potentiallyUnmapped.getName(),
-            potentiallyUnmapped.getProperties(),
-            hasDocValues,
-            potentiallyUnmapped.getPrecision(),
-            potentiallyUnmapped.getNormalized(),
-            potentiallyUnmapped.isAlias(),
-            potentiallyUnmapped.getTimeSeriesFieldType()
-        );
     }
 }

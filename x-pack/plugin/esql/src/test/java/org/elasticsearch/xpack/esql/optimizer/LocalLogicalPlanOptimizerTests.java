@@ -606,28 +606,19 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(literal.value(), is(nullValue()));
     }
 
-    /**
-     * Under {@code unmapped_fields="load"}, a field absent from the coordinator mapping is a {@link PotentiallyUnmappedKeywordEsField},
-     * which blocks Lucene pushdown. On a data node whose shards map the field, {@code ReplacePotentiallyUnmappedFieldWithMappedField}
-     * swaps it for a plain {@link KeywordEsField} so pushdown can happen. Here the field is indexed on every shard.
-     */
     public void testPotentiallyUnmappedFieldReplacedWhenIndexedOnDataNode() {
         assertLoadModeFieldReplacedWithPushableKeyword(new TestConfigurableSearchStats());
     }
 
-    /**
-     * The doc-values branch of {@link #testPotentiallyUnmappedFieldReplacedWhenIndexedOnDataNode}: even without an index, a field with
-     * doc values on every shard is readable as a mapped keyword here, so the marker is dropped and pushdown is unblocked.
-     */
     public void testPotentiallyUnmappedFieldReplacedWhenOnlyDocValuesOnDataNode() {
         assertLoadModeFieldReplacedWithPushableKeyword(new TestConfigurableSearchStats().exclude(Config.INDEXED, "does_not_exist"));
     }
 
     private void assertLoadModeFieldReplacedWithPushableKeyword(TestConfigurableSearchStats localShardStats) {
         var plan = planWithLoad("""
-              from test
-            | where does_not_exist == "x"
-            | keep does_not_exist
+              FROM test
+            | WHERE does_not_exist == "x"
+            | KEEP does_not_exist
             """);
 
         // The coordinator can't know the field is mapped on any given data node, so it stays potentially unmapped there.
@@ -637,9 +628,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
         }
 
-        var localPlan = localPlan(plan, localShardStats);
         var pushdown = LucenePushdownPredicates.from(localShardStats, new EsqlFlags(true));
-        var localFields = fieldAttributes(localPlan, "does_not_exist");
+        var localFields = fieldAttributes(localPlan(plan, localShardStats), "does_not_exist");
         assertThat(localFields, not(empty()));
         for (FieldAttribute f : localFields) {
             assertThat(f.field().getClass(), equalTo(KeywordEsField.class));
@@ -648,28 +638,22 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         }
     }
 
-    /**
-     * The field is only replaced when it can be read as a mapped keyword here, i.e. it is indexed or has doc values. A field that lives
-     * only in {@code _source} (neither indexed nor with doc values), or is absent from some local shard, must stay a
-     * {@link PotentiallyUnmappedKeywordEsField} so it keeps being loaded from {@code _source}.
-     */
     public void testPotentiallyUnmappedFieldRetainedWhenOnlyInSourceOnDataNode() {
         var plan = planWithLoad("""
-              from test
-            | where does_not_exist == "x"
-            | keep does_not_exist
+              FROM test
+            | WHERE does_not_exist == "x"
+            | KEEP does_not_exist
             """);
 
         var fieldOnlyInSourceOnLocalShards = new TestConfigurableSearchStats().exclude(Config.INDEXED, "does_not_exist")
             .exclude(Config.DOC_VALUES, "does_not_exist");
-        var localPlan = localPlan(plan, fieldOnlyInSourceOnLocalShards);
 
         var pushdown = LucenePushdownPredicates.from(fieldOnlyInSourceOnLocalShards, new EsqlFlags(true));
-        var localFields = fieldAttributes(localPlan, "does_not_exist");
+        var localFields = fieldAttributes(localPlan(plan, fieldOnlyInSourceOnLocalShards), "does_not_exist");
         assertThat(localFields, not(empty()));
         for (FieldAttribute f : localFields) {
             assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
-            // Neither indexed nor doc-valued here, so it can't be read as a mapped field and stays loaded from _source (and unpushable).
+            // Neither indexed nor doc-valued here, so it can't be read as a mapped field and stays loaded from _source (also unpushable).
             assertFalse(pushdown.isPushableFieldAttribute(f));
         }
     }
@@ -1848,12 +1832,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return optimize(analyzerWithNullifyMode().analyze(TEST_PARSER.parseQuery(query)));
     }
 
-    private static Analyzer analyzerWithLoadMode() {
-        return analyzer().unmappedResolution(UnmappedResolution.LOAD).addIndex("test", "mapping-basic.json").buildAnalyzer();
-    }
-
     private LogicalPlan planWithLoad(String query) {
-        return optimize(analyzerWithLoadMode().analyze(TEST_PARSER.parseQuery(query)));
+        Analyzer analyzer = analyzer().unmappedResolution(UnmappedResolution.LOAD).addIndex("test", "mapping-basic.json").buildAnalyzer();
+        return optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     private static List<FieldAttribute> fieldAttributes(LogicalPlan plan, String name) {

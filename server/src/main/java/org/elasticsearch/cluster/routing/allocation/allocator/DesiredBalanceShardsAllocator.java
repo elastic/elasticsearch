@@ -246,8 +246,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     computationsConverged.inc();
                     // TODO: A reconcile round from a recent balance could be in progress while a new balance gets computed,
                     // in which case the currentAllocation captured below could miss an initializing shard created by
-                    // that concurrent reconciliation. This is not a correctness problem, as recovery cancellation is best-effort,
-                    // but we should find a way to catch those cases.
+                    // that concurrent reconciliation. This is not a correctness problem, as recovery cancellation
+                    // is best-effort, but we should find a way to catch those cases.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);

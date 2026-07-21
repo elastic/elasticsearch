@@ -556,11 +556,15 @@ public class DesiredBalanceComputer {
         RoutingNodes routingNodes,
         ClusterInfoSimulator clusterInfoSimulator
     ) {
-        // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
+        // Find all shards that are started/relocating in RoutingNodes but have no data on corresponding node in ClusterInfo
+        //
+        // We include relocating shards because they are effectively started shards. We will subsequently assume these relocations
+        // complete, at which point we'll deduct their heap usage from the source and add it to the target. So we need to add it
+        // to the source first if it's not already accounted for.
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
-            for (var shardRouting : routingNode.started()) {
-                if (clusterInfo.hasShardMoved(shardRouting)) {
+            for (var shardRouting : routingNode) {
+                if ((shardRouting.started() || shardRouting.relocating()) && clusterInfo.hasShardMoved(shardRouting)) {
                     startedShards.add(shardRouting);
                 }
             }
@@ -618,9 +622,9 @@ public class DesiredBalanceComputer {
             for (var indexToCount : nodeToIndexCountMap.getValue().entrySet()) {
                 // Check if the number of shards for an index moved to the particular node, since the ClusterInfo was created, is equal to
                 // the total number of shards for that index on that node, in which case the index is new to the node and any index stats
-                // should be added to the node.
+                // should be added to the node. Count started and relocating shards to be consistent with the logic above.
                 if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey())
-                    .numberOfStartedShardsForIndex(indexToCount.getKey())) {
+                    .numberOfStartedOrRelocatingShardsForIndex(indexToCount.getKey())) {
                     clusterInfoSimulator.simulateAddIndexToNode(nodeToIndexCountMap.getKey(), indexToCount.getKey());
                 }
             }
@@ -628,9 +632,10 @@ public class DesiredBalanceComputer {
 
         for (var nodeIdToIndicesWithRemovedShards : mapOfNodeIdsToIndicesWithRemovedShards.entrySet()) {
             // For each index on a node, we need to check whether node no longer holds any shards for that index. If the node no longer
-            // holds the index, then the index stats should be removed from the node.
+            // holds the index, then the index stats should be removed from the node. Count started and relocating shards to be
+            // consistent with the logic above.
             for (var index : nodeIdToIndicesWithRemovedShards.getValue()) {
-                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfStartedShardsForIndex(index) == 0) {
+                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfStartedOrRelocatingShardsForIndex(index) == 0) {
                     clusterInfoSimulator.simulateRemoveIndexFromNode(nodeIdToIndicesWithRemovedShards.getKey(), index);
                 }
             }

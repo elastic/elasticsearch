@@ -124,12 +124,7 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         // No assertion needed beyond not throwing; the column is validly empty.
     }
 
-    /**
-     * Output of {@link EscfRowColumnBuilder} matches the output of the existing
-     * {@link EscfColumnBuilder} array path for the same string input, verifying both produce an
-     * identical {@link EscfColumnKind#ARRAY} with equal element sequences.
-     */
-    public void testOutputMatchesLegacyArrayBuilder() {
+    public void testOutputMatchesXContentBasedArrayBuilder() {
         // Build via EscfRowColumnBuilder: rows [0, 1, 1, 2] → values ["a", "b", "c", "d"]
         EscfColumnData rowData = buildArrayOfString(3, new int[] { 0, 1, 1, 2 }, new String[] { "a", "b", "c", "d" });
 

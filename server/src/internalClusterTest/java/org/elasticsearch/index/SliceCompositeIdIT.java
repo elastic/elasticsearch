@@ -28,12 +28,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -78,6 +81,13 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         return client().get(new GetRequest(index, id).routing(slice).setRoutingFromSlice(true)).actionGet();
     }
 
+    /** Randomly refresh so the following read exercises either the live version map (no refresh) or the Lucene index. */
+    private void maybeRefresh(String index) {
+        if (randomBoolean()) {
+            refresh(index);
+        }
+    }
+
     private DocWriteResponse deleteDoc(String index, String slice, String id) {
         return client().delete(new DeleteRequest(index, id).routing(slice).setRoutingFromSlice(true)).actionGet();
     }
@@ -117,13 +127,24 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         // A match-all search scoped to a slice sees only that slice's document; _all sees both.
         assertResponse(searchSlice("idx", "sa", QueryBuilders.matchAllQuery()), r -> {
             assertThat(r.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(r.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(r.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("va"));
+            SearchHit hit = r.getHits().getAt(0);
+            assertThat(hit.getId(), equalTo("1"));
+            assertThat(hit.getSourceAsMap().get("field"), equalTo("va"));
+            // The hit surfaces the slice as _slice, and never leaks it as _routing.
+            assertThat(hit.field(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
+            assertThat(hit.field("_routing"), equalTo(null));
         });
-        assertResponse(
-            searchSlice("idx", SliceIndexing.SLICE_ALL, QueryBuilders.matchAllQuery()),
-            r -> assertThat(r.getHits().getTotalHits().value(), equalTo(2L))
-        );
+        // _all sees both, and each hit carries its own _slice so same-id docs are distinguishable.
+        assertResponse(searchSlice("idx", SliceIndexing.SLICE_ALL, QueryBuilders.matchAllQuery()), r -> {
+            assertThat(r.getHits().getTotalHits().value(), equalTo(2L));
+            Map<String, String> sliceByValue = new HashMap<>();
+            for (SearchHit hit : r.getHits().getHits()) {
+                assertThat(hit.getId(), equalTo("1"));
+                assertThat(hit.field("_routing"), equalTo(null));
+                sliceByValue.put((String) hit.getSourceAsMap().get("field"), hit.field(SliceIndexing.PARAM_NAME).getValue());
+            }
+            assertThat(sliceByValue, equalTo(Map.of("va", "sa", "vb", "sb")));
+        });
 
         // An ids query is scoped by slice too: id "1" in slice sa resolves to the sa document only.
         assertResponse(searchSlice("idx", "sa", QueryBuilders.idsQuery().addIds("1")), r -> {
@@ -150,7 +171,8 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         createSliceIndex("upd", 1);
         indexDoc("upd", "sa", "1", "va");
         indexDoc("upd", "sb", "1", "vb");
-        refresh("upd");
+        // The update resolves the doc through either the live version map or Lucene depending on whether we refreshed.
+        maybeRefresh("upd");
 
         DocWriteResponse updated = client().update(
             new UpdateRequest("upd", "1").doc("field", "va-updated").routing("sa").setRoutingFromSlice(true)
@@ -259,23 +281,30 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
 
         indexDoc("rec", "sa", "1", "va");
         indexDoc("rec", "sb", "1", "vb");
-        // Delete only slice sa's document. Intentionally do not flush, so the index+delete ops are replayed from the translog
-        // on recovery — exercising the delete-translog-replay path against the composite term.
+        indexDoc("rec", "sa", "2", "v2");
+        // Commit the initial docs so the following delete/update land after the last Lucene commit.
+        flush("rec");
+
+        // Delete slice sa's id "1" and replace slice sa's id "2", both after the commit, so recovery must reapply them.
         deleteDoc("rec", "sa", "1");
+        indexDoc("rec", "sa", "2", "v2-updated");
         refresh("rec");
 
         internalCluster().fullRestart();
         ensureGreen("rec");
 
+        // The delete hit only slice sa's id "1"; the same id in slice sb is untouched.
         assertThat(getDoc("rec", "sa", "1").isExists(), equalTo(false));
         GetResponse gb = getDoc("rec", "sb", "1");
         assertThat(gb.isExists(), equalTo(true));
         assertThat(gb.getId(), equalTo("1"));
         assertThat(gb.getSource().get("field"), equalTo("vb"));
+        // The replaced doc reflects its latest value.
+        assertThat(getDoc("rec", "sa", "2").getSource().get("field"), equalTo("v2-updated"));
 
         assertResponse(
             searchSlice("rec", SliceIndexing.SLICE_ALL, QueryBuilders.matchAllQuery()),
-            r -> assertThat(r.getHits().getTotalHits().value(), equalTo(1L))
+            r -> assertThat(r.getHits().getTotalHits().value(), equalTo(2L))
         );
     }
 
@@ -393,6 +422,8 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         // The same user id in two slices yields two independent documents, each created (not an update of the other).
         assertThat(a.getResult(), equalTo(DocWriteResponse.Result.CREATED));
         assertThat(b.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        // Resolve the seq_no/term conflict below against either the live version map or the Lucene index.
+        maybeRefresh("occ");
 
         // Conditionally updating (sa, 1) with the OTHER slice's seq_no/term must conflict: the check resolves against
         // the compound (sa, 1) term, whose current seq_no is a's, not b's. (With plain-id keying b's seq_no would match.)

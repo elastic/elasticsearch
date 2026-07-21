@@ -89,6 +89,74 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
         }
     }
 
+    public void testSliceDeleteAmongSameIdDifferentSlicesRecoversCorrectSlice() throws Exception {
+        final String id = "doc-1";
+        final String deletedSlice = "slice-a";
+        final String survivingSlice = "slice-b";
+        // Two live docs share the plain id but live in different slices. Deleting one must recover a tombstone for that
+        // slice's compound term - not the other's - proving the delete does not resolve the slice by looking up the id.
+        var mapperService = engine.engineConfig.getMapperService();
+        engine.index(
+            new Engine.Index(
+                SliceIdFieldMapper.encodeCompoundId(id, deletedSlice),
+                primaryTerm.get(),
+                parseDocument(mapperService, id, deletedSlice)
+            )
+        );
+        engine.index(
+            new Engine.Index(
+                SliceIdFieldMapper.encodeCompoundId(id, survivingSlice),
+                primaryTerm.get(),
+                parseDocument(mapperService, id, survivingSlice)
+            )
+        );
+        final BytesRef deletedUid = SliceIdFieldMapper.encodeCompoundId(id, deletedSlice);
+        engine.delete(
+            new Engine.Delete(
+                id,
+                deletedUid,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                primaryTerm.get(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                System.nanoTime(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0
+            )
+        );
+        engine.refresh("test");
+
+        try (
+            Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                ByteSizeValue.ofMb(32).getBytes()
+            )
+        ) {
+            Translog.Delete delete = null;
+            boolean survivingIndexed = false;
+            for (Translog.Operation op = snapshot.next(); op != null; op = snapshot.next()) {
+                if (op instanceof Translog.Delete d) {
+                    assertThat("expected a single delete op", delete, nullValue());
+                    delete = d;
+                } else if (op instanceof Translog.Index index
+                    && SliceIdFieldMapper.encodeCompoundId(id, survivingSlice).equals(index.uid())) {
+                        survivingIndexed = true;
+                    }
+            }
+            assertNotNull("the delete op should be recovered", delete);
+            // The delete carries the deleted slice's compound term, never the surviving slice's.
+            assertEquals(deletedUid, delete.uid());
+            assertEquals(deletedSlice, SliceIdFieldMapper.sliceFromCompoundId(delete.uid()));
+            assertTrue("the surviving slice's index op must still be present", survivingIndexed);
+        }
+    }
+
     public void testSliceIndexRecoversCompoundUidAndRouting() throws Exception {
         final String id = "doc-1";
         final String slice = "slice-7";

@@ -379,9 +379,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecApproximationIT
-  method: test {csv-spec:approximation.Lookup join before and after stats by}
-  issue: https://github.com/elastic/elasticsearch/issues/153178
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
@@ -514,9 +511,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
-- class: org.elasticsearch.xpack.stateless.cache.SearchShardRecoveryWarmingTests
-  method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
-  issue: https://github.com/elastic/elasticsearch/issues/154033
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/154062
@@ -538,9 +532,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
-- class: org.elasticsearch.reindex.ReindexerTests
-  method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
-  issue: https://github.com/elastic/elasticsearch/issues/154237
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
@@ -562,9 +553,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
-- class: org.elasticsearch.reindex.ReindexerTests
-  method: testRemoteReindexClosesRemoteInfoOnNormalCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/154294
 - class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
   method: testEnrichRemoteWithVendor
   issue: https://github.com/elastic/elasticsearch/issues/154532
@@ -580,3 +568,12 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
   method: testRcs2Setup
   issue: https://github.com/elastic/elasticsearch/issues/154540
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/154058
+- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
+  method: testBootstrapOnlyVotingOnlyNodes
+  issue: https://github.com/elastic/elasticsearch/issues/154563
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
+  issue: https://github.com/elastic/elasticsearch/issues/154568

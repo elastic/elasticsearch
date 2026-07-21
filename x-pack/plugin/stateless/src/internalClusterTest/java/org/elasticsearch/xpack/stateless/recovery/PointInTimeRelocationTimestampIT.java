@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -42,11 +43,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.search.SearchService.PIT_RELOCATION_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -54,9 +57,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -97,7 +100,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     /// which it was first written, and [SearchDirectory]
     /// preserves that range via `putIfAbsent`. The expected timestamp range for each file is
     /// captured directly from the source [SearchDirectory]
-    /// right before relocation — this is the ground truth against which the wire payload is
+    /// right before PIT opens — this is the ground truth against which the wire payload is
     /// compared, which is precise regardless of how many BCCs exist or what timestamps they carry.
     public void testPitRelocationTransfersTimestamps() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
@@ -117,7 +120,8 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         final var shardId = new ShardId(resolveIndex(indexName), 0);
 
-        final long timestamp = randomLongBetween(1, MAX_MILLIS_BEFORE_9999);
+        final int extraIndexingRounds = between(0, 2);
+        final long timestamp = randomLongBetween(1, MAX_MILLIS_BEFORE_9999 - extraIndexingRounds);
         indexDocs(
             indexName,
             between(50, 200),
@@ -130,8 +134,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         // Randomly do a few more rounds of indexing + refresh to build additional segments
         // before the PIT is opened. Each refresh uploads its own BCC (UPLOAD_MAX=1), so files
         // from these rounds carry a different timestamp range than the initial flush files.
-        final int extraRounds = between(0, 2);
-        for (int i = 0; i < extraRounds; i++) {
+        for (int i = 0; i < extraIndexingRounds; i++) {
             final long extraRoundTimestamp = timestamp + i + 1;
             indexDocs(
                 indexName,
@@ -157,11 +160,11 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         assertNotNull(pitId);
         try {
 
-            // Randomly force-merge to a single segment and flush. With extraRounds > 0 there are multiple Lucene segments,
+            // Randomly force-merge to a single segment and flush. With extraIndexingRounds > 0 there are multiple Lucene segments,
             // so the force-merge is not a no-op and produces a newer commit (B) in the object store.
             // The search node applies commit B while the PIT remains pinned to commit A, which is the scenario this block exercises.
-            if (randomBoolean() && extraRounds > 0) {
-                final long priorGen = priorGen(commitService, shardId);
+            if (randomBoolean() && extraIndexingRounds > 0) {
+                final long priorGen = lastUploadedGeneration(commitService, shardId);
                 indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
                 flush(indexName);
                 awaitSearchNodeCommit(indexName, priorGen);
@@ -170,11 +173,12 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
             final var capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
             assertThat(capturedInfos, hasSize(1));
 
-            final OpenPITContextInfo pitContextInfo = capturedInfos.getFirst();
-            assertThat("metadata must be non-empty", pitContextInfo.metadata(), not(anEmptyMap()));
+            final Map<String, BlobFileRanges> pitMetadata = capturedInfos.getFirst().metadata();
+            assertThat("metadata must be non-empty", pitMetadata, not(anEmptyMap()));
             // Every file in the wire payload must carry the exact timestamp range that the source
             // SearchDirectory recorded for it — the value captured in expectedMetadata above.
-            pitContextInfo.metadata().forEach((fileName, ranges) -> {
+            assertThat(pitMetadata.keySet(), equalTo(expectedMetadata.keySet()));
+            pitMetadata.forEach((fileName, ranges) -> {
                 final BlobFileRanges expected = expectedMetadata.get(fileName);
                 assertThat("source SearchDirectory must carry metadata for " + fileName, expected, notNullValue());
                 assertThat(
@@ -191,7 +195,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
 
             /// [SearchDirectory#mergeMetadata] (invoked via [SearchDirectory#mergePITReaderMetadata]) must merge every transferred
             /// range into the destination's own metadata.
-            pitContextInfo.metadata().forEach((fileName, wireRanges) -> {
+            pitMetadata.forEach((fileName, wireRanges) -> {
                 final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, fileName);
                 assertThat("destination SearchDirectory must know about transferred file: " + fileName, mergedRanges, notNullValue());
                 assertThat(
@@ -286,35 +290,32 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
             final var info = capturedInfos.getFirst();
 
             // There must be at least one generational live-docs file in the metadata (created in flush B).
-            final var genFileEntries = info.metadata()
+            final Map<String, BlobFileRanges> genFilesMetadata = info.metadata()
                 .entrySet()
                 .stream()
                 .filter(e -> StatelessCompoundCommit.isGenerationalFile(e.getKey()))
-                .toList();
-            assertThat("expect at least one generational file after re-indexing a doc", genFileEntries, not(empty()));
-
-            // The generational file _0_1.liv (or similar) changed blob location (BCC_B → BCC_C), so
-            // overrideBlobFileRangesTimestamp stamps it with CC_C's timestamp tsC — not the old tsB from
-            // the pinned SearchDirectory entry. At least one such entry must be present to confirm the
-            // location-mismatch path ran.
-            final var genFilesWithTimestampC = genFileEntries.stream().filter(e -> {
-                final var ts = e.getValue().timestampRange();
-                return ts != null && ts.minMillis() == tsC && ts.maxMillis() == tsC;
-            }).toList();
+                .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+            assertThat("expect at least one generational file after re-indexing a doc", genFilesMetadata, not(anEmptyMap()));
             assertThat(
-                "at least one generational file must carry tsC, proving overrideBlobFileRangesTimestamp"
-                    + " stamped the wire entry with CC_C's timestamp rather than the old pinned tsB",
-                genFilesWithTimestampC,
-                not(empty())
+                "expect all generational files should have the tsC timestamp",
+                genFilesMetadata.values()
+                    .stream()
+                    .map(BlobFileRanges::timestampRange)
+                    .allMatch(new TimestampFieldValueRange(tsC, tsC)::equals),
+                is(true)
             );
 
             /// [SearchDirectory#mergeMetadata] must adopt CC_C's overridden range on the destination node too;
             /// otherwise the fix would only be visible on the wire and never reach the merged metadata that
             /// SearchDirectory actually uses to serve reads.
+            final var genFilesWithTimestampC = genFilesMetadata.entrySet()
+                .stream()
+                .filter(e -> Objects.equals(e.getValue().timestampRange(), new TimestampFieldValueRange(tsC, tsC)))
+                .toList();
             for (final var entry : genFilesWithTimestampC) {
                 final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, entry.getKey());
                 assertThat("destination SearchDirectory must know about " + entry.getKey(), mergedRanges, notNullValue());
-                assertThat(mergedRanges.timestampRange(), equalTo(new StatelessCompoundCommit.TimestampFieldValueRange(tsC, tsC)));
+                assertThat(mergedRanges.timestampRange(), equalTo(new TimestampFieldValueRange(tsC, tsC)));
             }
         } finally {
             closeRelocatedPointInTime(pitId);
@@ -364,27 +365,27 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     }
 
     private void refreshAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) {
-        final long priorGen = priorGen(commitService, shardId);
+        final long priorGen = lastUploadedGeneration(commitService, shardId);
         refresh(indexName);
         awaitSearchNodeCommit(indexName, priorGen);
     }
 
     private void flushAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) {
-        final long priorGen = priorGen(commitService, shardId);
+        final long priorGen = lastUploadedGeneration(commitService, shardId);
         flush(indexName);
         awaitSearchNodeCommit(indexName, priorGen);
     }
 
-    private static long priorGen(final StatelessCommitService commitService, final ShardId shardId) {
+    private static long lastUploadedGeneration(final StatelessCommitService commitService, final ShardId shardId) {
         final BatchedCompoundCommit prior = commitService.getLatestUploadedBcc(shardId);
         return prior != null ? prior.lastCompoundCommit().generation() : -1L;
     }
 
-    private static void awaitSearchNodeCommit(final String indexName, final long priorGen) {
+    private static void awaitSearchNodeCommit(final String indexName, final long gen) {
         final var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
         final var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         final var listener = new SubscribableListener<Long>();
-        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, priorGen + 1, listener);
+        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, gen + 1, listener);
         safeAwait(listener);
     }
 

@@ -484,9 +484,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
   method: the getRootProject baseline contains no stale entries
   issue: https://github.com/elastic/elasticsearch/issues/152341
-- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
-  method: testGetAndGetBasicStats
-  issue: https://github.com/elastic/elasticsearch/issues/152351
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
@@ -565,15 +562,9 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testEachInstallOrRotationAddsExactlyOneNewKey
   issue: https://github.com/elastic/elasticsearch/issues/153024
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testDeleteMountedFrozenIndexBeforeSwap
-  issue: https://github.com/elastic/elasticsearch/issues/153040
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
-  method: testStartFailedTransform
-  issue: https://github.com/elastic/elasticsearch/issues/153065
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<big positive double>, <big negative double>}
   issue: https://github.com/elastic/elasticsearch/issues/153069
@@ -604,9 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testHollowShardFailsIfSearchShardRegistersNewerCommit
-  issue: https://github.com/elastic/elasticsearch/issues/153393
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
   method: testRetriesAndOperationsAreTrackedSeparately
   issue: https://github.com/elastic/elasticsearch/issues/146899
@@ -748,3 +736,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeywordKeepTriggersLoadInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/154377
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
+  method: test {csv-spec:conditional.singleCondition}
+  issue: https://github.com/elastic/elasticsearch/issues/154436
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
+  method: test {csv-spec:conditional.docsCaseSuccessRate}
+  issue: https://github.com/elastic/elasticsearch/issues/154458
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst
+  issue: https://github.com/elastic/elasticsearch/issues/154462
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
+  method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
+  issue: https://github.com/elastic/elasticsearch/issues/154023
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
+  method: test {csv-spec:conditional.conditionIsNull}
+  issue: https://github.com/elastic/elasticsearch/issues/154473

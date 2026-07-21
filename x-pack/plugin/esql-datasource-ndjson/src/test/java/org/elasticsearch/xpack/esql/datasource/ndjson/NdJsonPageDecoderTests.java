@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -42,9 +45,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
- * {@link NdJsonPageIteratorTests} covers end-to-end correctness across types; these tests focus on
- * the reusable {@code keywordScratch} buffer introduced to remove per-field allocation churn.
+ * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, schema-shape conflicts,
+ * declared formats, and block-builder allocation sizing. Sibling {@link NdJsonPageIteratorTests}
+ * covers end-to-end correctness across types.
  */
 public class NdJsonPageDecoderTests extends ESTestCase {
 
@@ -1069,84 +1072,56 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     private static final long PAGE_SIZED_BYTES = (long) LENIENT_BATCH_SIZE * Long.BYTES;
 
     /**
-     * Records the traffic {@code BlockFactory#adjustBreaker} produces, so a test can assert on the SIZE of
-     * individual reservations rather than on wall time. The test-framework {@code LimitedBreaker} only offers
-     * trips-or-not semantics, which would state the invariant as a magic limit instead of directly.
-     */
-    private static final class RecordingCircuitBreaker extends NoopCircuitBreaker {
-        private long used;
-        private long peakUsed;
-        private int pageSizedReservations;
-
-        RecordingCircuitBreaker() {
-            super("recording");
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            record(bytes);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            record(bytes);
-        }
-
-        private void record(long bytes) {
-            if (bytes >= PAGE_SIZED_BYTES) {
-                pageSizedReservations++;
-            }
-            used += bytes;
-            peakUsed = Math.max(peakUsed, used);
-        }
-
-        @Override
-        public long getUsed() {
-            return used;
-        }
-    }
-
-    /**
      * The lenient decode path builds a fresh set of scratch builders for every record so a mid-record parse
      * error can be discarded without corrupting the page. Those builders hold exactly one record, so they must
      * be sized for one record: sizing them at {@code batchSize} zero-fills a page-sized array and reserves it on
-     * the breaker once per record, which is the entire cost of the lenient path on a large file.
+     * the breaker once per record, which is the dominant cost of the lenient path on a large file.
      * <p>
      * Asserted as a count of page-sized reservations: only the once-per-page builders set up in
-     * {@code decodePage} may make one, so the total is the number of projected LONG columns regardless of how
-     * many records were decoded. A per-record page-sized scratch turns that into {@code columns * (1 + records)}.
-     * KEYWORD columns are excluded from the count — their builders back onto {@code BytesRefArray} over the
-     * non-breaking {@link BigArrays#NON_RECYCLING_INSTANCE} and produce no breaker traffic here.
+     * {@code decodePage} may make one, so the total is the number of projected columns whose builders draw on
+     * {@code breaker} — regardless of how many records were decoded. A per-record page-sized scratch turns that
+     * into {@code columns * (1 + records)}.
      */
-    private static void assertScratchIsRecordSized(RecordingCircuitBreaker breaker, int longColumns) {
+    private static void assertScratchIsRecordSized(CountingBreaker breaker, int pageSizedColumns) {
         assertEquals(
             "only the once-per-page builders may reserve page-sized memory; more means the lenient per-record "
                 + "scratch builders are page-sized again",
-            longColumns,
-            breaker.pageSizedReservations
+            pageSizedColumns,
+            breaker.reservationsOfAtLeast(PAGE_SIZED_BYTES)
         );
+        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.used());
     }
 
     /**
      * {@code error_mode: null_field} ({@link ErrorPolicy#PERMISSIVE}) decodes through the per-record scratch
      * builders. Covers a multivalue array (exercising the scratch's grow-on-demand path now that it no longer
-     * starts page-sized), a single value, a missing field, and a keyword column, pinning that the decoded values
-     * are unchanged alongside the allocation invariant.
+     * starts page-sized), a single value, a missing field, a keyword column, and a dotted column reached through
+     * {@code setupBuilders}' recursion — so the nested arm is held to the same sizing as the flat one. Pins that
+     * the decoded values are unchanged alongside the allocation invariant.
+     * <p>
+     * The KEYWORD column is not counted: {@code BytesRefBlockBuilder} backs onto {@code BytesRefArray} over
+     * {@link BigArrays#NON_RECYCLING_INSTANCE}, which draws on no breaker. Its sizing is covered by
+     * {@link #testLenientKeywordScratchCostsNoMoreThanStrict}.
      */
     public void testLenientScratchBuildersAreRecordSizedNotPageSized() throws IOException {
         String ndjson = """
-            {"v":[1,2,3],"w":10,"k":"a"}
-            {"v":42,"w":20,"k":"b"}
-            {"w":30,"k":"c"}
-            {"v":[7,8],"w":40,"k":"d"}
+            {"v":[1,2,3],"w":10,"k":"a","a":{"b":100}}
+            {"v":42,"w":20,"k":"b","a":{"b":200}}
+            {"w":30,"k":"c","a":{"b":300}}
+            {"v":[7,8],"w":40,"k":"d","a":{"b":400}}
             """;
-        RecordingCircuitBreaker breaker = new RecordingCircuitBreaker();
+        CountingBreaker breaker = new CountingBreaker();
         BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
                 null,
-                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG), attribute("k", DataType.KEYWORD)),
+                List.of(
+                    attribute("v", DataType.LONG),
+                    attribute("w", DataType.LONG),
+                    attribute("k", DataType.KEYWORD),
+                    attribute("a.b", DataType.LONG)
+                ),
                 null,
                 LENIENT_BATCH_SIZE,
                 trackingFactory,
@@ -1161,6 +1136,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             LongBlock v = page.getBlock(0);
             LongBlock w = page.getBlock(1);
             BytesRefBlock k = page.getBlock(2);
+            LongBlock nested = page.getBlock(3);
             BytesRef scratch = new BytesRef();
 
             assertEquals(3, v.getValueCount(0));
@@ -1180,14 +1156,77 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             for (int p = 0; p < 4; p++) {
                 assertFalse("w present at " + p, w.isNull(p));
                 assertEquals((p + 1) * 10L, w.getLong(w.getFirstValueIndex(p)));
+                assertFalse("a.b present at " + p, nested.isNull(p));
+                assertEquals((p + 1) * 100L, nested.getLong(nested.getFirstValueIndex(p)));
             }
             assertMvAt(k, 0, scratch, List.of("a"));
             assertMvAt(k, 1, scratch, List.of("b"));
             assertMvAt(k, 2, scratch, List.of("c"));
             assertMvAt(k, 3, scratch, List.of("d"));
         }
-        assertScratchIsRecordSized(breaker, 2);
-        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.getUsed());
+        assertScratchIsRecordSized(breaker, 3);
+    }
+
+    /**
+     * The KEYWORD arm of the same invariant. A {@code BytesRefBlockBuilder} sizes its {@code BytesRefArray} from
+     * the same {@code estimatedSize}, but that array draws on {@link BigArrays} rather than on the block
+     * factory's own breaker, so it is invisible to {@link #testLenientScratchBuildersAreRecordSizedNotPageSized}.
+     * <p>
+     * Stated against the strict path rather than against a byte threshold: strict decodes the same records into
+     * the same page builders with no scratch at all, so it is the natural baseline for what this data legitimately
+     * costs. However {@link BigArrays} chooses to split a large allocation into reservations, lenient must not
+     * make substantially more of them than strict for the same input — which is exactly the claim the fix makes,
+     * and which no knowledge of BigArrays' internal paging is needed to state.
+     */
+    public void testLenientKeywordScratchCostsNoMoreThanStrict() throws IOException {
+        String ndjson = """
+            {"k":"alpha"}
+            {"k":"beta"}
+            {"k":"gamma"}
+            {"k":"delta"}
+            {"k":"epsilon"}
+            """;
+        assertEquals(
+            "lenient keyword decoding must not reserve page-scale byte storage that strict does not: any excess "
+                + "is per-record scratch sized for a whole page",
+            largeKeywordReservations(ndjson, ErrorPolicy.STRICT),
+            largeKeywordReservations(ndjson, ErrorPolicy.PERMISSIVE)
+        );
+    }
+
+    /**
+     * Decodes one page of single-keyword records under {@code policy} and returns how many byte-storage
+     * reservations were substantial. The 1 KiB floor ignores the per-value churn of appending short strings,
+     * leaving the page-scale allocations that the comparison is about.
+     */
+    private int largeKeywordReservations(String ndjson, ErrorPolicy policy) throws IOException {
+        CountingBreaker breaker = new CountingBreaker();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
+        breaker.reset();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("k", DataType.KEYWORD)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                policy,
+                "test://lenient-scratch-keyword",
+                new NdJsonReaderCounters()
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals(5, page.getPositionCount());
+            BytesRefBlock k = page.getBlock(0);
+            BytesRef scratch = new BytesRef();
+            assertMvAt(k, 0, scratch, List.of("alpha"));
+            assertMvAt(k, 4, scratch, List.of("epsilon"));
+        }
+        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.used());
+        return breaker.reservationsOfAtLeast(1024);
     }
 
     /**
@@ -1200,7 +1239,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             {"v":5,"w":20}
             {"v":[6,7],"w":30}
             """;
-        RecordingCircuitBreaker breaker = new RecordingCircuitBreaker();
+        CountingBreaker breaker = new CountingBreaker();
         BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         List<String> warnings = new ArrayList<>();
         try (
@@ -1232,6 +1271,5 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
         assertScratchIsRecordSized(breaker, 2);
-        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.getUsed());
     }
 }

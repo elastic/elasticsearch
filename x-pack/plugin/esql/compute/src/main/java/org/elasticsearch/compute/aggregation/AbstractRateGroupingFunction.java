@@ -190,10 +190,124 @@ class AbstractRateGroupingFunction {
         }
     }
 
-    static final class FlushQueue extends PriorityQueue<Slice> {
+    /**
+     * A MAX binary heap oeprating on slices of (value, timestamp) pairs, ordered by the next timestamp of each slice.
+     * The slices are represented as a flat int[] array, each slice corresponding to two consecutive entries: the slice start followed by the slice end.
+     */
+    static final class FlushQueue {
+
+        RawBuffer valuesBuffer;
+        int[] slices;
+        int startIndex;
+        int endIndex;
+
+        public void init(RawBuffer values, int[] slices, int startIndex, int endIndex) {
+            this.valuesBuffer = values;
+            this.slices = slices;
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+            int numSlices = (endIndex - startIndex) / 2;
+            for (int i = 0; i < numSlices; i++) {
+                siftUp(i);
+            }
+        }
+
+        public int getLatestSliceStart() {
+            if (startIndex >= endIndex) {
+                return - 1;
+            }
+            return getSliceStart(0);
+        }
+
+        /**
+         * Consumes the maximum number of values from the latest slice.
+         * After this operation the slice is either empty (and removed)
+         * or is no longer the slice with the latest timestamp;
+         * @return the number of values starting at getLatestSliceStart() that can be consumed
+         */
+        public int consumeLatestValues() {
+            assert startIndex < endIndex : "Queue is empty";
+            int latestSliceStart = getSliceStart(0);
+            int latestSliceEnd = getSliceEnd(0);
+            int latestSliceValueCount = latestSliceEnd - latestSliceStart;
+            int numSlices = getNumSlices();
+            if (numSlices == 1) {
+                //only one slice left, we can consume it all
+                endIndex -= 2;
+                return latestSliceValueCount;
+            }
+
+            long nextSliceStartTimestamp = getNextTimestamp(1);
+            if (numSlices >= 3) {
+                nextSliceStartTimestamp = Math.max(nextSliceStartTimestamp, getNextTimestamp(2));
+            }
+
+            int numValuesToConsume = 1;
+            while (numValuesToConsume  < latestSliceValueCount && valuesBuffer.timestamps.get(latestSliceStart + numValuesToConsume) <= nextSliceStartTimestamp) {
+                numValuesToConsume++;
+            }
+            if (numValuesToConsume == latestSliceValueCount) {
+                // slice is now empty, remove it
+                slices[startIndex] = slices[endIndex - 2];
+                slices[startIndex + 1] = slices[endIndex - 1];
+                endIndex -= 2;
+                siftDown(0);
+            } else {
+                slices[startIndex] += numValuesToConsume;
+            }
+            return numValuesToConsume;
+        }
+
+        private void siftUp(int localSliceIndex) {
+            int currentIdx = localSliceIndex;
+            while (currentIdx > 0) {
+                int parentIndex = (currentIdx - 1) / 2;
+                if (getNextTimestamp(currentIdx) <= getNextTimestamp(parentIndex)) {
+                    break;
+                }
+                swapSlices(currentIdx, parentIndex);
+                currentIdx = parentIndex;
+            }
+        }
+
+        private void siftDown(int localSliceIndex) {
+            int currentIdx = localSliceIndex;
+            // TODO: implement
+        }
+
+        private int getNumSlices() {
+            return (endIndex - startIndex) / 2;
+        }
+
+        long getNextTimestamp(int localSliceIndex) {
+            return valuesBuffer.timestamps.get(getSliceStart(localSliceIndex));
+        }
+
+        private int getSliceStart(int localSliceIndex) {
+            return slices[startIndex + localSliceIndex * 2];
+        }
+
+        private int getSliceEnd(int localSliceIndex) {
+            return slices[startIndex + localSliceIndex * 2 + 1];
+        }
+
+        private void swapSlices(int localIndexA, int localIndexB) {
+            int offsetA = startIndex + localIndexA * 2;
+            int offsetB = startIndex + localIndexB * 2;
+            int startA = slices[offsetA];
+            int endA = slices[offsetA + 1];
+            slices[offsetA] = slices[offsetB];
+            slices[offsetA + 1] = slices[offsetB + 1];
+            slices[offsetB] = startA;
+            slices[offsetB + 1] = endA;
+        }
+
+    }
+
+    static final class FlushQueueOld extends PriorityQueue<Slice> {
         int valueCount;
 
-        FlushQueue(int maxSize) {
+        FlushQueueOld(int maxSize) {
             super(maxSize);
         }
 

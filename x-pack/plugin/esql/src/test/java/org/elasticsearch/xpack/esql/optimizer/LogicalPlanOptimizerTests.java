@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -1075,8 +1076,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
-            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, false);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
+            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.ANY);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.ANY);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };

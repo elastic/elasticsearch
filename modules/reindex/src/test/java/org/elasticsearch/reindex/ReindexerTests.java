@@ -49,6 +49,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -1177,9 +1178,11 @@ public class ReindexerTests extends ESTestCase {
                 request -> request.setRemoteInfo(remoteInfoWithPassword(server, password)),
                 initFuture -> {
                     assertNotNull(initFuture.actionGet());
-                    assertThat(
-                        expectThrows(IllegalStateException.class, password::getChars).getMessage(),
-                        containsString("SecureString has already been closed")
+                    assertBusy(
+                        () -> assertThat(
+                            expectThrows(IllegalStateException.class, password::getChars).getMessage(),
+                            containsString("SecureString has already been closed")
+                        )
                     );
                 }
             );
@@ -1208,9 +1211,11 @@ public class ReindexerTests extends ESTestCase {
                 request.setRemoteInfo(remoteInfoWithPassword(server, password));
             }, initFuture -> {
                 expectThrows(ElasticsearchStatusException.class, initFuture::actionGet);
-                assertThat(
-                    expectThrows(IllegalStateException.class, password::getChars).getMessage(),
-                    containsString("SecureString has already been closed")
+                assertBusy(
+                    () -> assertThat(
+                        expectThrows(IllegalStateException.class, password::getChars).getMessage(),
+                        containsString("SecureString has already been closed")
+                    )
                 );
             });
         } finally {
@@ -3034,8 +3039,8 @@ public class ReindexerTests extends ESTestCase {
     private void runRemotePitTestWithMockServer(
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
-        Consumer<PlainActionFuture<BulkByPaginatedSearchResponse>> assertions
-    ) {
+        CheckedConsumer<PlainActionFuture<BulkByPaginatedSearchResponse>, Exception> assertions
+    ) throws Exception {
         runRemotePitTestWithMockServer(server, requestConfigurer, assertions, Settings.EMPTY);
     }
 
@@ -3047,9 +3052,9 @@ public class ReindexerTests extends ESTestCase {
     private void runRemotePitTestWithMockServer(
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
-        Consumer<PlainActionFuture<BulkByPaginatedSearchResponse>> assertions,
+        CheckedConsumer<PlainActionFuture<BulkByPaginatedSearchResponse>, Exception> assertions,
         Settings pitKeepAliveLayerSettings
-    ) {
+    ) throws Exception {
         BytesArray matchAll = new BytesArray("{\"match_all\":{}}");
         RemoteInfo remoteInfo = new RemoteInfo(
             "http",

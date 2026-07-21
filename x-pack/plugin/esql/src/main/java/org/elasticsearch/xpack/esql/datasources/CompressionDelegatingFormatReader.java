@@ -122,6 +122,14 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public boolean boundSchemaNeedsFileSchema(List<Attribute> readSchema) {
+        // Same reason as declaredNameBindingNeedsFileStart above. Left to the interface default, a compressed
+        // file whose reader cannot decode from the projection alone would be split anyway, and each split would
+        // resolve the file's facts from its own rows — the same column decoded two ways within one file.
+        return inner.boundSchemaNeedsFileSchema(readSchema);
+    }
+
+    @Override
     public RowPositionStrategy rowPositionStrategy() {
         return inner.rowPositionStrategy();
     }

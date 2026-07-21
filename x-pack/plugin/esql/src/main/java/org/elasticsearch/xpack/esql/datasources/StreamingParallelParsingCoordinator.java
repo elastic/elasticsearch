@@ -842,15 +842,16 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Does the once-per-file work that needs the file's leading bytes, before any chunk is dispatched.
          * <p>
-         * Which work depends on whether the planner already resolved this file's schema. If it did not, the
-         * schema is inferred here and bound onto the reader so chunks 1..N parse against it rather than
-         * re-inferring (or, for CSV, reading a data row as a header). If it did, that schema stands and
-         * nothing is inferred — but a header-bearing file still has to tell later chunks what its columns
-         * are called, since only chunk 0 can see the header.
+         * Which work depends on what the planner left to do. With no resolved schema, one is inferred here and
+         * bound onto the reader so chunks 1..N parse against it rather than re-inferring (or, for CSV, reading
+         * a data row as a header). With a resolved schema that the reader can decode from, nothing is
+         * inferred — a header-bearing file only has to tell later chunks what its columns are called, since
+         * only chunk 0 can see the header. With a resolved schema the reader cannot decode from on its own,
+         * the file's schema is inferred anyway, once, so that every chunk decodes against the same answer.
          * <p>
-         * The two are exclusive by construction: inferring over a resolved schema is what produced the
-         * compressed-read crashes, because readers merge the reader-level schema with the resolved one and
-         * an inferred {@code INTEGER} displaced a declared {@code LONG}.
+         * That last case is safe only because the bound schema wins on type when the two are merged. Letting
+         * an inferred type win is what produced the compressed-read crashes, where an inferred {@code INTEGER}
+         * displaced a declared {@code LONG}.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
             if (readSchema == null || readSchema.isEmpty()) {

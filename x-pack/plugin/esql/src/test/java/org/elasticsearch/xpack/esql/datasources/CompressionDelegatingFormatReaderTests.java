@@ -17,6 +17,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
@@ -45,6 +49,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -142,6 +147,59 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
         assertEquals("csv", delegating.formatName());
         assertEquals(List.of(".csv", ".tsv"), delegating.fileExtensions());
+    }
+
+    /**
+     * A reader that cannot decode from the projection alone says so through the wrapper too.
+     * <p>
+     * Left to the interface default the wrapper would answer "no" for every compressed file, so the split
+     * producer would cut one whose reader needs the file's own schema, and each split would then resolve that
+     * schema from its own rows. The argument is asserted as well as the answer: the wrapper must pass the
+     * schema through, not merely return a boolean.
+     */
+    public void testBoundSchemaNeedsFileSchemaDelegatedWithItsArgument() {
+        List<Attribute> bound = List.of(new ReferenceAttribute(Source.EMPTY, "a.b", DataType.LONG));
+        AtomicReference<List<Attribute>> seen = new AtomicReference<>();
+        FormatReader innerReader = new NoConfigFormatReader() {
+            @Override
+            public boolean boundSchemaNeedsFileSchema(List<Attribute> readSchema) {
+                seen.set(readSchema);
+                return readSchema != null && readSchema.isEmpty() == false;
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return emptyIterator();
+            }
+
+            @Override
+            public String formatName() {
+                return "ndjson";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".ndjson");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        FormatReader delegating = new CompressionDelegatingFormatReader(innerReader, mockCodec());
+
+        assertTrue(delegating.boundSchemaNeedsFileSchema(bound));
+        assertEquals("the wrapper must hand the schema through, not just a boolean", bound, seen.get());
+        assertFalse(delegating.boundSchemaNeedsFileSchema(List.of()));
     }
 
     public void testNullInnerThrows() {

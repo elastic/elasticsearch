@@ -1093,6 +1093,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             "a split covering the whole file owns its trailing bytes, so the reader must be told it is the file's last",
             formatReader.capturedLastSplit().get(0)
         );
+        // Same fact, second consumer: it closes the file's trailing stats stripe. Derived from one place so the
+        // two cannot disagree — they used to, and a mid-file stripe was closed as if it were the file's last.
+        assertTrue("a whole-file read closes the file's final stats stripe", formatReader.capturedStatsFileFinal().get(0));
     }
 
     public void testSliceQueueWithNonZeroOffsetWrapsWithRangeStorageObject() throws Exception {
@@ -3447,6 +3450,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
         private final List<Boolean> capturedLastSplit = new ArrayList<>();
+        private final List<Boolean> capturedStatsFileFinal = new ArrayList<>();
 
         SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
             this.capturedObjects = capturedObjects;
@@ -3455,6 +3459,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         List<Boolean> capturedLastSplit() {
             return capturedLastSplit;
+        }
+
+        List<Boolean> capturedStatsFileFinal() {
+            return capturedStatsFileFinal;
         }
 
         @Override
@@ -3467,6 +3475,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             capturedObjects.add(object);
             capturedSkipFirstLine.add(context.firstSplit() == false);
             capturedLastSplit.add(context.lastSplit());
+            capturedStatsFileFinal.add(context.statsFileFinal());
             return singlePageIterator();
         }
 

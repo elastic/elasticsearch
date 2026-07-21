@@ -355,6 +355,19 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertThat(translate(QueryBuilders.termQuery("tags", "WINDOWS").caseInsensitive(true), Locale.US), instanceOf(MvContains.class));
     }
 
+    /**
+     * The subtle half: a LOWER-case term folds to itself even under a Turkish locale, so checking only the term would
+     * let it through — but the field side folds STORED values with that same locale, so a stored "MIX" becomes "mıx"
+     * and the row is dropped where an index matches it. Fail closed on the term's upper-case image too.
+     */
+    public void testCaseInsensitiveTermFailsClosedWhenStoredUpperCaseWouldMisfold() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.termQuery("tags", "mix").caseInsensitive(true), Locale.forLanguageTag("tr-TR"))
+        );
+        assertThat(translate(QueryBuilders.termQuery("tags", "mix").caseInsensitive(true), Locale.US), instanceOf(MvContains.class));
+    }
+
     /** A non-ASCII value can fold differently from the index's per-codepoint automaton, so it fails closed, not silently. */
     public void testCaseInsensitiveTermFailsClosedOnNonAsciiValue() {
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("tags", "café").caseInsensitive(true)));

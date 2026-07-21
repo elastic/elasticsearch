@@ -97,7 +97,8 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertSame(relation, result);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered"
+                + "too old to evaluate the translated filter; they were read unfiltered. "
+                + "Use a WHERE clause to filter rows from external datasets instead"
         );
     }
 
@@ -151,7 +152,8 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertThat(result, sameInstance(union));
         assertWarnings(
             "The request filter was not applied to external dataset(s) [dsA, dsB] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered"
+                + "too old to evaluate the translated filter; they were read unfiltered. "
+                + "Use a WHERE clause to filter rows from external datasets instead"
         );
     }
 
@@ -165,7 +167,8 @@ public class RequestFilterRewriterTests extends ESTestCase {
         RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered"
+                + "too old to evaluate the translated filter; they were read unfiltered. "
+                + "Use a WHERE clause to filter rows from external datasets instead"
         );
     }
 
@@ -193,7 +196,8 @@ public class RequestFilterRewriterTests extends ESTestCase {
         RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [file:///data.csv] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered"
+                + "too old to evaluate the translated filter; they were read unfiltered. "
+                + "Use a WHERE clause to filter rows from external datasets instead"
         );
     }
 

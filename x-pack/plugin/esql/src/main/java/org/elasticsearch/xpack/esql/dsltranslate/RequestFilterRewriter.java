@@ -104,7 +104,8 @@ public final class RequestFilterRewriter {
             .toList();
         if (datasets.isEmpty() == false) {
             HeaderWarning.addWarning(
-                "The request filter was not applied to external dataset(s) [{}] because {}; they were read unfiltered",
+                "The request filter was not applied to external dataset(s) [{}] because {}; they were read unfiltered. "
+                    + "Use a WHERE clause to filter rows from external datasets instead",
                 String.join(", ", datasets),
                 reason
             );

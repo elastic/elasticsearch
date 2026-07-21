@@ -183,12 +183,29 @@ public final class QueryDslTranslator {
         }
         String raw = String.valueOf(value);
         String lowered = raw.toLowerCase(configuration.locale());
-        if (isAscii(raw) == false || lowered.equals(raw.toLowerCase(Locale.ROOT)) == false) {
+        if (foldMatchesIndex(raw, lowered) == false) {
             throw new TranslationUnsupportedException("term[case_insensitive fold not faithful to the index for this value or locale]");
         }
         Expression loweredField = new ToLower(Source.EMPTY, field, configuration);
         Literal literal = new Literal(Source.EMPTY, new BytesRef(lowered), DataType.KEYWORD);
         return checkedLeaf(field, new MvContains(Source.EMPTY, loweredField, literal));
+    }
+
+    /**
+     * Whether folding with the request locale reproduces the index's locale-independent fold — the only condition under
+     * which this leaf agrees with an index. Two things must hold. The value itself must fold like {@code ROOT}, and so
+     * must its UPPER-CASE image: the field side runs {@code TO_LOWER} over arbitrary <em>stored</em> values with the
+     * same locale, so a lower-case term can still miss. Under a Turkish locale the term {@code "mix"} folds to itself
+     * (passing a value-only check) while a stored {@code "MIX"} folds to {@code "mıx"} and is dropped — an index would
+     * match it. Checking the upper-case image is sufficient for ASCII, where {@code I}/{@code i} is the only
+     * locale-sensitive mapping and the all-upper variant is the worst case.
+     */
+    private boolean foldMatchesIndex(String raw, String lowered) {
+        if (isAscii(raw) == false) {
+            return false;
+        }
+        return lowered.equals(raw.toLowerCase(Locale.ROOT))
+            && raw.toUpperCase(Locale.ROOT).toLowerCase(configuration.locale()).equals(lowered);
     }
 
     /** A string is all-ASCII when no char exceeds {@code 0x7F} — the range where {@code TO_LOWER} and the index automaton agree. */

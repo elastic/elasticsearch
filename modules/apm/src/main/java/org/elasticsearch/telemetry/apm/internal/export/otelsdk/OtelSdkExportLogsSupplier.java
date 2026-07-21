@@ -20,6 +20,7 @@ import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
 import org.elasticsearch.common.ssl.PemKeyConfig;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -66,12 +68,14 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     /** Logger name that {@code LoggingAuditTrail} (in :x-pack:plugin:security) uses. */
     private static final String AUDIT_LOGGER_NAME = "org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail";
 
-    private static final String OTEL_APPENDER_NAME = "audit_otel";
+    private static final String OTEL_AUDIT_APPENDER_NAME = "audit_otel";
+    private static final String OTEL_QUERYLOG_APPENDER_NAME = "querylog_otel";
 
     private final Settings settings;
     private final Path configDir;
     private volatile SdkLoggerProvider loggerProvider;
-    private volatile OpenTelemetryAppender attachedAppender;
+    private final List<OpenTelemetryAppender> attachedAppenders = new ArrayList<>();
+    private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
 
     public OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
         this.settings = settings;
@@ -86,11 +90,53 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         if (loggerProvider != null) {
             return;
         }
-        if (OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) == false) {
+        if (OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) == false
+            && OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED.get(settings) == false) {
+            // No telemetry enabled, exit.
             return;
         }
+        loggerProvider = buildProvider();
         LoggerContext ctx = (LoggerContext) org.apache.logging.log4j.LogManager.getContext(false);
         Configuration config = ctx.getConfiguration();
+        if (OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings)) {
+            installAuditAppender(config);
+        }
+        if (OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED.get(settings)) {
+            installQuerylogAppender(config);
+        }
+        ctx.updateLoggers();
+        logger.info("OTel SDK logs export installed; endpoint={}", OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings));
+    }
+
+    private void installQuerylogAppender(Configuration config) {
+        LoggerConfig querylogConfig = config.getLoggerConfig(QueryLogging.QUERY_LOGGER_NAME);
+
+        OpenTelemetryAppender querylogAppender = OpenTelemetryAppender.builder()
+            .setName(OTEL_QUERYLOG_APPENDER_NAME)
+            .setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build())
+            .setCaptureMapMessageAttributes(true)
+            .build();
+        querylogAppender.start();
+        config.addAppender(querylogAppender);
+        querylogConfig.addAppender(querylogAppender, null, null);
+        attachedAppenders.add(querylogAppender);
+        closeCallbacks.add(c -> closeQuerylogAppender(c, querylogAppender));
+    }
+
+    private static void closeQuerylogAppender(Configuration config, OpenTelemetryAppender appender) {
+        try {
+            LoggerConfig querylogConfig = config.getLoggerConfig(QueryLogging.QUERY_LOGGER_NAME);
+            if (QueryLogging.QUERY_LOGGER_NAME.equals(querylogConfig.getName())) {
+                querylogConfig.removeAppender(OTEL_QUERYLOG_APPENDER_NAME);
+            }
+            config.getAppenders().remove(OTEL_QUERYLOG_APPENDER_NAME);
+            appender.stop();
+        } catch (Exception e) {
+            logger.warn("Error detaching querylog OTel appender during close", e);
+        }
+    }
+
+    private void installAuditAppender(Configuration config) {
         LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
         if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName()) == false) {
             // No exact LoggerConfig for the audit logger (e.g. audit logging disabled). Bail.
@@ -98,25 +144,34 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             return;
         }
 
-        SdkLoggerProvider provider = buildProvider();
         // Set the OpenTelemetry instance directly on the builder rather than via the static
         // OpenTelemetryAppender.install(...) — install() iterates registered appenders, which is
         // brittle when we're constructing one programmatically. setCaptureMapMessageAttributes
         // makes the StringMapMessage entries that LoggingAuditTrail emits surface as OTLP
         // attributes (otherwise only the formatted body is captured).
         OpenTelemetryAppender appender = OpenTelemetryAppender.builder()
-            .setName(OTEL_APPENDER_NAME)
-            .setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(provider).build())
+            .setName(OTEL_AUDIT_APPENDER_NAME)
+            .setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build())
             .setCaptureMapMessageAttributes(true)
             .build();
         appender.start();
         config.addAppender(appender);
         auditLoggerConfig.addAppender(appender, null, null);
-        ctx.updateLoggers();
+        attachedAppenders.add(appender);
+        closeCallbacks.add(c -> closeAuditAppender(c, appender));
+    }
 
-        this.loggerProvider = provider;
-        this.attachedAppender = appender;
-        logger.info("OTel SDK logs export installed; endpoint={}", OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings));
+    private static void closeAuditAppender(Configuration config, OpenTelemetryAppender appender) {
+        try {
+            LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
+            if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName())) {
+                auditLoggerConfig.removeAppender(OTEL_AUDIT_APPENDER_NAME);
+            }
+            config.getAppenders().remove(OTEL_AUDIT_APPENDER_NAME);
+            appender.stop();
+        } catch (Exception e) {
+            logger.warn("Error detaching audit OTel appender during close", e);
+        }
     }
 
     /**
@@ -221,7 +276,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         logger.info("TLS cert files changed; reloading OTel logs export with new certificates");
         SdkLoggerProvider newProvider = buildProvider();
-        attachedAppender.setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build());
+        attachedAppenders.forEach(appender -> appender.setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build()));
         SdkLoggerProvider oldProvider = loggerProvider;
         loggerProvider = newProvider;
         oldProvider.close();
@@ -249,7 +304,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
 
     @Override
     public synchronized void close() {
-        detachAppender();
+        detachAppenders();
         if (loggerProvider != null) {
             loggerProvider.close();
             loggerProvider = null;
@@ -257,24 +312,14 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     }
 
     /** Remove the OTel appender from the audit logger and stop it. */
-    private void detachAppender() {
-        if (attachedAppender == null) {
+    private void detachAppenders() {
+        if (closeCallbacks.isEmpty()) {
             return;
         }
-        OpenTelemetryAppender appender = attachedAppender;
-        attachedAppender = null;
-        try {
-            LoggerContext ctx = (LoggerContext) org.apache.logging.log4j.LogManager.getContext(false);
-            Configuration config = ctx.getConfiguration();
-            LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
-            if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName())) {
-                auditLoggerConfig.removeAppender(OTEL_APPENDER_NAME);
-            }
-            config.getAppenders().remove(OTEL_APPENDER_NAME);
-            ctx.updateLoggers();
-            appender.stop();
-        } catch (Exception e) {
-            logger.warn("Error detaching OTel appender during close", e);
-        }
+        LoggerContext ctx = (LoggerContext) org.apache.logging.log4j.LogManager.getContext(false);
+        Configuration config = ctx.getConfiguration();
+        closeCallbacks.forEach(cb -> cb.accept(config));
+        closeCallbacks.clear();
+        ctx.updateLoggers();
     }
 }

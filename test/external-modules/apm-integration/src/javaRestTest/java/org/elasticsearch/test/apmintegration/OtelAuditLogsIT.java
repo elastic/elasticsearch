@@ -12,6 +12,7 @@ package org.elasticsearch.test.apmintegration;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -62,6 +63,7 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_cluster_name", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
         .setting("telemetry.logs.audit.enabled", "true")
+        .setting("telemetry.logs.querylog.enabled", "true")
         // OTLP/gRPC endpoint: scheme https for mTLS, no path (different shape than HTTP-protobuf endpoint).
         .setting("telemetry.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         // mTLS: ES node verifies the recording server's cert and presents a client cert.
@@ -69,6 +71,7 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("telemetry.logs.ssl.certificate_authorities", () -> recordingApmServer.getMtlsServerCaCertPath())
         .setting("telemetry.logs.ssl.certificate", () -> recordingApmServer.getMtlsClientCertPath())
         .setting("telemetry.logs.ssl.key", () -> recordingApmServer.getMtlsClientKeyPath())
+        .setting("elasticsearch.querylog.enabled", "true")
         .user(API_USER, "api-password", "superuser", false)
         .build();
 
@@ -127,5 +130,31 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
         assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
+    }
+
+    public void testOtelLoggingOnSearch() throws Exception {
+        CountDownLatch arrived = new CountDownLatch(1);
+        AtomicReference<ReceivedTelemetry.ReceivedLog> queryLogMessage = new AtomicReference<>();
+
+        createIndex("test_index");
+
+        Consumer<ReceivedTelemetry> consumer = msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedLog log && log.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME)) {
+                logger.debug("Received log: body=[{}] attributes={}", log.body(), log.attributes());
+                if (queryLogMessage.compareAndSet(null, log)) {
+                    arrived.countDown();
+                }
+            }
+        };
+        recordingApmServer.addMessageConsumer(consumer);
+        client().performRequest(new Request("GET", "/test_index/_search"));
+        // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        boolean got = arrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+        assertTrue("Timeout waiting for an OTLP log record", got);
+        ReceivedTelemetry.ReceivedLog log = queryLogMessage.get();
+        assertNotNull(log);
+        assertNotNull(log.attributes());
     }
 }

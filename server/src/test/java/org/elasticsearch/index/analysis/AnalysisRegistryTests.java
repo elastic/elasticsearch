@@ -121,6 +121,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * the per-analyzer {@code CloseableThreadLocal} that Lucene's {@link Analyzer} maintains.
      */
     public void testDefaultAnalyzerIsSharedAcrossIndices() throws IOException {
+        assumeAnalyzerSharingEnabled();
         IndexSettings settingsA = indexSettingsOfCurrentVersion(Settings.builder());
         IndexSettings settingsB = indexSettingsOfCurrentVersion(Settings.builder());
         IndexAnalyzers a = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsA);

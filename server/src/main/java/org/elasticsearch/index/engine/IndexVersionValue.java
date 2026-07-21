@@ -27,9 +27,9 @@ final class IndexVersionValue extends VersionValue {
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(operationLocation) + RamUsageEstimator.shallowSizeOf(
-            operationLocation.location()
-        );
+        return RAM_BYTES_USED + (operationLocation != null
+            ? RamUsageEstimator.shallowSizeOf(operationLocation) + RamUsageEstimator.shallowSizeOf(operationLocation.location())
+            : 0L);
     }
 
     @Override

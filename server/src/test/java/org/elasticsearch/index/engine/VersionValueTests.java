@@ -26,6 +26,11 @@ public class VersionValueTests extends ESTestCase {
         assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());
     }
 
+    public void testIndexRamBytesUsedNullLocation() {
+        IndexVersionValue versionValue = new IndexVersionValue(null, randomLong(), randomLong(), randomLong());
+        assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());
+    }
+
     public void testDeleteRamBytesUsed() {
         DeleteVersionValue versionValue = new DeleteVersionValue(randomLong(), randomLong(), randomLong(), randomLong());
         assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());

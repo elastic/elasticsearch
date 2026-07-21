@@ -1,0 +1,277 @@
+version: 9.4.4
+released: false
+generated: 2026-07-17T00:03:16.305326152Z
+changelogs:
+  - pr: 2841
+    summary: Improve messaging for OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for PyTorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Improve error handling for quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Improve handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 147688
+    summary: Automatically repair ML anomaly results aliases pointing at a .reindexed-v7 index
+    area: Machine Learning
+    type: bug
+    issues:
+      - 147686
+  - pr: 148179
+    summary: Fix data stream privilege checking
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 149555
+    summary: Roll reindexed ML state indices in daily maintenance
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 150362
+    summary: Fix ML jobs stuck in starting state on Serverless trial projects
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 150676
+    summary: Fix `UnsupportedOperationException` for partially unmapped keyword fields with multi-fields
+    area: ES|QL
+    type: bug
+    issues:
+      - 150667
+  - pr: 151399
+    summary: Retry datafeed STARTED state write on system reassignment
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 151697
+    summary: Call `Project.output()` only when `Project.expressionsResolved()` is true
+    area: ES|QL
+    type: bug
+    issues:
+      - 149681
+  - pr: 151968
+    summary: Upgrade OpenTelemetry in ms-graph-authz
+    area: Authentication
+    type: upgrade
+    issues: []
+  - pr: 152035
+    summary: Avoid dense run-length allocation in HLL
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152092
+    summary: Update `commons-text` library version to match `commons-lang3`
+    area: Inference
+    type: upgrade
+    issues: []
+  - pr: 152096
+    summary: Fix infinite loop in `GeoLineDecomposer` dateline crossing checks
+    area: Geo
+    type: bug
+    issues:
+      - 152066
+  - pr: 152098
+    summary: Treat empty list query parameters as null
+    area: ES|QL
+    type: bug
+    issues:
+      - 152271
+  - pr: 152148
+    summary: Improve simulate bulk action authz
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 152152
+    summary: Fix NPE when aggregation param scripts return null
+    area: Aggregations
+    type: bug
+    issues:
+      - 136639
+  - pr: 152163
+    summary: Upgrade jackson
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 152385
+    summary: Add more defensive protections when parsing `query_string`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152427
+    summary: Translate `tools` and `tool_choice` to Anthropic format for Google Model Garden Anthropic chat completion
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 152476
+    summary: Return a 400 (Bad Request) for invalid tokens in a `script` query
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152509
+    summary: Fork `ensureShardSearchActive` callbacks off the refresh thread
+    area: Search
+    type: bug
+    issues:
+      - 97280
+  - pr: 152552
+    summary: Trip request breaker on big completion suggest size/shardSize
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152664
+    summary: Trivial hardening of data URI validation
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152733
+    summary: Ignore OTLP number data points without a value
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 152773
+    summary: Avoid OOMs by accounting for memory during cardinality agg reduction phase
+    area: Aggregations
+    type: bug
+    issues:
+      - 150290
+  - pr: 152803
+    summary: Tighten retry startup logic
+    area: Transform
+    type: bug
+    issues: []
+  - pr: 152851
+    summary: Implement watchdog timeout for `GROK`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152867
+    summary: Resolve `NoSuchElementException` in `ViewUnionAll` analyzer retries
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152874
+    summary: Fix Clone API Key silently dropping fields that follow a null expiration
+    area: Authentication
+    type: bug
+    issues: []
+  - pr: 152877
+    summary: Fix errors and warnings with spatial functions that parse invalid BBOX
+    area: ES|QL
+    type: bug
+    issues:
+      - 152876
+  - pr: 152932
+    summary: Include ingest metadata in self reference checks
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 153043
+    summary: "Fix flattened field array-offset corruption with `preserve_leaf_arrays: exact`"
+    area: Mapping
+    type: bug
+    issues:
+      - 153014
+  - pr: 153082
+    summary: Apply search timeout to the query rewrite step
+    area: Search
+    type: bug
+    issues:
+      - 104187
+  - pr: 153128
+    summary: Resolve prefixed searchable-snapshot backing indices to their data stream in `METRICS_INFO`/`TS_INFO`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153219
+    summary: Fix snapshot creation on CIFS shares in case of access denied exception
+    area: Snapshot/Restore
+    type: bug
+    issues:
+      - 152053
+  - pr: 153309
+    summary: "Prevent overriding `secret_parameters`"
+    area: Inference
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: "Prevent overriding `secret_parameters`"
+      details: "The Inference API incorrectly allowed users to override values within `secret_parameters` with the contents of `task_settings.parameters` during a POST request. This change prevents that behavior, ensuring that `secret_parameters` cannot be overridden."
+      impact: Users who relied on the previous behavior to override `secret_parameters` will need to create a new inference endpoint with the `secret_parameters` moved to `task_settings` or no longer rely on the ability to override the `secret_parameters` within a POST request.
+      notable: false
+      essSettingChange: false
+  - pr: 153479
+    summary: Apply search timeout to the DFS phase query rewrite
+    area: Search
+    type: bug
+    issues: []
+  - pr: 153581
+    summary: Fix remote write with audit request bodies
+    area: Network
+    type: bug
+    issues:
+      - 152713
+  - pr: 153755
+    summary: Extend AD results template for reindexed indices and generalize heal beyond job_id mapping
+    area: Machine Learning
+    type: bug
+    issues:
+      - 147686

@@ -50,7 +50,7 @@
     }
   },
   "_meta": {
-    "description": "Managed mappings applied by default to AI indices.",
+    "description": "Template mappings applied by default to AI indices.",
     "managed": true
   },
   "version": ${xpack.stack.ai-index.template.version}

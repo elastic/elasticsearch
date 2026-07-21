@@ -31,12 +31,11 @@ setup:
         index: ai-index-idx-foo
   - match: { acknowledged: true }
 
-  # Settings from the ai-index-idx-settings component confirm the ai-index-idx template was applied.
+  # Mappings from the ai-index-mappings component confirm the ai-index-idx template was applied.
   - do:
-      indices.get_settings:
+      indices.get_mapping:
         index: ai-index-idx-foo
-  - match: { ai-index-idx-foo.settings.index.codec: best_compression }
-  - match: { ai-index-idx-foo.settings.index.mapping.exclude_source_vectors: "true" }
+  - match: { ai-index-idx-foo.mappings.properties.type.type: keyword }
 
 ---
 "Data stream AI index is backed by the managed template":

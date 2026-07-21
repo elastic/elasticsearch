@@ -3,9 +3,6 @@
     "settings": {
       "index": {
         "mode": "columnar",
-        "mapping": {
-          "exclude_source_vectors": true
-        },
         "sort": {
           "field": "@timestamp",
           "order": "desc"
@@ -17,7 +14,7 @@
     }
   },
   "_meta": {
-    "description": "Managed settings applied by default to data stream backed AI indices.",
+    "description": "Template settings applied by default to data stream backed AI indices.",
     "managed": true
   },
   "version": ${xpack.stack.ai-index.template.version}

@@ -29,7 +29,6 @@ import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_SETTINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_SETTINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -69,7 +68,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         assertThat(
             registry.getComponentTemplateConfigs().keySet(),
-            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_IDX_SETTINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME)
+            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME)
         );
         assertThat(
             registry.getComposableTemplateConfigs().keySet(),
@@ -100,22 +99,12 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         }
     }
 
-    public void testStandardIndexSettingsComponent() {
-        registry = createRegistry(Settings.EMPTY);
-        ComponentTemplate idxSettings = registry.getComponentTemplateConfigs().get(AI_INDEX_IDX_SETTINGS_COMPONENT_NAME);
-        assertThat(idxSettings, notNullValue());
-        Settings settings = idxSettings.template().settings();
-        assertThat(settings.get("index.codec"), equalTo("best_compression"));
-        assertThat(settings.getAsBoolean("index.mapping.exclude_source_vectors", false), equalTo(true));
-    }
-
     public void testDataStreamSettingsComponent() {
         registry = createRegistry(Settings.EMPTY);
         ComponentTemplate dsSettings = registry.getComponentTemplateConfigs().get(AI_INDEX_DS_SETTINGS_COMPONENT_NAME);
         assertThat(dsSettings, notNullValue());
         Settings settings = dsSettings.template().settings();
         assertThat(settings.get("index.mode"), equalTo("columnar"));
-        assertThat(settings.getAsBoolean("index.mapping.exclude_source_vectors", false), equalTo(true));
         assertThat(settings.get("index.sort.field"), equalTo("@timestamp"));
     }
 
@@ -124,7 +113,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_TEMPLATE_NAME);
         assertThat(template, notNullValue());
         assertThat(template.indexPatterns(), contains(AI_INDEX_IDX_PATTERN));
-        assertThat(template.composedOf(), containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_IDX_SETTINGS_COMPONENT_NAME));
+        assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME));
         // A standard index template, not a data stream.
         assertThat(template.getDataStreamTemplate(), nullValue());
     }

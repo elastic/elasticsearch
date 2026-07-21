@@ -2,11 +2,10 @@
   "index_patterns": ["${ai-index.idx.index_pattern}"],
   "priority": 500,
   "composed_of": [
-    "ai-index-mappings",
-    "ai-index-idx-settings"
+    "ai-index-mappings"
   ],
   "_meta": {
-    "description": "Managed template applied by default to standard-index backed AI indices.",
+    "description": "Template applied by default to standard-index backed AI indices.",
     "managed": true
   },
   "version": ${xpack.stack.ai-index.template.version}

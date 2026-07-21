@@ -7,7 +7,7 @@
     "ai-index-ds-settings"
   ],
   "_meta": {
-    "description": "Managed template applied by default to data stream backed AI indices.",
+    "description": "Template applied by default to data stream backed AI indices.",
     "managed": true
   },
   "version": ${xpack.stack.ai-index.template.version}

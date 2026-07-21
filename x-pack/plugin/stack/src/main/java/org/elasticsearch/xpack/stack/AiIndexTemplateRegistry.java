@@ -43,7 +43,6 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final String AI_INDEX_DS_PATTERN = AI_INDEX_DS_PREFIX + "*";
 
     public static final String AI_INDEX_MAPPINGS_COMPONENT_NAME = "ai-index-mappings";
-    public static final String AI_INDEX_IDX_SETTINGS_COMPONENT_NAME = "ai-index-idx-settings";
     public static final String AI_INDEX_DS_SETTINGS_COMPONENT_NAME = "ai-index-ds-settings";
 
     public static final String AI_INDEX_IDX_TEMPLATE_NAME = "ai-index-idx";
@@ -68,12 +67,6 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             AI_INDEX_MAPPINGS_COMPONENT_NAME,
             ROOT_RESOURCE_PATH + AI_INDEX_MAPPINGS_COMPONENT_NAME + JSON_EXTENSION,
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
-        ),
-        new IndexTemplateConfig(
-            AI_INDEX_IDX_SETTINGS_COMPONENT_NAME,
-            ROOT_RESOURCE_PATH + AI_INDEX_IDX_SETTINGS_COMPONENT_NAME + JSON_EXTENSION,
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE
         ),

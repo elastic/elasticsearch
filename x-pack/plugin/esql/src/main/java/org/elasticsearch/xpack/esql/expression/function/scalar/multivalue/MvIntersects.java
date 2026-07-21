@@ -78,7 +78,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersects.class)
         .binary(MvIntersects::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "lucene_pushdown")
         .name("mv_intersects");
 
     @FunctionInfo(

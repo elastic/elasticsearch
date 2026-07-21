@@ -129,7 +129,7 @@ set2 = [43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 
@@ -143,7 +143,7 @@ element = 4200000000
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 mvIntersects_long
@@ -159,7 +159,7 @@ set2 = [4100000001,4100000002,4100000003,4100000004,4100000005,4100000006,410000
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 mvIntersectsKeywordFields
@@ -271,6 +271,7 @@ id:long | double:double
 
 withFloat
 required_capability: fn_mv_intersects
+required_capability: fn_mv_intersects_lucene_pushdown
 
 FROM all_types_mv
 | WHERE mv_intersects(float, [3.3, 4.4])
@@ -286,6 +287,7 @@ id:long
 
 withHalfFloat
 required_capability: fn_mv_intersects
+required_capability: fn_mv_intersects_lucene_pushdown
 
 FROM all_types_mv
 | WHERE mv_intersects(half_float, [3.3, 4.4])

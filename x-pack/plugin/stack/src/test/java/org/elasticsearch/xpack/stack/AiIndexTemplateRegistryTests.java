@@ -113,7 +113,9 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_TEMPLATE_NAME);
         assertThat(template, notNullValue());
         assertThat(template.indexPatterns(), contains(AI_INDEX_IDX_PATTERN));
-        assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME));
+        // The optional ai-index@custom escape hatch is composed last so user overrides win.
+        assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, "ai-index@custom"));
+        assertThat(template.getIgnoreMissingComponentTemplates(), contains("ai-index@custom"));
         // A standard index template, not a data stream.
         assertThat(template.getDataStreamTemplate(), nullValue());
     }
@@ -123,7 +125,11 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_DS_TEMPLATE_NAME);
         assertThat(template, notNullValue());
         assertThat(template.indexPatterns(), contains(AI_INDEX_DS_PATTERN));
-        assertThat(template.composedOf(), containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME));
+        assertThat(
+            template.composedOf(),
+            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME, "ai-index@custom")
+        );
+        assertThat(template.getIgnoreMissingComponentTemplates(), contains("ai-index@custom"));
         assertThat(template.getDataStreamTemplate(), notNullValue());
     }
 

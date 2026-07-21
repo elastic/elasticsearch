@@ -742,18 +742,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeywordKeepTriggersLoadInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/154377
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.singleCondition}
-  issue: https://github.com/elastic/elasticsearch/issues/154436
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.docsCaseSuccessRate}
-  issue: https://github.com/elastic/elasticsearch/issues/154458
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst
   issue: https://github.com/elastic/elasticsearch/issues/154462
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
   method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
   issue: https://github.com/elastic/elasticsearch/issues/154023
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.conditionIsNull}
-  issue: https://github.com/elastic/elasticsearch/issues/154473

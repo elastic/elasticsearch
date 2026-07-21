@@ -168,7 +168,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
         int sliceIndex = sliceIndices.getInt(0);
         if (sliceIndex > lastSliceIndex) {
-            flushCumulativeRawBuffers();
+            flushRawBuffers();
             lastSliceIndex = sliceIndex;
         }
         return new AddInput() {

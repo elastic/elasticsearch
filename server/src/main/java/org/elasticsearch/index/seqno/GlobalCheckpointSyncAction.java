@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,11 +112,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
 
         public Request(final ShardId shardId) {
             super(shardId);
-        }
-
-        @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            super.writeTo(out);
         }
 
         @Override

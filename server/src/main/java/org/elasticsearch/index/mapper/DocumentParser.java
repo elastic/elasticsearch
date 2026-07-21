@@ -477,12 +477,7 @@ public final class DocumentParser {
                 parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
-                var fc = FallbackStorageRouter.FieldContext.forField(context, fieldMapper, parsesArrayValue(mapper));
-                var preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
-                if (preCapReason.isPresent()) {
-                    context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fieldMapper.fullPath(), preCapReason.get());
-                }
-                fieldMapper.parse(context);
+                FallbackStorageRouter.parseField(context, fieldMapper);
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();

@@ -78,15 +78,13 @@ public class FallbackStorageRouterTests extends ESTestCase {
     }
 
     /**
-     * Early-out: a multi_value=false field with on_failure=ignore writes extra values to ._on_failure.
-     * Pre-capturing would double-store the first (accepted) value, so pre-capture is skipped.
+     * A multi_value=false+on_failure=ignore field that also uses synthetic-fallback mode IS pre-captured:
+     * parseField() commits on success and discards+routes to ._on_failure on violation, so there is no
+     * double-store risk and the guard that previously skipped pre-capture for these fields is gone.
      */
-    public void testSingleValueIgnoreReturnsEmpty() {
-        var fc = ctx().singleValueEnforced(true)
-            .onFailureBehavior(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE)
-            .syntheticFallback(true)
-            .build();
-        assertEquals(Optional.empty(), FallbackStorageRouter.resolvePrecaptureReason(fc));
+    public void testSingleValueIgnoreWithSyntheticFallbackIsPreCaptured() {
+        var fc = ctx().syntheticFallback(true).build();
+        assertEquals(Optional.of(FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
 
     /** copy_to destination (not within a copy_to traversal) → COPY_TO_DESTINATION. */
@@ -164,8 +162,6 @@ public class FallbackStorageRouterTests extends ESTestCase {
         private boolean storesArraysNatively = false;
         private boolean syntheticFallback = false;
         private Mapper.SourceKeepMode sourceKeepMode = Mapper.SourceKeepMode.NONE;
-        private boolean singleValueEnforced = false;
-        private FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior = FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
         private boolean parsesArrayValue = false;
         private boolean inArrayScope = false;
         private boolean isWithinCopyTo = false;
@@ -188,16 +184,6 @@ public class FallbackStorageRouterTests extends ESTestCase {
 
         Builder sourceKeepMode(Mapper.SourceKeepMode v) {
             sourceKeepMode = v;
-            return this;
-        }
-
-        Builder singleValueEnforced(boolean v) {
-            singleValueEnforced = v;
-            return this;
-        }
-
-        Builder onFailureBehavior(FieldMapper.DocValuesParameter.Values.OnFailure v) {
-            onFailureBehavior = v;
             return this;
         }
 
@@ -227,8 +213,6 @@ public class FallbackStorageRouterTests extends ESTestCase {
                 storesArraysNatively,
                 syntheticFallback,
                 sourceKeepMode,
-                singleValueEnforced,
-                onFailureBehavior,
                 parsesArrayValue,
                 inArrayScope,
                 isWithinCopyTo,

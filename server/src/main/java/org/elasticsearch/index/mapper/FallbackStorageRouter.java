@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -92,8 +93,6 @@ public final class FallbackStorageRouter {
         /** True when the mapper uses {@link FieldMapper.SyntheticSourceMode#FALLBACK}, or when an object's {@code source_keep} forces pre-capture of array elements. */
         boolean syntheticFallback,
         Mapper.SourceKeepMode sourceKeepMode,
-        boolean singleValueEnforced,
-        FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior,
         /** True when the mapper handles arrays natively in its parse method ({@link FieldMapper#parsesArrayValue()}). */
         boolean parsesArrayValue,
         boolean inArrayScope,
@@ -111,8 +110,6 @@ public final class FallbackStorageRouter {
                 false,
                 mapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK,
                 mode,
-                mapper.isSingleValueEnforced(),
-                mapper.onFailureBehavior(),
                 parsesArrayValue,
                 ctx.inArrayScope(),
                 ctx.isWithinCopyTo(),
@@ -148,8 +145,6 @@ public final class FallbackStorageRouter {
                 syntheticFallback,
                 mode,
                 false,
-                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
-                false,
                 true, // by definition, parseArrayElements is called within an array
                 ctx.isWithinCopyTo(),
                 ctx.isCopyToDestinationField(fullPath)
@@ -182,9 +177,6 @@ public final class FallbackStorageRouter {
         if (fc.canAddIgnoredField() == false || fc.storesArraysNatively()) {
             return Optional.empty();
         }
-        if (fc.singleValueEnforced() && fc.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
-            return Optional.empty();
-        }
         if (fc.isCopyToDestinationField() && fc.isWithinCopyTo() == false) {
             return Optional.of(Reason.COPY_TO_DESTINATION);
         }
@@ -198,6 +190,55 @@ public final class FallbackStorageRouter {
             return Optional.of(Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY);
         }
         return Optional.empty();
+    }
+
+    // -------------------------------------------------------------------------
+    // Central parse entry point
+    // -------------------------------------------------------------------------
+
+    /**
+     * Parses a field value through the fallback storage pipeline.
+     * <p>
+     * Tentatively pre-captures the value when the field participates in any {@code _ignored_source} fallback
+     * path, then delegates to the mapper. After the mapper returns, the pre-capture is either committed
+     * (successful index), discarded (malformed — mapper already wrote to {@code ._ignore_malformed}), or
+     * discarded and re-routed to {@code ._on_failure} (multi-value violation).
+     *
+     * @return the outcome of parsing the field value
+     */
+    public static ParseResult parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
+        FieldContext fc = FieldContext.forField(context, fieldMapper, fieldMapper.parsesArrayValue());
+
+        // Tentative pre-capture when the field participates in any ignored-source fallback path
+        boolean precaptured = false;
+        DocumentParserContext parseCtx = context;
+        if (resolvePrecaptureReason(fc).isPresent()) {
+            parseCtx = context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null));
+            precaptured = true;
+        }
+
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fieldMapper.fullPath());
+        fieldMapper.parse(parseCtx);
+
+        // Multi-value violation: stash populated by enforceSingleValue — drain and route to ._on_failure
+        BytesRef mvvStash = context.takePendingMultiValueViolation(fieldMapper.fullPath());
+        if (mvvStash != null) {
+            if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
+            if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                OnFailureStoredValues.storeEncoded(context, fieldMapper.fullPath(), mvvStash);
+            }
+            return new ParseResult.MultiValueViolation(mvvStash);
+        }
+
+        // Malformed: mapper called addIgnoredField and already wrote to ._ignore_malformed
+        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fieldMapper.fullPath())) {
+            if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
+            return new ParseResult.Malformed(null);
+        }
+
+        // Successfully indexed: commit the tentative pre-capture to _ignored_source
+        if (precaptured) context.commitPendingPreCapture(fieldMapper.fullPath());
+        return new ParseResult.Indexed();
     }
 
     // -------------------------------------------------------------------------

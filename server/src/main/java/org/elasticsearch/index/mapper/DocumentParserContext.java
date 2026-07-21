@@ -218,7 +218,9 @@ public abstract class DocumentParserContext {
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private final List<IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues;
     private final Set<String> singleValuedFields;
+    private final Map<String, BytesRef> pendingMultiValueViolations;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -259,6 +261,7 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        List<IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues,
         Scope currentScope,
         Map<String, List<Mapper.Builder>> dynamicMappers,
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
@@ -276,14 +279,17 @@ public abstract class DocumentParserContext {
         DynamicMapperSize dynamicMapperSize,
         ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource,
-        Set<String> singleValuedFields
+        Set<String> singleValuedFields,
+        Map<String, BytesRef> pendingMultiValueViolations
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.pendingIgnoredFieldValues = pendingIgnoredFieldValues;
         this.singleValuedFields = singleValuedFields;
+        this.pendingMultiValueViolations = pendingMultiValueViolations;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -312,6 +318,7 @@ public abstract class DocumentParserContext {
             in.sourceToParse,
             in.ignoredFields,
             in.ignoredFieldValues,
+            in.pendingIgnoredFieldValues,
             in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
@@ -329,7 +336,8 @@ public abstract class DocumentParserContext {
             in.dynamicMappersSize,
             in.objectArrayElementCounter,
             in.recordedSource,
-            in.singleValuedFields
+            in.singleValuedFields,
+            in.pendingMultiValueViolations
         );
     }
 
@@ -345,6 +353,7 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
+            new ArrayList<>(),
             new ArrayList<>(),
             Scope.SINGLETON,
             new HashMap<>(),
@@ -363,7 +372,8 @@ public abstract class DocumentParserContext {
             new DynamicMapperSize(),
             new ObjectArrayElementCounter(),
             false,
-            new HashSet<>()
+            new HashSet<>(),
+            new HashMap<>()
         );
     }
 
@@ -438,9 +448,18 @@ public abstract class DocumentParserContext {
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
-        FallbackStorageRouter.write(this, fieldName, FallbackStorageRouter.Reason.MULTI_VALUE_VIOLATION, parser());
+        // Stash the encoded violating value; FallbackStorageRouter.parseField drains this after fieldMapper.parse returns.
+        pendingMultiValueViolations.put(fieldName, XContentDataHelper.encodeToken(parser()));
         addIgnoredField(fieldName);
         return true;
+    }
+
+    /**
+     * Returns and removes the pending multi-value violation stash for {@code fieldName}, or {@code null} if none.
+     * Called by {@link FallbackStorageRouter} after {@link FieldMapper#parse} returns.
+     */
+    final BytesRef takePendingMultiValueViolation(String fieldName) {
+        return pendingMultiValueViolations.remove(fieldName);
     }
 
     /**
@@ -552,6 +571,38 @@ public abstract class DocumentParserContext {
             return tuple.v1();
         }
         return this;
+    }
+
+    /**
+     * Tentative pre-capture variant used by {@link FallbackStorageRouter}.
+     * Clones the parser sub-context (capturing XContent) and registers the result in the pending list.
+     * The caller must follow with {@link #commitPendingPreCapture} or {@link #discardPendingPreCapture}.
+     */
+    final DocumentParserContext addPendingPreCapture(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource) throws IOException {
+        assert ignoredFieldWithNoSource != null;
+        assert ignoredFieldWithNoSource.value() == null;
+        Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
+        pendingIgnoredFieldValues.add(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+        return tuple.v1();
+    }
+
+    /**
+     * Moves the pending pre-capture entry for {@code fieldPath} into the committed ignored-field list.
+     */
+    public final void commitPendingPreCapture(String fieldPath) {
+        for (int i = 0; i < pendingIgnoredFieldValues.size(); i++) {
+            if (pendingIgnoredFieldValues.get(i).name().equals(fieldPath)) {
+                ignoredFieldValues.add(pendingIgnoredFieldValues.remove(i));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Removes the pending pre-capture entry for {@code fieldPath} without committing it.
+     */
+    public final void discardPendingPreCapture(String fieldPath) {
+        pendingIgnoredFieldValues.removeIf(nv -> nv.name().equals(fieldPath));
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action.trainedmodel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
@@ -150,18 +152,16 @@ public class TransportInternalInferModelActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(scaledToZero);
         when(adaptiveAllocationsScalerService.maybeStartAllocation(any())).thenReturn(true);
 
-        AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicReference<InferTrainedModelDeploymentAction.Request> deploymentRequest = new AtomicReference<>();
         doAnswer(invocation -> {
             deploymentRequest.set(invocation.getArgument(1));
+            ActionListener<InferTrainedModelDeploymentAction.Response> listener = invocation.getArgument(2);
+            listener.onResponse(new InferTrainedModelDeploymentAction.Response(List.of(new WarningInferenceResults("ok"))));
             return null;
         }).when(client).execute(eq(InferTrainedModelDeploymentAction.INSTANCE), any(), any());
 
-        action.doExecute(
-            task(),
-            inferRequest(),
-            ActionListener.wrap(response -> fail("no response expected, the deployment never responds"), failure::set)
-        );
+        AtomicReference<InferModelAction.Response> response = new AtomicReference<>();
+        action.doExecute(task(), inferRequest(), ActionTestUtils.assertNoFailureListener(response::set));
         assertThat(waiters, hasSize(1));
 
         ClusterState scaledUp = stateWithAssignment(
@@ -169,9 +169,10 @@ public class TransportInternalInferModelActionTests extends ESTestCase {
         );
         deliverClusterState(scaledUp);
 
-        assertThat(failure.get(), nullValue());
         assertThat(deploymentRequest.get(), notNullValue());
         assertThat(deploymentRequest.get().getId(), equalTo(DEPLOYMENT_ID));
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().getInferenceResults(), hasSize(1));
     }
 
     /**

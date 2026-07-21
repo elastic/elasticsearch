@@ -465,11 +465,25 @@ name:keyword | version:version
 bbbbb        | 2.1
 ;
 
+testMatchVersionFieldWithFuzziness
+required_capability: match_function
+required_capability: match_additional_types
+required_capability: fix_match_fuzziness_on_version_field
+
+from apps
+| where match(version, "2.1", {"fuzziness": 1})
+| keep name, version
+| sort name;
+
+name:keyword | version:version
+bbbbb        | 2.1
+;
+
 testMatchIntegerAsDouble
 required_capability: match_function
 required_capability: match_additional_types
 
-from employees 
+from employees
 | where match(emp_no, 10004.0)
 | keep emp_no, first_name;
 ignoreOrder:true

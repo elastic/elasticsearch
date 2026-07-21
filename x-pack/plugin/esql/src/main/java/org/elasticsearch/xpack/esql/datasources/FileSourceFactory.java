@@ -422,7 +422,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
                 // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
                 // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
-                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()));
+                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
+                // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
+                // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
+                .withDeclaredPathBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();

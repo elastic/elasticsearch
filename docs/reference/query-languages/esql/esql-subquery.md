@@ -1,5 +1,5 @@
 ---
-navigation_title: "Combine result sets with subqueries in a FROM command"
+navigation_title: "Use subqueries in a FROM command"
 applies_to:
   serverless: ga
   stack: preview 9.4, ga 9.5+
@@ -7,8 +7,7 @@ products:
   - id: elasticsearch
 ---
 
-# {{esql}} subquery [esql-subquery]
-# Combine result sets with {{esql}} subqueries in a FROM command [esql-subquery]
+# Use subqueries in a FROM command [esql-subquery]
 
 A subquery is a complete ES|QL query wrapped in parentheses that can be used
 in place of an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command.
@@ -167,6 +166,9 @@ highest count (`172.21.3.15` with 4 occurrences) is included when combined with
 `employees`.
 
 ### Combine time series data with a TS subquery
+```{applies_to}
+stack: ga 9.5+
+```
 
 Use a [`TS`](/reference/query-languages/esql/commands/ts.md) subquery to read
 from a time series index and combine the results with a regular index:
@@ -185,6 +187,9 @@ branch exposes different fields, `sample_data` rows have `null` for `cluster`,
 `client_ip`.
 
 ### Use only TS subqueries
+```{applies_to}
+stack: ga 9.5+
+```
 
 Combine several `TS` subqueries in a single `FROM` clause, without a regular
 index pattern:
@@ -198,6 +203,9 @@ fields, each row carries `null` for the columns that come from the other
 subquery.
 
 ### Inline dataset with a ROW subquery
+```{applies_to}
+stack: ga 9.5+
+```
 
 Use a [`ROW`](/reference/query-languages/esql/commands/row.md) subquery to
 introduce rows with literal values alongside data read from an index:
@@ -209,6 +217,9 @@ The `ROW` subquery contributes a single synthesized `(emp_no, languages)` row
 that is combined with the matching rows from `employees`.
 
 ### Use only ROW subqueries
+```{applies_to}
+stack: ga 9.5+
+```
 
 Multiple `ROW` subqueries can be combined without a regular index pattern:
 
@@ -219,6 +230,9 @@ Each `ROW` subquery contributes one row, and the outer query sorts and projects
 the combined results.
 
 ### Combine FROM, TS, and ROW subqueries
+```{applies_to}
+stack: ga 9.5+
+```
 
 Different source commands can be mixed in a single `FROM` clause. This example
 combines a regular index pattern with a `FROM` subquery, a `TS` subquery, and a

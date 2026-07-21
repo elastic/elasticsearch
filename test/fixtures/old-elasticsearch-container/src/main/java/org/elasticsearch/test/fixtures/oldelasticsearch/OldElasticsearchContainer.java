@@ -1,0 +1,56 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.test.fixtures.oldelasticsearch;
+
+import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.RemoteDockerImage;
+
+import java.time.Duration;
+import java.util.Map;
+
+/**
+ * Testcontainers fixture backed by prebaked Docker images for specific old Elasticsearch versions.
+ *
+ * <p>The images are built and published by the {@code elasticsearch.deploy-test-fixtures} plugin in
+ * this project, with names like {@code docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:1.0}.
+ * The fixture bind-mounts the host repo directory at the same absolute path inside the container so
+ * that the containerised old ES and the host-side current-version cluster can both use the same
+ * repository location when registering an {@code fs} repository.
+ */
+@SuppressWarnings("this-escape")
+public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContainer {
+
+    private static final int HTTP_PORT = 9200;
+    private static final Map<String, String> IMAGES = Map.of(
+        "5.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:1.0",
+        "5.6.16", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:1.0",
+        "6.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:1.0",
+        "6.8.20", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:1.0"
+    );
+
+    public OldElasticsearchContainer(String version, String repoLocation) {
+        super(new RemoteDockerImage(resolveImage(version)));
+        addExposedPort(HTTP_PORT);
+        withFileSystemBind(repoLocation, repoLocation);
+        withEnv("ES_PATH_REPO", repoLocation);
+        setWaitStrategy(Wait.forHttp("/_cluster/health").forPort(HTTP_PORT).forStatusCode(200).withStartupTimeout(Duration.ofMinutes(2)));
+    }
+
+    private static String resolveImage(String version) {
+        String image = IMAGES.get(version);
+        if (image == null) {
+            throw new IllegalArgumentException("Unsupported old Elasticsearch fixture version [" + version + "]");
+        }
+        return image;
+    }
+
+    public int getHttpPort() {
+        return getMappedPort(HTTP_PORT);
+    }
+}

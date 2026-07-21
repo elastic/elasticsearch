@@ -7,6 +7,8 @@
 
 package org.elasticsearch.oldrepos;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -23,7 +25,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.IndexVersion;
@@ -34,11 +35,18 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,7 +68,32 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class OldRepositoryAccessIT extends ESRestTestCase {
+
+    private static final OldElasticsearchContainer oldEs = new OldElasticsearchContainer(
+        System.getProperty("tests.es.version"),
+        System.getProperty("tests.repo.location")
+    );
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .setting("path.repo", () -> System.getProperty("tests.repo.location"))
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .user("admin", "admin-password", "superuser", false)
+        .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
+        .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -82,7 +115,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void runTest(boolean sourceOnlyRepository) throws IOException {
-        boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         String repoLocation = System.getProperty("tests.repo.location");
         repoLocation = PathUtils.get(repoLocation).resolve("source_only_" + sourceOnlyRepository).toString();
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
@@ -94,7 +126,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat("Index version should be added to archive tests", oldVersion, lessThan(Version.V_8_10_0));
         IndexVersion indexVersion = IndexVersion.fromId(oldVersion.id);
 
-        int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
+        int oldEsPort = oldEs.getHttpPort();
         String indexName;
         if (sourceOnlyRepository) {
             indexName = "source_only_test_index";
@@ -105,22 +137,18 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         int extraDocs = 1;
         final Set<String> expectedIds = new HashSet<>();
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
-            if (afterRestart == false) {
-                beforeRestart(
-                    sourceOnlyRepository,
-                    repoLocation,
-                    oldVersion,
-                    indexVersion,
-                    numDocs,
-                    extraDocs,
-                    expectedIds,
-                    oldEs,
-                    indexName
-                );
-            } else {
-                afterRestart(indexName);
-            }
+            // Before restart phase
+            beforeRestart(sourceOnlyRepository, repoLocation, oldVersion, indexVersion, numDocs, extraDocs, expectedIds, oldEs, indexName);
         }
+
+        // Full cluster restart — verifies that restored/mounted indices survive a restart
+        cluster.restart(false);
+        // The restart allocates new HTTP ports; re-create the REST client so it points at the new addresses.
+        closeClients();
+        initClient();
+
+        // After restart phase
+        afterRestart(indexName);
     }
 
     private void afterRestart(String indexName) throws IOException {

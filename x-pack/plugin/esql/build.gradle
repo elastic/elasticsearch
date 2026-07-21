@@ -165,10 +165,6 @@ tasks.named("test").configure {
   // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
   // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
   systemProperty 'arrow.memory.debug.allocator', 'true'
-  // Applying the request filter to datasets is on in snapshot builds and off in release builds. Release testing runs
-  // the unit tests with -Dbuild.snapshot=false, which would turn the flag off and make RequestFilterRewriterTests
-  // assert against a plan the rewrite deliberately left alone; enable it so those tests run rather than misfire.
-  systemProperty 'es.esql_request_filter_on_dataset_feature_flag_enabled', 'true'
 }
 
 

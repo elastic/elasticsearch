@@ -259,6 +259,30 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(62L, value.value());
     }
 
+    /**
+     * {@code terms} must narrow integral values exactly as {@code term} does, on strings too. A string decimal equals
+     * no integer, so it is dropped (match-nothing) rather than failing the query; a whole-valued string like "300.0"
+     * coerces to 300, as the index does. Previously the string forms diverged from the single-value path.
+     */
+    public void testTermsNarrowsStringIntegralValuesLikeTerm() {
+        // a string decimal matches nothing -> dropped; alone in the list, the clause matches nothing
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termsQuery("status", List.of("300.5"))));
+        // and it agrees with the single-value path, which already folded to FALSE
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("status", "300.5")));
+
+        // a whole-valued string coerces to the integer, exactly like term
+        Expression e = translate(QueryBuilders.termsQuery("status", List.of("300.0", " 400")));
+        assertThat(e, instanceOf(MvIntersects.class));
+        Literal values = (Literal) ((MvIntersects) e).children().get(1);
+        assertEquals(DataType.INTEGER, values.dataType());
+        assertEquals(List.of(300, 400), values.value());
+
+        // a mixed list drops only the unmatchable value
+        Expression mixed = translate(QueryBuilders.termsQuery("status", List.of("300.5", 404)));
+        assertThat(mixed, instanceOf(MvIntersects.class));
+        assertEquals(List.of(404), ((Literal) ((MvIntersects) mixed).children().get(1)).value());
+    }
+
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
     public void testTermsLookupIsUnsupported() {
         var lookup = new TermsQueryBuilder("status", new TermsLookup("idx", "1", "path"));

@@ -23,15 +23,20 @@
  *     nothing about datasets, requests, or the wire; it is given a {@code fieldBinder} (name &rarr; the expression that
  *     stands for that field on the source being translated against) and the query's {@code now}, and returns a boolean
  *     predicate over the supported subset: {@code bool}, {@code term}, {@code terms}, {@code range}, {@code exists},
- *     {@code match_all}, {@code match_none}. Anything else — or a supported construct carrying an option it cannot honor
+ *     {@code match_all}, {@code match_none}, and the {@code match}/{@code match_phrase}/{@code multi_match} family as
+ *     equality on an exact-typed field. Anything else — or a supported construct carrying an option it cannot honor
  *     faithfully — raises {@link org.elasticsearch.xpack.esql.dsltranslate.TranslationUnsupportedException} rather than
  *     silently mis-translating.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset consumer. For each
- *     external leaf it binds the filter against that leaf's own schema (present field &rarr; its attribute, missing
- *     field &rarr; {@link org.elasticsearch.xpack.esql.core.expression.Literal#NULL}) and wraps the result as a
- *     {@code Filter} above the leaf. It is fail-closed: an unsupported clause fails the whole query with a 400 naming
- *     the construct, rather than silently applying a widened superset. It is version-gated because the translated
- *     predicate can contain expressions older nodes cannot deserialize.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.FilterRewriter} — the source-agnostic <em>mechanism</em>.
+ *     Given a target predicate, it installs the filter as an ordinary {@code Filter} above every node that predicate
+ *     selects, binding the DSL against <em>that node's own</em> output schema (present field &rarr; its attribute,
+ *     missing field &rarr; {@link org.elasticsearch.xpack.esql.core.expression.Literal#NULL}). It decides nothing about
+ *     datasets, indices or views — reaching a new boundary is a change of the predicate, not of the mechanism.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset <em>policy</em> over
+ *     that mechanism: it targets external leaves, and gates the rewrite. It is fail-closed: an unsupported clause fails
+ *     the whole query with a 400 naming the construct, rather than silently applying a widened superset. It is opt-in
+ *     ({@code esql.query.request_filter_on_dataset.enabled}, off by default in every build) and version-gated, because
+ *     the translated predicate can contain expressions older nodes cannot deserialize.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

@@ -395,10 +395,21 @@ public final class QueryDslTranslator {
             }
             return orAll(disjuncts);
         }
-        // Drop values no value of an integral field can equal (decimals, out-of-range) — they match nothing, as the
-        // index path's terms query does. If that empties the set, the whole clause matches nothing.
+        // Narrow the values against an integral field exactly as the single-value term path does, so the two agree on
+        // every shape: a whole in-range value (including the string "300.0", which the index coerces to 300) becomes
+        // that integer, and a value no value of the type can equal (a decimal, out of range) is dropped because it
+        // matches nothing — as the index path's terms query does. If that empties the set, the clause matches nothing.
         if (isPresent(field)) {
-            values = values.stream().filter(v -> cannotEqualIntegral(field.dataType(), v) == false).toList();
+            if (field.dataType() == DataType.INTEGER || field.dataType() == DataType.LONG) {
+                List<Object> narrowed = new ArrayList<>(values.size());
+                for (Object v : values) {
+                    Number n = narrowIntegralValue(field.dataType(), v);
+                    if (n != null) {
+                        narrowed.add(n);
+                    }
+                }
+                values = narrowed;
+            }
             if (values.isEmpty()) {
                 return Literal.FALSE;
             }
@@ -764,19 +775,27 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Whether {@code value} can equal no value of an integral field type. The index path's numeric term/terms query
-     * returns match-no-docs for a decimal or an out-of-range number rather than truncating or wrapping it; we reproduce
-     * that by treating such a value as unmatchable. Non-number values fall through to the ordinary coercion path.
+     * Narrow one value against an integral field the way {@link #integralEquality} does, so {@code terms} and
+     * {@code term} agree on every shape rather than only on numeric ones. Computed on {@link BigDecimal} so nothing is
+     * lost: a whole in-range value — including a string like {@code "300.0"} or {@code " 300"}, which the index coerces
+     * to 300 — is that integer; a well-formed value with a fractional part or out of range can equal no value of the
+     * type, so it returns {@code null} for the caller to drop (the index's match-no-docs); a non-numeric value is
+     * malformed and degrades the clause, matching the term path.
      */
-    private static boolean cannotEqualIntegral(DataType type, Object value) {
-        if (value instanceof Number n && (type == DataType.INTEGER || type == DataType.LONG)) {
-            double d = n.doubleValue();
-            if (Double.isNaN(d) || Double.isInfinite(d) || d != Math.floor(d)) {
-                return true; // a fractional (or non-finite) value equals no integer
-            }
-            return type == DataType.INTEGER ? (d < Integer.MIN_VALUE || d > Integer.MAX_VALUE) : (d < Long.MIN_VALUE || d > Long.MAX_VALUE);
+    private static Number narrowIntegralValue(DataType type, Object value) {
+        BigDecimal number;
+        try {
+            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
         }
-        return false;
+        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
+        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
+        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(min) < 0 || number.compareTo(max) > 0) {
+            return null;
+        }
+        // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
+        return type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
     }
 
     /** Whole-number types have an exact predecessor/successor, so an exclusive bound can be rewritten as inclusive. */

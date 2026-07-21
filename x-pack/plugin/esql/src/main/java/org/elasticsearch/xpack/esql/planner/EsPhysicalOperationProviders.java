@@ -483,7 +483,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 LuceneTopNSourceOperator.autoStrategy(
                     sortBuilders,
                     scoring,
-                    (long) taskConcurrency * context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+                    context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
                 ),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
@@ -509,7 +509,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         } else {
             // A no-limit scan (e.g. STATS) visits every matching doc, so it shares the cost-threshold rule with count and
             // TopN: cheap -> SEGMENT, scan-heavy -> DOC (implicit-limit stays SHARD; time-series keeps its own strategy).
-            long minCostForDoc = (long) taskConcurrency * context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
+            long minCostForDoc = context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
             var autoStrategy = context.timeSeries()
                 ? context.autoPartitioningStrategy()
                 : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);

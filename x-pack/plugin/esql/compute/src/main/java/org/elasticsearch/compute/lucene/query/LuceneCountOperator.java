@@ -66,7 +66,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 // the Weight.count() shortcut for sub-segment slices. The leaf-split guard below
                 // keeps shortcut-eligible leaves whole so the leaf-wide shortcut still fires.
                 dataPartitioning,
-                (ctx, q) -> partitioningStrategyForCount(ctx, q, (long) taskConcurrency * minDocsPerSlice),
+                (ctx, q) -> partitioningStrategyForCount(ctx, q, minDocsPerSlice),
                 docThresholdForAutoStrategy,
                 taskConcurrency,
                 limit,

@@ -107,9 +107,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             // Sort congruent with the index sort -> Lucene early-terminates per segment.
             if (leaves.isEmpty() == false) {
                 Sort indexSort = leaves.get(0).reader().getMetaData().sort();
-                Optional<SortAndFormats> searchSort = ctx.buildSort(sorts);
-                if (indexSort != null && searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
-                    return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                if (indexSort != null) {
+                    Optional<SortAndFormats> searchSort = ctx.buildSort(sorts);
+                    if (searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
+                        return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                    }
                 }
             }
             // Past the sort short-circuits, share the AUTO decision with the source and count operators: a field sort must

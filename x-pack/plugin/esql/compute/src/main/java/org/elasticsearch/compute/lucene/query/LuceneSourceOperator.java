@@ -245,7 +245,10 @@ public class LuceneSourceOperator extends LuceneOperator {
          * query — a doc-values-only filter reports ~{@code maxDoc} — from a cheap indexed lookup that skips to its matches.
          */
         static long queryCost(ShardContext ctx, Query query, long ceiling) throws IOException {
-            Weight weight = ctx.searcher().createWeight(query, COMPLETE_NO_SCORES, 1f);
+            // Use an uncached weight so this cost probe doesn't count the query against the caching policy.
+            // Query#createWeight requires a rewritten query (the slice queue rewrites before picking).
+            assert query == ctx.searcher().rewrite(query) : "query must be rewritten before createWeight: " + query;
+            Weight weight = query.createWeight(ctx.searcher(), COMPLETE_NO_SCORES, 1f);
             long cost = 0;
             for (LeafReaderContext leaf : ctx.searcher().getIndexReader().leaves()) {
                 var scorerSupplier = weight.scorerSupplier(leaf);

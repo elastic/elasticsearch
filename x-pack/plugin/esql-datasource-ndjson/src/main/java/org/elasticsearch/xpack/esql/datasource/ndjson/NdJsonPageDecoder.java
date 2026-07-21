@@ -1448,11 +1448,49 @@ public class NdJsonPageDecoder implements Closeable {
             }
             hashMapFallbacks++;
             BlockDecoder resolved = children.get(fieldName);
+            if (resolved == null && fieldName.indexOf('.') >= 0) {
+                // A flat dotted key (e.g. "a.b") with no direct child: ES ingest reinterprets a dotted field
+                // name as the equivalent nested object, so a record spelling a column flat must reach the same
+                // leaf as the nested {"a":{"b":...}} spelling. Resolve it as a path through this decoder's
+                // subtree. The walk runs only on this first-seen identity (the result is then cached like any
+                // direct child), so the common non-dotted / cache-hit path is unaffected.
+                resolved = resolveDottedPath(fieldName);
+            }
             BlockDecoder toCache = resolved == null ? unprojected : resolved;
             if (identityCache.size() < maxEntries) {
                 identityCache.put(fieldName, toCache);
             }
             return toCache;
+        }
+
+        /**
+         * Resolve a flat dotted field name (e.g. {@code "a.b"} or {@code "a.b.c"}) as a path through this
+         * decoder's {@code children} subtree, splitting on {@code .} and descending one segment at a time.
+         * Returns the node the whole path lands on: a leaf decoder (the flat spelling of a dotted column) or a
+         * structural prefix node (a flat prefix whose remainder is spelled nested, e.g. {@code {"a.b":{"c":1}}}
+         * against schema {@code a.b.c}). The caller then decodes the value into that node exactly as it would
+         * for the nested spelling. Returns {@code null} when any segment is missing, or when the path continues
+         * past a leaf (a leaf has no children, so the next segment finds none, e.g. a flat {@code a.b.c} against a
+         * scalar schema leaf {@code a.b}): the field is unreachable and treated as unprojected, which null-fills
+         * the cell exactly as an unknown field does.
+         */
+        private BlockDecoder resolveDottedPath(String fieldName) {
+            BlockDecoder node = this;
+            int start = 0;
+            int dot;
+            do {
+                if (node.children == null) {
+                    return null;
+                }
+                dot = fieldName.indexOf('.', start);
+                String segment = dot < 0 ? fieldName.substring(start) : fieldName.substring(start, dot);
+                node = node.children.get(segment);
+                if (node == null) {
+                    return null;
+                }
+                start = dot + 1;
+            } while (dot >= 0);
+            return node;
         }
 
         /**
@@ -1561,6 +1599,20 @@ public class NdJsonPageDecoder implements Closeable {
             if (dataType == DataType.NULL) {
                 // Don't do anything. We must do a single appendNull() on null blocks, this will be done
                 // at the end of decodePage() when we check that all blocks have moved forward.
+                parser.skipChildren();
+                return;
+            }
+
+            // First-non-null-wins for a dotted column reachable by both spellings. Once a flat "a.b" resolves to
+            // the same leaf as the nested {"a":{"b":...}} spelling, a record that spells one column both ways
+            // (e.g. {"a":{"b":1},"a.b":2}, either order, or a repeated key) dispatches this leaf more than once.
+            // The first occurrence to commit a cell this record (a value, or a policy null-fill on a bad value)
+            // sets blockTracker and claims the row's single position; drain any later occurrence so the column
+            // keeps exactly one position, aligned with its siblings. Only leaf decoders (blockBuilder != null)
+            // commit a cell; structural prefix nodes recurse and are guarded at their own leaves. Array elements
+            // (inArray) belong to one occurrence and must all append, so they are never drained here. A plain
+            // JSON null does not set blockTracker (see below), so it never blocks a later real value.
+            if (blockBuilder != null && inArray == false && blockTracker.get(blockIdx)) {
                 parser.skipChildren();
                 return;
             }
@@ -1710,14 +1762,15 @@ public class NdJsonPageDecoder implements Closeable {
                 return;
             }
 
-            blockTracker.set(blockIdx);
             if (token == JsonToken.VALUE_NULL) {
-                // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
-                if (inArray == false) {
-                    blockBuilder.appendNull();
-                }
+                // A JSON null contributes no value and does not claim the row: it neither appends a cell nor sets
+                // blockTracker. The end-of-record fill supplies the null when no spelling of this column provides
+                // a value, and a later spelling that does provide one wins (first-non-null-wins for a dotted
+                // column reachable by both the nested and the flat spelling). Nulls inside an array are
+                // unsupported and skipped either way, so this single return covers both cases.
                 return;
             }
+            blockTracker.set(blockIdx);
 
             switch (dataType) {
                 case BOOLEAN -> decodeBooleanValue(parser, token, inArray);

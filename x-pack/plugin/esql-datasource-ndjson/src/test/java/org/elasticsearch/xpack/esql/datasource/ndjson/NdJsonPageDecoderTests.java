@@ -295,6 +295,211 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * A column whose schema name is dotted ({@code a.b}) must be reachable when a record spells it as a single flat
+     * JSON key ({@code {"a.b":1}}), not only as the nested object ({@code {"a":{"b":1}}}). Indexing the same bytes
+     * dot-expands the flat spelling into the nested field, so a schema-on-read of the file must agree: the value is
+     * decoded into the same output column, never silently null.
+     */
+    public void testFlatDottedFieldSpellingDecodesIntoDottedColumn() throws IOException {
+        String ndjson = "{\"a.b\":1}\n{\"a.b\":2}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertFalse("flat a.b present at row 0", ab.isNull(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertFalse("flat a.b present at row 1", ab.isNull(1));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A file mixing both spellings across records ({@code {"a":{"b":1}}} then {@code {"a.b":2}}) must decode every
+     * record into the one output column, regardless of which spelling each record used.
+     */
+    public void testMixedDottedAndNestedSpellingsAcrossRecords() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1}}\n{\"a.b\":2}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertFalse("nested a.b present at row 0", ab.isNull(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertFalse("flat a.b present at row 1", ab.isNull(1));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A deeper dotted column ({@code a.b.c}) must resolve from a flat spelling of any depth: fully flat
+     * ({@code {"a.b.c":1}}), fully nested ({@code {"a":{"b":{"c":2}}}}), and a mixed flat-prefix-plus-nested-
+     * remainder ({@code {"a.b":{"c":3}}}). All reach the one output column.
+     */
+    public void testDeepDottedColumnResolvesFromEverySpelling() throws IOException {
+        String ndjson = "{\"a.b.c\":1}\n{\"a\":{\"b\":{\"c\":2}}}\n{\"a.b\":{\"c\":3}}\n{\"a\":{\"b.c\":4}}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b.c", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock abc = page.getBlock(0);
+            for (int p = 0; p < 4; p++) {
+                assertFalse("a.b.c present at row " + p, abc.isNull(p));
+                assertEquals(p + 1L, abc.getLong(abc.getFirstValueIndex(p)));
+            }
+        }
+    }
+
+    /**
+     * The scalar-sibling prefix conflict ({@code languages} scalar beside {@code languages.long}): the flat key
+     * {@code languages.long} is registered as a direct child of the object (it cannot live under a scalar
+     * {@code languages}), so it decodes via a direct child lookup without dotted-path resolution. Both columns
+     * decode from a single record.
+     */
+    public void testScalarSiblingPrefixConflictStillDecodes() throws IOException {
+        String ndjson = "{\"languages\":5,\"languages.long\":42}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("languages", DataType.LONG), attribute("languages.long", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock languages = page.getBlock(0);
+            LongBlock languagesLong = page.getBlock(1);
+            assertEquals(5L, languages.getLong(languages.getFirstValueIndex(0)));
+            assertEquals(42L, languagesLong.getLong(languagesLong.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A flat dotted key nested deeper than the schema's leaf ({@code a.b.c} against a scalar schema leaf
+     * {@code a.b}) is unreachable: the path walk cannot continue past the leaf (a leaf has no children), so the
+     * key is treated as unprojected and the cell is null, exactly as an unknown field null-fills.
+     */
+    public void testFlatKeyDeeperThanSchemaLeafIsNull() throws IOException {
+        String ndjson = "{\"a.b.c\":1}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertTrue("a.b unreachable from deeper flat key -> null", ab.isNull(0));
+        }
+    }
+
+    /**
+     * A record spelling one dotted column both ways ({@code {"a":{"b":1},"a.b":2}}, either order, or a repeated
+     * key) must produce exactly one row: the first occurrence to commit a value wins and later spellings are
+     * dropped, keeping the column aligned with its siblings. ES ingest instead keeps both values as a multivalue;
+     * for this pathological same-record case the reader keeps a single value (first-non-null-wins).
+     */
+    public void testSameRecordDuplicateSpellingsKeepFirstValue() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n"
+            + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":20}\n"
+            + "{\"a\":{\"b\":5},\"a\":{\"b\":6},\"id\":30}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            for (int p = 0; p < 3; p++) {
+                assertEquals("exactly one value at row " + p, 1, ab.getValueCount(p));
+            }
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(5L, ab.getLong(ab.getFirstValueIndex(2)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+    }
+
+    /**
+     * A JSON null for one spelling must not block a real value from the other spelling of the same dotted column
+     * in one record ({@code {"a":{"b":null},"a.b":2}} and the reverse both yield the value). A record providing
+     * only a null still nulls the cell, and the value/null cases stay aligned with a sibling column.
+     */
+    public void testSameRecordDuplicateNullDoesNotBlockValue() throws IOException {
+        String ndjson = "{\"a\":{\"b\":null},\"a.b\":2,\"id\":10}\n"
+            + "{\"a.b\":3,\"a\":{\"b\":null},\"id\":20}\n"
+            + "{\"a\":{\"b\":null},\"id\":30}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals("null-then-value -> value", 2L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals("value-then-null -> value", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue("only-null -> null", ab.isNull(2));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+    }
+
+    /**
+     * The same-record duplicate resolves silently under {@link ErrorPolicy#STRICT}: two spellings of one dotted
+     * column are legitimate names for the same field (the shape indexes cleanly), so the query must not fail.
+     */
+    public void testSameRecordDuplicateSpellingsDoesNotFailStrict() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)), ErrorPolicy.STRICT)) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * The same-record duplicate must keep the dotted column aligned with its siblings on the lenient (per-record
+     * scratch) decode path too, not just fail-fast. The lenient path builds each row in scratch builders and
+     * copies one position per record, so a per-column position skew from a duplicate would corrupt the copy;
+     * pinning a sibling {@code id} column at every row catches it. Also pins that a lenient policy does not error
+     * on the duplicate.
+     */
+    public void testSameRecordDuplicateSpellingsAlignsOnLenientPath() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n" + "{\"id\":20}\n" + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":30}\n";
+
+        try (
+            Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)), ErrorPolicy.PERMISSIVE)
+        ) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertTrue("no a.b in row 1 -> null", ab.isNull(1));
+            assertEquals(3L, ab.getLong(ab.getFirstValueIndex(2)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+    }
+
+    /**
+     * An exact duplicate JSON key on a plain (non-dotted) column ({@code {"b":1,"b":2}}) also keeps exactly one
+     * value and one aligned position: NDJSON parsing does not enable strict duplicate detection, so both keys are
+     * emitted, and the first-committed-value guard keeps the column from advancing past its siblings.
+     */
+    public void testExactDuplicateKeyKeepsFirstValueAndAligns() throws IOException {
+        String ndjson = "{\"b\":1,\"b\":2,\"id\":10}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock b = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(1, b.getValueCount(0));
+            assertEquals(1L, b.getLong(b.getFirstValueIndex(0)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
      * A scalar value where a nested object was expected (the schema only knows dotted leaf columns for this field,
      * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
      * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing

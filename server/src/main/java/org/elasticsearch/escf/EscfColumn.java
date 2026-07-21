@@ -9,6 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -29,12 +32,20 @@ abstract class EscfColumn implements SliceableColumn {
 
     final int docCount;
 
-    /** Absent set (bit set = absent), or {@code null} when every document is present (dense). */
-    final FixedBitSet absent;
+    /**
+     * Validity bitset (bit set = present/valid), or {@code null} when every document is
+     * present (dense). Always zero-based and covers {@code [0, docCount)} when non-null.
+     */
+    final FixedBitSet validity;
 
-    EscfColumn(int docCount, FixedBitSet absent) {
+    EscfColumn(int docCount, FixedBitSet validity) {
+        if (docCount >= DocIdSetIterator.NO_MORE_DOCS) {
+            throw new IllegalArgumentException(
+                "docCount " + docCount + " must be less than DocIdSetIterator.NO_MORE_DOCS (" + DocIdSetIterator.NO_MORE_DOCS + ")"
+            );
+        }
         this.docCount = docCount;
-        this.absent = absent;
+        this.validity = validity;
     }
 
     /** The column kind (see {@link EscfColumnKind}). */
@@ -43,24 +54,22 @@ abstract class EscfColumn implements SliceableColumn {
     /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
     static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();
-        // Normalize the absent bitset to [0, docCount): windowBitSet returns null when no bits
-        // are set (same semantics) and a properly-sized FixedBitSet otherwise.
-        FixedBitSet absent = windowBitSet(col.absent(), 0, docCount);
+        FixedBitSet validity = windowValidity(col.validity(), 0, docCount);
         return switch (col.kind()) {
-            case EscfColumnKind.LONG -> new EscfLongColumn(docCount, absent, col.data());
-            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, absent, col.data());
-            case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, absent, windowBitSet(col.values(), 0, docCount));
-            case EscfColumnKind.STRING -> new EscfStringColumn(docCount, absent, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
-            case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, absent, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
+            case EscfColumnKind.LONG -> new EscfLongColumn(docCount, validity, col.data());
+            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, validity, col.data());
+            case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, validity, windowBitSet(col.values(), 0, docCount));
+            case EscfColumnKind.STRING -> new EscfStringColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
+            case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
             case EscfColumnKind.ARRAY -> new EscfArrayColumn(
                 docCount,
-                absent,
+                validity,
                 from(col.child()),
                 new IntsRef(col.offsets(), 0, docCount + 1)
             );
             case EscfColumnKind.UNION -> new EscfUnionColumn(
                 docCount,
-                absent,
+                validity,
                 col.typeVector(),
                 new IntsRef(col.offsets(), 0, docCount + 1),
                 col.data()
@@ -73,8 +82,9 @@ abstract class EscfColumn implements SliceableColumn {
         if (row < 0 || row >= docCount) {
             return true;
         }
-        // absent is always null or a FixedBitSet covering [0, docCount), so no length guard is needed.
-        return absent != null && absent.get(row);
+        // validity is always null (all-present) or a FixedBitSet covering [0, docCount), so no length guard needed.
+        // A set bit means present; a clear bit or null means all-present (dense).
+        return validity != null && validity.get(row) == false;
     }
 
     final byte getTypeByte(int row) {
@@ -135,6 +145,22 @@ abstract class EscfColumn implements SliceableColumn {
         throw notA("key-value");
     }
 
+    /**
+     * Returns a forward-only {@link LongTupleCursor} positioned before the first row. Subtypes that
+     * hold long values override this; the default throws.
+     */
+    LongTupleCursor longCursor() {
+        throw notA("long");
+    }
+
+    /**
+     * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
+     * row. Subtypes that hold byte-string values override this; the default throws.
+     */
+    ObjectTupleCursor<BytesRef> bytesRefCursor() {
+        throw notA("binary");
+    }
+
     private IllegalStateException notA(String what) {
         return new IllegalStateException("Column kind=" + EscfColumnKind.name(kind()) + " has no " + what + " values");
     }
@@ -149,26 +175,54 @@ abstract class EscfColumn implements SliceableColumn {
     abstract EscfColumnData toColumnData();
 
     /**
+     * Extracts a {@code count}-bit window of an validity bitset (bit set = present) starting
+     * at {@code base} from {@code src}, re-indexed to {@code [0, count)}. Returns {@code null} when
+     * {@code src} is {@code null} (all-present / dense) or when every bit in the window is set (also
+     * all-present), preserving the invariant that a {@code null} validity means every document is present.
+     */
+    static FixedBitSet windowValidity(FixedBitSet src, int base, int count) {
+        if (src == null) {
+            return null;
+        }
+        FixedBitSet out = null;
+        for (int i = 0; i < count; i++) {
+            if (src.get(base + i)) {
+                if (out != null) {
+                    out.set(i);
+                }
+            } else {
+                if (out == null) {
+                    out = new FixedBitSet(count);
+                    out.set(0, i); // backfill all prior docs in the window as present
+                }
+                // leave bit[i] clear — this doc is absent
+            }
+        }
+        return out;
+    }
+
+    /**
      * Extracts a {@code count}-bit window starting at {@code base} from {@code src}, re-indexed to
-     * {@code [0, count)}. Returns {@code null} when {@code src} is {@code null} (dense) or when no
-     * bits in the window are set (also dense), preserving the invariant that a {@code null} absent set
-     * means every document is present.
+     * {@code [0, count)}. Returns {@code null} when {@code src} is {@code null} or when no bits in the
+     * window are set, preserving the invariant that a {@code null} bitset means all bits are clear.
+     * Used for the BOOL {@code values} bitset (bit set = {@code true}); not for validity.
      */
     static FixedBitSet windowBitSet(FixedBitSet src, int base, int count) {
         if (src == null) {
             return null;
         }
-        FixedBitSet out = new FixedBitSet(Math.max(1, count));
+        FixedBitSet out = null;
         int cap = src.length();
-        boolean anySet = false;
         for (int i = 0; i < count; i++) {
             int idx = base + i;
             if (idx < cap && src.get(idx)) {
+                if (out == null) {
+                    out = new FixedBitSet(count);
+                }
                 out.set(i);
-                anySet = true;
             }
         }
-        return anySet ? out : null;
+        return out;
     }
 
     /**

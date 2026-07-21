@@ -945,7 +945,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
 
         // if ML is disabled, do not update Deployment Stats (there won't be changes)
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false) {
+        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false || XPackSettings.NLP_ENABLED.get(settings) == false) {
             listener.onResponse(models);
             return;
         }

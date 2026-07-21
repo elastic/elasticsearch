@@ -112,6 +112,12 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
+        // watermarks) within a single decision.
+        final boolean enabled = this.enabled;
+        final CacheAccountingMode accountingMode = this.accountingMode;
+        final RatioValue lowWatermark = this.lowWatermark;
+
         if (enabled == false) {
             return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
         }
@@ -128,7 +134,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "no cache size and commitment data available for node [%s]", node.nodeId());
         }
 
-        final long currentCommitmentBytes = getCurrentCommitmentBytes(nodeCommitments);
+        final long currentCommitmentBytes = getCurrentCommitmentBytes(nodeCommitments, accountingMode);
         final long thresholdBytes = (long) (nodeCommitments.cacheSizeInBytes() * lowWatermark.getAsRatio());
 
         final boolean isDebugEnabled = logger.isDebugEnabled();
@@ -167,7 +173,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             );
         }
 
-        final long shardRequirementBytes = getShardRequirementBytes(shardCacheRequirement);
+        final long shardRequirementBytes = getShardRequirementBytes(shardCacheRequirement, accountingMode);
         final long newCommitmentBytes = Math.addExact(currentCommitmentBytes, shardRequirementBytes);
 
         if (newCommitmentBytes > thresholdBytes) {
@@ -205,7 +211,10 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         );
     }
 
-    private long getCurrentCommitmentBytes(NodeCacheSizeAndCommitments nodeCacheSizeAndCommitments) {
+    private static long getCurrentCommitmentBytes(
+        NodeCacheSizeAndCommitments nodeCacheSizeAndCommitments,
+        CacheAccountingMode accountingMode
+    ) {
         return switch (accountingMode) {
             case BOOSTED -> nodeCacheSizeAndCommitments.boostedCacheCommitmentInBytes();
             case TOTAL -> Math.addExact(
@@ -215,7 +224,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         };
     }
 
-    private long getShardRequirementBytes(BoostedAndUnboostedCacheRequirements requirement) {
+    private static long getShardRequirementBytes(BoostedAndUnboostedCacheRequirements requirement, CacheAccountingMode accountingMode) {
         return switch (accountingMode) {
             case BOOSTED -> getRequirementWithFallback(requirement.boostedCacheRequirementInBytes());
             case TOTAL -> Math.addExact(

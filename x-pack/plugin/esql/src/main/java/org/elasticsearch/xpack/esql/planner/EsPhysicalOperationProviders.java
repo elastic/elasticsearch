@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -244,8 +243,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+            shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
         }
 
         // Apply any block loader function if present
@@ -298,7 +297,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
             fieldName = getFieldName((Attribute) convert.field());
-            shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
+            shardContext = wrapWithUnmappedFieldContext(shardContext, fieldName);
             conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
@@ -380,8 +379,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
-        return new DefaultShardContextForUnmappedField(ctx, unmappedField);
+    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, String fullFieldName) {
+        return new DefaultShardContextForUnmappedField(ctx, fullFieldName);
     }
 
     /** A hack to pretend an unmapped field still exists. */
@@ -393,17 +392,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             UNMAPPED_FIELD_TYPE.setStored(false);
             UNMAPPED_FIELD_TYPE.freeze();
         }
-        private final KeywordEsField unmappedEsField;
+        private final String fullFieldName;
 
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
+        DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
-            this.unmappedEsField = unmappedEsField;
+            this.fullFieldName = fullFieldName;
         }
 
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+            return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {

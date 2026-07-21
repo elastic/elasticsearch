@@ -108,6 +108,14 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     /**
+     * Skip a test whose assertions depend on cross-index analyzer sharing, which is only active when the feature flag
+     * is on (off in release builds, where every index builds its own analyzer).
+     */
+    private static void assumeAnalyzerSharingEnabled() {
+        assumeTrue("analyzer sharing feature flag must be enabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
+    }
+
+    /**
      * Two indices built from the same registry with identical settings should share the same
      * {@link NamedAnalyzer} instance for the default analyzer. The point of this dedup is to share
      * the per-analyzer {@code CloseableThreadLocal} that Lucene's {@link Analyzer} maintains.
@@ -126,6 +134,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * analyzer into many indices with arbitrary names.
      */
     public void testCustomAnalyzerSharedAcrossDifferentLocalNames() throws IOException {
+        assumeAnalyzerSharingEnabled();
         Settings sA = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.analyzer.my_name_a.tokenizer", "standard")
@@ -151,6 +160,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * StopTokenFilterFactory overrides sharingKey to compare (stopWords, ignoreCase, removeTrailing).
      */
     public void testUserDefinedFilterSharesWhenSharingKeyMatches() throws IOException {
+        assumeAnalyzerSharingEnabled();
         Settings sA = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.my_stop.type", "stop")
@@ -218,6 +228,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * on a hot path.
      */
     public void testSharingKeyIsStableAcrossCalls() throws IOException {
+        assumeAnalyzerSharingEnabled();
         Settings s = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.analyzer.a.tokenizer", "standard")
@@ -242,6 +253,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * underlying. After Index A closes, Index B's analyzer must remain functional.
      */
     public void testIndexCloseDoesNotKillSharedAnalyzer() throws IOException {
+        assumeAnalyzerSharingEnabled();
         Settings s = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.analyzer.a.tokenizer", "standard")
@@ -270,6 +282,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * encode it in their own {@code sharingKey}, which {@code FactorySharingKeyTests} covers.
      */
     public void testVersionInvariantAnalyzersShareAcrossVersions() throws IOException {
+        assumeAnalyzerSharingEnabled();
         Settings sA = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         Settings sB = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.getPreviousVersion(IndexVersion.current()))

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtra
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
@@ -260,8 +259,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                         value = br.utf8ToString();
                     }
                     TermQuery termQuery = new TermQuery(source(), kn, value);
-
-                    return new SingleValueQuery(new NotQuery(source(), termQuery), kn, false);
+                    // Candidate query: documents not carrying this key/value are a superset of the true
+                    // "!=" matches. The optimizer marks this RECHECK so the FilterOperator restores exact
+                    // single-value semantics (multi-valued and missing-key documents null out).
+                    return new NotQuery(source(), termQuery);
                 }).orElseThrow();
             }
         }

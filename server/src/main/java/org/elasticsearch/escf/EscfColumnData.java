@@ -20,7 +20,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  * A single ESCF column held in its <b>native</b> in-memory representation — the metadata factors are
  * live arrays/bitsets rather than pre-serialized bytes
  * <ul>
- *   <li>{@code absent} — validity bitset (bit set = absent); {@code null} when every document is present.</li>
+ *   <li>{@code validity} — Validity bitset (bit set = present); {@code null} when every document is present (dense).</li>
  *   <li>{@code values} — the BOOL value bitset (bit set = {@code true}); {@code null} for every other kind.</li>
  *   <li>{@code typeVector} — one {@link SourceValueType} byte per document as a windowed {@link BytesRef};
  *       {@code null} for kinds whose per-document type is implied by {@link #kind} (everything except UNION).</li>
@@ -39,7 +39,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 record EscfColumnData(
     byte kind,
     int docCount,
-    FixedBitSet absent,
+    FixedBitSet validity,
     FixedBitSet values,
     BytesRef typeVector,
     int[] offsets,
@@ -59,27 +59,27 @@ record EscfColumnData(
     }
 
     /** LONG or DOUBLE: a dense 8-byte-per-document value payload; no offsets or type vector. */
-    static EscfColumnData ofFixed64(byte kind, int docCount, FixedBitSet absent, BytesReference data) {
-        return new EscfColumnData(kind, docCount, absent, null, null, null, data, null);
+    static EscfColumnData ofFixed64(byte kind, int docCount, FixedBitSet validity, BytesReference data) {
+        return new EscfColumnData(kind, docCount, validity, null, null, null, data, null);
     }
 
     /** BOOL: the value bitset directly; no byte payload. */
-    static EscfColumnData ofBool(int docCount, FixedBitSet absent, FixedBitSet values) {
-        return new EscfColumnData(EscfColumnKind.BOOL, docCount, absent, values, null, null, null, null);
+    static EscfColumnData ofBool(int docCount, FixedBitSet validity, FixedBitSet values) {
+        return new EscfColumnData(EscfColumnKind.BOOL, docCount, validity, values, null, null, null, null);
     }
 
     /** STRING or BINARY: an offset vector plus a dense byte payload. */
-    static EscfColumnData ofVarWidth(byte kind, int docCount, FixedBitSet absent, int[] offsets, BytesReference data) {
-        return new EscfColumnData(kind, docCount, absent, null, null, offsets, data, null);
+    static EscfColumnData ofVarWidth(byte kind, int docCount, FixedBitSet validity, int[] offsets, BytesReference data) {
+        return new EscfColumnData(kind, docCount, validity, null, null, offsets, data, null);
     }
 
     /** ARRAY: per-row element-range offsets over a native primitive {@code child} sub-column. */
-    static EscfColumnData ofArray(int docCount, FixedBitSet absent, int[] offsets, EscfColumnData child) {
-        return new EscfColumnData(EscfColumnKind.ARRAY, docCount, absent, null, null, offsets, null, child);
+    static EscfColumnData ofArray(int docCount, FixedBitSet validity, int[] offsets, EscfColumnData child) {
+        return new EscfColumnData(EscfColumnKind.ARRAY, docCount, validity, null, null, offsets, null, child);
     }
 
     /** UNION: a per-document type vector, an offset vector, and a dense value payload. */
-    static EscfColumnData ofUnion(int docCount, FixedBitSet absent, BytesRef typeVector, int[] offsets, BytesReference data) {
-        return new EscfColumnData(EscfColumnKind.UNION, docCount, absent, null, typeVector, offsets, data, null);
+    static EscfColumnData ofUnion(int docCount, FixedBitSet validity, BytesRef typeVector, int[] offsets, BytesReference data) {
+        return new EscfColumnData(EscfColumnKind.UNION, docCount, validity, null, typeVector, offsets, data, null);
     }
 }

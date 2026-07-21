@@ -580,24 +580,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  method: testGeoIpDatabaseConfigurations {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/154214
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/11_nodes/Test cat nodes output}
-  issue: https://github.com/elastic/elasticsearch/issues/154218
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/10_info/Info}
-  issue: https://github.com/elastic/elasticsearch/issues/154220
-- class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
-  method: testMigrationWithConcurrentUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/154221
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/11_nodes/Test cat nodes output with full_id set}
-  issue: https://github.com/elastic/elasticsearch/issues/154222
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/11_nodes/Additional disk information}
-  issue: https://github.com/elastic/elasticsearch/issues/154223
 - class: org.elasticsearch.reindex.ReindexerTests
   method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
   issue: https://github.com/elastic/elasticsearch/issues/154237
@@ -610,12 +592,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
-- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
-  method: testMatchInLookupJoinWithKeywordJoinField
-  issue: https://github.com/elastic/elasticsearch/issues/154357
-- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
-  method: testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError
-  issue: https://github.com/elastic/elasticsearch/issues/154359
 - class: org.elasticsearch.index.rankeval.RankEvalRequestIT
   method: testIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/154360
@@ -631,25 +607,12 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/154395
-- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
-  issue: https://github.com/elastic/elasticsearch/issues/154350
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  issue: https://github.com/elastic/elasticsearch/issues/154349
 - class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
   method: testControllerSpawnGatedBySettings
   issue: https://github.com/elastic/elasticsearch/issues/154291
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldMixedConditionsKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154438
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldMixedConditionsKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154439
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldTrueToTextKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154440
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldTrueToTextKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154489
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringForceMerge
+  issue: https://github.com/elastic/elasticsearch/issues/154505

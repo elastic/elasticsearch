@@ -13,10 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
-import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
-import org.junit.Before;
+import org.elasticsearch.xpack.core.transform.action.ResetTransformAction.Request;
 
 import java.io.IOException;
 
@@ -25,12 +22,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
-    private String transformId;
-
-    @Before
-    public void setupTransformId() {
-        transformId = randomAlphaOfLengthBetween(1, 10);
+public class ResetTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
+    @Override
+    protected Request createTestInstance() {
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomTimeValue());
+        // Randomly include a cloud credential so the wire path with the optional field is exercised
+        // by the inherited round-trip test even though the field is excluded from equals/hashCode.
+        request.setCloudCredential(randomBoolean() ? randomCloudCredential() : null);
+        return request;
     }
 
     @Override
@@ -39,55 +38,35 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     }
 
     @Override
-    protected Request createTestInstance() {
-        TransformConfig config = TransformConfigTests.randomTransformConfigWithoutHeaders(transformId);
-        Request request = new Request(config, randomBoolean(), randomTimeValue());
-        // Randomly include a cloud credential so the wire path with the optional field is exercised
-        // by the inherited round-trip test even though the field is excluded from equals/hashCode.
-        request.setCloudCredential(randomBoolean() ? randomCloudCredential() : null);
-        return request;
-    }
-
-    @Override
     protected Request mutateInstance(Request instance) {
-        TransformConfig config = instance.getConfig();
-        boolean deferValidation = instance.isDeferValidation();
+        String id = instance.getId();
+        boolean force = instance.isForce();
         TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 2)) {
-            case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();
-            case 1 -> deferValidation ^= true;
+            case 0 -> id += randomAlphaOfLengthBetween(1, 5);
+            case 1 -> force ^= true;
             case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        Request mutated = new Request(config, deferValidation, timeout);
+        Request mutated = new Request(id, force, timeout);
         mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
     }
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        // SourceConfig has version-gated fields (projectRouting, indicesOptions); delegate to the shared
-        // TransformConfig helper that drops them for older versions so the BWC baseline matches the wire round-trip.
         // cloudCredential is excluded from Request.equals so it passes through unchanged here; the explicit
         // drop semantics are asserted by testCloudCredentialDroppedWhenWireVersionTooOld.
-        Request mutated = new Request(
-            TransformConfigTests.mutateForVersion(instance.getConfig(), version),
-            instance.isDeferValidation(),
-            instance.ackTimeout()
-        );
+        Request mutated = new Request(instance.getId(), instance.isForce(), instance.ackTimeout());
         mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
     }
 
     public void testCloudCredentialRoundTripPreservesValue() throws IOException {
         String secret = randomAlphaOfLengthBetween(8, 32);
-        Request original = new Request(
-            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
-            randomBoolean(),
-            randomTimeValue()
-        );
+        Request original = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomTimeValue());
         original.setCloudCredential(new CloudCredential(new SecureString(secret.toCharArray())));
 
         Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader());
@@ -100,11 +79,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     }
 
     public void testCloudCredentialDroppedWhenWireVersionTooOld() throws IOException {
-        Request original = new Request(
-            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
-            randomBoolean(),
-            randomTimeValue()
-        );
+        Request original = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomTimeValue());
         original.setCloudCredential(randomCloudCredential());
 
         var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST);
@@ -122,11 +97,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
         // (local dispatch reuses the same instance). The contract we rely on is that a second close()
         // is a safe no-op so we never need to coordinate which side closes the credential.
         var credential = randomCloudCredential();
-        var request = new Request(
-            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
-            randomBoolean(),
-            randomTimeValue()
-        );
+        var request = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomTimeValue());
         request.setCloudCredential(credential);
 
         request.close();
@@ -139,11 +110,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
 
     public void testRequestCloseIsIdempotentWithoutCredential() {
         // Non-UIAM callers leave the credential null. The same close-twice path must be a no-op.
-        var request = new Request(
-            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
-            randomBoolean(),
-            randomTimeValue()
-        );
+        var request = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomTimeValue());
 
         request.close();
         request.close();

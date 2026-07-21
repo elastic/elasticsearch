@@ -10,6 +10,7 @@ package org.elasticsearch.oldrepos;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
@@ -19,13 +20,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 
@@ -39,7 +46,32 @@ import java.io.IOException;
  * We mimic the setup in search/390_doc_values_search.yml here, but adapt it to work
  * against older version clusters.
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
+
+    private static final OldElasticsearchContainer oldEs = new OldElasticsearchContainer(
+        System.getProperty("tests.es.version"),
+        System.getProperty("tests.repo.location")
+    );
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .setting("path.repo", () -> System.getProperty("tests.repo.location"))
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .user("admin", "admin-password", "superuser", false)
+        .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
+        .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     final Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
     static boolean setupDone;
@@ -72,12 +104,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void setupIndex() throws IOException {
-        final boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
-        if (afterRestart) {
-            ensureGreen("test");
-            return;
-        }
-
         // The following is bit of a hack. While we wish we could make this an @BeforeClass, it does not work because the client() is only
         // initialized later, so we do it when running the first test
         if (setupDone) {
@@ -106,7 +132,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             "ip",
             "geo_point" }; // date is manually added as it need further configuration
 
-        int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
+        int oldEsPort = oldEs.getHttpPort();
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             Request createIndex = new Request("PUT", "/" + indexName);
             int numberOfShards = randomIntBetween(1, 3);

@@ -8,6 +8,9 @@
 package org.elasticsearch.oldrepos;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.TestMethodAndParams;
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
@@ -23,18 +26,25 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,7 +54,54 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Tests old mappings restored from snapshots taken on pre-N-2 clusters.
+ * <p>
+ * Test methods are ordered so that {@link #testSurvivesRestart()} runs last: it performs a full cluster restart
+ * and then re-verifies a subset of the restored data to ensure indices survive the restart.
+ */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
+@TestCaseOrdering(OldMappingsIT.RestartLastOrdering.class)
 public class OldMappingsIT extends ESRestTestCase {
+
+    /**
+     * Orders test methods alphabetically but forces {@code testSurvivesRestart} to run last.
+     */
+    public static class RestartLastOrdering implements Comparator<TestMethodAndParams> {
+        @Override
+        public int compare(TestMethodAndParams a, TestMethodAndParams b) {
+            boolean aIsRestart = a.getTestMethod().getName().equals("testSurvivesRestart");
+            boolean bIsRestart = b.getTestMethod().getName().equals("testSurvivesRestart");
+            if (aIsRestart != bIsRestart) {
+                return aIsRestart ? 1 : -1;
+            }
+            return a.getTestMethod().getName().compareTo(b.getTestMethod().getName());
+        }
+    }
+
+    private static final OldElasticsearchContainer oldEs = new OldElasticsearchContainer(
+        System.getProperty("tests.es.version"),
+        System.getProperty("tests.repo.location")
+    );
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .setting("path.repo", () -> System.getProperty("tests.repo.location"))
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .user("admin", "admin-password", "superuser", false)
+        .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
+        .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     static final Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
 
@@ -63,18 +120,6 @@ public class OldMappingsIT extends ESRestTestCase {
 
     @Before
     public void setupIndex() throws IOException {
-        final boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
-        if (afterRestart) {
-            List<String> indices = new ArrayList<>(List.of("filebeat", "custom", "nested", "standard_token_filter", "similarity"));
-            if (oldVersion.before(Version.fromString("6.0.0"))) {
-                indices.add("winlogbeat");
-            }
-            for (String index : indices) {
-                ensureGreen(index);
-            }
-            return;
-        }
-
         // The following is bit of a hack. While we wish we could make this an @BeforeClass, it does not work because the client() is only
         // initialized later, so we do it when running the first test
         if (setupDone) {
@@ -94,7 +139,7 @@ public class OldMappingsIT extends ESRestTestCase {
             indices.add("winlogbeat");
         }
 
-        int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
+        int oldEsPort = oldEs.getHttpPort();
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
 
             assertOK(oldEs.performRequest(createIndex("filebeat", "filebeat.json")));
@@ -442,4 +487,29 @@ public class OldMappingsIT extends ESRestTestCase {
         assertEquals("fans", source.get("group"));
     }
 
+    /**
+     * Runs last (via {@link RestartLastOrdering}). Performs a full cluster restart and verifies
+     * that the restored indices are still accessible afterward.
+     */
+    public void testSurvivesRestart() throws IOException {
+        // Verify data is accessible before restart
+        testSearchKeyword();
+
+        // Full cluster restart
+        cluster.restart(false);
+        // The restart allocates new HTTP ports; re-create the REST client so it points at the new addresses.
+        closeClients();
+        initClient();
+
+        // Re-verify that restored indices are accessible after restart
+        ensureGreen("filebeat");
+        ensureGreen("custom");
+        ensureGreen("nested");
+        ensureGreen("standard_token_filter");
+        ensureGreen("similarity");
+
+        // Re-run a key verification to confirm data survived the restart
+        testMappingOk();
+        testSearchKeyword();
+    }
 }

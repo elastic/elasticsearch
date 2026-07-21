@@ -29,11 +29,8 @@ import org.elasticsearch.test.MockLog;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.HashSet;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -334,19 +331,11 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     private void createControllerProgram(final Path outputFile) throws IOException {
         final Path outputDir = outputFile.getParent();
         Files.createDirectories(outputDir);
-        Files.writeString(outputFile, CONTROLLER_SOURCE);
-        final PosixFileAttributeView view = Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
-        if (view != null) {
-            final Set<PosixFilePermission> perms = new HashSet<>();
-            perms.add(PosixFilePermission.OWNER_READ);
-            perms.add(PosixFilePermission.OWNER_WRITE);
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.GROUP_READ);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_READ);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-            Files.setPosixFilePermissions(outputFile, perms);
+        if (outputFile.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            // Create the controller already-executable before writing its contents, instead of writing it and then chmod-ing it.
+            Files.createFile(outputFile, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")));
         }
+        Files.writeString(outputFile, CONTROLLER_SOURCE);
     }
 
 }

@@ -2276,9 +2276,28 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Window filters use the rounded bucket label's floor and ceiling when filtering windows
+         * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
+         * extrapolating over the window's own range instead of the outer time bucket's range when
+         * the window is smaller than the bucket, fixing values that were inflated by the ratio of
+         * bucket size to window size.
+         */
+        FIX_ESQL_SMALL_WINDOWS,
+
+        /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * On a {@code date_nanos} {@code @timestamp} index, PromQL evaluates in the millisecond domain: the
+         * {@code @timestamp} is normalized to {@code datetime} (epoch-millis) up front, so the time buckets, the
+         * windowing, and the built-in {@code step} column all behave exactly as on a plain {@code date} index. In
+         * particular the {@code step} column is always {@code datetime} regardless of the index resolution; without
+         * this, a {@code date_nanos} index produced a {@code date_nanos} {@code step} column that tripped the
+         * post-optimization output verifier.
+         */
+        FIX_PROMQL_DATE_NANOS_STEP(FIX_PROMQL_TIME_BUCKET_V2.isEnabled()),
 
         /**
          * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding

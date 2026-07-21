@@ -379,9 +379,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecApproximationIT
-  method: test {csv-spec:approximation.Lookup join before and after stats by}
-  issue: https://github.com/elastic/elasticsearch/issues/153178
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187

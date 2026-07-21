@@ -1106,7 +1106,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * <p>
      * The KEYWORD column is not counted: {@code BytesRefBlockBuilder} backs onto {@code BytesRefArray} over
      * {@link BigArrays#NON_RECYCLING_INSTANCE}, which draws on no breaker. Its sizing is covered by
-     * {@link #testEveryDeclarableTypeCostsNoMoreLenientThanStrict}.
+     * {@link #testLenientCostsNoMoreThanStrictForEveryDeclarableType}.
      */
     public void testLenientScratchBuildersAreRecordSizedNotPageSized() throws IOException {
         String ndjson = """
@@ -1186,7 +1186,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * becomes declarable later is held to this invariant automatically, and one whose builder is special-cased
      * out of the shared {@code setupBuilders} path fails here rather than silently regressing.
      */
-    public void testEveryDeclarableTypeCostsNoMoreLenientThanStrict() throws IOException {
+    public void testLenientCostsNoMoreThanStrictForEveryDeclarableType() throws IOException {
         for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
             String cell = DECLARABLE_TOKEN.get(type);
             assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);

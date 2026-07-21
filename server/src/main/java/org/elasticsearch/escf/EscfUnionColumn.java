@@ -33,8 +33,8 @@ final class EscfUnionColumn extends EscfColumn {
     private final IntsRef offsets;
     private final BytesReference data;
 
-    EscfUnionColumn(int docCount, FixedBitSet absent, BytesRef typeVec, IntsRef offsets, BytesReference data) {
-        super(docCount, absent);
+    EscfUnionColumn(int docCount, FixedBitSet validity, BytesRef typeVec, IntsRef offsets, BytesReference data) {
+        super(docCount, validity);
         this.typeVec = typeVec;
         this.offsets = offsets;
         this.data = data;
@@ -108,7 +108,7 @@ final class EscfUnionColumn extends EscfColumn {
     EscfColumn sliceInternal(int from, int count) {
         return new EscfUnionColumn(
             count,
-            windowBitSet(absent, from, count),
+            windowValidity(validity, from, count),
             new BytesRef(typeVec.bytes, typeVec.offset + from, count),
             sliceOffsets(offsets, from, count),
             data
@@ -119,6 +119,6 @@ final class EscfUnionColumn extends EscfColumn {
     EscfColumnData toColumnData() {
         BytesReference newData = sliceData(offsets, data, docCount);
         int[] newOffsets = rebasedOffsets(offsets, docCount);
-        return EscfColumnData.ofUnion(docCount, absent, typeVec, newOffsets, newData);
+        return EscfColumnData.ofUnion(docCount, validity, typeVec, newOffsets, newData);
     }
 }

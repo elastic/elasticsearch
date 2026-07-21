@@ -56,7 +56,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY;
@@ -321,161 +320,70 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
-    private static final String CACHE_FROM_NODE_ID = "node-0";
-    private static final String CACHE_TO_NODE_ID = "node-1";
-    private static final ShardId CACHE_SHARD_ID = new ShardId("my-index", "_na_", 0);
+    /**
+     * Confirms {@link ClusterInfoSimulator} wires shard-move cache commitment deltas through to
+     * {@link ClusterInfoSimulator#getClusterInfo()}.
+     */
+    public void testRelocateShardUpdatesCacheCommitments() {
 
-    private static ShardRouting relocatingCacheTestShard() {
-        return shardRoutingBuilder(CACHE_SHARD_ID, CACHE_TO_NODE_ID, true, INITIALIZING).withRelocatingNodeId(CACHE_FROM_NODE_ID)
+        var fromNodeId = "node-0";
+        var toNodeId = "node-1";
+
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
             .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
             .build();
-    }
 
-    private static RoutingAllocation createCacheSimulationAllocation(ClusterInfo clusterInfo, String... nodeIds) {
+        final long cacheSize = randomLongBetween(100, 1000);
+        final long fromNodeInitialBoostedCommitment = randomLongBetween(50, 300);
+        final long fromNodeInitialUnboostedCommitment = randomLongBetween(50, 300);
+        final long toNodeInitialBoostedCommitment = randomLongBetween(0, 100);
+        final long toNodeInitialUnboostedCommitment = randomLongBetween(0, 100);
+        final long boostedRequirement = randomLongBetween(1, 50);
+        final long unboostedRequirement = randomLongBetween(1, 50);
+
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(fromNodeId, new DiskUsageBuilder(1000, 900))
+            .withNode(toNodeId, new DiskUsageBuilder(1000, 1000))
+            .withShard(shard, 100)
+            .withNodeCacheSizeAndCommitments(fromNodeId, cacheSize, fromNodeInitialBoostedCommitment, fromNodeInitialUnboostedCommitment)
+            .withNodeCacheSizeAndCommitments(toNodeId, cacheSize, toNodeInitialBoostedCommitment, toNodeInitialUnboostedCommitment)
+            .withShardCacheRequirement(shard, boostedRequirement, unboostedRequirement)
+            .build();
+
         final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(index)
             .build();
-        var nodesBuilder = DiscoveryNodes.builder();
-        for (String nodeId : nodeIds) {
-            nodesBuilder.add(DiscoveryNodeUtils.create(nodeId));
-        }
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
-            .nodes(nodesBuilder.build())
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(fromNodeId)).add(DiscoveryNodeUtils.create(toNodeId)).build())
             .build();
-        return createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
-    }
-
-    public void testRelocateShardUpdatesCacheCommitments() {
-
-        var shard = relocatingCacheTestShard();
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(CACHE_FROM_NODE_ID, new DiskUsageBuilder(1000, 900))
-            .withNode(CACHE_TO_NODE_ID, new DiskUsageBuilder(1000, 1000))
-            .withShard(shard, 100)
-            .withNodeCacheSizeAndCommitments(CACHE_FROM_NODE_ID, 500, 200, 100)
-            .withNodeCacheSizeAndCommitments(CACHE_TO_NODE_ID, 500, 50, 20)
-            .withShardCacheRequirement(shard, 30, 10)
-            .build();
-
-        var simulator = new ClusterInfoSimulator(createCacheSimulationAllocation(initialClusterInfo, CACHE_FROM_NODE_ID, CACHE_TO_NODE_ID));
+        var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard);
 
         var updatedCommitments = simulator.getClusterInfo().getNodeCacheSizeAndCommitments();
-        assertThat(updatedCommitments.get(CACHE_FROM_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 170, 90)));
-        assertThat(updatedCommitments.get(CACHE_TO_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 80, 30)));
-    }
-
-    public void testInitializeNewShardUpdatesCacheCommitments() {
-
-        var newPrimary = shardRoutingBuilder(CACHE_SHARD_ID, CACHE_FROM_NODE_ID, true, ShardRoutingState.INITIALIZING).withRecoverySource(
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        ).build();
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(CACHE_FROM_NODE_ID, new DiskUsageBuilder(1000, 1000))
-            .withNodeCacheSizeAndCommitments(CACHE_FROM_NODE_ID, 500, 50, 20)
-            .withShardCacheRequirement(newPrimary, 30, 10)
-            .build();
-
-        var simulator = new ClusterInfoSimulator(createCacheSimulationAllocation(initialClusterInfo, CACHE_FROM_NODE_ID));
-        simulator.simulateShardStarted(newPrimary);
-
         assertThat(
-            simulator.getClusterInfo().getNodeCacheSizeAndCommitments().get(CACHE_FROM_NODE_ID),
-            equalTo(new NodeCacheSizeAndCommitments(500, 80, 30))
+            updatedCommitments.get(fromNodeId),
+            equalTo(
+                new NodeCacheSizeAndCommitments(
+                    cacheSize,
+                    fromNodeInitialBoostedCommitment - boostedRequirement,
+                    fromNodeInitialUnboostedCommitment - unboostedRequirement
+                )
+            )
         );
-    }
-
-    public void testCacheCommitmentUnaffectedWhenShardHasNoRequirement() {
-
-        var shard = relocatingCacheTestShard();
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(CACHE_FROM_NODE_ID, new DiskUsageBuilder(1000, 900))
-            .withNode(CACHE_TO_NODE_ID, new DiskUsageBuilder(1000, 1000))
-            .withShard(shard, 100)
-            // There is no withShardCacheRequirement(shard, ...) call here. The shard has no entry in shardCacheRequirements.
-            .withNodeCacheSizeAndCommitments(CACHE_FROM_NODE_ID, 500, 200, 100)
-            .withNodeCacheSizeAndCommitments(CACHE_TO_NODE_ID, 500, 50, 20)
-            .build();
-
-        var simulator = new ClusterInfoSimulator(createCacheSimulationAllocation(initialClusterInfo, CACHE_FROM_NODE_ID, CACHE_TO_NODE_ID));
-        simulator.simulateShardStarted(shard);
-
-        var updatedCommitments = simulator.getClusterInfo().getNodeCacheSizeAndCommitments();
-        assertThat(updatedCommitments.get(CACHE_FROM_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 200, 100)));
-        assertThat(updatedCommitments.get(CACHE_TO_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 50, 20)));
-    }
-
-    public void testCacheCommitmentUnaffectedWhenNodeHasNoTrackedCommitment() {
-
-        var shard = relocatingCacheTestShard();
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(CACHE_FROM_NODE_ID, new DiskUsageBuilder(1000, 900))
-            .withNode(CACHE_TO_NODE_ID, new DiskUsageBuilder(1000, 1000))
-            .withShard(shard, 100)
-            .withShardCacheRequirement(shard, 30, 10)
-            // There are no withNodeCacheSizeAndCommitments(...) calls here. Neither node is tracked in nodeCacheSizeAndCommitments.
-            .build();
-
-        var simulator = new ClusterInfoSimulator(createCacheSimulationAllocation(initialClusterInfo, CACHE_FROM_NODE_ID, CACHE_TO_NODE_ID));
-        simulator.simulateShardStarted(shard);
-
-        assertThat(simulator.getClusterInfo().getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
-    }
-
-    public void testCacheCommitmentHandlesSentinelRequirementIndependently() {
-
-        var shard = relocatingCacheTestShard();
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(CACHE_FROM_NODE_ID, new DiskUsageBuilder(1000, 900))
-            .withNode(CACHE_TO_NODE_ID, new DiskUsageBuilder(1000, 1000))
-            .withShard(shard, 100)
-            .withNodeCacheSizeAndCommitments(CACHE_FROM_NODE_ID, 500, 200, 100)
-            .withNodeCacheSizeAndCommitments(CACHE_TO_NODE_ID, 500, 50, 20)
-            .withShardCacheRequirement(shard, 30, NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT)
-            .build();
-
-        var simulator = new ClusterInfoSimulator(createCacheSimulationAllocation(initialClusterInfo, CACHE_FROM_NODE_ID, CACHE_TO_NODE_ID));
-        simulator.simulateShardStarted(shard);
-
-        var updatedCommitments = simulator.getClusterInfo().getNodeCacheSizeAndCommitments();
-        // Only the boosted component moves. The unboosted component is untouched, since it carried no requirement.
-        assertThat(updatedCommitments.get(CACHE_FROM_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 170, 100)));
-        assertThat(updatedCommitments.get(CACHE_TO_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 80, 20)));
-    }
-
-    public void testCacheCommitmentBoundaryValues() {
-
-        var shard = relocatingCacheTestShard();
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(CACHE_FROM_NODE_ID, new DiskUsageBuilder(1000, 900))
-            .withNode(CACHE_TO_NODE_ID, new DiskUsageBuilder(1000, 1000))
-            .withShard(shard, 100)
-            // The source node's tracked commitment (10, 5) is smaller than the shard's own requirement (30, 10). This simulates
-            // stale or incomplete initial commitment data. Subtracting the full requirement must not drive it negative.
-            .withNodeCacheSizeAndCommitments(CACHE_FROM_NODE_ID, 500, 10, 5)
-            // The target node's cacheSizeInBytes (40) reflects its cache size. Adding the requirement legitimately pushes the commitment
-            // total over that value, and that over-commit must not be clamped.
-            .withNodeCacheSizeAndCommitments(CACHE_TO_NODE_ID, 40, 50, 20)
-            .withShardCacheRequirement(shard, 30, 10)
-            .build();
-
-        var simulator = new ClusterInfoSimulator(createCacheSimulationAllocation(initialClusterInfo, CACHE_FROM_NODE_ID, CACHE_TO_NODE_ID));
-        simulator.simulateShardStarted(shard);
-
-        var updatedCommitments = simulator.getClusterInfo().getNodeCacheSizeAndCommitments();
-        // This is clamped at 0, rather than going negative (10 - 30 = -20, 5 - 10 = -5).
-        assertThat(updatedCommitments.get(CACHE_FROM_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(500, 0, 0)));
-        // This is not clamped at cacheSizeInBytes (40). 50 + 30 = 80 and 20 + 10 = 30, both legitimately exceeding the node's cache size.
-        assertThat(updatedCommitments.get(CACHE_TO_NODE_ID), equalTo(new NodeCacheSizeAndCommitments(40, 80, 30)));
+        assertThat(
+            updatedCommitments.get(toNodeId),
+            equalTo(
+                new NodeCacheSizeAndCommitments(
+                    cacheSize,
+                    toNodeInitialBoostedCommitment + boostedRequirement,
+                    toNodeInitialUnboostedCommitment + unboostedRequirement
+                )
+            )
+        );
     }
 
     public void testInitializeShardFromSnapshot() {

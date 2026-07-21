@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
@@ -46,8 +45,7 @@ public class ClusterInfoSimulator {
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
-    private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements;
-    private final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments;
+    private final ShardMoveNodeCacheCommitmentSimulator shardMoveNodeCacheCommitmentSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
@@ -58,8 +56,7 @@ public class ClusterInfoSimulator {
         this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
         this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
-        this.shardCacheRequirements = new HashMap<>(allocation.clusterInfo().getShardCacheRequirements());
-        this.nodeCacheSizeAndCommitments = new HashMap<>(allocation.clusterInfo().getNodeCacheSizeAndCommitments());
+        this.shardMoveNodeCacheCommitmentSimulator = new ShardMoveNodeCacheCommitmentSimulator(allocation.clusterInfo());
     }
 
     /**
@@ -139,7 +136,7 @@ public class ClusterInfoSimulator {
         }
 
         simulateHeapUsageChangeAfterShardStarted(shard, includeIndexUsage);
-        simulateNodeCacheCommitmentChangeAfterShardStarted(shard);
+        shardMoveNodeCacheCommitmentSimulator.simulateShardStarted(shard);
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
@@ -189,49 +186,6 @@ public class ClusterInfoSimulator {
         ADD,
         REMOVE;
     };
-
-    /**
-     * Handles the simulated node cache commitment change when a shard relocates / is newly assigned.
-     */
-    private void simulateNodeCacheCommitmentChangeAfterShardStarted(ShardRouting shard) {
-        var requirement = shardCacheRequirements.get(shard.shardId());
-        if (requirement == null) {
-            logger.trace("no cache requirement recorded for shard [{}], skipping cache commitment simulation", shard.shardId());
-            return;
-        }
-
-        modifyNodeCacheCommitment(shard.currentNodeId(), requirement, Modification.ADD);
-
-        if (shard.relocatingNodeId() != null) {
-            modifyNodeCacheCommitment(shard.relocatingNodeId(), requirement, Modification.REMOVE);
-        }
-    }
-
-    private void modifyNodeCacheCommitment(String nodeId, BoostedAndUnboostedCacheRequirements requirement, Modification modification) {
-        var current = nodeCacheSizeAndCommitments.get(nodeId);
-        if (current == null) {
-            logger.trace("no cache size/commitment recorded for node [{}], skipping cache commitment simulation", nodeId);
-            return;
-        }
-
-        long sign = modification == Modification.ADD ? 1L : -1L;
-        long boostedDelta = requirement.boostedCacheRequirementInBytes() == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT
-            ? 0L
-            : sign * requirement.boostedCacheRequirementInBytes();
-        long unboostedDelta = requirement.unboostedCacheRequirementInBytes() == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT
-            ? 0L
-            : sign * requirement.unboostedCacheRequirementInBytes();
-
-        nodeCacheSizeAndCommitments.put(
-            nodeId,
-            new NodeCacheSizeAndCommitments(
-                current.cacheSizeInBytes(),
-                // Do not allow negative values when subtracting
-                Math.max(0L, Math.addExact(current.boostedCacheCommitmentInBytes(), boostedDelta)),
-                Math.max(0L, Math.addExact(current.unboostedCacheCommitmentInBytes(), unboostedDelta))
-            )
-        );
-    }
 
     private void modifyHeapUsage(RoutingNode routingNode, ShardId shardId, Modification modification, boolean includeIndexUsage) {
         var nodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
@@ -352,8 +306,8 @@ public class ClusterInfoSimulator {
                 estimatedHeapUsages,
                 estimatedShardHeapUsages,
                 shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
-                shardCacheRequirements,
-                nodeCacheSizeAndCommitments
+                shardMoveNodeCacheCommitmentSimulator.getShardCacheRequirements(),
+                shardMoveNodeCacheCommitmentSimulator.getSimulatedNodeCacheSizeAndCommitments()
             );
     }
 }

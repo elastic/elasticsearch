@@ -801,12 +801,10 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    if (canAddIgnoredField()) {
-                        try {
-                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
-                        } catch (IOException e) {
-                            throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
-                        }
+                    try {
+                        FallbackStorageRouter.writeToIgnoredSource(this, fullPath, FallbackStorageRouter.Reason.FIELD_LIMIT_EXCEEDED);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
                     }
                     addIgnoredField(fullPath);
                     return false;
@@ -818,12 +816,10 @@ public abstract class DocumentParserContext {
 
             if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
                 if (builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
-                    if (canAddIgnoredField()) {
-                        try {
-                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
-                        } catch (IOException e) {
-                            throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
-                        }
+                    try {
+                        FallbackStorageRouter.writeToIgnoredSource(this, fullPath, FallbackStorageRouter.Reason.FIELD_NAME_TOO_LONG);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
                     }
                     addIgnoredField(fullPath);
                     return false;

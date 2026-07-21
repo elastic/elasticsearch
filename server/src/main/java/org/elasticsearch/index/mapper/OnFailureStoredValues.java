@@ -43,17 +43,7 @@ public final class OnFailureStoredValues {
         storeEncoded(context, fieldPath, XContentDataHelper.encodeToken(parser));
     }
 
-    /**
-     * Stores a pre-encoded value in the failure column for {@code fieldPath}. Prefer
-     * {@link #storeValueForOnFailureIgnore(DocumentParserContext, String, XContentParser)} when a live parser is available;
-     * use this overload when the value was already encoded (e.g. for a deferred write via
-     * {@link FallbackStorageRouter#commit}).
-     *
-     * @param context   the current document parsing context; the value is written to its Lucene document
-     * @param fieldPath the full path of the field whose failure column the value is stored under
-     * @param encoded   the value pre-encoded via {@link XContentDataHelper#encodeToken}
-     */
-    static void storeEncoded(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+    private static void storeEncoded(DocumentParserContext context, String fieldPath, BytesRef encoded) {
         MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
             context.doc(),
             fieldPath + ON_FAILURE_FIELD_NAME_SUFFIX,

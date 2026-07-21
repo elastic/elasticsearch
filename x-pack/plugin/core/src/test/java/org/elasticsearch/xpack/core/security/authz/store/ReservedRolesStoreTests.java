@@ -4176,6 +4176,58 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     /**
+     * Verifies that kibana_system remote_indices grants cover the Elastic Defend endpoint patterns needed
+     * when agents use a Fleet remote Elasticsearch output (CCS read-back via RCS 2.0 API-key auth).
+     */
+    public void testKibanaSystemRoleRemoteEndpointIndices() {
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_system");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+
+        final Set<String> remotePatterns = Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+            .flatMap(ip -> Arrays.stream(ip.getIndices()))
+            .collect(Collectors.toSet());
+
+        // Positive: all 6 Defend endpoint patterns must have remote read privileges.
+        // Representative concrete names that each pattern must cover are listed in comments.
+        assertThat(remotePatterns, hasItem(".logs-endpoint.action.responses-*"));  // .logs-endpoint.action.responses-default
+        assertThat(remotePatterns, hasItem(".fleet-actions-results*"));             // .fleet-actions-results
+        assertThat(remotePatterns, hasItem("metrics-endpoint.metadata_current_*")); // metrics-endpoint.metadata_current_default
+        assertThat(remotePatterns, hasItem(".metrics-endpoint.metadata_united_default*")); // .metrics-endpoint.metadata_united_default
+        assertThat(remotePatterns, hasItem("metrics-endpoint.policy-*"));           // metrics-endpoint.policy-default
+        assertThat(remotePatterns, hasItem("logs-endpoint.events.*"));              // logs-endpoint.events.process-default
+
+        // Negative: actions and heartbeat excluded for architectural reasons;
+        // endpoint alerts may contain user data — Kibana intentionally reads them as the current user, not kibana_system.
+        assertThat(remotePatterns, not(hasItem(".logs-endpoint.actions-*")));
+        assertThat(remotePatterns, not(hasItem(".logs-endpoint.heartbeat-*")));
+        assertThat(remotePatterns, not(hasItem("logs-endpoint.alerts-*")));
+
+        // Verify each Defend remote entry carries read and read_cross_cluster privileges.
+        final Set<String> defendPatterns = Set.of(
+            ".logs-endpoint.action.responses-*",
+            ".fleet-actions-results*",
+            "metrics-endpoint.metadata_current_*",
+            ".metrics-endpoint.metadata_united_default*",
+            "metrics-endpoint.policy-*",
+            "logs-endpoint.events.*"
+        );
+        Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+            .filter(ip -> Arrays.stream(ip.getIndices()).anyMatch(defendPatterns::contains))
+            .forEach(ip -> {
+                final List<String> privs = Arrays.asList(ip.getPrivileges());
+                assertThat("Expected 'read' on remote Defend entry " + Arrays.toString(ip.getIndices()), privs, hasItem("read"));
+                assertThat(
+                    "Expected 'read_cross_cluster' on remote Defend entry " + Arrays.toString(ip.getIndices()),
+                    privs,
+                    hasItem("read_cross_cluster")
+                );
+            });
+    }
+
+    /**
      * Ensures that all reserved roles are self-documented with a brief description.
      */
     public void testAllReservedRolesHaveDescription() {

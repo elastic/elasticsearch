@@ -367,7 +367,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensures that server ignores a second request even after replying with 413-too-large
+    // ensures that requests after a 413-too-large reply are dropped
     public void test413TooLargeOnExpect100ContinueWithSmuggledRequest() throws Exception {
         try (
             var clientContext = newClientContext(
@@ -381,7 +381,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             final var followUpRequest = httpRequest(clientContext.newOpaqueId(), 0);
 
             var channel = clientContext.channel();
-            logger.info("--> {}", channel.remoteAddress());
             var host = ((InetSocketAddress) channel.remoteAddress()).getHostString();
 
             var out = Unpooled.compositeBuffer();

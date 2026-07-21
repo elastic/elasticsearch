@@ -2752,6 +2752,26 @@ a:keyword | repeated:keyword
 cheese | ""
 ;
 
+// Large empty REPEAT used to loop needlessly
+repeatEmptyMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("", 2147483647);
+
+repeated:keyword
+""
+;
+
+// int length*count overflow used to bypass the size guard
+repeatLengthOverflowMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("ab", 2147483647);
+warning:Line 1:16: evaluation of [REPEAT(\"ab\", 2147483647)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported
+
+repeated:keyword
+null
+;
+
 repeatNegative
 skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: repeat 

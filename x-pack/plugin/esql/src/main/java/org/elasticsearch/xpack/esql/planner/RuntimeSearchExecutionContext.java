@@ -127,7 +127,7 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
 
     @Override
     public MappedFieldType getFieldType(String name) {
-        return fields.get(name);
+        return fieldType(name);
     }
 
     @Override

@@ -66,7 +66,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 // the Weight.count() shortcut for sub-segment slices. The leaf-split guard below
                 // keeps shortcut-eligible leaves whole so the leaf-wide shortcut still fires.
                 dataPartitioning,
-                LuceneCountOperator::partitioningStrategyForCount,
+                (ctx, q) -> partitioningStrategyForCount(ctx, q, minDocsPerSlice),
                 docThresholdForAutoStrategy,
                 taskConcurrency,
                 limit,
@@ -277,27 +277,24 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     /**
-     * Auto strategy for the count operator. Diverges from
-     * {@link LuceneSourceOperator.Factory#autoStrategy(int)}: count picks
-     * {@link LuceneSliceQueue.PartitioningStrategy#DOC} for any non-trivial query.
+     * Auto strategy for the count operator. Shares {@link LuceneSourceOperator.Factory#autoPartitioning} with the source
+     * and TopN operators: a scan-heavy count parallelizes with {@link LuceneSliceQueue.PartitioningStrategy#DOC}, a cheap
+     * one ({@code cost < minCostForDoc}) stays on the low-overhead {@link LuceneSliceQueue.PartitioningStrategy#SHARD}.
      *
-     * <p>Rationale: count's hot path is the leaf-wide {@link Weight#count(LeafReaderContext)}
-     * shortcut. When it returns a value, the {@link #leafHasCountShortcut leaf-split guard}
-     * keeps the leaf whole so the shortcut still fires. When it returns {@code -1} we must
-     * iterate the leaf to count, and at that point we want maximum parallelism — DOC. The
-     * "costly to build scorer" trade-off that pushes the source operator to SEGMENT does not
-     * apply here: count touches each matching doc at most once regardless of strategy.
-     *
-     * <p>{@link MatchAllDocsQuery} and {@link MatchNoDocsQuery} stay on SHARD as explicit fast
-     * paths (no Weight needed; the count is {@code maxDoc - deletedDocs} or {@code 0}).
+     * <p>A costly-to-build clause falls back to {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT}: for a leaf whose
+     * {@link Weight#count(LeafReaderContext)} shortcut fires the {@link #leafHasCountShortcut leaf-split guard} keeps it
+     * whole anyway, and for a leaf that must be iterated SEGMENT avoids re-building the full-segment scorer per slice.
+     * {@link MatchAllDocsQuery}/{@link MatchNoDocsQuery} stay on {@link LuceneSliceQueue.PartitioningStrategy#SHARD} (the
+     * count is {@code maxDoc - deletedDocs} or {@code 0}, no scan needed).
      */
-    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(Query q) {
-        final Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
-        return switch (unwrapped) {
-            case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-            case MatchNoDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-            default -> LuceneSliceQueue.PartitioningStrategy.DOC;
-        };
+    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(ShardContext ctx, Query q, long minCostForDoc) {
+        return LuceneSourceOperator.Factory.autoPartitioning(
+            ctx,
+            q,
+            LuceneSliceQueue.PartitioningStrategy.SHARD, // matchAll: the count is maxDoc, no scan needed
+            minCostForDoc,
+            LuceneSliceQueue.PartitioningStrategy.SHARD  // cheap / empty
+        );
     }
 
     /**

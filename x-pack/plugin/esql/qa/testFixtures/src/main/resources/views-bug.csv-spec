@@ -1,0 +1,123 @@
+// Q1
+// This works correctly at the moment
+tsBugRepro1
+
+FROM (TS k8s), (FROM addresses
+               | RENAME city.country.name AS country
+               | EVAL country = CASE(country == "United States of America", "United States", country)
+               | STATS count=COUNT() BY country)
+| STATS bytes = last_over_time(event) BY step = bucket(@timestamp, 1 day)
+;
+
+bytes:keyword | step:datetime
+null          | null
+null          | 2024-05-10T00:00:00.000Z
+;
+
+// Q2
+// This does not work because the TS subquery will require the STATS to be a TimeSeriesAggregate and the FROM subquery
+// will be an Aggregate, so we will error out with something similar to:
+//     optimized incorrectly due to missing references [_tsid{m}#321, _timeseries{f}#320]
+//
+// A possible fix: given TS is used inside a FROM command, we should demote that to a STANDARD index
+// instead of keeping unresolved relation as a TIME SERIES index
+tsBugRepro2
+
+FROM (TS k8s), (FROM employees)
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;
+
+// Q3
+// main query TS, no view, but there is subquery, should throw ParsingException 
+// because a subquery cannot appear inside TS
+// This works at the moment
+tsBugRepro3
+
+TS (TS k8s), (FROM addresses
+               | RENAME city.country.name AS country
+               | EVAL country = CASE(country == "United States of America", "United States", country)
+               | STATS count=COUNT() BY country)
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;
+
+
+// Q4
+// This does not work because the TS subquery will require the STATS to be a TimeSeriesAggregate and the FROM subquery
+// will be an Aggregate, so we will error out with something similar to:
+//     optimized incorrectly due to missing references [_tsid{m}#321, _timeseries{f}#320]
+//
+// A possible fix: given TS is used inside a FROM command, we should demote that to a STANDARD index
+// instead of keeping unresolved relation as a TIME SERIES index
+tsBugRepro4
+
+FROM (TS k8s), (TS k8s)
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;
+
+// Q5
+// This does not work because the TS subquery will require the STATS to be a TimeSeriesAggregate and the FROM subquery
+// will be an Aggregate, so we will error out with something similar to:
+//     optimized incorrectly due to missing references [_tsid{m}#321, _timeseries{f}#320]
+//
+// A possible fix: given TS is used inside a FROM command, we should demote that to a STANDARD index
+// instead of keeping unresolved relation as a TIME SERIES index
+tsBugRepro5
+
+
+FROM (TS k8s), country_addresses
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;
+
+// Q6
+// This does not work, same issue
+tsBugRepro6
+
+FROM (TS k8s), employees_all
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;
+
+// Q7
+// main query TS, view with agg
+// This works right now because we have restricted views to not be used inside TS?
+
+tsBugRepro7
+TS k8s, country_addresses
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;
+
+// Q8
+// main query TS, view without agg
+// This works right now because we have restricted views to not be used inside TS?
+
+tsBugRepro8
+TS k8s, employees_all
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | step:datetime
+;

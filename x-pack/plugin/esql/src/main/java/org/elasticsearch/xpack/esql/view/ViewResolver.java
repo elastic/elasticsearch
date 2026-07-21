@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
@@ -453,6 +454,18 @@ public class ViewResolver {
                         : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
                 );
                 return;
+            }
+
+            // Views are a stored subquery, and TS command already rejects explicit subqueries
+            // (see LogicalPlanBuilder#visitRelation) because time-series semantics (_tsid,
+            // bucketing, etc.) assume every row comes directly from a time-series index. A view's
+            // output never satisfies that, so reject it here too, once view resolution has told us
+            // whether the pattern actually matched a view - the parser can't know this up front.
+            if (unresolvedRelation.indexMode() == IndexMode.TIME_SERIES) {
+                throw new VerificationException(
+                    "Views are not supported in TS command, found view(s) [{}]",
+                    Arrays.stream(response.views()).map(View::name).collect(Collectors.joining(", "))
+                );
             }
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();

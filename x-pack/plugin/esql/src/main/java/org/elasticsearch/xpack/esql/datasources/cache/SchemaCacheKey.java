@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
+
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -15,6 +19,11 @@ import java.util.TreeMap;
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
  * Endpoint and region are included because the same canonical path on different
  * endpoints resolves to different objects.
+ * <p>
+ * {@code fileSetFingerprint} carries the 128-bit fingerprint of the resolved file set for a
+ * dataset-level aggregate key (see {@link #forDatasetAggregate}); it is {@code null} for every
+ * per-file key. A named component rather than smuggling the fingerprint into the mtime/path slots —
+ * record equality/hashCode pick it up automatically.
  */
 public record SchemaCacheKey(
     String canonicalPath,
@@ -22,7 +31,8 @@ public record SchemaCacheKey(
     String formatType,
     String formatConfig,
     String endpoint,
-    String region
+    String region,
+    @Nullable FileSetFingerprint fileSetFingerprint
 ) {
     // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
     // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
@@ -87,10 +97,82 @@ public record SchemaCacheKey(
     );
 
     public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region);
+        return new SchemaCacheKey(
+            canonicalPath,
+            mtime,
+            formatType != null ? formatType : "",
+            formatConfig,
+            location.endpoint(),
+            location.region(),
+            null
+        );
+    }
+
+    /**
+     * Reserved {@code formatType} suffix namespace: extension detection ({@code detectFormatType})
+     * derives {@code formatType} from a file name's last dot, so for any sane object name a
+     * {@code '#'}-suffixed formatType is minted only by an explicit factory. (A pathological object name
+     * literally containing {@code '#dataset-agg'} would collide on the suffix, but a per-file key carries a
+     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that one file
+     * losing its warm enrichment, a miss, never a wrong answer.) Two members exist:
+     * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
+     * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
+     * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in
+     * {@code ExternalSourceCacheService#matchesContribution}). Co-located here so their distinctness is
+     * visible at the declaration site.
+     */
+    public static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
+    public static final String DATASET_AGGREGATE_MARKER = "#dataset-agg";
+
+    /**
+     * Key for a dataset-level aggregate entry: the memoized multi-file stats fold for one resolved file
+     * SET under one format config. Identity is the listing's 128-bit file-set fingerprint (a commutative
+     * fold of every file's path + mtime + size, plus the file count - see
+     * {@code FileList#fileSetFingerprint}), which makes the key correct-or-miss by construction: any file
+     * added, removed, or modified derives a different key, and the stale entry simply ages out via
+     * LRU/TTL - no invalidation protocol. The fingerprint rides the dedicated {@code fileSetFingerprint}
+     * record component; {@code canonicalPath} is the glob pattern (diagnostics-friendly) and the
+     * marker-suffixed {@code formatType} keeps these entries out of the per-file contribution-matching
+     * paths.
+     * <p>
+     * Known residual, inherited from the per-file rail: under a lenient error policy
+     * ({@code skip_row}/{@code null_field}) a harvested row count can be declaration-dependent (see the
+     * {@code warmsRowCountSafely} discussion on the strict single-file rail). The dataset aggregate
+     * memoizes exactly what the per-file rail serves, so it neither narrows nor widens that residual -
+     * both must be closed together by the declared-schema fingerprint follow-up.
+     */
+    public static SchemaCacheKey forDatasetAggregate(
+        String pattern,
+        FileSetFingerprint fingerprint,
+        String sourceType,
+        Map<String, Object> config
+    ) {
+        // A dataset key is identified two ways — the marker suffix on formatType and a non-null
+        // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
+        // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
+        Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
+        EndpointRegion location = EndpointRegion.of(config);
+        String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
+        return new SchemaCacheKey(
+            pattern == null ? "" : pattern,
+            0L,
+            formatType,
+            buildFormatConfig(config),
+            location.endpoint(),
+            location.region(),
+            fingerprint
+        );
+    }
+
+    /**
+     * True when this key addresses a dataset-level aggregate entry (minted by {@link #forDatasetAggregate})
+     * rather than a per-file schema entry. Centralizes the {@link #DATASET_AGGREGATE_MARKER} check so the
+     * taxonomy lives with the key instead of being re-derived at each call site.
+     */
+    public boolean isDatasetAggregate() {
+        return formatType().endsWith(DATASET_AGGREGATE_MARKER);
     }
 
     /**

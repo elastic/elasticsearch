@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
@@ -33,9 +35,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -150,7 +150,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;
@@ -540,13 +540,45 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 nextGroupIds.fill(0, numGroups, -1);
                 prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 prevGroupIds.fill(0, numGroups, -1);
-                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                LongLongHashMap nextTimestamps = new LongLongHashMap(); // cached the rounded up timestamps
                 for (int groupId = 0; groupId < numGroups; groupId++) {
                     long tsid = tsBlockHash.tsidForGroup(groupId);
                     long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
+                    int cacheIndex = nextTimestamps.indexOf(bucketTs);
+                    long nextBucketTs;
+                    if (cacheIndex >= 0) {
+                        nextBucketTs = nextTimestamps.indexGet(cacheIndex);
+                    } else {
+                        nextBucketTs = fastRounding.nextRoundingValue(bucketTs);
+                        nextTimestamps.put(bucketTs, nextBucketTs);
+                    }
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
+                        // https://github.com/elastic/elasticsearch/issues/152758
+                        assert tsBlockHash.tsidForGroup(nextGroupId) == tsid
+                            : "adjacent groups must share the same tsid: group "
+                                + groupId
+                                + " (tsid="
+                                + tsid
+                                + ") -> nextGroup "
+                                + nextGroupId
+                                + " (tsid="
+                                + tsBlockHash.tsidForGroup(nextGroupId)
+                                + ")";
+                        assert tsBlockHash.timestampForGroup(nextGroupId) == nextBucketTs
+                            : "next group timestamp mismatch: expected "
+                                + nextBucketTs
+                                + " but group "
+                                + nextGroupId
+                                + " has "
+                                + tsBlockHash.timestampForGroup(nextGroupId);
+                        assert prevGroupIds.get(nextGroupId) == -1
+                            : "prevGroupIds["
+                                + nextGroupId
+                                + "] already set to "
+                                + prevGroupIds.get(nextGroupId)
+                                + " when linking from group "
+                                + groupId;
                         nextGroupIds.set(groupId, nextGroupId);
                         prevGroupIds.set(nextGroupId, groupId);
                     }

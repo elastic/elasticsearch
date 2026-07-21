@@ -91,10 +91,8 @@ public class BroadcastReplicationTests extends ESTestCase {
         circuitBreakerService = new NoneCircuitBreakerService();
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
             TransportVersion.current(),
@@ -127,10 +125,8 @@ public class BroadcastReplicationTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         IOUtils.close(clusterService, transportService);
     }
 

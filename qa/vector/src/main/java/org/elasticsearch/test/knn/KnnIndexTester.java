@@ -785,7 +785,9 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination"
+                "early_termination",
+                "exact",
+                "exact_quantized"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -830,7 +832,9 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination)
+                    Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.exact),
+                    Boolean.toString(queryResult.exactQuantized)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";
@@ -929,6 +933,8 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean exact;
+        boolean exactQuantized;
         int numCandidates;
         int topK;
         Map<String, Float> perPartitionRecall;
@@ -1070,6 +1076,8 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "exact",
+        "exact_quantized",
         "filter_selectivity",
         "filter_cached",
         "search_threads",
@@ -1182,6 +1190,8 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.exact()),
+                            Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
                             Boolean.toString(sp.filterCached()),
                             Integer.toString(sp.searchThreads()),

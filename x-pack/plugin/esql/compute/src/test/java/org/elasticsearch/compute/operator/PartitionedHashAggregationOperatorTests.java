@@ -290,6 +290,47 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertMatchesSumAndMaxOracle(results, sumOracle, maxOracle);
     }
 
+    /**
+     * Regression test: after finish() drains a converted (partitioned) operator, both {@code legacy}
+     * and {@code partitions} are null. {@code toString()} must not throw in that state.
+     */
+    public void testToStringAfterFinishDoesNotThrow() {
+        Map<Long, Long> oracle = new HashMap<>();
+        List<Page> input = randomInput(5_000, 200, oracle, false);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(8)
+            .partitionConversionThreshold(50)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        DriverContext driverContext = driverContext();
+        PartitionedHashAggregationOperator operator = builder.build().get(driverContext);
+        try {
+            for (Page page : input) {
+                if (operator.needsInput()) {
+                    operator.addInput(copyPage(page));
+                }
+                Page out;
+                while ((out = operator.getOutput()) != null) {
+                    out.releaseBlocks();
+                }
+            }
+            operator.finish();
+            Page out;
+            while ((out = operator.getOutput()) != null) {
+                out.releaseBlocks();
+            }
+            // Both legacy and partitions are null at this point — toString() must not throw.
+            operator.toString();
+        } finally {
+            operator.close();
+        }
+    }
+
     private PartitionedHashAggregationOperator.AggregatorSpec sumLongFactory() {
         return new PartitionedHashAggregationOperator.AggregatorSpec(
             new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE),

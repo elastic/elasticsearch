@@ -439,10 +439,12 @@ public class PartitionedHashAggregationOperator implements Operator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(getClass().getSimpleName()).append("[");
-        if (partitions == null) {
+        if (partitions != null) {
+            sb.append("partitionCount=").append(partitionCount);
+        } else if (legacy != null) {
             sb.append("legacy=").append(legacy.blockHash);
         } else {
-            sb.append("partitionCount=").append(partitionCount);
+            sb.append("emitting");
         }
         sb.append("]");
         return sb.toString();

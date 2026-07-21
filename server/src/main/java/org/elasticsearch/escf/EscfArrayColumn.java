@@ -25,8 +25,8 @@ final class EscfArrayColumn extends EscfColumn {
     private final EscfColumn child;
     private final IntsRef rowOffsets;
 
-    EscfArrayColumn(int docCount, FixedBitSet absent, EscfColumn child, IntsRef rowOffsets) {
-        super(docCount, absent);
+    EscfArrayColumn(int docCount, FixedBitSet validity, EscfColumn child, IntsRef rowOffsets) {
+        super(docCount, validity);
         this.child = child;
         this.rowOffsets = rowOffsets;
     }
@@ -51,7 +51,7 @@ final class EscfArrayColumn extends EscfColumn {
     @Override
     EscfColumn sliceInternal(int from, int count) {
         // Child stays full/unsliced — ColumnarArrayReader uses absolute element indices.
-        return new EscfArrayColumn(count, windowBitSet(absent, from, count), child, sliceOffsets(rowOffsets, from, count));
+        return new EscfArrayColumn(count, windowValidity(validity, from, count), child, sliceOffsets(rowOffsets, from, count));
     }
 
     @Override
@@ -61,6 +61,6 @@ final class EscfArrayColumn extends EscfColumn {
         int elemTo = intAt(rowOffsets, docCount);
         // Slice the child to the element range referenced by this window, then materialize it.
         EscfColumnData childData = child.sliceInternal(elemFrom, elemTo - elemFrom).toColumnData();
-        return EscfColumnData.ofArray(docCount, absent, newRowOffsets, childData);
+        return EscfColumnData.ofArray(docCount, validity, newRowOffsets, childData);
     }
 }

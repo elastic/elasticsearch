@@ -74,12 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:PROMQL}
-  issue: https://github.com/elastic/elasticsearch/issues/146923
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:PROMQL}
-  issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
@@ -400,12 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
-  method: test {csv-spec:unmapped-load.loadMultiIndexPartialMultiFieldInSubquery}
-  issue: https://github.com/elastic/elasticsearch/issues/153176
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
-  method: test {csv-spec:unmapped-load.loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported}
-  issue: https://github.com/elastic/elasticsearch/issues/153177
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecApproximationIT
   method: test {csv-spec:approximation.Lookup join before and after stats by}
   issue: https://github.com/elastic/elasticsearch/issues/153178
@@ -592,12 +580,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
-- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
-  method: testMatchInLookupJoinWithKeywordJoinField
-  issue: https://github.com/elastic/elasticsearch/issues/154357
-- class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
-  method: testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError
-  issue: https://github.com/elastic/elasticsearch/issues/154359
 - class: org.elasticsearch.index.rankeval.RankEvalRequestIT
   method: testIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/154360
@@ -613,13 +595,12 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/154395
-- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
-  issue: https://github.com/elastic/elasticsearch/issues/154350
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  issue: https://github.com/elastic/elasticsearch/issues/154349
 - class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
   method: testControllerSpawnGatedBySettings
   issue: https://github.com/elastic/elasticsearch/issues/154291
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringForceMerge
+  issue: https://github.com/elastic/elasticsearch/issues/154505

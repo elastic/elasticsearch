@@ -146,26 +146,34 @@ public class TransformCloudCredentialManager {
     }
 
     /**
-     * If the current thread context carries a cloud-managed credential, mints a new internal API key
-     * from it and persists the result under a tokenId-keyed storage doc, returning the new tokenId
-     * via the listener. If no cloud credential is present (feature off or no UIAM context), responds
-     * with {@code null} and does <b>no</b> cleanup of any prior credential — that responsibility now
-     * belongs to the caller (typically by threading the prior {@code TransformConfig#getCredentialId}
-     * through to a {@link #loadRevokeAndDeleteByTokenId} call after the config write succeeds).
+     * If a caller-supplied cloud credential is given, mints a new internal API key from it and
+     * persists the result under a tokenId-keyed storage doc, returning the new tokenId via the
+     * listener. The credential is supplied by the caller — typically the value carried on a
+     * {@code PutTransformAction.Request}/{@code UpdateTransformAction.Request}, extracted on the
+     * coordinating node — rather than read from the current thread context here, since this method
+     * commonly runs on the master node after the request has been forwarded, by which point the
+     * {@code AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT} transient is no longer present.
+     * If no cloud credential is present (feature off or no UIAM context), responds with {@code null}
+     * and does <b>no</b> cleanup of any prior credential — that responsibility now belongs to the
+     * caller (typically by threading the prior {@code TransformConfig#getCredentialId} through to a
+     * {@link #loadRevokeAndDeleteByTokenId} call after the config write succeeds).
      *
-     * <p><b>SecureString consumption contract:</b>
-     * {@link InternalCloudApiKeyService#grantCloudAuthentication} consumes the input credential's
-     * {@code SecureString} synchronously before it returns (the serverless implementation
-     * deserializes the bytes into a {@code CloudToken} on the calling thread, then dispatches the
-     * UIAM request asynchronously using the token). Closing {@code callerCredential} via
-     * {@link ActionListener#releaseAfter} in the async listener is therefore safe.
+     * <p><b>Ownership:</b> {@code callerCredential} is a borrowed reference — this method reads it but
+     * does not close it. {@link InternalCloudApiKeyService#grantCloudAuthentication} consumes the
+     * {@code SecureString} synchronously before it returns (the serverless implementation deserializes
+     * the bytes into a {@code CloudToken} on the calling thread, then dispatches the UIAM request
+     * asynchronously using the token), so nothing here needs the credential to remain valid past this
+     * call. Closing it remains the responsibility of whichever scope opened it (typically the
+     * coordinating-node {@code doExecute} that extracted it from the thread context), or a copy of it
+     * (e.g. via {@link CloudCredential#copyOf}) if the caller also hands the same underlying credential
+     * to another consumer.
      *
-     * @param transformId the transform id (recorded in the credential doc body for sweep-by-transform)
-     * @param listener    called with the new UIAM tokenId on success, or {@code null} when no
-     *                    caller credential was present in the thread context
+     * @param transformId      the transform id (recorded in the credential doc body for sweep-by-transform)
+     * @param callerCredential the caller's cloud credential, or {@code null} when none is available
+     * @param listener         called with the new UIAM tokenId on success, or {@code null} when no
+     *                         caller credential was supplied
      */
-    public void mintAndPersist(String transformId, ActionListener<String> listener) {
-        CloudCredential callerCredential = currentCallerCredential();
+    public void mintAndPersist(String transformId, @Nullable CloudCredential callerCredential, ActionListener<String> listener) {
         if (callerCredential == null) {
             // Feature off or no UIAM context: nothing to mint and nothing to clean up here. The
             // caller already holds the prior credentialId (if any) on the existing TransformConfig
@@ -179,7 +187,7 @@ public class TransformCloudCredentialManager {
         apiKeyService.grantCloudAuthentication(
             callerCredential,
             "transform:" + transformId,
-            ActionListener.releaseAfter(listener.delegateFailureAndWrap((l, grantResult) -> {
+            listener.delegateFailureAndWrap((l, grantResult) -> {
                 var persisted = grantResult.persistedCredential();
                 logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
 
@@ -202,7 +210,7 @@ public class TransformCloudCredentialManager {
                     revokeAndClose(transformId, persisted);
                     l.onFailure(persistFailure);
                 }));
-            }), callerCredential)
+            })
         );
     }
 

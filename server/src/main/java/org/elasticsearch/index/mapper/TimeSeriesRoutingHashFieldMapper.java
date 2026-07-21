@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -138,6 +139,14 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
         }
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // TODO(columnar-tsdb): implement preColumnarParse for _ts_routing_hash. The routing hash is
+        // already coordinator-computed and available via IndexRequest#routing() for modern TSDB
+        // indices (on/after TIME_SERIES_ROUTING_HASH_IN_ID). Implement alongside _tsid.
+        return false;
     }
 
     @Override

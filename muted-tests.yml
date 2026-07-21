@@ -553,6 +553,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/152539
 - class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
   method: testEnrichRemoteWithVendor
   issue: https://github.com/elastic/elasticsearch/issues/154532

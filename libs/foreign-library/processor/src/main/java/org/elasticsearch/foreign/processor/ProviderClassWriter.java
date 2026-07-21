@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.LibraryProvider;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 
 import java.lang.classfile.ClassFile;
@@ -37,8 +39,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 class ProviderClassWriter {
 
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
-    private static final ClassDesc CD_LibraryProvider = ClassDesc.of("org.elasticsearch.foreign.LibraryProvider");
-    private static final ClassDesc CD_Platform = ClassDesc.of("org.elasticsearch.foreign.Platform");
+    private static final ClassDesc CD_LibraryProvider = ClassDesc.of(LibraryProvider.class.getName());
+    private static final ClassDesc CD_Platform = ClassDesc.of(Platform.class.getName());
     private static final MethodTypeDesc MTD_Platform_current = MethodTypeDesc.of(CD_Platform);
 
     private final Filer filer;

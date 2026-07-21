@@ -918,6 +918,93 @@ COUNT(*):long | salary:integer
             8 | 70000
 ;
 
+
+roundToOverFunctionArgument
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS COUNT(*) BY salary=ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| SORT salary ASC
+;
+
+COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+roundToOverFunctionArgumentInsideAggFunction
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS s = SUM(ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+))
+;
+
+s:long
+4175000
+;
+
+roundToOverFunctionArgumentInsideMinMax
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS mn = MIN(ROUND_TO(ABS(salary), 0, 20000, 25000, 30000, 40000, 50000, 70000, 90000)),
+        mx = MAX(ROUND_TO(ABS(salary), 0, 20000, 25000, 30000, 40000, 50000, 70000, 90000))
+;
+
+mn:integer | mx:integer
+     25000 | 70000
+;
+
+roundToOverFunctionArgumentInEval
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| EVAL bucket = ROUND_TO(
+    GREATEST(salary, 0),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| STATS COUNT(*) BY bucket
+| SORT bucket ASC
+;
+
+COUNT(*):long | bucket:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
 roundToNanos
 required_capability: round_to
 FROM sample_data_ts_nanos

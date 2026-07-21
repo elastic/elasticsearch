@@ -31,6 +31,7 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
         AggregateMetricDoubleBlock,
         ExponentialHistogramBlock,
         LongRangeBlock,
+        DoubleRangeBlock,
         TDigestBlock {
 
     public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
@@ -352,6 +353,22 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
 
     @Override
     public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public DoubleBlock getDoubleFromBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock getDoubleToBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleRangeBlockBuilder.DoubleRange getDoubleRange(int valueIndex, DoubleRangeBlockBuilder.DoubleRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

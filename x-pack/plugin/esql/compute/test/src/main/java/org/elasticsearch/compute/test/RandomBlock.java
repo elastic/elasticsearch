@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
@@ -59,7 +60,10 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
+                // TODO: LONG_RANGE add support
                 || e == ElementType.LONG_RANGE
+                // TODO: DOUBLE_RANGE add support
+                || e == ElementType.DOUBLE_RANGE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
@@ -121,6 +125,7 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 case NULL -> 0;
                 case DOC -> 3 * Integer.BYTES;
                 case LONG_RANGE -> 2 * Long.BYTES;
+                case DOUBLE_RANGE -> 2 * Double.BYTES;
                 case BYTES_REF, EXPONENTIAL_HISTOGRAM -> 0; // Updated per value below
                 case AGGREGATE_METRIC_DOUBLE -> 3 * Double.BYTES + Integer.BYTES;
                 case TDIGEST -> 0; // TDIGEST has no well-defined single-value byte size
@@ -216,6 +221,14 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                             b.from().appendLong(from);
                             b.to().appendLong(to);
                             valuesAtPosition.add(new LongRangeBlockBuilder.LongRange(from, to));
+                        }
+                        case DOUBLE_RANGE -> {
+                            var b = (DoubleRangeBlockBuilder) builder;
+                            var from = ESTestCase.randomDouble();
+                            var to = from + ESTestCase.randomDoubleBetween(0.0, Double.MAX_VALUE / 2, false);
+                            b.from().appendDouble(from);
+                            b.to().appendDouble(to);
+                            valuesAtPosition.add(new DoubleRangeBlockBuilder.DoubleRange(from, to));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

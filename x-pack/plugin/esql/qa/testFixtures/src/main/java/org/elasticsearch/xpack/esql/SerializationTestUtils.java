@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -144,6 +145,13 @@ public class SerializationTestUtils {
                 GenericNamedWriteable.class,
                 LongRangeBlockBuilder.LongRange.ENTRY.name,
                 LongRangeBlockBuilder.LongRange::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                GenericNamedWriteable.class,
+                DoubleRangeBlockBuilder.DoubleRange.ENTRY.name,
+                DoubleRangeBlockBuilder.DoubleRange::new
             )
         );
         return new NamedWriteableRegistry(entries);

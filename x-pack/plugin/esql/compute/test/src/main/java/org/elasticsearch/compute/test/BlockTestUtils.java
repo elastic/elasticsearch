@@ -27,6 +27,8 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -58,6 +60,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -92,6 +95,11 @@ public class BlockTestUtils {
                 var from = randomMillisUpToYear9999();
                 var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
                 yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
+            case DOUBLE_RANGE -> {
+                var from = randomDouble();
+                var to = from + randomDoubleBetween(0.0, Double.MAX_VALUE / 2, false);
+                yield new DoubleRangeBlockBuilder.DoubleRange(from, to);
             }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
@@ -244,7 +252,23 @@ public class BlockTestUtils {
                 switch (l.size()) {
                     case 0 -> b.appendNull();
                     case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
+                    // TODO: LONG_RANGE : multi values are supported, fix this branch
                     default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
+                }
+                return;
+            }
+        }
+        if (builder instanceof DoubleRangeBlockBuilder b) {
+            if (value instanceof DoubleRangeBlockBuilder.DoubleRange v) {
+                b.appendDoubleRange(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) l.get(0));
+                    // TODO: DOUBLE_RANGE : multi values are supported, fix this branch
+                    default -> throw new IllegalArgumentException("DOUBLE_RANGE does not support multi-valued positions");
                 }
                 return;
             }
@@ -377,6 +401,15 @@ public class BlockTestUtils {
                 case LONG_RANGE -> {
                     var b = (LongRangeBlock) block;
                     var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                    i++;
+                    yield lit;
+                }
+                case DOUBLE_RANGE -> {
+                    var b = (DoubleRangeBlock) block;
+                    var lit = new DoubleRangeBlockBuilder.DoubleRange(
+                        b.getDoubleFromBlock().getDouble(i),
+                        b.getDoubleToBlock().getDouble(i)
+                    );
                     i++;
                     yield lit;
                 }

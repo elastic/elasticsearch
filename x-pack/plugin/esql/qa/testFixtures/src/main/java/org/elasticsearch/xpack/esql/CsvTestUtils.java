@@ -863,6 +863,7 @@ public final class CsvTestUtils {
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case TDIGEST -> TDIGEST;
                 case LONG_RANGE -> DATE_RANGE;
+                case DOUBLE_RANGE -> throw new IllegalArgumentException("DOUBLE_RANGE not yet supported in csv tests");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

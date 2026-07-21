@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.search.SearchModule;
@@ -63,6 +64,7 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.add(Add.ENTRY); // Used by the eval tests
         entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
         entries.add(LongRangeBlockBuilder.LongRange.ENTRY);
+        entries.add(DoubleRangeBlockBuilder.DoubleRange.ENTRY);
         entries.add(LookupJoinExec.ENTRY);
         entries.add(WriteableExponentialHistogram.ENTRY);
         entries.add(TDigestHolder.ENTRY);

@@ -664,9 +664,24 @@ public class BlockFactory {
     }
 
     public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
+        // TODO: LONG_RANGE : this is inefficient, we should construct a DoubleRangeBlock directly from constant sub blocks
         try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendLongRange(value);
+            }
+            return builder.build();
+        }
+    }
+
+    public DoubleRangeBlockBuilder newDoubleRangeBlockBuilder(int estimatedSize) {
+        return new DoubleRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public DoubleRangeBlock newConstantDoubleRangeBlockWith(DoubleRangeBlockBuilder.DoubleRange value, int positions) {
+        // TODO: DOUBLE_RANGE : this is inefficient, we should construct a DoubleRangeBlock directly from constant sub blocks
+        try (var builder = newDoubleRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendDoubleRange(value);
             }
             return builder.build();
         }

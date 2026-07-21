@@ -44,7 +44,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     private static boolean supportsVectors(ElementType type) {
         return switch (type) {
-            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE -> false;
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE -> false;
             default -> true;
         };
     }
@@ -305,7 +305,10 @@ public class BlockBuilderTests extends ESTestCase {
     private void assumeMultiValued() {
         assumeTrue(
             "Type must support multi-values",
-            elementType != ElementType.AGGREGATE_METRIC_DOUBLE && elementType != ElementType.LONG_RANGE
+            // TODO: DOUBLE_RANGE support
+            elementType != ElementType.AGGREGATE_METRIC_DOUBLE
+                && elementType != ElementType.LONG_RANGE
+                && elementType != ElementType.DOUBLE_RANGE
         );
     }
 

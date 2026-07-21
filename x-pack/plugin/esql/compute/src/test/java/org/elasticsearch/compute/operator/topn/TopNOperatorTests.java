@@ -85,6 +85,7 @@ import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.DOUBLE_RANGE;
 import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
@@ -1109,7 +1110,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 || e == AGGREGATE_METRIC_DOUBLE
                 || e == EXPONENTIAL_HISTOGRAM
                 || e == TDIGEST
-                || e == LONG_RANGE) {
+                || e == LONG_RANGE
+                || e == DOUBLE_RANGE) {
                 continue;
             }
             elementTypes.add(e);
@@ -1568,7 +1570,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == LONG_RANGE
+                    || t == DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
@@ -2469,7 +2472,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == LONG_RANGE
+                    || t == DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
@@ -2600,7 +2604,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == LONG_RANGE
+                    || t == DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
@@ -2805,7 +2810,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == ElementType.AGGREGATE_METRIC_DOUBLE
                     || t == ElementType.EXPONENTIAL_HISTOGRAM
                     || t == ElementType.TDIGEST
-                    || t == ElementType.LONG_RANGE,
+                    || t == ElementType.LONG_RANGE
+                    || t == ElementType.DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

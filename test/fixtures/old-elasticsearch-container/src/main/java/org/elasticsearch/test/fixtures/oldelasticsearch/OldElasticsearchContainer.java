@@ -8,8 +8,9 @@
 package org.elasticsearch.test.fixtures.oldelasticsearch;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.PullOrBuildImage;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.RemoteDockerImage;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.time.Duration;
 import java.util.Map;
@@ -35,7 +36,7 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
     );
 
     public OldElasticsearchContainer(String version, String repoLocation) {
-        super(new RemoteDockerImage(resolveImage(version)));
+        super(new PullOrBuildImage(resolveImage(version), localImage(version)));
         addExposedPort(HTTP_PORT);
         withFileSystemBind(repoLocation, repoLocation);
         withEnv("ES_PATH_REPO", repoLocation);
@@ -48,6 +49,13 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
             throw new IllegalArgumentException("Unsupported old Elasticsearch fixture version [" + version + "]");
         }
         return image;
+    }
+
+    private static ImageFromDockerfile localImage(String version) {
+        String resourceBase = "docker/" + version + "/";
+        return new ImageFromDockerfile("localhost/old-elasticsearch-" + version.replace('.', '-') + "-fixture")
+            .withFileFromClasspath("Dockerfile", resourceBase + "Dockerfile")
+            .withFileFromClasspath("entrypoint.sh", resourceBase + "entrypoint.sh");
     }
 
     public int getHttpPort() {

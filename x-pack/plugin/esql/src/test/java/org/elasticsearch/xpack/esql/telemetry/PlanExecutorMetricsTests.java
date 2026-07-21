@@ -700,7 +700,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
             null,
-            EsqlTestUtils.TEST_ANALYSIS_REGISTRY
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
+            () -> true
         );
     }
 

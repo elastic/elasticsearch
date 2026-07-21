@@ -152,6 +152,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -215,6 +216,7 @@ public class EsqlSession {
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final BooleanSupplier requestFilterOnDatasetEnabled;
     private final String clusterName;
     private final String clusterUuid;
     private final IpLocationService ipLocationService;
@@ -275,9 +277,11 @@ public class EsqlSession {
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
         PlannerSettings plannerSettings,
-        TransportActionServices services
+        TransportActionServices services,
+        BooleanSupplier requestFilterOnDatasetEnabled
     ) {
         this.sessionId = sessionId;
+        this.requestFilterOnDatasetEnabled = requestFilterOnDatasetEnabled;
         this.localClusterMinimumVersion = localClusterMinimumVersion;
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
@@ -467,7 +471,13 @@ public class EsqlSession {
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
                     try {
-                        plan = RequestFilterRewriter.rewrite(analyzedPlan.inner(), request.filter(), finalConfiguration, minimumVersion);
+                        plan = RequestFilterRewriter.rewrite(
+                            analyzedPlan.inner(),
+                            request.filter(),
+                            requestFilterOnDatasetEnabled.getAsBoolean(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;

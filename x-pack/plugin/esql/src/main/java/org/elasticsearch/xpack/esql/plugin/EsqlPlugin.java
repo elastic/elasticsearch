@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
@@ -254,6 +255,31 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting(
         "esql.query.flattened.enabled",
         true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Opt-in for applying the out-of-band request {@code filter} to datasets. Defaults to {@code false} in every build,
+     * because turning it on changes what an existing dataset query returns — a filter that was dropped starts selecting
+     * rows, and DSL outside the supported subset starts failing the query. Enabling it is rejected unless
+     * {@link RequestFilterRewriter#REQUEST_FILTER_ON_DATASET_FEATURE_FLAG} is on, so a release build cannot turn it on
+     * at all. Mirrors {@code index.slice.enabled} and its {@code SLICE_FEATURE_FLAG}.
+     */
+    public static final Setting<Boolean> REQUEST_FILTER_ON_DATASET_ENABLED = Setting.boolSetting(
+        "esql.query.request_filter_on_dataset.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean enabled) {
+                if (enabled && RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled() == false) {
+                    throw new IllegalArgumentException(
+                        "unknown setting [esql.query.request_filter_on_dataset.enabled] please check that any required "
+                            + "plugins are installed, or check the breaking changes documentation for removed settings"
+                    );
+                }
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -419,6 +445,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
         services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
 
+        // Opt-in for the request filter on datasets. The session is built per query from a node-level PlanExecutor, so
+        // the dynamic setting is tracked here and read through a supplier at rewrite time.
+        AtomicBoolean requestFilterOnDatasetEnabled = new AtomicBoolean(REQUEST_FILTER_ON_DATASET_ENABLED.get(settings));
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(REQUEST_FILTER_ON_DATASET_ENABLED, requestFilterOnDatasetEnabled::set);
+
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
         // client) — NOT the file-read path. Blocking external reads run on the esql_worker pool via
@@ -542,7 +575,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService,
-                services.indicesService().getAnalysis()
+                services.indicesService().getAnalysis(),
+                requestFilterOnDatasetEnabled::get
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -591,6 +625,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 QUERY_ALLOW_PARTIAL_RESULTS,
                 LOOKUP_JOIN_STREAMING,
                 FLATTENED_ENABLED,
+                REQUEST_FILTER_ON_DATASET_ENABLED,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,

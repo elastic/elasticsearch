@@ -853,6 +853,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         FieldInfo fieldInfo,
         MergeState mergeState
     ) throws IOException {
+        final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
+        assert slicedFieldInfo != null;
+        assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
+        final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
+        final int numSlices = values.getValueCount();
+        if (floatVectorValues.size() / numSlices <= 4 * vectorPerCluster) {
+            // for small slices, we don't cluster
+            float[][] centroid = new float[][] { CentroidOps.FLOAT.computeMeanCentroid(floatVectorValues, floatVectorValues.dimension()) };
+            int[] assignments = new int[floatVectorValues.size()];
+            return new CentroidInformation(floatVectorValues.dimension(), centroid, assignments, OverspillAssignments.NONE, null);
+        }
         HierarchicalKMeans<float[]> hierarchicalKMeans;
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(
@@ -864,11 +875,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         }
-        final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
-        assert slicedFieldInfo != null;
-        assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
-        final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
-        final int numSlices = values.getValueCount();
         final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
         iterator.advance(0);
         values.nextDoc();

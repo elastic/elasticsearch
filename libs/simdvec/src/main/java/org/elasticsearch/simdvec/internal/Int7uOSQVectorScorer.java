@@ -157,7 +157,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         long vectorOffset = (long) node * vectorPitch;
         input.seek(vectorOffset);
         return IndexInputUtils.withSlice(input, (int) vectorPitch, scratch::getScratch, seg -> {
-            int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
             return applyCorrections(dotProduct, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
         });
     }

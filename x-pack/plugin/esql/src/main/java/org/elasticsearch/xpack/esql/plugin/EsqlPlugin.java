@@ -629,37 +629,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        List<ActionHandler> actions = new ArrayList<>(
-            List.of(
-                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
-            )
+        return List.of(
+            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
+            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
+            new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
+            new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
+            new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
+            new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
+            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
         );
-        // Federation (external data sources) transport actions are registered only when the feature is on. When
-        // suppressed the actions are absent, so a client hitting one gets the framework's standard "no handler"
-        // response, and no internal caller can reach the CRUD services or the FROM <dataset> resolve action.
-        if (Federation.isEnabled()) {
-            actions.add(new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class));
-            actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
-            actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
-            actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
-            actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
-            actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
-            actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
-        }
-        return actions;
     }
 
     @Override

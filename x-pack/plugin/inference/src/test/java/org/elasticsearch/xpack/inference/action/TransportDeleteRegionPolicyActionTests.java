@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -83,7 +84,14 @@ public class TransportDeleteRegionPolicyActionTests extends ESTestCase {
             }
         };
 
-        var action = new TransportDeleteRegionPolicyAction(mock(TransportService.class), mock(ActionFilters.class), client, cache);
+        var action = new TransportDeleteRegionPolicyAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            client,
+            cache
+        );
 
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
         action.doExecute(mock(Task.class), new DeleteRegionPolicyAction.Request(), listener);
@@ -121,7 +129,14 @@ public class TransportDeleteRegionPolicyActionTests extends ESTestCase {
             }
         };
 
-        var action = new TransportDeleteRegionPolicyAction(mock(TransportService.class), mock(ActionFilters.class), client, cache);
+        var action = new TransportDeleteRegionPolicyAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            client,
+            cache
+        );
 
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
         action.doExecute(mock(Task.class), new DeleteRegionPolicyAction.Request(), listener);
@@ -157,7 +172,14 @@ public class TransportDeleteRegionPolicyActionTests extends ESTestCase {
             }
         };
 
-        var action = new TransportDeleteRegionPolicyAction(mock(TransportService.class), mock(ActionFilters.class), client, cache);
+        var action = new TransportDeleteRegionPolicyAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            client,
+            cache
+        );
 
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
         action.doExecute(mock(Task.class), new DeleteRegionPolicyAction.Request(), listener);
@@ -183,7 +205,14 @@ public class TransportDeleteRegionPolicyActionTests extends ESTestCase {
             }
         };
 
-        var action = new TransportDeleteRegionPolicyAction(mock(TransportService.class), mock(ActionFilters.class), client, cache);
+        var action = new TransportDeleteRegionPolicyAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            client,
+            cache
+        );
 
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
         action.doExecute(mock(Task.class), new DeleteRegionPolicyAction.Request(), listener);

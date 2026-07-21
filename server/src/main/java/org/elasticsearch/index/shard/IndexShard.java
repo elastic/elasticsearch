@@ -83,6 +83,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -1987,10 +1989,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Requests cancellation of a recovery that is not yet completed.
     ///
-    /// In `CREATED` state the flag is stored and checked when the recovery begins.
-    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for non-PEER
-    /// recoveries. Note that `PEER` and `RESHARD_SPLIT` recoveries are currently not supported
-    /// (support will be added in a follow-up, see: elasticsearch-team#2801).
+    /// Each recovery type checks whether a cancellation has been requested at its own phase boundaries
+    /// via [#ensureRecoveryNotCancelled].
+    ///
+    /// Note that `RESHARD_SPLIT` recoveries are currently not supported (support will be added via elasticsearch-team#2801).
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
@@ -2008,9 +2010,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentRecoveryState != null;
             final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
             switch (recoveryType) {
-                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE -> recoveryCancellationRequested = true;
-                default -> throw new IllegalStateException(
-                    "requestRecoveryCancellation called for an unsupported recovery type " + recoveryType + " on shard " + shardId
+                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE, PEER -> recoveryCancellationRequested = true;
+                case RESHARD_SPLIT -> throw new IllegalStateException(
+                    "requestRecoveryCancellation is currently unsupported for RESHARD_SPLIT recoveries, shardId: " + shardId
                 );
             }
         }
@@ -2018,9 +2020,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
-    /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
-    /// recoveries). Callers should let the exception propagate up the call stack, or catch it to forward it unchanged
-    /// or wrapped (preserving it as the cause), e.g. via `onFailure`.
+    /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
+    /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
+    /// (preserving it as the cause), e.g. via `onFailure`.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         final RecoveryState currentRecoveryState = recoveryState;
         assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
@@ -3850,14 +3852,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RecoveryListener recoveryListener,
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
-        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(recoveryDone -> {
+        ActionListener<Boolean> actionListener = ActionListener.wrap(recoveryDone -> {
             if (recoveryDone) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             } else {
                 recoveryListener.onRecoveryAborted();
             }
-        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
+        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true));
+        ActionListener.run(actionListener, action);
     }
 
     /**
@@ -3962,10 +3966,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        return buildIndexAnalyzer(mapperService, TokenCountingMetrics.NOOP);
+    }
+
+    /**
+     * Builds the index analyzer, wrapping it with a {@link TokenCountingAnalyzer}
+     * that records the number of tokens produced per field value to the metrics histogram.
+     *
+     * @param mapperService          the mapper service to use for field analyzer resolution
+     * @param tokenCountingMetrics   metrics instance for recording token counts per field value
+     * @return the analyzer to use for indexing, or null if no mapper service is available
+     */
+    public static Analyzer buildIndexAnalyzer(MapperService mapperService, TokenCountingMetrics tokenCountingMetrics) {
         if (mapperService == null) {
             return null;
         }
-        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+        Analyzer baseAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
                 return mapperService.indexAnalyzer(
@@ -3974,6 +3990,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         };
+        return new TokenCountingAnalyzer(baseAnalyzer, tokenCountingMetrics);
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -3994,7 +4011,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .warmer(warmer)
             .store(store)
             .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
-            .analyzer(buildIndexAnalyzer(mapperService))
+            .analyzer(
+                buildIndexAnalyzer(
+                    mapperService,
+                    mapperService != null ? mapperService.getMapperMetrics().tokenCountingMetrics() : TokenCountingMetrics.NOOP
+                )
+            )
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
             .eventListener(shardEventListener)

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 153622
+pr: 153771
+summary: Fix `json_extract` execution with foldable MV
+type: bug

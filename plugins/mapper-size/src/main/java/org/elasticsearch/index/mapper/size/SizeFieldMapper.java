@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -69,6 +70,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 null,
                 null,
                 false,
+                false,
                 false
             );
         }
@@ -114,5 +116,13 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // postParse is a no-op when disabled (the common case). The enabled case needs the raw
+        // request source size as a column; revisit alongside SourceFieldMapper when we add stored source
+        // support.
+        return enabled.value() == false;
     }
 }

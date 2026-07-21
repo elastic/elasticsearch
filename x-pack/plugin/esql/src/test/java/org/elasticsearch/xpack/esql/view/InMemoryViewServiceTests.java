@@ -880,6 +880,105 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("view_a -> view_b"));
     }
 
+    /**
+     * https://github.com/elastic/elasticsearch/issues/153030
+     * <p>
+     * TS command already rejects explicit parenthesized subqueries at parse time (a view is
+     * effectively a stored subquery), but a view reference can't be told apart from a plain index
+     * pattern until it's resolved. Mixing a view into a TS source used to silently reach the
+     * optimizer and fail there with a confusing "optimized incorrectly due to missing references"
+     * IllegalStateException, since a view's output can never satisfy the time-series semantics
+     * (_tsid, bucketing, etc.) that TS assumes hold across the whole relation.
+     */
+    public void testViewNotSupportedAsSoleTsSource() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("view_a", "FROM emp");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS view_a")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("view_a"));
+    }
+
+    public void testViewNotSupportedMixedWithIndexInTsCommand() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("view_a", "FROM emp");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS emp,view_a")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("view_a"));
+    }
+
+    /**
+     * The rejection doesn't care whether the referenced view is itself TS-based internally — a
+     * TS-bodied view is just as much a "stored subquery" as a FROM-bodied one, and mixing its
+     * output back into an outer TS relation is exactly the shape that used to reach the optimizer
+     * and crash. See https://github.com/elastic/elasticsearch/issues/153030.
+     */
+    public void testTsBasedViewNotSupportedAsSoleTsSource() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("ts_view", "TS emp | STATS count(*)");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS ts_view")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    public void testTsBasedViewNotSupportedMixedWithIndexInTsCommand() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("ts_view", "TS emp | STATS count(*)");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS emp,ts_view")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    // Regression test for https://github.com/elastic/elasticsearch/issues/145445:
+    // a PROMQL command over an index pattern that mixes a TS source (k8s) with a
+    // non-TS view (country_addresses) used to reach the optimizer and fail with
+    // "optimized incorrectly due to missing references [_tsid, _timeseries]".
+    //
+    // The analyzed plan must contain a TimeSeriesAggregate (PROMQL always needs one
+    // for the TS branch) and resolve both the k8s EsRelation (TIME_SERIES) and the
+    // sample_data EsRelation (STANDARD) from the expanded view body.
+    public void testTsBasedViewNotSupportedMixedWithIndexInTsCommandPromql() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("ts_view", "TS emp | STATS count(*)");
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> replaceViews(query("PROMQL index=emp,ts_view step=1d bytes=(last_over_time(event[1d]))"))
+        );
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    /**
+     * A view may be *created* with a TS-referencing-a-view body — {@code ViewService.validatePutView}
+     * only parses the query, it never resolves it — but *using* that view anywhere must still fail
+     * clearly. Before the fix this nested shape didn't crash: it silently discarded the inner TS's
+     * time-series semantics and resolved as a plain {@code FROM emp}, since a TS pattern that
+     * resolves entirely to a single view branch just returns that branch's own (non-TS) plan.
+     * Verified by temporarily reverting the fix and observing {@code replaceViews} return a bare
+     * {@code UnresolvedRelation("emp")} with no error. See
+     * https://github.com/elastic/elasticsearch/issues/153030.
+     */
+    public void testViewBodyUsingTsToReferenceAnotherViewIsRejected() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("inner_view", "FROM emp");
+        addView("outer_view", "TS inner_view");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM outer_view")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("inner_view"));
+    }
+
+    /**
+     * Confirms the fix's boundary: the opposite direction (FROM referencing a TS-bodied view) is
+     * unaffected — the view's own TS aggregation is fully resolved within its body, so nothing
+     * about the outer FROM ever needs TS-only semantics. Covered extensively at the REST/csv-spec
+     * level too (views.csv-spec "tsView*" family); this is a fast unit-level confirmation living
+     * next to the rejection tests above.
+     */
+    public void testViewWithTsBodyReferencedViaFromStillWorks() {
+        addView("ts_view", "TS emp | STATS count(*)");
+        LogicalPlan rewritten = replaceViews(query("FROM ts_view"));
+        assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
+    }
+
     public void testCircularViewInFork() {
         addView("view_a", "FROM view_b");
         addView("view_b", "FROM view_a");

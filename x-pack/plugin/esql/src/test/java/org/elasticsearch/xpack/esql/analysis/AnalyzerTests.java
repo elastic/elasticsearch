@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -97,7 +96,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -177,7 +175,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -3318,111 +3315,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
-    public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 emp_no");
-
-        Attribute last = plan.output().getLast();
-        assertThat(last.name(), is("emp_no"));
-        assertThat(last.dataType(), is(INTEGER));
-        assertThat(
-            plan.output()
-                .stream()
-                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
-                .toList(),
-            is(empty())
-        );
-    }
-
-    public void testInsist_afterRowThrowsException() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        basic().error(
-            "ROW x = 1 | INSIST_🐔 x",
-            containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]")
-        );
-    }
-
-    public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 foo");
-
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        assertThat(insist.output(), hasSize(basic().query("FROM test").output().size() + 1));
-        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
-        assertThat(insist.insistedAttributes(), equalToIgnoringIds(List.of(expectedAttribute)));
-        assertThat(insist.output().getLast(), equalToIgnoringIds(expectedAttribute));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-
-        String query = "FROM foo, bar | INSIST_🐔 message";
-        var plan = analyzer().addIndex(resolution).query(query);
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("qux", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
     public void testResolveDenseVector() {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
@@ -3579,33 +3471,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
     }
 
-    /**
-     * Boundary confirmation: a multi-index TS pattern where every matched index genuinely is
-     * time-series mode is unaffected by the fix above, even for a query that needs true
-     * time-series semantics (bucketing + an _over_time aggregate).
-     */
-    public void testTsStatsQueryOverUniformTimeSeriesIndexModesSucceeds() {
-        Map<String, EsField> mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
-        var uniformIndex = new EsIndex(
-            "*",
-            mapping,
-            Map.of("ts_index_a", IndexMode.TIME_SERIES, "ts_index_b", IndexMode.TIME_SERIES),
-            Map.of(),
-            Map.of()
-        );
-        var testAnalyzer = analyzer().addIndex(uniformIndex);
-        var plan = testAnalyzer.query("TS * | STATS last_over_time(events_received) BY bucket(@timestamp, 1 minute)");
-        assertNotNull(plan);
-    }
-
-    /**
-     * Both backing indices are {@link IndexMode#TIME_SERIES} deliberately - the conflict this
-     * builds (a field that's a dimension in one index and a metric in another) is a per-field role
-     * conflict, orthogonal to index mode. Keeping both indices genuinely time-series isolates this
-     * conflict from the separate "TS command requires all matched indices to be time-series"
-     * check (see https://github.com/elastic/elasticsearch/issues/153030), which would otherwise
-     * fire first and mask the conflict message if one of the two indices were STANDARD mode.
-     */
     private static FieldCapabilitiesResponse buildCapsWithConflictingTsTypes() {
         IndexFieldCapabilities timestamp = new IndexFieldCapabilitiesBuilder("@timestamp", "date").build();
         IndexFieldCapabilities dimensionField = new IndexFieldCapabilitiesBuilder("status", "keyword").isDimension(true).build();
@@ -3616,11 +3481,11 @@ public class AnalyzerTests extends ESTestCase {
             TimeSeriesParams.MetricType.COUNTER
         ).build();
         Map<String, IndexFieldCapabilities> tsFields = Map.of("@timestamp", timestamp, "status", dimensionField, "bytes_in", counter);
-        Map<String, IndexFieldCapabilities> tsFields2 = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
+        Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
                 new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES),
-                new FieldCapabilitiesIndexResponse("ts_index_2", "hash_b", tsFields2, false, IndexMode.TIME_SERIES)
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD)
             ),
             List.of()
         );

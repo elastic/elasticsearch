@@ -1292,6 +1292,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *     \_... Subquery → EsRelation[sample_data][STANDARD]
      */
     public void testTsSubqueryMixedWithStandardSubqueryCreatesPlainAggregate() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         // FROM (TS k8s), (FROM sample_data) — both branches are explicit subqueries.
         // The TS branch must NOT use TimeSeriesAggregate at the outer STATS level.
         LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
@@ -1332,6 +1333,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *     \_... Subquery → EsRelation[k8s][TIME_SERIES]
      */
     public void testTwoTsSubqueriesInFromCreatesPlainAggregate() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         // FROM (TS k8s), (TS k8s) — both branches are TS subqueries inside a FROM command.
         // Neither triggers TimeSeriesAggregate at the outer STATS level.
         LogicalPlan plan = analyzer().addK8sDownsampled().query("""
@@ -1364,6 +1366,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *     \_... Subquery → EsRelation[k8s][TIME_SERIES]
      */
     public void testTsSubqueryMixedWithDirectIndexCreatesPlainAggregate() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         // FROM (TS k8s), sample_data — TS is in a subquery, standard index is a bare pattern.
         // The Subquery boundary around k8s must prevent TimeSeriesAggregate at the outer STATS.
         LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
@@ -1392,6 +1395,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *     \_... Subquery → EsRelation[k8s][TIME_SERIES]
      */
     public void testTsSubqueryMixedWithViewCreatesPlainAggregate() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         LogicalPlan plan = analyzer().addK8sDownsampled()
             .addSampleData()
             .addView("my_view", "FROM sample_data | STATS total = COUNT() BY message")

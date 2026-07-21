@@ -1275,24 +1275,6 @@ total:long | cluster:keyword
 2          | staging
 ;
 
-// Reproducer for https://github.com/elastic/elasticsearch/issues/145445 (PromQL) and the
-// related https://github.com/elastic/elasticsearch/issues/149619 /
-// https://github.com/elastic/elasticsearch/issues/153030 (TS command). Mixing a TS source
-// with a non-TS view in PROMQL reaches the optimizer and fails with "optimized incorrectly
-// due to missing references [_tsid, _timeseries]".
-tsMixedWithNonTsViewLastOverTimeByBucketPromql
-required_capability: views_with_branching
-required_capability: views_crud_as_index_actions
-required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
-
-PROMQL index=k8s,country_addresses step=1d bytes=(last_over_time(event[1d]))
-| SORT step
-;
-
-bytes:double | step:datetime
-;
-
 mixedSubqueriesViewPlan
 required_capability: subquery_in_from_command
 required_capability: views_with_branching

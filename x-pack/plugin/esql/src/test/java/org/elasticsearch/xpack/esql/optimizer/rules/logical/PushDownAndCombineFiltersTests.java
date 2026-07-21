@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -624,7 +625,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(c), null);
-        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
 
         // Predicates
         Expression p1 = greaterThanOf(c, ONE);                                  // pushable
@@ -875,7 +876,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b));
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b), List.of(b, c), null);
-        return new Join(Source.EMPTY, left, right, joinConfig, false);
+        return new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
     }
 
     private Join createLeftJoinOnExpression() {
@@ -887,7 +888,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b2));
         Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(b2), joinOnCondition);
-        return new Join(Source.EMPTY, left, right, joinConfig, false);
+        return new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
     }
 
     public void testLeftJoinOnExpressionPushable() {

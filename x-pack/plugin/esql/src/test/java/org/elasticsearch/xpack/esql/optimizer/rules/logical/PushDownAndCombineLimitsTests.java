@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -230,7 +231,13 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         }),
         new PushDownLimitTestCase<>(
             Join.class,
-            (plan, attr) -> new Join(Source.EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr), false),
+            (plan, attr) -> new Join(
+                Source.EMPTY,
+                plan,
+                plan,
+                new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr),
+                ExecuteLocation.ANY
+            ),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 var limit = as(optimizedPlan.left(), Limit.class);

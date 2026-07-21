@@ -202,9 +202,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecLookupJoinIT
-  method: test {csv-spec:lookup-join.floatEqualsDouble}
-  issue: https://github.com/elastic/elasticsearch/issues/149952
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesCountDistinctOverTimeIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/149961

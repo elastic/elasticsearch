@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -102,10 +103,10 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -738,9 +739,12 @@ public class EsqlSession {
 
         // TODO: merge into one method
         if (subPlan != null) {
-            // code-path to execute subplans
+            // code-path to execute subplans. The pinned-read accumulator gathers union_by_name widened reads across
+            // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
+            // their polluting stat deltas regardless of which plan read a file pinned.
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
+                new HashMap<>(),
                 subPlan,
                 configuration,
                 foldContext,
@@ -756,13 +760,53 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            Map<String, PinnedColumns> pinnedReads = new HashMap<>();
+            collectPinnedReads(optimizedPlan, pinnedReads);
             // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
             // source stats into ExternalSourceCacheService before delivering Result.
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-                reconcileCapturedSourceStats(result.completionInfo());
+                reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
                 next.onResponse(result);
             }));
         }
+    }
+
+    /**
+     * A file's columns whose read type was pinned above their inferred type for a {@code union_by_name} widening read,
+     * plus whether that read's error policy drops whole rows ({@code skip_row}). Collected from the executed plan's
+     * {@link ExternalRelation} nodes and used to strip a widening read's polluting stat deltas off the captured
+     * contributions before commit. See {@link SourceStatisticsSerializer#removeColumnStatFamilies}.
+     */
+    private record PinnedColumns(Set<String> columns, boolean dropRowCount) {
+        PinnedColumns mergedWith(PinnedColumns other) {
+            Set<String> union = new HashSet<>(columns);
+            union.addAll(other.columns);
+            return new PinnedColumns(union, dropRowCount || other.dropRowCount);
+        }
+    }
+
+    /**
+     * Collects the {@code union_by_name} pinned reads in {@code plan}, keyed by the file path string the data-node
+     * capture uses ({@code StoragePath#toString()}), merging into {@code into}. A pinned read of a file harvests
+     * {@code value_count}/{@code null_count}/extrema the same file's solo narrow read never produces, so those deltas
+     * must not commit into the read-schema-blind shared cache entry. Accumulates across every executed plan (each
+     * subplan and the final main plan) because a file may be read pinned inside a subquery.
+     */
+    private void collectPinnedReads(LogicalPlan plan, Map<String, PinnedColumns> into) {
+        plan.forEachDown(ExternalRelation.class, relation -> {
+            var schemaMap = relation.schemaMap();
+            if (schemaMap.isEmpty()) {
+                return;
+            }
+            boolean dropRowCount = externalSourceResolver.resolvesToSkipRow(relation.sourceType(), relation.metadata().config());
+            for (var entry : schemaMap.entrySet()) {
+                Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(entry.getValue());
+                if (pinned.isEmpty()) {
+                    continue;
+                }
+                into.merge(entry.getKey().toString(), new PinnedColumns(pinned, dropRowCount), PinnedColumns::mergedWith);
+            }
+        });
     }
 
     /**
@@ -770,8 +814,14 @@ public class EsqlSession {
      * into the coordinator's {@code ExternalSourceCacheService}, so the next query's planning-time
      * lookup finds the {@code _stats.*} keys embedded in the matching {@code SchemaCacheEntry}'s
      * {@code safeMetadata} — same shape Parquet's footer-derived stats already use.
+     * <p>
+     * For any file read at a {@code union_by_name} pinned (widened) type, first strips that read's pinned-column stat
+     * families off its contributions ({@link SourceStatisticsSerializer#removeColumnStatFamilies}): the per-file cache
+     * identity is read-schema-blind, so a solo narrow read and the pinned wider read share one entry, and committing the
+     * wider read's {@code value_count}/extrema would pollute the value the narrow read serves. This is the commit-side
+     * sibling of the serve-side {@code overlayPinnedColumnsOnStats}.
      */
-    private void reconcileCapturedSourceStats(DriverCompletionInfo info) {
+    private void reconcileCapturedSourceStats(DriverCompletionInfo info, Map<String, PinnedColumns> pinnedReads) {
         if (info == null) {
             return;
         }
@@ -780,9 +830,37 @@ public class EsqlSession {
             return;
         }
         ExternalSourceCacheService cache = externalSourceResolver.cacheService();
-        if (cache != null) {
-            cache.reconcileSourceStatsFromContributions(captured);
+        if (cache == null) {
+            return;
         }
+        cache.reconcileSourceStatsFromContributions(stripPinnedContributions(captured, pinnedReads));
+    }
+
+    /**
+     * Returns {@code captured} with each pinned file's per-contribution pinned-column stat families removed. Files not
+     * read at a pinned type pass through untouched; when nothing is pinned the input map is returned unchanged.
+     */
+    private static Map<String, List<Map<String, Object>>> stripPinnedContributions(
+        Map<String, List<Map<String, Object>>> captured,
+        Map<String, PinnedColumns> pinnedReads
+    ) {
+        if (pinnedReads.isEmpty()) {
+            return captured;
+        }
+        Map<String, List<Map<String, Object>>> out = new HashMap<>(captured.size());
+        for (Map.Entry<String, List<Map<String, Object>>> entry : captured.entrySet()) {
+            PinnedColumns pinned = pinnedReads.get(entry.getKey());
+            if (pinned == null) {
+                out.put(entry.getKey(), entry.getValue());
+                continue;
+            }
+            List<Map<String, Object>> stripped = new ArrayList<>(entry.getValue().size());
+            for (Map<String, Object> contribution : entry.getValue()) {
+                stripped.add(SourceStatisticsSerializer.removeColumnStatFamilies(contribution, pinned.columns(), pinned.dropRowCount()));
+            }
+            out.put(entry.getKey(), stripped);
+        }
+        return out;
     }
 
     private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
@@ -938,6 +1016,7 @@ public class EsqlSession {
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
+        Map<String, PinnedColumns> pinnedReads,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -951,6 +1030,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
+        collectPinnedReads(subPlan.subPlan, pinnedReads);
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
@@ -975,6 +1055,7 @@ public class EsqlSession {
 
                 if (newSubPlan == null) {
                     executionInfo.finishSubPlans();
+                    collectPinnedReads(newMainPlan, pinnedReads);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     runner.run(
                         newPhysicalPlan,
@@ -984,7 +1065,7 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
-                            reconcileCapturedSourceStats(merged);
+                            reconcileCapturedSourceStats(merged, pinnedReads);
                             EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
                                 new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
@@ -994,6 +1075,7 @@ public class EsqlSession {
                 } else {
                     executeSubPlan(
                         completionInfoAccumulator,
+                        pinnedReads,
                         newSubPlan,
                         configuration,
                         foldContext,
@@ -1311,9 +1393,9 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         executionInfo.queryProfile().indicesResolutionMarker().start();
-        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
+        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
-        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
+        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
@@ -1376,6 +1458,7 @@ public class EsqlSession {
                 executionInfo.queryProfile().enrichResolutionMarker().start();
                 enrichPolicyResolver.resolvePolicies(
                     preAnalysis.enriches(),
+                    computeEnrichScopes(preAnalysis.enriches(), r.indexResolution(), executionInfo),
                     executionInfo,
                     r.minimumTransportVersion(),
                     l.delegateFailureAndWrap((ll, enrichResolution) -> {
@@ -1445,13 +1528,23 @@ public class EsqlSession {
             // indices) the resolver's continuation reaches this on the external blob-store pool.
             EsqlPlugin.externalBlobStorePool()
         );
-        // No need to update the minimum transport version in the PreAnalysisResult,
-        // it should already have been determined during the main index resolution.
-        executionInfo.queryProfile().incFieldCapsCalls();
         var lookupIndexScope = EsqlCCSUtils.onlyRunning(
             executionInfo,
             computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
         );
+        if (lookupIndexScope.isEmpty()) {
+            // The source index returned no contributing clusters (all shards were pruned by the
+            // request-level filter). Skip the lookup field-caps call — sending an empty index
+            // expression would let security expand it to all authorised indices (including
+            // non-lookup ones), causing a spurious error. Return an invalid resolution instead
+            // so that analyzedPlan() throws a VerificationException that analyzeWithRetry can
+            // catch and retry without the filter.
+            listener.onResponse(result.addLookupIndexResolution(localPattern, IndexResolution.notFound(localPattern)));
+            return;
+        }
+        // No need to update the minimum transport version in the PreAnalysisResult,
+        // it should already have been determined during the main index resolution.
+        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
@@ -1471,7 +1564,7 @@ public class EsqlSession {
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
      * <p>
-     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectLookupJoinLeftScope}.
+     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectSourceClusterScope}.
      */
     static Set<String> computeLookupJoinIndexScope(
         LogicalPlan plan,
@@ -1481,14 +1574,59 @@ public class EsqlSession {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
-                collectLookupJoinLeftScope(lj.left(), scope, indexResolution);
+                collectSourceClusterScope(lj.left(), scope, indexResolution);
             }
         });
         return scope;
     }
 
     /**
-     * Collects the clusters that feed rows into a LOOKUP JOIN by walking only the data-bearing spine of its left subtree.
+     * Derives the scope (set of clusters) that feed rows into a specific {@link Enrich} node, so its policy only needs to be
+     * resolved against the clusters that actually reach it - e.g. for
+     * `FROM (FROM logs-*), (FROM cluster-a:logs-* | ENRICH _remote:policy ON v)`, the ENRICH is scoped to {@code cluster-a}
+     * only; the sibling local branch never feeds it.
+     * <p>
+     * Only the data-bearing subtree rooted at {@code enrich.child()} is considered, see {@link #collectSourceClusterScope}.
+     */
+    static Set<String> computeEnrichScope(Enrich enrich, Map<IndexPattern, IndexResolution> indexResolution) {
+        Set<String> scope = new LinkedHashSet<>();
+        collectSourceClusterScope(enrich.child(), scope, indexResolution);
+        return scope;
+    }
+
+    /**
+     * Computes the per-node scope for every {@link Enrich} in the plan, keyed by {@link Enrich#source()} - which is stable
+     * across the rewrites the plan undergoes between pre-analysis and analysis (see {@link Enrich#replaceChild}), unlike the
+     * {@link Enrich} instance itself. Two (rare) occurrences sharing the exact same source location - e.g. an ENRICH inside a
+     * view referenced from two differently-scoped subquery branches - have their scopes unioned rather than colliding; this
+     * can only make resolution stricter than the true per-branch scope, never looser.
+     * <p>
+     * Each scope is filtered through {@link EsqlCCSUtils#onlyRunning}, mirroring {@link #preAnalyzeLookupIndex}: a cluster
+     * that failed to connect during main index resolution (skipped, e.g. behind {@code skip_unavailable=true}) can still show
+     * up in a wildcard pattern's {@code originalIndices()}, but the policy should not be required there.
+     */
+    // package-private static so EsqlSessionTests can drive it directly, e.g. to exercise the same-Source union above
+    static Map<Source, Set<String>> computeEnrichScopes(
+        List<Enrich> enriches,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        EsqlExecutionInfo executionInfo
+    ) {
+        Map<Source, Set<String>> enrichScopes = new HashMap<>();
+        for (Enrich enrich : enriches) {
+            Set<String> scope = new HashSet<>(EsqlCCSUtils.onlyRunning(executionInfo, computeEnrichScope(enrich, indexResolution)));
+            // onlyRunning can return an immutable Set (e.g. Set.of(...) when no cluster is tracked yet), so copy it into a
+            // mutable one before it's potentially unioned in place by a later same-Source occurrence, below.
+            enrichScopes.merge(enrich.source(), scope, (existing, additional) -> {
+                existing.addAll(additional);
+                return existing;
+            });
+        }
+        return enrichScopes;
+    }
+
+    /**
+     * Collects the clusters that feed rows into a plan node (a LOOKUP JOIN's left subtree, or an ENRICH's child) by walking
+     * only the data-bearing spine of that subtree.
      * <p>
      * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
      * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
@@ -1501,11 +1639,7 @@ public class EsqlSession {
      * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
      * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
      */
-    private static void collectLookupJoinLeftScope(
-        LogicalPlan plan,
-        Set<String> scope,
-        Map<IndexPattern, IndexResolution> indexResolution
-    ) {
+    private static void collectSourceClusterScope(LogicalPlan plan, Set<String> scope, Map<IndexPattern, IndexResolution> indexResolution) {
         switch (plan) {
             case UnresolvedRelation source -> {
                 IndexResolution resolution = indexResolution.get(source.indexPattern());
@@ -1514,10 +1648,10 @@ public class EsqlSession {
                 }
             }
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            case AbstractSubqueryJoin subqueryJoin -> collectLookupJoinLeftScope(subqueryJoin.left(), scope, indexResolution);
+            case AbstractSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {
-                    collectLookupJoinLeftScope(child, scope, indexResolution);
+                    collectSourceClusterScope(child, scope, indexResolution);
                 }
             }
         }

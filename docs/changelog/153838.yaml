@@ -1,5 +1,5 @@
 area: Reindex
 issues: []
 pr: 153838
-summary: Remote reindex response memory accounting
+summary: Charge remote reindex HTTP buffers to request breaker
 type: bug

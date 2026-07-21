@@ -135,6 +135,20 @@ final class PageColumnReader implements Releasable {
     private long rowPositionInRowGroup;
     private boolean columnExhausted;
 
+    /**
+     * Source rows by which the physical cursor ({@link #rowPositionInRowGroup}) is ahead of the
+     * caller's coordinate space. When {@link #loadNextPage()} skips a survivor-excluded page it can
+     * jump the physical cursor PAST a {@link #skipRows} target; the surplus is recorded here and
+     * credited against subsequent skip requests rather than being discarded (which would leave the
+     * reader silently ahead and misread later survivor rows).
+     *
+     * <p>Only {@link #skipRows} spends this credit. The read entry point ({@link #readBatch}) requires
+     * it to be zero and throws {@link IllegalStateException} otherwise: a prejump only ever crosses
+     * survivor-excluded pages, so the caller always reaches the next survivor through a {@code skipRows}
+     * whose gap fully drains the surplus before any decode happens.
+     */
+    private long pendingPrejumped;
+
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
         this(pageReader, descriptor, info, rowRanges, null);
     }
@@ -166,6 +180,14 @@ final class PageColumnReader implements Releasable {
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
+        // A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
+        // skipRows may spend that credit. Decoding here would read from the wrong source rows and
+        // silently undercount an aggregate. The check is per-batch, so failing loudly costs nothing.
+        if (pendingPrejumped != 0) {
+            throw new IllegalStateException(
+                "readBatch called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position"
+            );
+        }
         loadDictionaryIfNeeded();
         // Declared-type coercion beyond the fused pairs: decode the column at the file's own type
         // with the arms below, then coerce the block to the declared type. Per-value failures
@@ -545,16 +567,38 @@ final class PageColumnReader implements Releasable {
     }
 
     void skipRows(int count) {
+        // Guard non-positive counts before the credit block below: a negative count would make
+        // Math.min(pendingPrejumped, count) negative, so `pendingPrejumped -= credited` would inflate
+        // the banked surplus instead of spending it, leaving the reader permanently ahead of the caller.
+        if (count <= 0) {
+            return;
+        }
+        // The physical cursor may already be ahead of the caller (a previous skip jumped a
+        // survivor-excluded page past its target). Spend that credit before touching the cursor,
+        // so a skip that lands entirely within the pre-jumped span is a no-op on the decoder.
+        if (pendingPrejumped > 0) {
+            long credited = Math.min(pendingPrejumped, count);
+            pendingPrejumped -= credited;
+            count -= (int) credited; // safe: credited <= count (int), so no overflow
+            if (count == 0) {
+                return;
+            }
+        }
+        // target must be computed after the credit block above: the banking below
+        // (pendingPrejumped += rowPositionInRowGroup - target) is only correct when
+        // target measures how far the caller wants to advance from the current cursor.
         long target = rowPositionInRowGroup + count;
         while (rowPositionInRowGroup < target) {
             if (ensurePage() == false) {
                 break;
             }
             if (rowPositionInRowGroup >= target) {
-                // ensurePage advanced past target via a firstRowIndex jump in loadNextPage
-                // (page-filtered prefetch with a survivor-range gap wider than `count`).
-                // Falling through would compute a negative fromPage and corrupt decoder /
-                // page-consumed state.
+                // ensurePage advanced past target via a firstRowIndex / excluded-page jump in
+                // loadNextPage (page-filtered prefetch with a survivor-range gap wider than
+                // `count`). Falling through would compute a negative fromPage and corrupt decoder /
+                // page-consumed state. Bank the surplus so the next skip credits it instead of the
+                // physical cursor advancing again, since the caller still counts those source rows.
+                pendingPrejumped += rowPositionInRowGroup - target;
                 break;
             }
             int fromPage = (int) Math.min(target - rowPositionInRowGroup, availableInPage());

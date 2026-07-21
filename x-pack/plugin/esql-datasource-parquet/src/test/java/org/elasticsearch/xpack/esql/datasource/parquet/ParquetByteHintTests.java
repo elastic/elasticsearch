@@ -20,7 +20,6 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -31,9 +30,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -221,7 +217,7 @@ public class ParquetByteHintTests extends ESTestCase {
     }
 
     private static BlockFactory factory(CountingBreaker breaker) {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service(breaker));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
         return BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
     }
 
@@ -308,25 +304,6 @@ public class ParquetByteHintTests extends ESTestCase {
             @Override
             public String getPath() {
                 return "memory://byte_hint_test.parquet";
-            }
-        };
-    }
-
-    private static CircuitBreakerService service(CircuitBreaker breaker) {
-        return new CircuitBreakerService() {
-            @Override
-            public CircuitBreaker getBreaker(String name) {
-                return breaker;
-            }
-
-            @Override
-            public AllCircuitBreakerStats stats() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public CircuitBreakerStats stats(String name) {
-                throw new UnsupportedOperationException();
             }
         };
     }

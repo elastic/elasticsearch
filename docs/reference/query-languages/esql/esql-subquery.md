@@ -7,7 +7,7 @@ products:
   - id: elasticsearch
 ---
 
-# Use subqueries in a FROM command [esql-subquery]
+# Combine result sets with {{esql}} subqueries in a `FROM` command [esql-subquery]
 
 A subquery is a complete ES|QL query wrapped in parentheses that can be used
 in place of an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command.

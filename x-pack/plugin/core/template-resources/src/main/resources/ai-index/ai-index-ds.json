@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["${ai-index.ds.index_pattern}"],
+  "data_stream": {},
+  "priority": 500,
+  "composed_of": [
+    "ai-index-mappings",
+    "ai-index-ds-settings"
+  ],
+  "_meta": {
+    "description": "Managed template applied by default to data stream backed AI indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

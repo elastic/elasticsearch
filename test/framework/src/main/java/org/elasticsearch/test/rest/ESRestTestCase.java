@@ -2504,6 +2504,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
+        if (name.startsWith("ai-index-")) {
+            return true;
+        }
         if (name.contains("@") && name.endsWith("@custom") == false) {
             // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
             return true;

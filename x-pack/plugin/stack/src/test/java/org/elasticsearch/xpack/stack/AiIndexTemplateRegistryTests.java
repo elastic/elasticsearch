@@ -1,0 +1,158 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stack;
+
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+
+import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_PATTERN;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_SETTINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_SETTINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+public class AiIndexTemplateRegistryTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+    private AiIndexTemplateRegistry registry;
+
+    private AiIndexTemplateRegistry createRegistry(Settings settings) {
+        threadPool = new TestThreadPool(getClass().getName());
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        return new AiIndexTemplateRegistry(settings, clusterService, threadPool, new NoOpClient(threadPool), NamedXContentRegistry.EMPTY);
+    }
+
+    @After
+    public void stopPool() throws Exception {
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+            threadPool = null;
+        }
+    }
+
+    public void testDisabledDoesNotAddTemplates() {
+        Settings settings = Settings.builder().put(AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED.getKey(), false).build();
+        registry = createRegistry(settings);
+        assertThat(registry.getComponentTemplateConfigs(), anEmptyMap());
+        assertThat(registry.getComposableTemplateConfigs(), anEmptyMap());
+    }
+
+    public void testEnabledAddsAllComponentAndComposableTemplates() {
+        registry = createRegistry(Settings.EMPTY);
+        assertThat(
+            registry.getComponentTemplateConfigs().keySet(),
+            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_IDX_SETTINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME)
+        );
+        assertThat(
+            registry.getComposableTemplateConfigs().keySet(),
+            containsInAnyOrder(AI_INDEX_IDX_TEMPLATE_NAME, AI_INDEX_DS_TEMPLATE_NAME)
+        );
+    }
+
+    public void testSharedMappingsComponentDefinesSemanticFields() throws IOException {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_MAPPINGS_COMPONENT_NAME);
+        assertThat(mappings, notNullValue());
+
+        Map<String, Object> properties = mappingProperties(mappings);
+        assertThat(propertyType(properties, "@timestamp"), equalTo("date"));
+        assertThat(propertyType(properties, "type"), equalTo("keyword"));
+        assertThat(propertyType(properties, "title"), equalTo("text"));
+        assertThat(propertyType(properties, "attributes"), equalTo("flattened"));
+
+        // The text fields expose a semantic_text sub-field for hybrid retrieval.
+        for (String field : new String[] { "title", "description", "content" }) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fieldDef = (Map<String, Object>) properties.get(field);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> subFields = (Map<String, Object>) fieldDef.get("fields");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> semantic = (Map<String, Object>) subFields.get("semantic");
+            assertThat("field [" + field + "]", semantic.get("type"), equalTo("semantic_text"));
+        }
+    }
+
+    public void testStandardIndexSettingsComponent() {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate idxSettings = registry.getComponentTemplateConfigs().get(AI_INDEX_IDX_SETTINGS_COMPONENT_NAME);
+        assertThat(idxSettings, notNullValue());
+        Settings settings = idxSettings.template().settings();
+        assertThat(settings.get("index.codec"), equalTo("best_compression"));
+        assertThat(settings.getAsBoolean("index.mapping.exclude_source_vectors", false), equalTo(true));
+    }
+
+    public void testDataStreamSettingsComponent() {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate dsSettings = registry.getComponentTemplateConfigs().get(AI_INDEX_DS_SETTINGS_COMPONENT_NAME);
+        assertThat(dsSettings, notNullValue());
+        Settings settings = dsSettings.template().settings();
+        assertThat(settings.get("index.mode"), equalTo("columnar"));
+        assertThat(settings.getAsBoolean("index.mapping.exclude_source_vectors", false), equalTo(true));
+        assertThat(settings.get("index.sort.field"), equalTo("@timestamp"));
+    }
+
+    public void testStandardIndexTemplateComposition() {
+        registry = createRegistry(Settings.EMPTY);
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_TEMPLATE_NAME);
+        assertThat(template, notNullValue());
+        assertThat(template.indexPatterns(), contains(AI_INDEX_IDX_PATTERN));
+        assertThat(template.composedOf(), containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_IDX_SETTINGS_COMPONENT_NAME));
+        // A standard index template, not a data stream.
+        assertThat(template.getDataStreamTemplate(), nullValue());
+    }
+
+    public void testDataStreamTemplateComposition() {
+        registry = createRegistry(Settings.EMPTY);
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_DS_TEMPLATE_NAME);
+        assertThat(template, notNullValue());
+        assertThat(template.indexPatterns(), contains(AI_INDEX_DS_PATTERN));
+        assertThat(template.composedOf(), containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME));
+        assertThat(template.getDataStreamTemplate(), notNullValue());
+    }
+
+    private static Map<String, Object> mappingProperties(ComponentTemplate template) throws IOException {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, template.template().mappings().string())
+        ) {
+            Map<String, Object> mappings = parser.map();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            return properties;
+        }
+    }
+
+    private static String propertyType(Map<String, Object> properties, String field) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fieldDef = (Map<String, Object>) properties.get(field);
+        return (String) fieldDef.get("type");
+    }
+}

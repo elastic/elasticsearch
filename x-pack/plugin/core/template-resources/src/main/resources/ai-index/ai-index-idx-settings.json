@@ -1,0 +1,17 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "codec": "best_compression",
+        "mapping": {
+          "exclude_source_vectors": true
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Managed settings applied by default to standard-index backed AI indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

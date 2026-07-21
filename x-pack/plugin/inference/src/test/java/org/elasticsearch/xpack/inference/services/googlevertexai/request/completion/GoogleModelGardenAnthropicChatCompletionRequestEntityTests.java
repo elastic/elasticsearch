@@ -14,6 +14,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
@@ -28,7 +29,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends ESTestCase {
 
@@ -110,6 +113,49 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
                 "type": "auto"
             }""";
         assertThat(actual, is(expectedRequestJson(null, toolChoiceJson, null, false, 1024)));
+    }
+
+    public void testMultiTurnToolConversationEmitsAnthropicBlocks() throws IOException {
+        // End-to-end regression for the second-turn 400 on the Model Garden path: a request carrying an assistant tool_call and a
+        // tool result must serialize as Anthropic tool_use / tool_result content blocks, not the unified "tool_calls" / "role":"tool".
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
+        var messages = List.of(
+            new Message(new ContentString("What is the weather in San Francisco?"), "user", null, null),
+            new Message(new ContentString(""), "assistant", null, List.of(toolCall)),
+            new Message(new ContentString("72F and sunny"), "tool", "call_1", null)
+        );
+        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var entity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedRequest, false, EMPTY_SETTINGS);
+        String actual;
+        try (var builder = JsonXContent.contentBuilder()) {
+            entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            actual = Strings.toString(builder);
+        }
+
+        assertThat(actual, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "anthropic_version": "%s",
+                "messages": [
+                    {"content": "What is the weather in San Francisco?", "role": "user"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "tool_use", "id": "call_1", "name": "get_weather", "input": {"location": "San Francisco"}}
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "call_1", "content": "72F and sunny"}
+                        ]
+                    }
+                ],
+                "stream": false,
+                "max_tokens": 1024
+            }
+            """, ANTHROPIC_VERSION))));
+        assertThat(actual, not(containsString("\"role\":\"tool\"")));
+        assertThat(actual, not(containsString("\"tool_calls\"")));
     }
 
     private static void assertToolChoiceStringTranslation(String openAiValue, String anthropicType) throws IOException {

@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
@@ -108,7 +107,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
             builder.endArray();
         }
 
-        builder.field(MESSAGES_FIELD, nonSystemMessages);
+        AnthropicToolUtils.writeMessages(builder, nonSystemMessages);
 
         var stop = unifiedRequest.stop();
         if (stop != null && stop.isEmpty() == false) {

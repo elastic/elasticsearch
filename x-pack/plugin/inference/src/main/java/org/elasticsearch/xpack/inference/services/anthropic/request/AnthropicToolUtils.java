@@ -9,19 +9,31 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DESCRIPTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ROLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
@@ -42,7 +54,103 @@ public final class AnthropicToolUtils {
     private static final String PROPERTIES_FIELD = "properties";
     private static final String REQUIRED_FIELD = "required";
 
+    private static final String TOOL_ROLE = "tool";
+    private static final String USER_ROLE = "user";
+    private static final String TEXT_TYPE = "text";
+    private static final String TOOL_USE_TYPE = "tool_use";
+    private static final String TOOL_RESULT_TYPE = "tool_result";
+    private static final String TOOL_USE_ID_FIELD = "tool_use_id";
+    private static final String INPUT_FIELD = "input";
+
     private AnthropicToolUtils() {}
+
+    /**
+     * Writes the {@code messages} array, translating the unified (OpenAI-shaped) tool-calling messages into the content-block shape
+     * required by the <a href="https://platform.claude.com/docs/en/api/messages/create">Anthropic Messages API</a>. Anthropic does
+     * not understand OpenAI's {@code role: "tool"} messages or the {@code tool_calls} field on an assistant message, so forwarding
+     * them verbatim causes a {@code 400 messages: Unexpected role "tool"} on the second turn of any tool-calling conversation.
+     *
+     * <p>Two message shapes are translated:
+     * <ul>
+     *     <li>An assistant message carrying {@code tool_calls} becomes an {@code assistant} message whose {@code content} is an array
+     *         of {@code tool_use} blocks ({@code {"type":"tool_use","id":...,"name":...,"input":{...}}}). Any accompanying text
+     *         content is emitted as a leading {@code text} block. The OpenAI {@code arguments} string is parsed back into the JSON
+     *         object Anthropic expects under {@code input}.</li>
+     *     <li>A {@code role: "tool"} message becomes a {@code user} message whose {@code content} is a single {@code tool_result}
+     *         block ({@code {"type":"tool_result","tool_use_id":...,"content":...}}).</li>
+     * </ul>
+     *
+     * <p>All other messages (plain user/assistant text or multimodal content) are passed through with their unified serialization,
+     * which Anthropic already accepts. Both the direct Anthropic service and the Google Model Garden Anthropic provider share this
+     * logic so they emit identical Anthropic-shaped messages.
+     */
+    public static void writeMessages(XContentBuilder builder, List<Message> messages) throws IOException {
+        builder.startArray(MESSAGES_FIELD);
+        for (var message : messages) {
+            var toolCalls = message.toolCalls();
+            if (toolCalls != null && toolCalls.isEmpty() == false) {
+                writeAssistantToolCalls(builder, message, toolCalls);
+            } else if (TOOL_ROLE.equals(message.role())) {
+                writeToolResult(builder, message);
+            } else {
+                message.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
+        }
+        builder.endArray();
+    }
+
+    private static void writeAssistantToolCalls(XContentBuilder builder, Message message, List<ToolCall> toolCalls) throws IOException {
+        builder.startObject();
+        builder.field(ROLE_FIELD, message.role());
+        builder.startArray(CONTENT_FIELD);
+        // Anthropic allows a leading text block alongside tool_use blocks; the unified assistant message often carries empty content.
+        if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {
+            builder.startObject();
+            builder.field(TYPE_FIELD, TEXT_TYPE);
+            builder.field(TEXT_FIELD, content);
+            builder.endObject();
+        }
+        for (var toolCall : toolCalls) {
+            builder.startObject();
+            builder.field(TYPE_FIELD, TOOL_USE_TYPE);
+            builder.field(ID_FIELD, toolCall.id());
+            builder.field(NAME_FIELD, toolCall.function().name());
+            writeToolCallInput(builder, toolCall.function().arguments());
+            builder.endObject();
+        }
+        builder.endArray();
+        builder.endObject();
+    }
+
+    private static void writeToolResult(XContentBuilder builder, Message message) throws IOException {
+        builder.startObject();
+        builder.field(ROLE_FIELD, USER_ROLE);
+        builder.startArray(CONTENT_FIELD);
+        builder.startObject();
+        builder.field(TYPE_FIELD, TOOL_RESULT_TYPE);
+        builder.field(TOOL_USE_ID_FIELD, message.toolCallId());
+        if (message.content() instanceof ContentString cs) {
+            builder.field(CONTENT_FIELD, cs.content());
+        }
+        builder.endObject();
+        builder.endArray();
+        builder.endObject();
+    }
+
+    /**
+     * Writes a tool call's {@code input}. OpenAI carries the tool arguments as a JSON-encoded string, whereas Anthropic expects the
+     * decoded JSON object. Parses the string back into an object; a {@code null} or blank arguments string yields an empty object.
+     */
+    private static void writeToolCallInput(XContentBuilder builder, String arguments) throws IOException {
+        builder.field(INPUT_FIELD);
+        if (arguments == null || arguments.isBlank()) {
+            builder.startObject().endObject();
+            return;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, arguments)) {
+            builder.map(parser.mapOrdered());
+        }
+    }
 
     /**
      * Writes the {@code tool_choice} field, translating OpenAI's representation into Anthropic's. Does nothing when

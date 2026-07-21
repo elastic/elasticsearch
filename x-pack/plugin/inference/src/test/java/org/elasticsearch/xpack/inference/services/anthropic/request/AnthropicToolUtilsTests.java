@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
@@ -22,7 +25,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class AnthropicToolUtilsTests extends ESTestCase {
 
@@ -208,6 +213,142 @@ public class AnthropicToolUtilsTests extends ESTestCase {
                 ]
             }
             """, TOOL_NAME, TOOL_DESCRIPTION));
+    }
+
+    public void testWriteMessages_translatesAssistantToolCallsToToolUseBlocks() throws IOException {
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
+        var message = new Message(new ContentString(""), "assistant", null, List.of(toolCall));
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "call_1",
+                                "name": "get_weather",
+                                "input": {"location": "San Francisco"}
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_translatesToolResultToUserMessage() throws IOException {
+        var message = new Message(new ContentString("72F and sunny"), "tool", "call_1", null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_1",
+                                "content": "72F and sunny"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_emitsLeadingTextBlockWhenAssistantHasContent() throws IOException {
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
+        var message = new Message(new ContentString("Let me check the weather."), "assistant", null, List.of(toolCall));
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Let me check the weather."
+                            },
+                            {
+                                "type": "tool_use",
+                                "id": "call_1",
+                                "name": "get_weather",
+                                "input": {"location": "San Francisco"}
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_blankArgumentsYieldEmptyInputObject() throws IOException {
+        // A parameterless tool call carries no arguments; Anthropic still requires an "input" object, so we emit an empty one.
+        var arguments = randomBoolean() ? null : "";
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField(arguments, "get_time"), "function");
+        var message = new Message(new ContentString(""), "assistant", null, List.of(toolCall));
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "call_1",
+                                "name": "get_time",
+                                "input": {}
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_passesPlainMessagesThrough() throws IOException {
+        var message = new Message(new ContentString("Hello!"), "user", null, null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "content": "Hello!",
+                        "role": "user"
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_multiTurnToolConversationHasNoUnifiedToolFields() throws IOException {
+        // Regression guard for the second-turn 400: the serialized request must not contain the unified "role":"tool" message or the
+        // "tool_calls" field, and must contain the Anthropic tool_use / tool_result blocks instead.
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
+        var messages = List.of(
+            new Message(new ContentString("What is the weather in San Francisco?"), "user", null, null),
+            new Message(new ContentString(""), "assistant", null, List.of(toolCall)),
+            new Message(new ContentString("72F and sunny"), "tool", "call_1", null)
+        );
+        var actual = renderMessages(messages);
+        assertThat(actual, not(containsString("\"role\":\"tool\"")));
+        assertThat(actual, not(containsString("\"tool_calls\"")));
+        assertThat(actual, containsString("\"type\":\"tool_use\""));
+        assertThat(actual, containsString("\"type\":\"tool_result\""));
+        assertThat(actual, containsString("\"tool_use_id\":\"call_1\""));
+    }
+
+    private static void assertMessagesJson(List<Message> messages, String expectedJson) throws IOException {
+        assertThat(renderMessages(messages), is(XContentHelper.stripWhitespace(expectedJson)));
+    }
+
+    private static String renderMessages(List<Message> messages) throws IOException {
+        try (var builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            AnthropicToolUtils.writeMessages(builder, messages);
+            builder.endObject();
+            return Strings.toString(builder);
+        }
     }
 
     private static void assertStringToolChoiceTranslation(String openAiValue, String anthropicType) throws IOException {

@@ -1019,12 +1019,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Drift pin. setupBuilders no longer enumerates the type -> shape mapping; it derives it from the shared
-     * authority. Every declarable type must therefore build, with the shape that authority prescribes, and no
-     * type may reach unsupportedTypeForNdjson. This is what stops the next declarable type repeating the
-     * unsigned_long bug.
-     */
-    /**
      * One decodable JSON token per declarable type, so a test can sweep {@link DeclaredSchemaValidator#declarableTypes()}
      * and fail loudly when a newly declarable type has no fixture rather than silently skipping it.
      */
@@ -1051,6 +1045,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         "\"192.168.0.1\""
     );
 
+    /**
+     * Drift pin. setupBuilders no longer enumerates the type -> shape mapping; it derives it from the shared
+     * authority. Every declarable type must therefore build, with the shape that authority prescribes, and no
+     * type may reach unsupportedTypeForNdjson. This is what stops the next declarable type repeating the
+     * unsigned_long bug.
+     */
     public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
         for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
             String cell = DECLARABLE_TOKEN.get(type);
@@ -1205,8 +1205,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * Decodes one page of a single {@code type} column under {@code policy} and returns how many reservations
      * were page-scale. One counting breaker serves both the block factory and {@link BigArrays} so that
-     * fixed-width backing arrays and {@code BytesRefArray} byte storage land in the same tally. The 1 KiB floor
-     * ignores per-value churn, leaving the page-scale allocations the comparison is about.
+     * fixed-width backing arrays and {@code BytesRefArray} byte storage land in the same tally. The floor is the
+     * batch size itself — the smallest reservation a page-sized builder can make, since the narrowest element
+     * type still costs a byte per position — so per-value churn cannot be miscounted as a page-scale allocation.
      */
     private int pageScaleReservations(DataType type, String ndjson, ErrorPolicy policy) throws IOException {
         CountingBreaker breaker = new CountingBreaker();
@@ -1233,7 +1234,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertFalse("declared [" + type + "] produced a null cell", block.isNull(0));
         }
         assertEquals("every reservation for [" + type + "] released once decoder and page are closed", 0L, breaker.used());
-        return breaker.reservationsOfAtLeast(1024);
+        return breaker.reservationsOfAtLeast(LENIENT_BATCH_SIZE);
     }
 
     /**

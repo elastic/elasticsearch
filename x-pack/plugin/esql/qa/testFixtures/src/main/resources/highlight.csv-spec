@@ -947,8 +947,8 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# MATCH/ MATCH_PHRASE uses the semantic query to select rows, while HIGHLIGHT looks for literal terms in the returned text.
-# Only the row that contains "prosper" is highlighted.
+# On a semantic_text field, MATCH in WHERE selects rows through the field's semantic query, while the HIGHLIGHT
+# query matches literal terms in the returned text. Only the row containing the literal term "prosper" is highlighted.
 highlightMatchOnSemanticText
 required_capability: highlight_v6
 
@@ -959,13 +959,14 @@ FROM semantic_text
 | SORT semantic_text_field ASC
 ;
 
-semantic_text_field:text                                             | highlight_semantic_text_field:keyword
+semantic_text_field:text                                              | highlight_semantic_text_field:keyword
 all we have to decide is what to do with the time that is given to us | null
-be excellent to each other                                           | null
-live long and prosper                                                | live long and <em>prosper</em>
+be excellent to each other                                            | null
+live long and prosper                                                 | live long and <em>prosper</em>
 ;
 
 
+# MATCH_PHRASE on a semantic_text field also matches literal terms, wrapping the whole phrase in a single span.
 highlightMatchPhraseOnSemanticText
 required_capability: highlight_v6
 
@@ -976,10 +977,10 @@ FROM semantic_text
 | SORT semantic_text_field ASC
 ;
 
-semantic_text_field:text                                             | highlight_semantic_text_field:keyword
+semantic_text_field:text                                              | highlight_semantic_text_field:keyword
 all we have to decide is what to do with the time that is given to us | null
-be excellent to each other                                           | null
-live long and prosper                                                | <em>live long</em> and prosper
+be excellent to each other                                            | null
+live long and prosper                                                 | <em>live long</em> and prosper
 ;
 
 

@@ -146,13 +146,6 @@ public final class HighlightQueryBuilders {
         return build(queryExpr);
     }
 
-    /**
-     * Builds the query used by HIGHLIGHT. For MATCH and MATCH_PHRASE it builds a lexical query from the ON column name,
-     * so the query runs against the per-row MemoryIndex rather than the target index. This handles runtime and
-     * union-typed columns and avoids an inference query for {@code semantic_text}. The function options are serialized
-     * with the plan, so they are available here on the data node. QSTR and KQL resolve their own fields and use the
-     * standard translation path.
-     */
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));

@@ -242,12 +242,20 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "MatchPhrase must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
-        return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
+        return matchPhraseQuery(getNameFromFieldAttribute(fieldAttribute));
     }
 
+    /**
+     * The same query as {@link #translate}, but targeting {@code fieldName} instead of the mapped index field, so it
+     * matches text lexically wherever it runs. HIGHLIGHT uses this to run the query against a per-row MemoryIndex keyed
+     * by the ON column names, where the index mapping (e.g. {@code semantic_text} inference) must not participate.
+     */
     public QueryBuilder asLexicalQueryBuilder(String fieldName) {
-        return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions()).toQueryBuilder();
+        return matchPhraseQuery(fieldName).toQueryBuilder();
+    }
+
+    private MatchPhraseQuery matchPhraseQuery(String fieldName) {
+        return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
     /**

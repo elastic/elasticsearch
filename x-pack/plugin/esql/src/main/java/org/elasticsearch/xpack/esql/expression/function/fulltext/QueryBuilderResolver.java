@@ -97,40 +97,48 @@ public final class QueryBuilderResolver {
         public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            LogicalPlan newPlan = plan.transformDown(logicalPlan -> {
-                boolean isHighlight = logicalPlan instanceof Highlight;
-                return logicalPlan.transformExpressionsOnly(Expression.class, expr -> {
-                    // HIGHLIGHT builds its own lexical queries for MATCH and MATCH_PHRASE against a per-row MemoryIndex keyed
-                    // by the ON column names (see HighlightQueryBuilders), so skip the index-context rewrite here. It would
-                    // otherwise resolve an inference query for a semantic_text field, or a union type's concrete field instead
-                    // of the ON column, neither of which the highlighter can run. QSTR and KQL resolve against the indices
-                    // as usual.
-                    if (isHighlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
-                        return expr;
-                    }
-                    Expression finalExpression = expr;
-                    if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
-                        QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
-                        builder = builder == null
-                            ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER)
-                                .toQueryBuilder()
-                            : builder;
-                        try {
-                            builder = builder.rewrite(ctx);
-                        } catch (IOException e) {
-                            exceptionHolder.setIfAbsent(e);
-                        }
-                        var rewritten = builder != initial;
-                        updated.set(updated.get() || rewritten);
-                        finalExpression = rewritten ? rewriteableAware.replaceQueryBuilder(builder) : finalExpression;
-                    }
-                    return finalExpression;
-                });
-            });
+            LogicalPlan newPlan = plan.transformDown(
+                node -> node.transformExpressionsOnly(
+                    Expression.class,
+                    expr -> rewriteExpression(node, expr, ctx, exceptionHolder, updated)
+                )
+            );
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
             return updated.get() ? new FunctionsRewriteable(newPlan) : this;
+        }
+
+        private static Expression rewriteExpression(
+            LogicalPlan node,
+            Expression expr,
+            QueryRewriteContext ctx,
+            Holder<IOException> exceptionHolder,
+            Holder<Boolean> updated
+        ) {
+            // HIGHLIGHT builds MATCH and MATCH_PHRASE queries against a per-row MemoryIndex whose fields use ON column
+            // names. Rewriting them against the target index could produce a semantic_text inference query or use a
+            // union type's concrete field name. Neither query can run against the MemoryIndex. QSTR and KQL still need
+            // the index rewrite.
+            if (node instanceof Highlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
+                return expr;
+            }
+            if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
+                QueryBuilder initial = rewriteableAware.queryBuilder();
+                QueryBuilder builder = initial != null
+                    ? initial
+                    : rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
+                try {
+                    builder = builder.rewrite(ctx);
+                } catch (IOException e) {
+                    exceptionHolder.setIfAbsent(e);
+                }
+                if (builder != initial) {
+                    updated.set(true);
+                    return rewriteableAware.replaceQueryBuilder(builder);
+                }
+            }
+            return expr;
         }
     }
 }

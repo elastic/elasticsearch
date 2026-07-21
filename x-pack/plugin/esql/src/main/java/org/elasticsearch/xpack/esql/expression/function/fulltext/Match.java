@@ -399,13 +399,21 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
-        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+        return matchQuery(getNameFromFieldAttribute(fieldAttribute));
     }
 
+    /**
+     * Builds the same query as {@link #translate}, but uses {@code fieldName} directly instead of the mapped field name.
+     * HIGHLIGHT needs this because its per-row MemoryIndex uses ON column names and must not invoke mapped behavior such
+     * as {@code semantic_text} inference.
+     */
     public QueryBuilder asLexicalQueryBuilder(String fieldName) {
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions()).toQueryBuilder();
+        return matchQuery(fieldName).toQueryBuilder();
+    }
+
+    private MatchQuery matchQuery(String fieldName) {
+        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
     }
 
     @Override

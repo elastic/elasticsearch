@@ -1092,7 +1092,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * partition / {@code _file.*} columns. The iterator allocates the constant blocks against
      * {@link #producerBlockFactory} when set (production: the node-level root factory) and
      * falls back to the driver context's factory otherwise (test convenience). Returns
-     * {@code pages} unchanged when there are no virtual columns to materialise.
+     * {@code pages} unchanged when there are no virtual columns to materialise — either the
+     * dataset is unpartitioned, or the query projects no output columns at all (a zero-projection
+     * {@code COUNT(*)} read, which forwards the reader's position-only pages untouched).
      */
     private CloseableIterator<Page> wrapWithVirtualColumns(
         CloseableIterator<Page> pages,
@@ -1116,7 +1118,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         StoragePath filePath
     ) {
-        if (partitionColumnNames.isEmpty()) {
+        // Two independent skip axes. The DATASET axis: an unpartitioned dataset has no virtual
+        // columns to materialise. The OUTPUT axis: a zero-projection read (a bare STATS COUNT(*),
+        // whose argument is a literal and so references no columns) has an empty output schema —
+        // there is no slot to render a partition column into, and the iterator's constructor
+        // rejects an empty fullOutput. In both cases forwarding the reader's pages unchanged is
+        // correct: the row count rides Page.getPositionCount(), and forwarding a page whole (rather
+        // than narrowing it, the only reason inject must release surplus blocks) keeps every block
+        // owned by its page, so nothing leaks even when a reader over-projects a zero projection to
+        // the full file schema. This is the same passthrough the unpartitioned arm has always taken.
+        // Testing `attributes` (the exact list handed to the iterator as fullOutput) rather than
+        // `queryDataSchema` is deliberate: COUNT(partition_col) / KEEP partition_col project the
+        // partition column, so `attributes` is non-empty there and the wrap still runs as required.
+        if (partitionColumnNames.isEmpty() || attributes.isEmpty()) {
             return pages;
         }
         BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath, resolveMtimeMillis(partitionValuesForFile)) : null;

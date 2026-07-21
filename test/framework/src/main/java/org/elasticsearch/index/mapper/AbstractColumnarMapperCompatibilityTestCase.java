@@ -184,6 +184,43 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * Directly asserts that the columns a metadata mapper attached to {@code columnar} (via its
+     * {@code postColumnarParse}) reproduce, per document, the Lucene fields its row-major
+     * {@code postParse} produced (supplied as {@code expectedPerDoc}, one list per document). Uses
+     * the same order-independent descriptor comparison and both cursor families (row cursor and
+     * column batch) as the full {@link #assertScenario} parity check.
+     *
+     * <p>This is for metadata fields that cannot be triggered through the full x-content harness
+     * because their values originate in field mappers that have no columnar driver yet (e.g.
+     * {@code _ignored}). The caller drives the two paths itself and passes the row-path fields here.
+     */
+    protected void assertColumnsMatchRowFields(List<List<IndexableField>> expectedPerDoc, MappedColumns columnar, String message) {
+        final int docCount = expectedPerDoc.size();
+        final List<List<FieldDescriptor>> expected = new ArrayList<>(docCount);
+        for (List<IndexableField> fields : expectedPerDoc) {
+            expected.add(toDescriptors(fields));
+        }
+
+        // Row-cursor view.
+        final List<List<FieldDescriptor>> actual = new ArrayList<>(docCount);
+        final MappedColumns.RowCursor rowCursor = columnar.rowCursor();
+        for (int i = 0; i < docCount; i++) {
+            rowCursor.advance();
+            actual.add(toDescriptors(rowCursor.fields()));
+        }
+        for (int i = 0; i < docCount; i++) {
+            assertFieldSetsEqual(expected.get(i), actual.get(i), message + ": row-cursor doc[" + i + "]");
+            actual.get(i).clear();
+        }
+
+        // Column-batch view (reuses the freshly cleared per-doc lists).
+        populateColumnBatchDescriptors(columnar, actual);
+        for (int i = 0; i < docCount; i++) {
+            assertFieldSetsEqual(expected.get(i), actual.get(i), message + ": column-batch doc[" + i + "]");
+        }
+    }
+
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
         final ColumnBatch batch = mc.toColumnBatch();
         for (Column column : batch.columns()) {

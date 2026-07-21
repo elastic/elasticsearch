@@ -86,10 +86,6 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
-        // A reusable mutable field whose bytes value is updated per position. The IndexWriter reads
-        // binaryValue() synchronously during addDocument, so reusing the same field object is safe.
-        final BytesRef sentinel = new BytesRef();
-        final Field field = new Field(name(), sentinel, fieldType());
         final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor();
         return new LuceneColumn.RowFieldCursor() {
             @Override
@@ -99,8 +95,11 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
             @Override
             public void appendCurrentFields(List<? super IndexableField> out) {
-                field.setBytesValue(cursor.value());
-                out.add(field);
+                // A distinct Field per element: for multi-valued (array) rows appendCurrentFields is
+                // called more than once for the same document and every emitted field is retained in
+                // the caller's list, so a single reused field object would collapse all values to the
+                // last one. cursor.value() already returns a fresh BytesRef per element.
+                out.add(new Field(name(), cursor.value(), fieldType()));
             }
         };
     }

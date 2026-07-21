@@ -149,8 +149,14 @@ public final class StreamingParallelParsingCoordinator {
     /**
      * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
      * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
-     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
-     * Pass {@code null} when no read schema is bound.
+     * globs over stream-only compressed inputs honor the planner's typing instead of re-inferring per
+     * file. Pass {@code null} when no read schema is bound.
+     * <p>
+     * Stream-only compressed means any non-splittable codec (gzip, zstd), plus a splittable or indexed
+     * codec whose reader binds declared names from the file start — see
+     * {@code AsyncExternalSourceOperatorFactory#resolveDispatchMode}. A splittable codec without that
+     * constraint (bzip2 over a self-describing format) is block-aligned into compressed-offset macro-splits
+     * read one at a time instead, and never reaches here.
      *
      * @param baseFileOffset file-global byte offset added to each chunk's decompressed start byte before it
      *                       is handed to the reader as {@link FormatReadContext#splitStartByte()}. Stream-only
@@ -830,8 +836,20 @@ public final class StreamingParallelParsingCoordinator {
          * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound
          * variant returned by {@link FormatReader#withSchema(List)}; parser threads thereafter
          * skip per-chunk inference. Same approach as ClickHouse / DuckDB / Spark.
+         * <p>
+         * No-op when {@link #readSchema} is bound: the planner already resolved this file's typing, so
+         * re-inferring would replace it with whatever chunk 0's values happen to look like. That is not
+         * merely wasted work — readers overlay the reader-level schema onto the bound one by column name
+         * (see {@code NdJsonFormatReader#mergeBoundWithProjection}), so an inferred {@code INTEGER} silently
+         * displaces a declared {@code LONG} and the resulting block fails to cast in the compute engine.
+         * The rebind stays load-bearing for inference mode ({@code readSchema == null}), where chunks 1..N
+         * parse against the schema bound from chunk 0 rather than re-inferring (or, for CSV, re-reading a
+         * data row as a header).
          */
         private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
+            if (readSchema != null && readSchema.isEmpty() == false) {
+                return;
+            }
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
             SourceMetadata metadata = reader.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();

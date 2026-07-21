@@ -283,8 +283,7 @@ public final class MappingLookup {
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
 
-        var idFieldMapper = mapping.getMetadataMapperByName(IdFieldMapper.NAME);
-        this.isColumnarId = idFieldMapper instanceof IdFieldMapper idMapper && idMapper.isColumnarMode();
+        this.isColumnarId = IdFieldMapper.isColumnar(mapping);
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {

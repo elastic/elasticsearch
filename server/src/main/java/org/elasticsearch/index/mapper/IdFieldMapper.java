@@ -137,6 +137,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);
     }
 
+    /** Whether the mapping stores {@code _id} in columnar mode (binary doc values rather than a stored field). */
+    public static boolean isColumnar(Mapping mapping) {
+        return mapping.getMetadataMapperByName(NAME) instanceof IdFieldMapper idMapper && idMapper.isColumnarMode();
+    }
+
     /**
      * The identity term to copy onto nested child documents so that a soft-delete of the root by uid removes the whole
      * block. Returns {@code null} to leave nested propagation to the mapper's {@link #postParse}, as mappers that only

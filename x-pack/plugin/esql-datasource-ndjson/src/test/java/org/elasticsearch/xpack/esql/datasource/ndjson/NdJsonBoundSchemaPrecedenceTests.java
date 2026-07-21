@@ -98,11 +98,7 @@ public class NdJsonBoundSchemaPrecedenceTests extends ESTestCase {
         );
 
         try (
-            CloseableIterator<Page> pages = read(
-                reader,
-                "{\"a\":10,\"b\":20}\n",
-                List.of(ref("a", DataType.LONG), ref("b", DataType.LONG))
-            )
+            CloseableIterator<Page> pages = read(reader, "{\"a\":10,\"b\":20}\n", List.of(ref("a", DataType.LONG), ref("b", DataType.LONG)))
         ) {
             assertTrue("expected a page", pages.hasNext());
             Page page = pages.next();

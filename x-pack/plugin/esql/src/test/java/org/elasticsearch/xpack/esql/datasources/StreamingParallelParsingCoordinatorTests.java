@@ -382,11 +382,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
 
             assertEquals(lineCount, allLines.size());
-            assertEquals(
-                "the planner resolved this file's schema, so the coordinator must not infer one",
-                0,
-                reader.metadataCalls.get()
-            );
+            assertEquals("the planner resolved this file's schema, so the coordinator must not infer one", 0, reader.metadataCalls.get());
             assertEquals("no chunk should be parsed against a reader bound to an inferred schema", 0, reader.boundReadCalls.get());
             assertTrue(
                 "every chunk should be parsed against the reader the planner configured, got " + reader.unboundReadCalls.get(),

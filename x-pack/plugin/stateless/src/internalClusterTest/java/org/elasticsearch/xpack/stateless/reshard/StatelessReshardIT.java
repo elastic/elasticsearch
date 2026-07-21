@@ -1031,7 +1031,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var deferredNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
         final var blockNotification = new AtomicBoolean(false);
         final var notificationBlocked = new CountDownLatch(1);
-        final var notificationsProcessed = new AtomicBoolean(false);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 if (blockNotification.get()) {
@@ -1057,7 +1056,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                         notificationBlocked.countDown();
                     }
                     assert splitStateRequest.getNewTargetShardState() != IndexReshardingState.Split.TargetShardState.DONE
-                        || notificationsProcessed.get() : "all commit notifications should have been processed first";
+                        || deferredNotifications.isEmpty() : "all commit notifications should have been processed first";
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -1077,7 +1076,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 while (deferredNotifications.isEmpty() == false) {
                     deferredNotifications.take().run();
                 }
-                notificationsProcessed.set(true);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

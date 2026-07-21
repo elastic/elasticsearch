@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -61,6 +62,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -738,8 +743,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L)),
                 resume
             );
-            // recovery is NOT resumed
-            assertFalse(resume.isDone());
+            // Note: must not assert that `resume` is still incomplete here; the timeout is 1-10ms and races with an assertion.
+
             // make sure warming started running
             safeAwait(startWarmLatch);
             // warming still runs
@@ -760,6 +765,134 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             waitMillis
         );
         assertWaitOutcome(wait, SearchRecoveryWaitOutcome.TIMEOUT);
+    }
+
+    /// [TestThreadPool] that captures the single command handed to [ThreadPool#schedule] instead of scheduling it, so tests decide
+    /// deterministically whether and when the "timeout" fires. Its cancellable always reports a successful cancellation, mimicking
+    /// the real-life window in which a scheduled task's command has already been dispatched to its target executor but the JDK
+    /// future is not yet marked done, so a concurrent cancel() still "wins" (see https://github.com/elastic/elasticsearch/issues/154033).
+    private static class CapturingScheduleThreadPool extends TestThreadPool {
+        final AtomicReference<Runnable> scheduledCommand = new AtomicReference<>();
+
+        CapturingScheduleThreadPool(String name) {
+            super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+        }
+
+        @Override
+        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+            assertTrue("expected a single scheduled task", scheduledCommand.compareAndSet(null, command));
+            return new ScheduledCancellable() {
+                @Override
+                public long getDelay(TimeUnit unit) {
+                    throw new AssertionError("not used");
+                }
+
+                @Override
+                public int compareTo(Delayed o) {
+                    throw new AssertionError("not used");
+                }
+
+                @Override
+                public boolean cancel() {
+                    return true;
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return true;
+                }
+            };
+        }
+    }
+
+    private static IndexShard randomMockIndexShard() {
+        return mockIndexShard(
+            TestShardRouting.newShardRouting(
+                new ShardId(randomIdentifier(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                randomIdentifier(),
+                true,
+                STARTED
+            )
+        );
+    }
+
+    /// Deterministic regression test for https://github.com/elastic/elasticsearch/issues/154033: the timeout command fires first
+    /// and decides the race, yet the subsequent best-effort cancel() of the scheduled task reports success (which can genuinely
+    /// happen, see [CapturingScheduleThreadPool]). The recorded outcome must be `TIMEOUT` regardless of what cancel() reports,
+    /// and the warming listener completing afterward must not record a second measurement.
+    public void testSearchRecoveryWarmingListenerRecordsTimeoutOutcomeEvenWhenCancelReportsSuccess() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                randomAlphaOfLength(10),
+                randomMockIndexShard(),
+                resume
+            );
+            // deterministic here: the timeout cannot fire on its own, the test holds the captured command
+            assertFalse(resume.isDone());
+            Runnable timeoutCommand = threadPool.scheduledCommand.get();
+            assertNotNull(timeoutCommand);
+            timeoutCommand.run();
+            safeGet(resume);
+            // warming completes after losing the race: a discarded no-op
+            warmingListener.onResponse(null);
+        }
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
+        assertThat(measurements, hasSize(1));
+        assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.TIMEOUT);
+    }
+
+    /// Deterministic counterpart of [#testSearchRecoveryWarmingListenerRecordsTimeoutOutcomeEvenWhenCancelReportsSuccess]: warming
+    /// completes before the timeout fires, so the outcome must be `WARMING_COMPLETE`, and the timeout command firing late must not
+    /// record a second measurement.
+    public void testSearchRecoveryWarmingListenerRecordsWarmingCompleteOutcomeWhenWarmingWins() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                randomAlphaOfLength(10),
+                randomMockIndexShard(),
+                resume
+            );
+            warmingListener.onResponse(null);
+            safeGet(resume);
+            // the timeout fires after losing the race: a discarded no-op
+            threadPool.scheduledCommand.get().run();
+        }
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
+        assertThat(measurements, hasSize(1));
+        assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+    }
+
+    /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed
+    /// to `WARMING_COMPLETE`, since the warming side won the race), preserving the behavior that predates the race fix.
+    public void testSearchRecoveryWarmingListenerWarmingFailurePropagatesAndRecordsMetric() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
+            var failure = new ElasticsearchException(randomAlphaOfLength(10));
+            Exception thrown = safeAwaitFailure(
+                Void.class,
+                resumeListener -> service.searchRecoveryWarmingListener(
+                    TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                    randomAlphaOfLength(10),
+                    randomMockIndexShard(),
+                    resumeListener
+                ).onFailure(failure)
+            );
+            assertSame(failure, thrown);
+        }
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
+        assertThat(measurements, hasSize(1));
+        assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
     /**

@@ -72,6 +72,26 @@ Remote lookup joins are supported in [cross-cluster queries](/reference/query-la
 FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
+### Coordinator mode
+
+```{applies_to}
+stack: ga 9.6+
+```
+
+When running a cross-cluster query, you can use the `_coordinator:` prefix to execute a `LOOKUP JOIN` on the coordinating node of the local cluster:
+
+```esql
+FROM *:data | LOOKUP JOIN _coordinator:lookup-index ON field
+```
+
+The lookup runs against the local lookup index on the coordinating node rather than against lookup index copies on each remote cluster.
+This makes `LOOKUP JOIN` usable after pipeline-breaking commands like `STATS`, `LIMIT`, and `SORT` in cross-cluster queries.
+
+Note the following constraints specific to coordinator mode:
+
+* The remote cluster name `_coordinator` is reserved. If a remote cluster is registered under that name, coordinator mode cannot be used. The query fails with a validation error until the remote cluster is renamed.
+* After a coordinator `LOOKUP JOIN`, remote operations are not supported in the same query. Specifically, a `LOOKUP JOIN` (without the `_coordinator:` prefix) and `ENRICH _remote:` cannot appear later in the pipeline.
+
 ### Cross-{{serverless-short}} project support
 
 ```{applies_to}
@@ -108,7 +128,7 @@ PUT threat_list
 }
 ```
 1. The lookup index must use this mode
-  
+
 ```console
 PUT firewall_logs
 {
@@ -240,4 +260,4 @@ The following are the current limitations with `LOOKUP JOIN`:
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.
-* Cross-cluster `LOOKUP JOIN` can not be used after aggregations (`STATS`), `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands.
+* Cross-custer `LOOKUP JOIN` (without the `_coordinator:` prefix) can not be used after aggregations `STATS`, `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands. Use the `_coordinator:` prefix to lift this restriction. {applies_to}`stack: ga 9.6+`

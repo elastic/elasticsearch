@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -43,19 +45,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -120,18 +114,15 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.small()));
     }
 
-    @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAbstractMultivalueFunction() throws Exception {
-        List<Class<? extends AbstractMultivalueFunction>> items = List.of(
-            MvDedupe.class,
-            MvFirst.class,
-            MvLast.class,
-            MvMax.class,
-            MvMedian.class,
-            MvMedianAbsoluteDeviation.class,
-            MvMin.class,
-            MvSum.class
-        );
+        List<Class<? extends AbstractMultivalueFunction>> items = new EsqlFunctionRegistry().listFunctions()
+            .stream()
+            .map(FunctionDefinition::clazz)
+            .distinct()
+            .filter(AbstractMultivalueFunction.class::isAssignableFrom)
+            .filter(c -> c != MvAvg.class && c != MvCount.class) // fixed return type; pinned separately below
+            .<Class<? extends AbstractMultivalueFunction>>map(c -> c.asSubclass(AbstractMultivalueFunction.class))
+            .toList();
         for (Class<? extends AbstractMultivalueFunction> clazz : items) {
             Constructor<? extends AbstractMultivalueFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AbstractMultivalueFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));

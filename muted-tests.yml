@@ -490,9 +490,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
   method: the getRootProject baseline contains no stale entries
   issue: https://github.com/elastic/elasticsearch/issues/152341
-- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
-  method: testGetAndGetBasicStats
-  issue: https://github.com/elastic/elasticsearch/issues/152351
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379

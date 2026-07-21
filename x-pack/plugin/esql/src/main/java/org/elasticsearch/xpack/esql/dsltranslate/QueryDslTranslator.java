@@ -142,6 +142,11 @@ public final class QueryDslTranslator {
         throw new TranslationUnsupportedException(query.getName());
     }
 
+    /**
+     * A {@code term} is exact-value equality on an exact-typed field. Note it is <em>not</em> {@code ==} on a
+     * {@code text} field — there it means matching an analyzed token, which is {@code MATCH}, not equality — so
+     * {@code text} is rejected downstream in {@link #checkedLeaf} rather than translated to a raw-string comparison.
+     */
     private Expression term(TermQueryBuilder term) {
         Expression field = fieldBinder.apply(term.fieldName());
         if (term.caseInsensitive()) {
@@ -319,12 +324,33 @@ public final class QueryDslTranslator {
         // an under-match, not a skipped bad value.
         boolean lenient = fields.isEmpty() || multiMatch.lenient();
         Object value = multiMatch.value();
-        Expression or = null;
+        List<Expression> disjuncts = new ArrayList<>(resolved.size());
         for (String name : resolved) {
-            Expression leaf = equality(fieldBinder.apply(name), value, lenient);
-            or = or == null ? leaf : new Or(Source.EMPTY, or, leaf);
+            disjuncts.add(equality(fieldBinder.apply(name), value, lenient));
         }
-        return or;
+        return orAll(disjuncts);
+    }
+
+    /**
+     * Fold disjuncts into a <em>balanced</em> {@code OR} tree. A left-leaning chain is one level deep per disjunct, and
+     * a {@code terms} clause routinely carries hundreds of values — that is precisely what Lucene's terms query is built
+     * for — so a chain would hand every recursive plan and expression traversal a correspondingly deep tree. Pairwise
+     * merging keeps the depth logarithmic. {@code OR} is associative, so the shape never changes what the predicate
+     * means. An empty disjunction matches nothing.
+     */
+    private static Expression orAll(List<Expression> disjuncts) {
+        if (disjuncts.isEmpty()) {
+            return Literal.FALSE;
+        }
+        List<Expression> level = disjuncts;
+        while (level.size() > 1) {
+            List<Expression> merged = new ArrayList<>((level.size() + 1) / 2);
+            for (int i = 0; i < level.size(); i += 2) {
+                merged.add(i + 1 < level.size() ? new Or(Source.EMPTY, level.get(i), level.get(i + 1)) : level.get(i));
+            }
+            level = merged;
+        }
+        return level.get(0);
     }
 
     private Expression exists(ExistsQueryBuilder exists) {
@@ -346,12 +372,11 @@ public final class QueryDslTranslator {
         // On a date field each term is a rounding-unit range, not a point (see the term branch); the set is their
         // union. Build it as an OR of per-value ranges so coarse and date-math values match the index-path span.
         if (isDate(field.dataType())) {
-            Expression or = null;
+            List<Expression> disjuncts = new ArrayList<>(values.size());
             for (Object v : values) {
-                Expression range = checkedLeaf(field, dateTermRange(field, field.dataType(), v, null));
-                or = or == null ? range : new Or(Source.EMPTY, or, range);
+                disjuncts.add(checkedLeaf(field, dateTermRange(field, field.dataType(), v, null)));
             }
-            return or;
+            return orAll(disjuncts);
         }
         // Drop values no value of an integral field can equal (decimals, out-of-range) — they match nothing, as the
         // index path's terms query does. If that empties the set, the whole clause matches nothing.
@@ -409,11 +434,11 @@ public final class QueryDslTranslator {
         }
 
         if (bool.should().isEmpty() == false) {
-            Expression or = null;
+            List<Expression> disjuncts = new ArrayList<>(bool.should().size());
             for (QueryBuilder q : bool.should()) {
-                Expression e = dispatch(q);
-                or = or == null ? e : new Or(Source.EMPTY, or, e);
+                disjuncts.add(dispatch(q));
             }
+            Expression or = orAll(disjuncts);
             // The DSL default is 1 when the bool carries no must/filter, and 0 otherwise — must_not does NOT count
             // towards that (a bool of must_not + should still requires one should clause to match). Crucially, an
             // EXPLICIT minimum_should_match of 0 does NOT make a should-only bool match everything: Lucene still needs
@@ -638,8 +663,12 @@ public final class QueryDslTranslator {
      * types — matching the index field's {@code epoch_millis} parse — so it is converted to the type's resolution
      * (identity for {@code date}, ×10⁶ for {@code date_nanos}), never read as a raw nanos count. A string goes through a
      * {@link org.elasticsearch.common.time.DateMathParser} anchored at the query's {@code now}, with {@code roundUp}
-     * choosing the edge of the value's rounding unit. The default formatters mirror the index field defaults (they
-     * include {@code epoch_millis}), so a string epoch-millis bound resolves the same way a numeric one does.
+     * choosing the edge of the value's rounding unit. The default formatters mirror the index field defaults exactly
+     * ({@code strict_date_optional_time||epoch_millis}), which means a string and a number are deliberately <em>not</em>
+     * interchangeable: {@code strict_date_optional_time} is tried first and accepts a bare year, so the string
+     * {@code "1990"} is the YEAR 1990 while the number {@code 1990} is 1990ms after the epoch. A 13-digit epoch string
+     * is not valid ISO, so it falls through to {@code epoch_millis} and does agree with its numeric form. That
+     * asymmetry is the index's own, and we inherit it by using the same formatters rather than inventing our own.
      */
     private long dateBound(DataType type, Object value, DateFormatter formatter, boolean roundUp) {
         DateFieldMapper.Resolution resolution = type == DataType.DATE_NANOS
@@ -696,10 +725,12 @@ public final class QueryDslTranslator {
     private static Expression checkedLeaf(Expression field, Expression leaf) {
         DataType type = field.dataType();
         if (DataType.isNull(type) == false) {
-            // An analyzed text field matches on ANALYZED TOKENS in the index (term "quick" hits "the quick fox"); a
-            // structural equality/range leaf here compares the whole raw string and would silently under-match. We
-            // cannot reproduce the analyzer, so degrade rather than answer a narrower question. (exists is analysis-
-            // independent and does not pass through here, so IS NOT NULL over a text field stays valid.)
+            // Equality against a text field would be perfectly well-defined — it is just not what the DSL asks for.
+            // There is no plain-equality query for text: term/match on an analyzed field mean TOKEN matching (term
+            // "quick" hits "the quick fox"), which in ES|QL is MATCH, and runtime analysis is future work. A structural
+            // equality/range leaf here would compare the whole raw string and silently under-match, so degrade rather
+            // than answer a different question. (exists is analysis-independent and does not pass through here, so
+            // IS NOT NULL over a text field stays valid.)
             if (type == DataType.TEXT) {
                 throw new TranslationUnsupportedException(leaf.nodeName() + "[on analyzed " + type.typeName() + "]");
             }

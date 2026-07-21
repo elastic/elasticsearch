@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class QueryDslTranslatorTests extends ESTestCase {
 
@@ -309,6 +310,29 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testCaseInsensitiveTermOnNonKeywordIsUnsupported() {
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("status", "1").caseInsensitive(true)));
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("body", "x").caseInsensitive(true)));
+    }
+
+    /**
+     * A large {@code terms} clause must not build a left-leaning OR chain: Lucene's terms query routinely carries
+     * hundreds of values, and a chain would be one level deep per value for every recursive plan traversal to walk.
+     * The balanced fold keeps it logarithmic.
+     */
+    public void testLargeTermsFoldsIntoABalancedTree() {
+        List<Object> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 512; i++) {
+            many.add("2020-06-" + String.format(java.util.Locale.ROOT, "%02d", (i % 28) + 1));
+        }
+        Expression e = translate(QueryBuilders.termsQuery("@timestamp", many));
+        assertThat(e, instanceOf(Or.class));
+        assertThat("512 disjuncts must fold to ~log2 depth, not a 512-deep chain", depth(e), lessThanOrEqualTo(12));
+    }
+
+    private static int depth(Expression e) {
+        int max = 0;
+        for (Expression c : e.children()) {
+            max = Math.max(max, depth(c));
+        }
+        return max + 1;
     }
 
     /** A missing field is null-bound and folds to false regardless of case — the ordinary null-bound equality leaf. */

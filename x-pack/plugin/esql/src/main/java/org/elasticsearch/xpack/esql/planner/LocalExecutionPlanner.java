@@ -344,7 +344,8 @@ public class LocalExecutionPlanner {
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
-            nodeLevelReductionActive
+            nodeLevelReductionActive,
+            parallelWorkerExecutor
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -2280,7 +2281,8 @@ public class LocalExecutionPlanner {
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
-        boolean nodeLevelReductionActive
+        boolean nodeLevelReductionActive,
+        @Nullable Executor parallelWorkerExecutor
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

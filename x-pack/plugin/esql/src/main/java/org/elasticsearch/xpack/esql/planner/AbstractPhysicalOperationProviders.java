@@ -229,6 +229,7 @@ public abstract class AbstractPhysicalOperationProviders {
                         .partitionCount(partitionCount)
                         .maxPageSize(maxPageSize)
                         .aggregationBatchSize(aggregationBatchSize)
+                        .executor(context.parallelWorkerExecutor())
                         .build();
                 } else if (aggregatorMode == AggregatorMode.INITIAL
                     && groupSpecs.stream().allMatch(gs -> gs.channel() != null)

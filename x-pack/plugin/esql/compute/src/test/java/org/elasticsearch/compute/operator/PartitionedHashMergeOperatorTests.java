@@ -8,7 +8,9 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
@@ -20,11 +22,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,12 +48,20 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PartitionedHashMergeOperatorTests extends ESTestCase {
 
-    private BlockFactory blockFactory;
+    private static final String ESQL_WORKER = "esql_worker";
 
+    private BlockFactory blockFactory;
+    private TestThreadPool threadPool;
+
+    @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_WORKER, 4, 1000, ESQL_WORKER, EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
         assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
     }
 
@@ -265,6 +280,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             .partitionCount(partitionCount)
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
+            .executor(workerExecutor())
             .build()
             .get(driverContext);
         try {
@@ -274,6 +290,12 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
                 mergeOp.tryPromote(driverContext); // simulate Driver promotion check
             }
             mergeOp.finish();
+
+            // Simulate the Driver's isBlocked() protocol: wait for background workers before polling output.
+            IsBlockedResult blocked = mergeOp.isBlocked();
+            if (blocked != Operator.NOT_BLOCKED) {
+                safeAwait(blocked.listener());
+            }
 
             Map<Long, Long> actual = new HashMap<>();
             Page out;
@@ -291,6 +313,16 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         } finally {
             mergeOp.close();
         }
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        terminate(threadPool);
+        super.tearDown();
+    }
+
+    private Executor workerExecutor() {
+        return threadPool.executor(ESQL_WORKER);
     }
 
     private DriverContext driverContext() {

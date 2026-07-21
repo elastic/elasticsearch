@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -196,6 +197,19 @@ public final class AstKeywordFieldRewriter {
                 return "TO_INTEGER";
             }
             return name;
+        }
+
+        // UnresolvedRegexExpression is a parse-time placeholder for LIKE/RLIKE with a
+        // non-literal constant-expression pattern (e.g. WHERE field LIKE CONCAT(...)). It is
+        // not a Function and is not in CLASS_NAME_TO_OPERATOR_NAME (only the resolved
+        // WildcardLike/RLike classes are). Without this case the tracking context from the
+        // enclosing Not would leak through and the field at position 0 would be recorded as
+        // "NOT:0 is covered" instead of the correct "LIKE:0" / "RLIKE:0".
+        if (expression instanceof UnresolvedRegexExpression ure) {
+            return switch (ure.variant()) {
+                case LIKE -> "LIKE";
+                case RLIKE -> "RLIKE";
+            };
         }
 
         String opName = CLASS_NAME_TO_OPERATOR_NAME.get(expression.getClass().getName());

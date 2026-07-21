@@ -171,10 +171,10 @@ public class EscfCursorsTests extends ESTestCase {
 
     public void testLongTupleCursorConsecutiveAbsentRows() {
         // [10, absent, absent, 40] — toSkip accumulates to 2 before the single skip() call.
-        FixedBitSet absent = new FixedBitSet(4);
-        absent.set(1);
-        absent.set(2);
-        EscfLongColumn col = new EscfLongColumn(4, absent, longChunk(10L, 0L, 0L, 40L));
+        FixedBitSet validity = new FixedBitSet(4);
+        validity.set(0); // row 0 present
+        validity.set(3); // row 3 present; rows 1 and 2 absent (bits clear)
+        EscfLongColumn col = new EscfLongColumn(4, validity, longChunk(10L, 0L, 0L, 40L));
         List<long[]> tuples = drainLongTuples(col.longCursor());
         assertEquals(2, tuples.size());
         assertLongTuple(0, 10L, tuples.get(0));
@@ -185,11 +185,11 @@ public class EscfCursorsTests extends ESTestCase {
         // [10, absent, absent, 40], chunk split after row 1: [10, 0] | [0, 40].
         // skip(2) must call nextChunk() mid-skip (exhausts chunk 1 after skipping row 1,
         // then skips row 2 from chunk 2), and nextLong() reads row 3's value from chunk 2.
-        FixedBitSet absent = new FixedBitSet(4);
-        absent.set(1);
-        absent.set(2);
+        FixedBitSet validity = new FixedBitSet(4);
+        validity.set(0); // row 0 present
+        validity.set(3); // row 3 present; rows 1 and 2 absent (bits clear)
         BytesReference data = CompositeBytesReference.of(longChunk(10L, 0L), longChunk(0L, 40L));
-        EscfLongColumn col = new EscfLongColumn(4, absent, data);
+        EscfLongColumn col = new EscfLongColumn(4, validity, data);
         List<long[]> tuples = drainLongTuples(col.longCursor());
         assertEquals(2, tuples.size());
         assertLongTuple(0, 10L, tuples.get(0));
@@ -341,9 +341,10 @@ public class EscfCursorsTests extends ESTestCase {
         // Row 0: [0x01], row 1: absent (same offsets), row 2: [0x02, 0x03]
         byte[] rawData = { 0x01, 0x02, 0x03 };
         int[] offs = { 0, 1, 1, 3 };
-        org.apache.lucene.util.FixedBitSet absent = new org.apache.lucene.util.FixedBitSet(3);
-        absent.set(1);
-        EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 3, absent, offs, new BytesArray(rawData));
+        FixedBitSet validity = new FixedBitSet(3);
+        validity.set(0); // row 0 present
+        validity.set(2); // row 2 present; row 1 absent (bit clear)
+        EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 3, validity, offs, new BytesArray(rawData));
         EscfColumn col = EscfColumn.from(data);
 
         List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
@@ -492,12 +493,8 @@ public class EscfCursorsTests extends ESTestCase {
         return new BytesArray(bytes);
     }
 
-    /** Builds a {@link org.apache.lucene.util.FixedBitSet} with every bit set for {@code count} docs. */
-    private static org.apache.lucene.util.FixedBitSet absentAll(int count) {
-        org.apache.lucene.util.FixedBitSet bs = new org.apache.lucene.util.FixedBitSet(count);
-        for (int i = 0; i < count; i++) {
-            bs.set(i);
-        }
-        return bs;
+    /** Builds a validity {@link FixedBitSet} with no bits set, meaning all docs are absent. */
+    private static FixedBitSet absentAll(int count) {
+        return new FixedBitSet(count); // all bits clear = all absent in validity semantics
     }
 }

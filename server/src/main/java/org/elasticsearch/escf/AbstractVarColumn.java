@@ -38,7 +38,7 @@ abstract class AbstractVarColumn extends EscfColumn {
 
     /**
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
-     * row of this column's window. Absent rows (tracked by the {@link #absent} bitset) are skipped;
+     * row of this column's window. Absent rows (clear bits in the {@link #validity} bitset) are skipped;
      * present rows are yielded in ascending order. The returned {@link BytesRef} is valid only until
      * the next {@link ObjectTupleCursor#nextDoc()} call.
      */
@@ -49,12 +49,12 @@ abstract class AbstractVarColumn extends EscfColumn {
 
     /**
      * Returns a dense {@link BytesRefValuesCursor} positioned before the first row of this column's
-     * window. The column must be fully present ({@link #absent} {@code == null}); call this only on
+     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
      * dense columns. The returned {@link BytesRef} per {@link BytesRefValuesCursor#nextValue()} is
      * valid only until the next call to {@code nextValue()}.
      */
     final BytesRefValuesCursor bytesRefValuesCursor() {
-        assert absent == null : "values cursor is only valid for dense (fully-present) columns";
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseBytesRefValuesCursor(docCount, this);
     }
 

@@ -14,9 +14,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
-  issue: https://github.com/elastic/elasticsearch/issues/138370
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -580,3 +577,12 @@ tests:
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testUpgradeDataStream
   issue: https://github.com/elastic/elasticsearch/issues/154593
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testPopulateCacheWithSharedSourceInputStreamFactory
+  issue: https://github.com/elastic/elasticsearch/issues/154597
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testShardFailures
+  issue: https://github.com/elastic/elasticsearch/issues/154600
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
+  issue: https://github.com/elastic/elasticsearch/issues/154602

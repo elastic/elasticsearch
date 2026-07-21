@@ -174,12 +174,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCont
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
@@ -672,8 +674,10 @@ public class EsqlFunctionRegistry {
                 TStep.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
-                // any_match is a stub for lambda-accepting MV functions; evaluator not yet implemented.
-                AnyMatch.DEFINITION } };
+                // lambda-accepting MV functions, snapshot-only while the lambda feature is under development
+                AnyMatch.DEFINITION,
+                MvMap.DEFINITION,
+                MvFilter.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

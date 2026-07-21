@@ -40,7 +40,9 @@ public class MvFunctionWritables {
             MvSum.ENTRY,
             MvUnion.ENTRY,
             MvZip.ENTRY,
-            AnyMatch.ENTRY
+            AnyMatch.ENTRY,
+            MvMap.ENTRY,
+            MvFilter.ENTRY
         );
     }
 }

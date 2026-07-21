@@ -1055,4 +1055,183 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             }
         }
     }
+
+    // --- lenient scratch-builder sizing ---
+
+    /**
+     * Batch size for the scratch-sizing tests. Large enough that one page-sized builder reservation
+     * ({@code batchSize * Long.BYTES}) is unmistakable next to the tens of bytes a record-sized scratch
+     * builder reserves.
+     */
+    private static final int LENIENT_BATCH_SIZE = 32 * 1024;
+
+    /** What a LONG builder charges for a page-sized backing array. */
+    private static final long PAGE_SIZED_BYTES = (long) LENIENT_BATCH_SIZE * Long.BYTES;
+
+    /**
+     * Records the traffic {@code BlockFactory#adjustBreaker} produces, so a test can assert on the SIZE of
+     * individual reservations rather than on wall time. The test-framework {@code LimitedBreaker} only offers
+     * trips-or-not semantics, which would state the invariant as a magic limit instead of directly.
+     */
+    private static final class RecordingCircuitBreaker extends NoopCircuitBreaker {
+        private long used;
+        private long peakUsed;
+        private int pageSizedReservations;
+
+        RecordingCircuitBreaker() {
+            super("recording");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            record(bytes);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            record(bytes);
+        }
+
+        private void record(long bytes) {
+            if (bytes >= PAGE_SIZED_BYTES) {
+                pageSizedReservations++;
+            }
+            used += bytes;
+            peakUsed = Math.max(peakUsed, used);
+        }
+
+        @Override
+        public long getUsed() {
+            return used;
+        }
+    }
+
+    /**
+     * The lenient decode path builds a fresh set of scratch builders for every record so a mid-record parse
+     * error can be discarded without corrupting the page. Those builders hold exactly one record, so they must
+     * be sized for one record: sizing them at {@code batchSize} zero-fills a page-sized array and reserves it on
+     * the breaker once per record, which is the entire cost of the lenient path on a large file.
+     * <p>
+     * Asserted as a count of page-sized reservations: only the once-per-page builders set up in
+     * {@code decodePage} may make one, so the total is the number of projected LONG columns regardless of how
+     * many records were decoded. A per-record page-sized scratch turns that into {@code columns * (1 + records)}.
+     * KEYWORD columns are excluded from the count — their builders back onto {@code BytesRefArray} over the
+     * non-breaking {@link BigArrays#NON_RECYCLING_INSTANCE} and produce no breaker traffic here.
+     */
+    private static void assertScratchIsRecordSized(RecordingCircuitBreaker breaker, int longColumns) {
+        assertEquals(
+            "only the once-per-page builders may reserve page-sized memory; more means the lenient per-record "
+                + "scratch builders are page-sized again",
+            longColumns,
+            breaker.pageSizedReservations
+        );
+    }
+
+    /**
+     * {@code error_mode: null_field} ({@link ErrorPolicy#PERMISSIVE}) decodes through the per-record scratch
+     * builders. Covers a multivalue array (exercising the scratch's grow-on-demand path now that it no longer
+     * starts page-sized), a single value, a missing field, and a keyword column, pinning that the decoded values
+     * are unchanged alongside the allocation invariant.
+     */
+    public void testLenientScratchBuildersAreRecordSizedNotPageSized() throws IOException {
+        String ndjson = """
+            {"v":[1,2,3],"w":10,"k":"a"}
+            {"v":42,"w":20,"k":"b"}
+            {"w":30,"k":"c"}
+            {"v":[7,8],"w":40,"k":"d"}
+            """;
+        RecordingCircuitBreaker breaker = new RecordingCircuitBreaker();
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG), attribute("k", DataType.KEYWORD)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://lenient-scratch",
+                new NdJsonReaderCounters()
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            BytesRefBlock k = page.getBlock(2);
+            BytesRef scratch = new BytesRef();
+
+            assertEquals(3, v.getValueCount(0));
+            int i0 = v.getFirstValueIndex(0);
+            assertEquals(1L, v.getLong(i0));
+            assertEquals(2L, v.getLong(i0 + 1));
+            assertEquals(3L, v.getLong(i0 + 2));
+
+            assertEquals(42L, v.getLong(v.getFirstValueIndex(1)));
+            assertTrue("missing field nulls the cell", v.isNull(2));
+
+            assertEquals(2, v.getValueCount(3));
+            int i3 = v.getFirstValueIndex(3);
+            assertEquals(7L, v.getLong(i3));
+            assertEquals(8L, v.getLong(i3 + 1));
+
+            for (int p = 0; p < 4; p++) {
+                assertFalse("w present at " + p, w.isNull(p));
+                assertEquals((p + 1) * 10L, w.getLong(w.getFirstValueIndex(p)));
+            }
+            assertMvAt(k, 0, scratch, List.of("a"));
+            assertMvAt(k, 1, scratch, List.of("b"));
+            assertMvAt(k, 2, scratch, List.of("c"));
+            assertMvAt(k, 3, scratch, List.of("d"));
+        }
+        assertScratchIsRecordSized(breaker, 2);
+        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.getUsed());
+    }
+
+    /**
+     * {@code error_mode: skip_row} ({@link ErrorPolicy#LENIENT}) takes the same scratch path, including when a
+     * poisoned record is dropped whole and its scratch builders are released without reaching the page.
+     */
+    public void testLenientScratchBuildersAreRecordSizedUnderSkipRow() throws IOException {
+        String ndjson = """
+            {"v":[1,"bad"],"w":10}
+            {"v":5,"w":20}
+            {"v":[6,7],"w":30}
+            """;
+        RecordingCircuitBreaker breaker = new RecordingCircuitBreaker();
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                ErrorPolicy.LENIENT,
+                "test://lenient-scratch-skip-row",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals("the poisoned record is dropped whole", 2, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            assertEquals(5L, v.getLong(v.getFirstValueIndex(0)));
+            assertEquals(20L, w.getLong(w.getFirstValueIndex(0)));
+            assertEquals(2, v.getValueCount(1));
+            int i1 = v.getFirstValueIndex(1);
+            assertEquals(6L, v.getLong(i1));
+            assertEquals(7L, v.getLong(i1 + 1));
+            assertEquals(30L, w.getLong(w.getFirstValueIndex(1)));
+        }
+        assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
+        assertScratchIsRecordSized(breaker, 2);
+        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.getUsed());
+    }
 }

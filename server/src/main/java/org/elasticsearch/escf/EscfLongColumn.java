@@ -25,8 +25,8 @@ import java.io.UncheckedIOException;
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
 final class EscfLongColumn extends AbstractFixed64Column {
 
-    EscfLongColumn(int docCount, FixedBitSet absent, BytesReference data) {
-        super(docCount, absent, data);
+    EscfLongColumn(int docCount, FixedBitSet validity, BytesReference data) {
+        super(docCount, validity, data);
     }
 
     @Override
@@ -46,7 +46,7 @@ final class EscfLongColumn extends AbstractFixed64Column {
 
     /**
      * Returns a new {@link LongTupleCursor} positioned before the first row of this column's window.
-     * Absent rows (tracked by the {@link #absent} bitset) are skipped; present rows are yielded in
+     * Absent rows (tracked by the {@link #validity} bitset) are skipped; present rows are yielded in
      * ascending order. Dense columns (no absent rows) iterate every row without any bitset overhead.
      */
     @Override
@@ -56,22 +56,22 @@ final class EscfLongColumn extends AbstractFixed64Column {
 
     /**
      * Returns a new dense {@link LongValuesCursor} positioned before the first row of this column's
-     * window. The column must be fully present ({@link #absent} {@code == null}); call this only on
+     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
      * dense columns.
      */
     LongValuesCursor longValuesCursor() {
-        assert absent == null : "values cursor is only valid for dense (fully-present) columns";
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseLongValuesCursor(docCount, this);
     }
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        return new EscfLongColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
+        return new EscfLongColumn(count, windowValidity(validity, from, count), data.slice(from * 8, count * 8));
     }
 
     @Override
     EscfColumnData toColumnData() {
-        return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
+        return EscfColumnData.ofFixed64(kind(), docCount, validity, data);
     }
 
     private static final class LongCursor extends LongTupleCursor {

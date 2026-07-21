@@ -25,8 +25,8 @@ abstract class AbstractFixed64Column extends EscfColumn {
 
     protected final BytesReference data;
 
-    AbstractFixed64Column(int docCount, FixedBitSet absent, BytesReference data) {
-        super(docCount, absent);
+    AbstractFixed64Column(int docCount, FixedBitSet validity, BytesReference data) {
+        super(docCount, validity);
         assert data.length() == (long) docCount * 8
             : "fixed-64 column data length " + data.length() + " != docCount * 8 = " + ((long) docCount * 8);
         assert assertChunksAligned(data);

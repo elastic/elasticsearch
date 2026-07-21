@@ -20,8 +20,8 @@ abstract class AbstractFixed64Column extends EscfColumn {
 
     protected final BytesReference data;
 
-    AbstractFixed64Column(int docCount, FixedBitSet absent, BytesReference data) {
-        super(docCount, absent);
+    AbstractFixed64Column(int docCount, FixedBitSet validity, BytesReference data) {
+        super(docCount, validity);
         this.data = data;
     }
 

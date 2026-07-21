@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -146,14 +145,11 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     private Percentile(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst(),
-            in.getTransportVersion().supports(PERCENTILE_COMPRESSION) ? in.readDouble() : QuantileStates.DEFAULT_COMPRESSION
-        );
+        super(in);
+        this.percentile = parameters().getFirst();
+        this.tDigestStateCompression = in.getTransportVersion().supports(PERCENTILE_COMPRESSION)
+            ? in.readDouble()
+            : QuantileStates.DEFAULT_COMPRESSION;
     }
 
     @Override
@@ -162,7 +158,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     @Override
-    protected void writeAdditionalTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         if (out.getTransportVersion().supports(PERCENTILE_COMPRESSION)) {
             out.writeDouble(tDigestStateCompression);
         }

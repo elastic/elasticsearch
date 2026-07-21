@@ -108,7 +108,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(filter);
@@ -116,16 +116,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             out.writeNamedWriteable(window);
         }
         out.writeNamedWriteableCollection(parameters);
-        writeAdditionalTo(out);
     }
-
-    /**
-     * Hook for subclasses to write additional fields that are not part of the base
-     * {@link AggregateFunction} wire format (source, field, filter, window, parameters).
-     * Implementations must use a {@link TransportVersion} guard so that deserialization
-     * on older nodes can default-fill the missing value.
-     */
-    protected void writeAdditionalTo(StreamOutput out) throws IOException {}
 
     public Expression field() {
         return field;

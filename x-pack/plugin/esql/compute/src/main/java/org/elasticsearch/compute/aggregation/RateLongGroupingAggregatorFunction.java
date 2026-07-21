@@ -518,9 +518,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
         var flushQueues = rawBuffer.prepareForFlush();
+        var flushQueue = new AbstractRateGroupingFunction.FlushQueue();
         for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-            var flushQueue = flushQueues.getFlushQueue(groupId);
-            if (flushQueue != null) {
+            flushQueues.getFlushQueue(groupId, flushQueue);
+            if (flushQueue.getLatestSliceStart() != -1) {
                 ReducedState state = reducedStates.get(groupId);
                 if (state == null) {
                     state = new ReducedState();
@@ -598,73 +599,46 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     void flushGroup(ReducedState state, LongRawBuffer buffer, FlushQueue flushQueue) {
         var timestamps = buffer.timestamps;
         var values = buffer.values;
-        if (flushQueue.valueCount == 1) {
+        if (flushQueue.containsSingleValue()) {
             state.samples++;
-            long t = timestamps.get(flushQueue.top().start);
-            var v = values.get(flushQueue.top().start);
+            int start = flushQueue.getLatestSliceStart();
+            long t = timestamps.get(start);
+            long v = values.get(start);
             state.appendInterval(t, v, t, v);
             return;
         }
-        // first
-        final long lastTimestamp;
-        final long lastValue;
-        Slice top;
-        {
-            top = flushQueue.top();
-            int position = top.next();
-            lastTimestamp = timestamps.get(position);
-            lastValue = values.get(position);
-            if (top.exhausted()) {
-                flushQueue.pop();
-                top = flushQueue.top();
-            } else {
-                top = flushQueue.updateTop();
+        int start = flushQueue.getLatestSliceStart();
+        final long lastTimestamp = timestamps.get(start);
+        final long lastValue = values.get(start);
+        long prevValue = lastValue;
+        int lastConsumedEnd;
+
+        int count = flushQueue.consumeLatestValues();
+        state.samples += count;
+        for (int p = start + 1; p < start + count; p++) {
+            long val = values.get(p);
+            if (val > prevValue) {
+                state.resets += val;
             }
+            prevValue = val;
         }
-        var prevValue = lastValue;
-        long secondNextTimestamp = flushQueue.secondNextTimestamp();
-        while (flushQueue.size() > 1) {
-            // If the last timestamp is greater than the maximum timestamp of the next two candidate slices,
-            // there is no overlap with subsequent slices, so batch merging can be performed without comparing
-            // timestamps from the buffer.
-            if (top.lastTimestamp() > secondNextTimestamp) {
-                for (int p = top.start; p < top.end; p++) {
-                    var val = values.get(p);
-                    if (val > prevValue) {
-                        state.resets += val;
-                    }
-                    prevValue = val;
+        lastConsumedEnd = start + count;
+
+        while (flushQueue.getLatestSliceStart() >= 0) {
+            start = flushQueue.getLatestSliceStart();
+            count = flushQueue.consumeLatestValues();
+            state.samples += count;
+            for (int p = start; p < start + count; p++) {
+                long val = values.get(p);
+                if (val > prevValue) {
+                    state.resets += val;
                 }
-                flushQueue.pop();
-                top = flushQueue.top();
-                secondNextTimestamp = flushQueue.secondNextTimestamp();
-                continue;
+                prevValue = val;
             }
-            var val = values.get(top.next());
-            if (val > prevValue) {
-                state.resets += val;
-            }
-            prevValue = val;
-            if (top.exhausted()) {
-                flushQueue.pop();
-                top = flushQueue.top();
-                secondNextTimestamp = flushQueue.secondNextTimestamp();
-            } else if (top.nextTimestamp < secondNextTimestamp) {
-                top = flushQueue.updateTop();
-                secondNextTimestamp = flushQueue.secondNextTimestamp();
-            }
+            lastConsumedEnd = start + count;
         }
-        // last slice
-        top = flushQueue.top();
-        for (int p = top.start; p < top.end; p++) {
-            var val = values.get(p);
-            if (val > prevValue) {
-                state.resets += val;
-            }
-            prevValue = val;
-        }
-        state.samples += flushQueue.valueCount;
-        state.appendInterval(lastTimestamp, lastValue, timestamps.get(top.end - 1), prevValue);
+
+        state.appendInterval(lastTimestamp, lastValue, timestamps.get(lastConsumedEnd - 1), prevValue);
     }
 
     @Override

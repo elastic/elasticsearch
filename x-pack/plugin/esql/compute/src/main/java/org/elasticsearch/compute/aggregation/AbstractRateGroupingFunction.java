@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -128,71 +127,41 @@ class AbstractRateGroupingFunction {
     }
 
     record FlushQueues(RawBuffer buffer, int minGroupId, int maxGroupId, int[] runningOffsets, int[] sliceOffsets) {
-        FlushQueue getFlushQueue(int groupId) {
+        void getFlushQueue(int groupId, FlushQueue queue) {
             if (groupId < minGroupId || groupId > maxGroupId) {
-                return null;
+                queue.initEmpty();
+                return;
             }
             int groupIndex = groupId - minGroupId;
-            int endIndex = runningOffsets[groupIndex];
-            int startIndex = groupIndex == 0 ? 0 : runningOffsets[groupIndex - 1];
-            int numSlices = endIndex - startIndex;
-            if (numSlices == 0) {
-                return null;
+            int endSliceIdx = runningOffsets[groupIndex];
+            int startSliceIdx = groupIndex == 0 ? 0 : runningOffsets[groupIndex - 1];
+            if (startSliceIdx >= endSliceIdx) {
+                queue.initEmpty();
+                return;
             }
-            FlushQueue queue = new FlushQueue(numSlices);
-            for (int i = startIndex; i < endIndex; i++) {
-                int start = sliceOffsets[i * 2];
-                int end = sliceOffsets[i * 2 + 1];
-                if (start < end) {
-                    queue.valueCount += (end - start);
-                    queue.add(new Slice(buffer.timestamps, start, end));
+            int writePos = startSliceIdx * 2;
+            for (int i = startSliceIdx; i < endSliceIdx; i++) {
+                int s = sliceOffsets[i * 2];
+                int e = sliceOffsets[i * 2 + 1];
+                if (s < e) {
+                    sliceOffsets[writePos] = s;
+                    sliceOffsets[writePos + 1] = e;
+                    writePos += 2;
                 }
             }
-            if (queue.valueCount == 0) {
-                return null;
+            if (writePos == startSliceIdx * 2) {
+                queue.initEmpty();
+                return;
             }
-            return queue;
-        }
-    }
-
-    static final class Slice {
-        int start;
-        int end;
-        long nextTimestamp;
-        private long lastTimestamp = Long.MAX_VALUE;
-        final LongBuffer timestamps;
-
-        Slice(LongBuffer timestamps, int start, int end) {
-            this.timestamps = timestamps;
-            this.start = start;
-            this.end = end;
-            this.nextTimestamp = timestamps.get(start);
-        }
-
-        boolean exhausted() {
-            return start >= end;
-        }
-
-        int next() {
-            int currentIndex = start;
-            start++;
-            if (start < end) {
-                nextTimestamp = timestamps.get(start); // next timestamp
-            }
-            return currentIndex;
-        }
-
-        long lastTimestamp() {
-            if (lastTimestamp == Long.MAX_VALUE) {
-                lastTimestamp = timestamps.get(end - 1);
-            }
-            return lastTimestamp;
+            queue.init(buffer, sliceOffsets, startSliceIdx * 2, writePos);
         }
     }
 
     /**
-     * A MAX binary heap oeprating on slices of (value, timestamp) pairs, ordered by the next timestamp of each slice.
-     * The slices are represented as a flat int[] array, each slice corresponding to two consecutive entries: the slice start followed by the slice end.
+     * A MAX binary heap operating on slices of (value, timestamp) pairs, ordered by the next timestamp of each slice.
+     * The slices are represented as a flat {@code int[]} array, each slice corresponding to two consecutive entries:
+     * the slice start followed by the slice end. Operates directly on the shared slices array without allocating
+     * per-slice objects.
      */
     static final class FlushQueue {
 
@@ -200,6 +169,11 @@ class AbstractRateGroupingFunction {
         int[] slices;
         int startIndex;
         int endIndex;
+
+        public void initEmpty() {
+            this.startIndex = 0;
+            this.endIndex = 0;
+        }
 
         public void init(RawBuffer values, int[] slices, int startIndex, int endIndex) {
             this.valuesBuffer = values;
@@ -212,9 +186,13 @@ class AbstractRateGroupingFunction {
             }
         }
 
+        boolean containsSingleValue() {
+            return getNumSlices() == 1 && getSliceStart(0) + 1 == getSliceEnd(0);
+        }
+
         public int getLatestSliceStart() {
             if (startIndex >= endIndex) {
-                return - 1;
+                return -1;
             }
             return getSliceStart(0);
         }
@@ -222,8 +200,8 @@ class AbstractRateGroupingFunction {
         /**
          * Consumes the maximum number of values from the latest slice.
          * After this operation the slice is either empty (and removed)
-         * or is no longer the slice with the latest timestamp;
-         * @return the number of values starting at getLatestSliceStart() that can be consumed
+         * or is no longer the slice with the latest timestamp.
+         * @return the number of values starting at {@link #getLatestSliceStart()} that can be consumed
          */
         public int consumeLatestValues() {
             assert startIndex < endIndex : "Queue is empty";
@@ -232,29 +210,37 @@ class AbstractRateGroupingFunction {
             int latestSliceValueCount = latestSliceEnd - latestSliceStart;
             int numSlices = getNumSlices();
             if (numSlices == 1) {
-                //only one slice left, we can consume it all
                 endIndex -= 2;
                 return latestSliceValueCount;
             }
 
-            long nextSliceStartTimestamp = getNextTimestamp(1);
+            long nextSliceLatestTimestamp = getNextTimestamp(1);
             if (numSlices >= 3) {
-                nextSliceStartTimestamp = Math.max(nextSliceStartTimestamp, getNextTimestamp(2));
+                nextSliceLatestTimestamp = Math.max(nextSliceLatestTimestamp, getNextTimestamp(2));
             }
 
-            int numValuesToConsume = 1;
-            while (numValuesToConsume  < latestSliceValueCount && valuesBuffer.timestamps.get(latestSliceStart + numValuesToConsume) <= nextSliceStartTimestamp) {
-                numValuesToConsume++;
+            int numValuesToConsume;
+            // Fast path: the entire slice precedes the second-best (no overlap), consume it all
+            if (valuesBuffer.timestamps.get(latestSliceEnd - 1) >= nextSliceLatestTimestamp) {
+                numValuesToConsume = latestSliceValueCount;
+            } else {
+                // consume as many values as possible from the latest slice, causing it to be not latest anymore
+                // if the slices are huge we could consider using binary search here instead of linear scanning
+                numValuesToConsume = 1;
+                while (numValuesToConsume < latestSliceValueCount
+                    && valuesBuffer.timestamps.get(latestSliceStart + numValuesToConsume) >= nextSliceLatestTimestamp) {
+                    numValuesToConsume++;
+                }
             }
+
             if (numValuesToConsume == latestSliceValueCount) {
-                // slice is now empty, remove it
                 slices[startIndex] = slices[endIndex - 2];
                 slices[startIndex + 1] = slices[endIndex - 1];
                 endIndex -= 2;
-                siftDown(0);
             } else {
                 slices[startIndex] += numValuesToConsume;
             }
+            siftDown(0);
             return numValuesToConsume;
         }
 
@@ -272,7 +258,23 @@ class AbstractRateGroupingFunction {
 
         private void siftDown(int localSliceIndex) {
             int currentIdx = localSliceIndex;
-            // TODO: implement
+            int numSlices = getNumSlices();
+            while (true) {
+                int leftChild = 2 * currentIdx + 1;
+                int rightChild = 2 * currentIdx + 2;
+                int largest = currentIdx;
+                if (leftChild < numSlices && getNextTimestamp(leftChild) > getNextTimestamp(largest)) {
+                    largest = leftChild;
+                }
+                if (rightChild < numSlices && getNextTimestamp(rightChild) > getNextTimestamp(largest)) {
+                    largest = rightChild;
+                }
+                if (largest == currentIdx) {
+                    break;
+                }
+                swapSlices(currentIdx, largest);
+                currentIdx = largest;
+            }
         }
 
         private int getNumSlices() {
@@ -300,35 +302,6 @@ class AbstractRateGroupingFunction {
             slices[offsetA + 1] = slices[offsetB + 1];
             slices[offsetB] = startA;
             slices[offsetB + 1] = endA;
-        }
-
-    }
-
-    static final class FlushQueueOld extends PriorityQueue<Slice> {
-        int valueCount;
-
-        FlushQueueOld(int maxSize) {
-            super(maxSize);
-        }
-
-        /**
-         * Returns the timestamp of the slice that would be next in line after the best slice.
-         */
-        long secondNextTimestamp() {
-            final Object[] heap = getHeapArray();
-            final int size = size();
-            if (size == 2) {
-                return ((Slice) heap[2]).nextTimestamp;
-            } else if (size >= 3) {
-                return Math.max(((Slice) heap[2]).nextTimestamp, ((Slice) heap[3]).nextTimestamp);
-            } else {
-                return Long.MIN_VALUE;
-            }
-        }
-
-        @Override
-        protected boolean lessThan(Slice a, Slice b) {
-            return a.nextTimestamp > b.nextTimestamp; // want the latest timestamp first
         }
     }
 

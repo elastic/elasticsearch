@@ -450,9 +450,10 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         }
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
         var flushQueues = rawBuffer.prepareForFlush();
+        var flushQueue = new AbstractRateGroupingFunction.FlushQueue();
         for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-            var flushQueue = flushQueues.getFlushQueue(groupId);
-            if (flushQueue != null) {
+            flushQueues.getFlushQueue(groupId, flushQueue);
+            if (flushQueue.getLatestSliceStart() != -1) {
                 ReducedState state = reducedStates.get(groupId);
                 if (state == null) {
                     state = new ReducedState();
@@ -551,76 +552,50 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     void flushGroup(ReducedState state, ExponentialHistogramRawBuffer buffer, FlushQueue flushQueue) {
         var timestamps = buffer.timestamps;
         var values = buffer.values;
-        if (flushQueue.valueCount == 1) {
+        if (flushQueue.containsSingleValue()) {
             state.samples++;
-            long t = timestamps.get(flushQueue.top().start);
-            var v = values.get(flushQueue.top().start, new ExponentialHistogramScratch());
+            int start = flushQueue.getLatestSliceStart();
+            long t = timestamps.get(start);
+            var v = values.get(start, new ExponentialHistogramScratch());
             state.appendInterval(t, v, t, v);
             return;
         }
-        // first
-        final long lastTimestamp;
-        // JIT scalar replacement should have an easy job on these values
+        int start = flushQueue.getLatestSliceStart();
+        final long lastTimestamp = timestamps.get(start);
         final ValueWithScratch lastValue = new ValueWithScratch();
         final ValueWithScratch prevValue = new ValueWithScratch();
-        Slice top;
-        {
-            top = flushQueue.top();
-            int position = top.next();
-            lastTimestamp = timestamps.get(position);
-            lastValue.load(values, position);
-            prevValue.load(values, position);
-            if (top.exhausted()) {
-                flushQueue.pop();
-                top = flushQueue.top();
-            } else {
-                top = flushQueue.updateTop();
-            }
-        }
+        lastValue.load(values, start);
+        prevValue.load(values, start);
+        int lastConsumedEnd;
+
         final ValueWithScratch currentValue = new ValueWithScratch();
-        long secondNextTimestamp = flushQueue.secondNextTimestamp();
-        while (flushQueue.size() > 1) {
-            // If the last timestamp is greater than the maximum timestamp of the next two candidate slices,
-            // there is no overlap with subsequent slices, so batch merging can be performed without comparing
-            // timestamps from the buffer.
-            if (top.lastTimestamp() > secondNextTimestamp) {
-                for (int p = top.start; p < top.end; p++) {
-                    currentValue.load(values, p);
-                    if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
-                        state.addToResets(currentValue.v);
-                    }
-                    prevValue.assignFrom(currentValue);
-                }
-                flushQueue.pop();
-                top = flushQueue.top();
-                secondNextTimestamp = flushQueue.secondNextTimestamp();
-                continue;
-            }
-            currentValue.load(values, top.next());
-            if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
-                state.addToResets(currentValue.v);
-            }
-            prevValue.assignFrom(currentValue);
-            if (top.exhausted()) {
-                flushQueue.pop();
-                top = flushQueue.top();
-                secondNextTimestamp = flushQueue.secondNextTimestamp();
-            } else if (top.nextTimestamp < secondNextTimestamp) {
-                top = flushQueue.updateTop();
-                secondNextTimestamp = flushQueue.secondNextTimestamp();
-            }
-        }
-        // last slice
-        top = flushQueue.top();
-        for (int p = top.start; p < top.end; p++) {
+
+        int count = flushQueue.consumeLatestValues();
+        state.samples += count;
+        for (int p = start + 1; p < start + count; p++) {
             currentValue.load(values, p);
             if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
                 state.addToResets(currentValue.v);
             }
             prevValue.assignFrom(currentValue);
         }
-        state.samples += flushQueue.valueCount;
-        state.appendInterval(lastTimestamp, lastValue.v, timestamps.get(top.end - 1), prevValue.v);
+        lastConsumedEnd = start + count;
+
+        while (flushQueue.getLatestSliceStart() >= 0) {
+            start = flushQueue.getLatestSliceStart();
+            count = flushQueue.consumeLatestValues();
+            state.samples += count;
+            for (int p = start; p < start + count; p++) {
+                currentValue.load(values, p);
+                if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
+                    state.addToResets(currentValue.v);
+                }
+                prevValue.assignFrom(currentValue);
+            }
+            lastConsumedEnd = start + count;
+        }
+
+        state.appendInterval(lastTimestamp, lastValue.v, timestamps.get(lastConsumedEnd - 1), prevValue.v);
     }
 
     @Override

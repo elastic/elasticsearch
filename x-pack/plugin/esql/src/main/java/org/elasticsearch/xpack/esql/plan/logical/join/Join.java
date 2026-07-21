@@ -110,16 +110,13 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
-    // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
-    private final transient boolean isRemote;
-    // Whether this join should run on the coordinator against its local copy of the lookup index
-    private final transient boolean isCoordinatorMode;
+    // Where this join executes — relevant only on the coordinating node, thus transient.
+    private final transient ExecuteLocation mode;
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote, boolean isCoordinatorMode) {
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, ExecuteLocation mode) {
         super(source, left, right);
         this.config = config;
-        this.isRemote = isRemote;
-        this.isCoordinatorMode = isCoordinatorMode;
+        this.mode = mode;
     }
 
     public Join(
@@ -130,17 +127,15 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         Expression joinOnConditions,
-        boolean isRemote,
-        boolean isCoordinatorMode
+        ExecuteLocation mode
     ) {
-        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote, isCoordinatorMode);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), mode);
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
-        this.isRemote = false;
-        this.isCoordinatorMode = false;
+        this.mode = ExecuteLocation.ANY;
     }
 
     @Override
@@ -186,8 +181,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.leftFields(),
             config.rightFields(),
             config.joinOnConditions(),
-            isRemote,
-            isCoordinatorMode
+            mode
         );
     }
 
@@ -298,17 +292,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config, isRemote, isCoordinatorMode);
+        return new Join(source(), left(), right(), config, mode);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config, isRemote, isCoordinatorMode);
+        return new Join(source(), left, right, config, mode);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, left(), right(), isRemote);
+        return Objects.hash(config, left(), right(), mode);
     }
 
     @Override
@@ -324,7 +318,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return config.equals(other.config)
             && Objects.equals(left(), other.left())
             && Objects.equals(right(), other.right())
-            && isRemote == other.isRemote;
+            && mode == other.mode;
     }
 
     @Override
@@ -369,20 +363,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return leftType.noText() == rightType.noText();
     }
 
-    public boolean isRemote() {
-        return isRemote;
-    }
-
-    public boolean isCoordinatorMode() {
-        return isCoordinatorMode;
-    }
-
     @Override
     public ExecuteLocation executesOn() {
-        if (isRemote) {
-            return isCoordinatorMode ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE;
-        }
-        return ExecuteLocation.ANY;
+        return mode;
     }
 
     private void checkRemoteJoin(Failures failures) {

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -50,7 +51,7 @@ public class PreAnalyzer {
      */
     static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
-    public record LookupIndexPattern(IndexPattern indexPattern, boolean isCoordinatorMode) {}
+    public record LookupIndexPattern(IndexPattern indexPattern, ExecuteLocation mode) {}
 
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
@@ -102,7 +103,7 @@ public class PreAnalyzer {
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur) {
-                lookupIndices.add(new LookupIndexPattern(ur.indexPattern(), lj.isCoordinatorMode()));
+                lookupIndices.add(new LookupIndexPattern(ur.indexPattern(), lj.executesOn()));
             }
         });
 

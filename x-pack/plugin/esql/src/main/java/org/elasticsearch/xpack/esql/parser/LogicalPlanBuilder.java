@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -884,7 +885,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (mode == Mode.REMOTE) {
                 child = child.transformDown(
                     LookupJoin.class,
-                    lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true, lj.isCoordinatorMode())
+                    lj -> new LookupJoin(
+                        lj.source(),
+                        lj.left(),
+                        lj.right(),
+                        lj.config(),
+                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                    )
                 );
             }
 
@@ -1086,8 +1093,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
         }
         var rightPatternSplit = RemoteClusterAware.splitIndexName(rightPattern);
-        var isCoordinatorMode = Objects.equals(rightPatternSplit.clusterAlias(), "_coordinator");
-        if (rightPatternSplit.clusterAlias() != null && isCoordinatorMode == false) {
+        var mode = Objects.equals(rightPatternSplit.clusterAlias(), "_coordinator") ? ExecuteLocation.COORDINATOR : ExecuteLocation.ANY;
+        if (rightPatternSplit.clusterAlias() != null && mode != ExecuteLocation.COORDINATOR) {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
@@ -1120,7 +1127,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             right,
             joinInfo.joinFields(),
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
-            isCoordinatorMode
+            mode
         );
     }
 

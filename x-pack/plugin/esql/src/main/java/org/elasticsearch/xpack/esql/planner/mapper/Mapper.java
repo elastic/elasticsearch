@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -211,7 +212,7 @@ public class Mapper {
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
-                if (join.isRemote() && join.isCoordinatorMode()) {
+                if (join.executesOn() == ExecuteLocation.COORDINATOR) {
                     // Transfer left-side data here via exchange in order to execute join against coordinator lookup index
                     left = new ExchangeExec(left.source(), left);
                 } else {

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -101,7 +102,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // keeps it from acting as a pipeline breaker in the mapper, so it stays inside the fragment pushed down
             // to the remote instead of forcing a premature gather to the coordinator. Non-remote joins keep
             // withLocal = false, which forces them onto the coordinator, same as before.
-            return duplicateLimitAsFirstGrandchild(limit, join.isRemote());
+            return duplicateLimitAsFirstGrandchild(limit, join.executesOn() == ExecuteLocation.REMOTE);
         } else if (limit.child() instanceof Fork fork) {
             return maybePushDownLimitToFork(limit, fork, ctx);
         }

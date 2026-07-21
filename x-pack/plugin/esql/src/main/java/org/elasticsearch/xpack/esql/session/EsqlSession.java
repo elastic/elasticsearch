@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -1532,7 +1533,7 @@ public class EsqlSession {
         String qualifiedPattern;
         Set<String> lookupIndexScope;
 
-        if (lookupIndexPattern.isCoordinatorMode()) {
+        if (lookupIndexPattern.mode() == ExecutesOn.ExecuteLocation.COORDINATOR) {
             // "_coordinator" is our reserved alias for the local coordinator node.
             // If a remote cluster is registered under the same name, reject the query to avoid ambiguity.
             if (remoteClusterService.getRegisteredRemoteClusterNames().contains("_coordinator")) {

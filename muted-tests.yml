@@ -538,9 +538,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
-- class: org.elasticsearch.reindex.ReindexerTests
-  method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
-  issue: https://github.com/elastic/elasticsearch/issues/154237
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
@@ -562,9 +559,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
-- class: org.elasticsearch.reindex.ReindexerTests
-  method: testRemoteReindexClosesRemoteInfoOnNormalCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/154294
 - class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
   method: testEnrichRemoteWithVendor
   issue: https://github.com/elastic/elasticsearch/issues/154532

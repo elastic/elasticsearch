@@ -1,0 +1,9 @@
+---
+# TEMPORARY - do not merge. Exists only to prove the flakiness-detection
+# per-iteration XML preservation fix counts every re-run. A single, fast,
+# setup-free test case: the flakiness report should show it passing once per
+# iteration (Successful cases == restIters), not just once.
+"Flakiness detection proof - counts every iteration":
+  - do:
+      info: {}
+  - is_true: cluster_name

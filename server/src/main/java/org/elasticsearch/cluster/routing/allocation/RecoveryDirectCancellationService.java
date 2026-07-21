@@ -144,6 +144,8 @@ public class RecoveryDirectCancellationService {
             );
             return;
         }
+        // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
+        // that will trigger new cancellations before the previous ones have had time to take effect.
         for (var nodeRequest : requests.entrySet()) {
             sendDirectCancelRecoveriesRequest(nodeRequest.getKey(), nodeRequest.getValue());
         }
@@ -196,8 +198,6 @@ public class RecoveryDirectCancellationService {
     /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
     /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
     /// interrupted even after it has started work.
-    // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
-    // before the previous cancellations have had time to take effect.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeDirectCancellationCandidates(
         DesiredBalance desiredBalance,
         RoutingAllocation allocation

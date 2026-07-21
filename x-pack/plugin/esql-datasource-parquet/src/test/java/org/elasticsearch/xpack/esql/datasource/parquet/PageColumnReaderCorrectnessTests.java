@@ -19,6 +19,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -391,7 +392,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
      * closes the returned block.
      */
     private Block sparseRead(byte[] data, String column, DataType dataType, int[] survivors) throws IOException {
-        try (ParquetFileReader reader = openSparseReader(data)) {
+        try (ParquetFileReader reader = openReader(data)) {
             BlockMetaData block = reader.getRowGroups().getFirst();
             MessageType schema = reader.getFileMetaData().getSchema();
             ColumnDescriptor desc = schema.getColumnDescription(new String[] { column });
@@ -412,7 +413,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         }
     }
 
-    private ParquetFileReader openSparseReader(byte[] data) throws IOException {
+    private ParquetFileReader openReader(byte[] data) throws IOException {
         return ParquetFileReader.open(
             new ParquetStorageObjectAdapter(storageObject(data), blockFactory.arrowAllocator()),
             PlainParquetReadOptions.builder(codecFactory).build()
@@ -429,6 +430,109 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertFalse("position " + position + " must be non-null", block.isNull(position));
         IntBlock ib = (IntBlock) block;
         assertEquals(expected, ib.getInt(ib.getFirstValueIndex(position)));
+    }
+
+    // --- Two-phase page-filtered skip overshoot (skipRows) ---
+
+    private static final MessageType SKIP_OVERSHOOT_SCHEMA = Types.buildMessage().required(INT64).named("v").named("skip_overshoot_repro");
+
+    /**
+     * Exercises the two-phase page-filtered skip overshoot in {@link PageColumnReader#skipRows}.
+     *
+     * <p>When a projection reader carries a survivor {@link RowRanges} that EXCLUDES an early data
+     * page (zero survivors on that page) and survivors sit on a later page, {@code loadNextPage}
+     * skips the whole excluded page, jumping the physical cursor PAST the caller's skip target. If
+     * that overshoot is discarded, the reader is silently ahead of where the caller thinks it is and
+     * every later skip/read consumes real survivor rows.
+     *
+     * <p>The invariant asserted here is coordinate-space-exact and codec/geometry independent: two
+     * skip calls that together cover exactly the excluded first page must leave the reader on the
+     * first survivor row (source row == first-row-index of page 1), whose value equals its
+     * source-row index. With the overshoot bug the first skip jumps to the page boundary and
+     * discards the surplus, so the second skip eats into page 1 and the subsequent read returns a
+     * survivor row too far along.
+     */
+    public void testSkipCoveringExcludedPageLandsAtNextPageStart() throws IOException {
+        byte[] data = writeTwoPageFile();
+        try (ParquetFileReader reader = openReader(data)) {
+            BlockMetaData rg = reader.getRowGroups().getFirst();
+            long totalRows = rg.getRowCount();
+            OffsetIndex oi = reader.readOffsetIndex(rg.getColumns().getFirst());
+            assertNotNull("column must have an offset index", oi);
+            assertTrue("need at least two pages to reproduce", oi.getPageCount() >= 2);
+
+            // page 0 spans [0, firstPageRows); page 1 starts at firstPageRows.
+            int firstPageRows = Math.toIntExact(oi.getFirstRowIndex(1));
+            assertTrue(firstPageRows >= 2);
+
+            // Survivor RowRanges cover only page 1 onward, so page 0 is excluded (zero survivors)
+            // and survivors sit strictly after it, triggering the skip overshoot.
+            RowRanges survivorRanges = RowRanges.of(firstPageRows, totalRows, totalRows);
+
+            ColumnDescriptor desc = SKIP_OVERSHOOT_SCHEMA.getColumns().getFirst();
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                DataType.LONG,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            );
+
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, survivorRanges)) {
+                // The two-phase caller drains the fully-filtered leading batches with skipRows in
+                // source-row coordinates. Split the excluded page into two skips so the first one
+                // stops short of the page boundary (count < firstPageRows) and triggers the jump.
+                int firstSkip = firstPageRows / 2;
+                assertTrue(firstSkip > 0 && firstSkip < firstPageRows);
+                pcr.skipRows(firstSkip);
+                pcr.skipRows(firstPageRows - firstSkip);
+
+                // We have now skipped exactly the source rows of page 0. The next read must start
+                // at the first survivor row, whose value equals its source-row index.
+                LongBlock block = (LongBlock) pcr.readBatch(1, blockFactory);
+                try {
+                    assertEquals(1, block.getPositionCount());
+                    assertEquals(
+                        "reader must sit on the first survivor row after skipping the excluded page",
+                        (long) firstPageRows,
+                        block.getLong(0)
+                    );
+                } finally {
+                    block.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * Writes a single-column {@code {v: long}} file over one row group with plain (dictionary-disabled)
+     * encoding and a tiny page size, so {@code v} spans several small data pages. {@code v} is unique
+     * per row and equals its source-row index, so a decoded value pins the reader's position.
+     */
+    private byte[] writeTwoPageFile() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(SKIP_OVERSHOOT_SCHEMA);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(SKIP_OVERSHOOT_SCHEMA)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                // Plain encoding + a tiny page size forces several small pages within one row group.
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(64L * 1024 * 1024)
+                .withPageSize(1024)
+                .build()
+        ) {
+            for (int i = 0; i < 4000; i++) {
+                writer.write(factory.newGroup().append("v", (long) i));
+            }
+        }
+        return out.toByteArray();
     }
 
     // --- Randomized test ---

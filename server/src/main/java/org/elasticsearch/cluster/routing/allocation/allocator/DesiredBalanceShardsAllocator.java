@@ -90,7 +90,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
 
-    private volatile RecoveryDirectCancellationAction recoveryDirectCancellationAction = RecoveryDirectCancellationAction.NO_OP;
+    private volatile RecoveryDirectCancellationCallback recoveryCancellationCallback = RecoveryDirectCancellationCallback.NO_OP;
 
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
@@ -114,8 +114,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @FunctionalInterface
-    public interface RecoveryDirectCancellationAction {
-        RecoveryDirectCancellationAction NO_OP = (desiredBalance, routingAllocation) -> {};
+    public interface RecoveryDirectCancellationCallback {
+        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation) -> {};
 
         void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation);
     }
@@ -125,10 +125,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
     }
 
-    public void setRecoveryDirectCancellationAction(RecoveryDirectCancellationAction recoveryDirectCancellationAction) {
-        assert this.recoveryDirectCancellationAction == RecoveryDirectCancellationAction.NO_OP
+    public void setRecoveryDirectCancellationCallback(RecoveryDirectCancellationCallback recoveryCancellationCallback) {
+        assert this.recoveryCancellationCallback == RecoveryDirectCancellationCallback.NO_OP
             : "direct cancellation action should only be set once";
-        this.recoveryDirectCancellationAction = recoveryDirectCancellationAction;
+        this.recoveryCancellationCallback = recoveryCancellationCallback;
     }
 
     public DesiredBalanceShardsAllocator(
@@ -236,7 +236,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     // decision.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
                     }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
@@ -244,14 +244,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
-                    // TODO: there is a possibility that a reconcile round from a recent balance is in progress while a
-                    // new balance gets computed, in which case the routing allocation captured in the DesiredBalanceInput
-                    // could miss an initializing shard created by that concurrent reconciliation. This is not a correctness
-                    // problem, as direct cancellation is a best effort optimization but we should probably catch those
-                    // (maybe by triggering another cancellation round after the first reconcile, after we add request deduplication?)
+                    // TODO: A reconcile round from a recent balance could be in progress while a new balance gets computed,
+                    // in which case the currentAllocation captured below could miss an initializing shard created by
+                    // that concurrent reconciliation. This is not a correctness problem, as recovery cancellation is best-effort,
+                    // but we should find a way to catch those cases.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
                     }
                     submitReconcileTask(currentDesiredBalance);
                 } else {

@@ -1423,7 +1423,7 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             rerouteService
         );
-        clusterModule.registerRecoveryDirectCancellationAction(recoveryCancellationService::computeAndSubmitCancellations);
+        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::computeAndSubmitCancellations);
 
         modules.add(loadPluginComponents(pluginComponents));
 

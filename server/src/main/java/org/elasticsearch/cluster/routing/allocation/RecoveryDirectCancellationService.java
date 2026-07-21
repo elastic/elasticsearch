@@ -65,7 +65,7 @@ public class RecoveryDirectCancellationService {
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final MasterServiceTaskQueue<ShardFailedTaskExecutor.Task> failedShardTaskQueue;
-    private final Executor executor;
+    private final Executor genericExecutor;
     private volatile boolean enableDirectRecoveryCancellations;
 
     public RecoveryDirectCancellationService(
@@ -76,7 +76,7 @@ public class RecoveryDirectCancellationService {
     ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.executor = transportService.getThreadPool().generic();
+        this.genericExecutor = transportService.getThreadPool().generic();
         this.failedShardTaskQueue = clusterService.createTaskQueue(
             "direct-cancellation-shard-failed",
             Priority.HIGH,
@@ -101,7 +101,7 @@ public class RecoveryDirectCancellationService {
     /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
     /// which shards are currently initializing on an undesired node
     public void computeAndSubmitCancellations(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
-        executor.execute(new AbstractRunnable() {
+        genericExecutor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 final var requests = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
@@ -162,7 +162,7 @@ public class RecoveryDirectCancellationService {
                     e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)
                 ),
                 CancelRecoveriesAction.Response::new,
-                executor
+                genericExecutor
             )
         );
     }

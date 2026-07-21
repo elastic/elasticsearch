@@ -13,6 +13,30 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.4 [connectors-9.4.4-release-notes]
+
+### Fixes [connectors-9.4.4-fixes]
+* Fix Slack connector float timestamp causing messages to be deleted on scheduled syncs. [#4168](https://github.com/elastic/connectors/pull/4168)
+* Handle out-of-range BSON datetimes in the MongoDB connector to prevent sync failures. [#4155](https://github.com/elastic/connectors/pull/4155)
+* Fix Outlook connector to dispatch Contacts by item type and harden folder and field assumptions. [#4151](https://github.com/elastic/connectors/pull/4151)
+* Fix GitHub connector to propagate fetch errors instead of swallowing them. [#4135](https://github.com/elastic/connectors/pull/4135)
+* Fix Outlook connector to harden sync against missing Exchange field values. [#4132](https://github.com/elastic/connectors/pull/4132)
+* Drop unused `space.permissions` from content query in the Confluence Data Center and Server connector. [#4121](https://github.com/elastic/connectors/pull/4121)
+* Fix Outlook connector to verify Exchange TLS with an in-memory CA, removing a cert-file race condition. [#4115](https://github.com/elastic/connectors/pull/4115)
+* Fix Outlook connector to skip mailbox-less accounts and prevent SSL misconfiguration from aborting sync. [#4092](https://github.com/elastic/connectors/pull/4092)
+
+## 9.3.8 [connectors-9.3.8-release-notes]
+
+### Fixes [connectors-9.3.8-fixes]
+* Fix Slack connector float timestamp causing messages to be deleted on scheduled syncs. [#4167](https://github.com/elastic/connectors/pull/4167)
+* Handle out-of-range BSON datetimes in the MongoDB connector to prevent sync failures. [#4166](https://github.com/elastic/connectors/pull/4166)
+* Fix Outlook connector to dispatch Contacts by item type and harden folder and field assumptions. [#4152](https://github.com/elastic/connectors/pull/4152)
+* Fix GitHub connector to propagate fetch errors instead of swallowing them. [#4134](https://github.com/elastic/connectors/pull/4134)
+* Fix Outlook connector to harden sync against missing Exchange field values. [#4131](https://github.com/elastic/connectors/pull/4131)
+* Drop unused `space.permissions` from content query in the Confluence Data Center and Server connector. [#4120](https://github.com/elastic/connectors/pull/4120)
+* Fix Outlook connector to verify Exchange TLS with an in-memory CA, removing a cert-file race condition. [#4114](https://github.com/elastic/connectors/pull/4114)
+* Fix Outlook connector to skip mailbox-less accounts and prevent SSL misconfiguration from aborting sync. [#4091](https://github.com/elastic/connectors/pull/4091)
+
 ## 9.4.3 [connectors-9.4.3-release-notes]
 
 ### Fixes [connectors-9.4.3-fixes]

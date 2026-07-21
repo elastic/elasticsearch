@@ -93,23 +93,19 @@ public class CsvTestsDataLoader {
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
-            .withTypeMapping(removeFields("first_name", "last_name"))
-            .withDynamic("false")
+        new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(
+            removeFields("first_name", "last_name")
+        ).withDynamic("false").noSubfields(),
+        new TestDataset("employees_gender_text", "mapping-default.json", "employees.csv").withTypeMapping(Map.of("gender", "text"))
             .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
-            .withTypeMapping(Map.of("gender", "text"))
-            .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
-            .withTypeMapping(removeFields("gender"))
+        new TestDataset("employees_no_gender", "mapping-default.json", "employees.csv").withTypeMapping(removeFields("gender"))
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
-            .withTypeMapping(removeFields("short"))
+        new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
-            .withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -138,6 +134,7 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
         new TestDataset(
             "partial_mapping_mv_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -266,13 +263,13 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
-        new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_mapped.csv"),
-        new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withIndex("text_state_unmapped")
-            .withTypeMapping(removeFields("txt"))
-            .withDynamic("false"),
-        new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withIndex(
-            "text_state_nonexistent"
-        ).withTypeMapping(removeFields("txt")).withDynamic("false"),
+        new TestDataset("text_state_mapped"),
+        new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
+        new TestDataset("text_state_nonexistent", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),
@@ -290,8 +287,7 @@ public class CsvTestsDataLoader {
         new TestDataset("colors"),
         new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
-        new TestDataset("colors", "mapping-colors.json", "colors.csv").withIndex("colors_unmapped")
-            .withTypeMapping(removeFields("rgb_vector"))
+        new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
             .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),

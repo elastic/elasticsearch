@@ -631,6 +631,11 @@ public class IndexModuleTests extends ESTestCase {
             }
 
             @Override
+            public Object sharingKey() {
+                return this;
+            }
+
+            @Override
             public Analyzer get() {
                 final Analyzer analyzer = new Analyzer() {
                     @Override

@@ -1232,10 +1232,17 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     * Generate a literal with a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
+        return new Literal(EMPTY, randomLiteralValue(type), type);
+    }
+
+    /**
+     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     */
+    public static Object randomLiteralValue(DataType type) {
+        return switch (type) {
             case BOOLEAN -> randomBoolean();
             case BYTE -> randomByte();
             case SHORT -> randomShort();
@@ -1296,10 +1303,18 @@ public final class EsqlTestUtils {
                 "can't make random values for [" + type.typeName() + "]"
             );
             case TDIGEST -> EsqlTestUtils.randomTDigest();
-        }, type);
+        };
     }
 
     public static ExponentialHistogram randomExponentialHistogram() {
+        return randomExponentialHistogram(false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static ExponentialHistogram randomExponentialHistogram(boolean zeroThresholdIsZero) {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
         int numBuckets = randomIntBetween(4, 300);
@@ -1320,7 +1335,7 @@ public final class EsqlTestUtils {
             rawValues
         );
         // Setup a proper zeroThreshold based on a random chance
-        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+        if (zeroThresholdIsZero == false && histo.zeroBucket().count() > 0 && randomBoolean()) {
             double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
             double zeroThreshold = smallestNonZeroValue * randomDouble();
             try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
@@ -1363,7 +1378,7 @@ public final class EsqlTestUtils {
     }
 
     public static BytesRef randomHistogram() {
-        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        List<Double> values = ESTestCase.randomList(randomIntBetween(0, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
         List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));

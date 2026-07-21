@@ -1252,7 +1252,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1267,7 +1267,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
@@ -1275,16 +1275,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
-        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title, body");
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
+        assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
         List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
         assertThat(generated, equalTo(List.of("h_title", "h_body")));
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1294,8 +1295,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
-        // `prefix` can be used as a field name and is not a reserved keyword.
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1313,7 +1313,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
@@ -1322,7 +1322,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1332,20 +1332,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
               "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
               "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
               "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
-              "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+              "analyzer": "standard", "max_analyzed_offset": 500, "phrase_limit": 64 }""");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1353,18 +1353,37 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testHighlightRejectsExpressionQuery() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
+    public void testHighlightAcceptsFunctionQuery() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
+        Highlight highlight = as(plan, Highlight.class);
+        UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
+        assertThat(match.name(), equalTo("MATCH"));
+        assertThat(highlight.fields().size(), equalTo(1));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+    }
+
+    public void testHighlightTerminatesInsideFork() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo
+            | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
+                   ( WHERE a > 1 )
+            """);
+        Fork fork = as(plan, Fork.class);
+        assertThat(fork.children().size(), equalTo(2));
+        Eval firstBranch = as(fork.children().get(0), Eval.class);
+        Highlight highlight = as(firstBranch.child(), Highlight.class);
+        assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
@@ -3026,14 +3045,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
-        expectError(
-            "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
-        expectError(
-            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
+    }
+
+    public void testMatchOperatorWithFunctionLhs() {
+        var plan = query("FROM test | WHERE CONCAT(first_name, \" \", last_name):\"Anneke Preusig\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var concat = (UnresolvedFunction) match.field();
+        assertThat(concat.name(), equalTo("CONCAT"));
+        assertThat(concat.children().size(), equalTo(3));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("Anneke Preusig")));
+    }
+
+    public void testMatchOperatorWithNestedFunctionLhs() {
+        var plan = query("FROM test | WHERE TO_UPPER(CONCAT(first_name, \" \", last_name)):\"ANNEKE PREUSIG\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var toUpper = (UnresolvedFunction) match.field();
+        assertThat(toUpper.name(), equalTo("TO_UPPER"));
+        var concat = (UnresolvedFunction) toUpper.children().get(0);
+        assertThat(concat.name(), equalTo("CONCAT"));
     }
 
     public void testMatchFunctionFieldCasting() {
@@ -3368,30 +3399,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testFunctionNamedParameterNotInMap() {
-        Map<String, String> commands = Map.ofEntries(
-            Map.entry("eval x = {}", "38"),
-            Map.entry("where {}", "35"),
-            Map.entry("stats {}", "35"),
-            Map.entry("stats agg() by {}", "44"),
-            Map.entry("sort {}", "34"),
-            Map.entry("dissect {} \"%{bar}\"", "37"),
-            Map.entry("grok {} \"%{WORD:foo}\"", "34")
-        );
-
-        for (Map.Entry<String, String> command : commands.entrySet()) {
-            String cmd = command.getKey();
-            String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "extraneous input ':' expecting {',', ')'}"
-                : "no viable alternative at input 'fn(f1, \"option1\":'";
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, \"option1\":\"string\")"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
-            );
-        }
-    }
-
     public void testFunctionNamedParameterNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
@@ -3695,12 +3702,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testInvalidInsistAsterisk() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
-    }
-
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3865,7 +3866,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo*
             | FORK
                ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
-               ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;

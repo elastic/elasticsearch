@@ -429,3 +429,98 @@ CASE(y==2, 10, 1) * MIN(x):integer | y:integer
 10                                 | 2
 1                                  | 3
 ;
+
+casePartialFoldTrueToTextKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
+
+FROM employees
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| EVAL x = CASE(true, TO_TEXT(first_name))
+| KEEP emp_no, x
+| SORT emp_no
+;
+
+emp_no:integer | x:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+casePartialFoldTrailingTextArmKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
+
+FROM employees
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| EVAL x = CASE(false, "never", TO_TEXT(last_name))
+| KEEP emp_no, x
+| SORT emp_no
+;
+
+emp_no:integer | x:keyword
+10001          | Facello
+10002          | Simmel
+10003          | Bamford
+;
+
+casePartialFoldKeywordIsGroupable
+required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
+
+FROM employees
+| WHERE emp_no >= 10001 AND emp_no <= 10005
+| EVAL g = CASE(true, TO_TEXT(gender))
+| STATS c = COUNT(*) BY g
+| SORT g
+;
+
+c:long | g:keyword
+1      | F
+4      | M
+;
+
+casePartialFoldMixedConditionsKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
+
+FROM employees
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| EVAL x = CASE(false, "x", gender == "F", TO_TEXT(first_name), TO_TEXT(last_name))
+| KEEP emp_no, x
+| SORT emp_no
+;
+
+emp_no:integer | x:keyword
+10001          | Facello
+10002          | Bezalel
+10003          | Bamford
+;
+
+casePartialFoldMultivalueTextKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = CASE(true, TO_TEXT(job_positions))
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:keyword
+10001          | [Accountant, Senior Python Developer]
+;
+
+casePartialFoldTextArmNullElseKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = CASE(false, TO_TEXT(first_name), null)
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:keyword
+10001          | null
+;

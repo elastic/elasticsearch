@@ -6581,6 +6581,40 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A header cell padded inside its quotes binds the same way on a later chunk as on the first.
+     * <p>
+     * The first chunk derives its header names from the header line and trims them; a later chunk is handed
+     * names the reader's own metadata produced, which did not. A declaration for {@code value} then matched on
+     * the first chunk and silently null-filled on every other one — the same column read two ways in one file.
+     */
+    public void testCarriedHeaderColumnsAreNormalisedLikeTheFirstChunk() throws Exception {
+        StorageObject object = createStorageObject("1\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "value", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of(" value "))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            try {
+                assertFalse("a padded header name must still bind the declared column", page.getBlock(0).isNull(0));
+                assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
      * Binding is by name, not position: a declaration must follow its column even when the file orders the
      * columns differently. Getting this wrong shifts every value into the wrong column silently.
      */

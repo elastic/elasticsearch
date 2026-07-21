@@ -1926,8 +1926,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * including duplicate-header rejection, so the two cannot drift apart.
      */
     private int[] bindDeclaredToHeaderNames(String[] headerNames, List<Attribute> readSchema, StorageObject object) {
-        rejectDuplicateHeaderNames(headerNames, object);
-        return declaredPathFieldIndexes(readSchema, headerNames, object);
+        // Normalise here rather than trusting the caller: a read that owns the file's start derives these names
+        // from the header line, while a later chunk gets them from the reader's own metadata, and the two
+        // derivations trimmed surrounding whitespace differently. A header cell of [" value "] then bound on the
+        // first chunk and null-filled on every other one — the same column, read two ways, in one file.
+        String[] normalised = new String[headerNames.length];
+        for (int i = 0; i < headerNames.length; i++) {
+            normalised[i] = headerNames[i] == null ? null : headerNames[i].trim();
+        }
+        rejectDuplicateHeaderNames(normalised, object);
+        return declaredPathFieldIndexes(readSchema, normalised, object);
     }
 
     /**

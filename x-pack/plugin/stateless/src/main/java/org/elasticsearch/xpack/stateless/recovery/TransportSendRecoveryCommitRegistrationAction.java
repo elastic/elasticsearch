@@ -31,8 +31,10 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -104,7 +106,10 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
     }
 
     private boolean isRetryable(Throwable e, RegisterCommitRequest request) {
-        if (e instanceof ShardNotFoundException || e instanceof RecoveryCommitTooNewException) {
+        if (e instanceof ShardNotFoundException
+            || e instanceof RecoveryCommitTooNewException
+            || e instanceof ConnectTransportException
+            || e instanceof NodeClosedException) {
             return true;
         } else if (e instanceof IndexNotFoundException) {
             var state = clusterService.state();

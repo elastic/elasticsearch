@@ -31,9 +31,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -116,11 +118,12 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
         var indexNode = startIndexNode();
         startSearchNode();
         final var indexName = randomIdentifier();
-        var maxRetries = randomFrom(0, 5);
         createIndex(
             indexName,
             indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS))
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries)
+                // By setting this to 0 we have only one recovery attempt that would go through all the potential retryable exceptions (see
+                // failures).
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
                 .build()
         );
         ensureGreen(indexName);
@@ -131,33 +134,39 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
             flush(indexName);
         }
         final var shardId = new ShardId(resolveIndex(indexName), 0);
-        // Make sure we hit the transport action's retries by failing more than the number of allocation attempts
-        final var toFailCount = maxRetries + 1;
-        AtomicInteger failed = new AtomicInteger();
-        AtomicInteger receivedRegistration = new AtomicInteger();
+
+        final var indexDiscoveryNode = MockTransportService.getInstance(indexNode).getLocalNode();
+        final List<Exception> retryableExceptions = List.of(
+            new ShardNotFoundException(shardId, "cannot register"),
+            new RecoveryCommitTooNewException(shardId, "cannot register"),
+            new ConnectTransportException(indexDiscoveryNode, "cannot register"),
+            new NodeClosedException(indexDiscoveryNode)
+        );
+
+        // Retry as many times as the number of exceptions we want to test are retryable
+        final var numberOfRetries = retryableExceptions.size();
+
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean successfulRegistration = new AtomicBoolean();
+
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
-                receivedRegistration.incrementAndGet();
-                if (failed.get() < toFailCount) {
-                    failed.incrementAndGet();
-                    channel.sendResponse(
-                        randomFrom(
-                            new ShardNotFoundException(shardId, "cannot register"),
-                            new RecoveryCommitTooNewException(shardId, "cannot register")
-                        )
-                    );
+                final var retryableException = retryCount.getAndIncrement();
+                if (retryableException < numberOfRetries) {
+                    channel.sendResponse(retryableExceptions.get(retryableException));
                 } else {
+                    successfulRegistration.set(true);
                     handler.messageReceived(request, channel, task);
                 }
             });
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < toFailCount + 1; i++) {
+        // Trigger enough cluster state updates to have the corresponding number of retries.
+        for (int i = 0; i < numberOfRetries + 1; i++) {
             indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
         }
         ensureGreen(indexName);
-        assertThat(failed.get(), equalTo(toFailCount));
-        assertThat(receivedRegistration.get(), greaterThan(toFailCount));
+        assertThat(retryCount.get(), greaterThan(numberOfRetries));
+        assertTrue(successfulRegistration.get());
     }
 
     // If during a relocation, a commit registration is triggered right after the last pre-handoff flush,

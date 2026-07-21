@@ -32,7 +32,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
-import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD_FQN;
+import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_FIELD_FQN;
 
 /**
  * Models a single method on a {@code @LibrarySpecification} interface or abstract class. The method

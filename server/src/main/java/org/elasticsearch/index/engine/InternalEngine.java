@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -235,6 +236,12 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
+    /**
+     * UUID value that is updated every time unowned documents are deleted as part of reshard cleanup.
+     */
+    @Nullable
+    private volatile String reshardCleanupUUID;
+
     private final LongSupplier relativeTimeInNanosSupplier;
 
     private volatile long lastFlushTimestamp;
@@ -303,6 +310,7 @@ public class InternalEngine extends Engine {
                 final Map<String, String> commitData = commitDataAsMap(writer);
                 historyUUID = loadHistoryUUID(commitData);
                 forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
+                reshardCleanupUUID = commitData.get(RESHARD_CLEANUP_UUID_KEY);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -814,6 +822,20 @@ public class InternalEngine extends Engine {
     @Nullable
     public String getForceMergeUUID() {
         return forceMergeUUID;
+    }
+
+    /** returns the reshard cleanup uuid for the engine */
+    @Nullable
+    public String getReshardCleanupUUID() {
+        return reshardCleanupUUID;
+    }
+
+    /**
+     * Records that unowned documents were deleted as part of reshard cleanup so the next Lucene commit
+     * includes a new {@link Engine#RESHARD_CLEANUP_UUID_KEY} and snapshot shard-state identity changes.
+     */
+    protected final void onReshardCleanup() {
+        this.reshardCleanupUUID = UUIDs.randomBase64UUID();
     }
 
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
@@ -3637,7 +3659,7 @@ public class InternalEngine extends Engine {
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
                 final Map<String, String> extraCommitUserData = getCommitExtraUserData(localCheckpoint);
-                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(9 + extraCommitUserData.size());
                 commitData.putAll(extraCommitUserData);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
@@ -3647,6 +3669,10 @@ public class InternalEngine extends Engine {
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
+                }
+                final String currentReshardCleanupUUID = reshardCleanupUUID;
+                if (currentReshardCleanupUUID != null) {
+                    commitData.put(RESHARD_CLEANUP_UUID_KEY, currentReshardCleanupUUID);
                 }
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
                 commitData.put(ES_VERSION, IndexVersion.current().toString());

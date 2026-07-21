@@ -165,8 +165,9 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
     }
 
     /**
-     * A shard's requirement can be real for boosted but the sentinel {@link BoostedAndUnboostedCacheRequirements#NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT}
-     * for unboosted. Only the boosted component should move.
+     * A shard's requirement can be real for boosted but the sentinel
+     * {@link BoostedAndUnboostedCacheRequirements#NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT} for unboosted. Only the boosted
+     * component should move.
      */
     public void testHandlesSentinelUnboostedRequirement() {
         var fromNodeId = "node-0";

@@ -34,14 +34,6 @@ import java.util.Map;
  */
 public class LuceneBinaryColumnTests extends ESTestCase {
 
-    // ============================================================================================
-    // Helpers — builders and drain utilities
-    // ============================================================================================
-
-    /**
-     * Builds a sparse {@link LuceneBinaryColumn} (ARRAY kind) from {@code (doc, value)} pairs.
-     * Docs must be non-decreasing; repeated doc values produce multi-valued rows.
-     */
     private static LuceneBinaryColumn buildArrayColumn(int docCount, int[] docs, String[] values) {
         EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         for (int i = 0; i < docs.length; i++) {
@@ -50,10 +42,6 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         return LuceneBinaryColumn.arrayColumn(builder.finish(docCount), "_field_names", StringField.TYPE_NOT_STORED);
     }
 
-    /**
-     * Builds a dense {@link LuceneBinaryColumn} (STRING kind) from a list of string values, one
-     * per document (in order).
-     */
     private static LuceneBinaryColumn buildStringColumn(String... values) {
         // Build raw offset + byte arrays for EscfColumnData.ofVarWidth.
         int[] offsets = new int[values.length + 1];
@@ -74,11 +62,6 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         return LuceneBinaryColumn.stringColumn(columnData, "content", StringField.TYPE_NOT_STORED);
     }
 
-    /**
-     * Drains the row cursor into a map of {@code docId → [values]}, collecting all elements. The
-     * drain loop mirrors {@link org.elasticsearch.sourcebatch.MappedColumns.RowCursor#advance}:
-     * advance once per element until exhausted.
-     */
     private static Map<Integer, List<String>> drainRowCursor(LuceneColumn.RowFieldCursor cursor) {
         Map<Integer, List<String>> result = new LinkedHashMap<>();
         int doc = cursor.nextDoc();
@@ -91,10 +74,6 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         return result;
     }
 
-    /**
-     * Drains the tuple cursor (from {@code toLuceneColumn().tuples()}) into a map of
-     * {@code docId → [values]}, so the same assertions can be applied as for the row cursor.
-     */
     private static Map<Integer, List<String>> drainTupleCursor(LuceneBinaryColumn col) {
         Map<Integer, List<String>> result = new LinkedHashMap<>();
         Column luceneCol = col.toLuceneColumn();
@@ -106,10 +85,6 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         }
         return result;
     }
-
-    // ============================================================================================
-    // Sparse-array path (ARRAY kind, Density.SPARSE) — migrated from EscfStringArrayColumnTests
-    // ============================================================================================
 
     /** Empty column yields NO_MORE_DOCS immediately. */
     public void testArrayRowCursorEmpty() {
@@ -231,10 +206,6 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         Map<Integer, List<String>> fromTuple = drainTupleCursor(sliced);
         assertEquals(fromRow, fromTuple);
     }
-
-    // ============================================================================================
-    // Dense string path (STRING kind, Density.DENSE)
-    // ============================================================================================
 
     /** Row cursor over a dense string column visits every row in order. */
     public void testStringRowCursorDense() {

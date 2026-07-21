@@ -127,6 +127,27 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /**
+     * Instrument name patterns whose metrics are dropped.
+     * Patterns may contain the wildcards {@code *} (any run of characters) and {@code ?} (a single character).
+     */
+    public static final Setting<List<String>> TELEMETRY_METRICS_DISABLED = Setting.stringListSetting(
+        "telemetry.metrics.disabled",
+        NodeScope
+    );
+
+    /**
+     * Whether the per-instrument collection-time histogram ({@code es.apm.metrics.instrument.collection_time.histogram}) is
+     * recorded. Off by default because it adds one series per observable instrument; enable it at runtime to attribute metric
+     * collection cost to a specific instrument, then disable it again.
+     */
+    public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
+        "telemetry.metrics.instrument_timing.enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
     // --- Traces
 
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.

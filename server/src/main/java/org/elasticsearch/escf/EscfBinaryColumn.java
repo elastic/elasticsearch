@@ -20,8 +20,8 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  */
 final class EscfBinaryColumn extends AbstractVarColumn {
 
-    EscfBinaryColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
-        super(docCount, absent, data, offsets);
+    EscfBinaryColumn(int docCount, FixedBitSet validity, BytesReference data, IntsRef offsets) {
+        super(docCount, validity, data, offsets);
     }
 
     @Override
@@ -35,7 +35,7 @@ final class EscfBinaryColumn extends AbstractVarColumn {
     }
 
     @Override
-    AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets) {
-        return new EscfBinaryColumn(count, sliceAbsent, sliceData, sliceOffsets);
+    AbstractVarColumn newSlice(int count, FixedBitSet sliceValidity, BytesReference sliceData, IntsRef sliceOffsets) {
+        return new EscfBinaryColumn(count, sliceValidity, sliceData, sliceOffsets);
     }
 }

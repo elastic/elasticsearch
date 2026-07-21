@@ -93,6 +93,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SEMANTIC_TEXT_USE_CASE;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.RETAIN_BINARY_FIELD;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -735,6 +736,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         field,
                         sourceField,
                         chunkingSettings,
+                        entry.getRetainBinary(),
                         order,
                         values,
                         requests
@@ -761,6 +763,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             String field,
             String sourceField,
             ChunkingSettings chunkingSettings,
+            boolean retainBinary,
             int startOrder,
             List<?> values,
             List<FieldInferenceRequest> requests
@@ -788,7 +791,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         offsetAdjustment,
                         chunkingSettings
                     );
-                    case InferenceString is -> addInferenceStringRequest(requests, itemIndex, field, sourceField, is, order, inputIndex);
+                    case InferenceString is -> addInferenceStringRequest(
+                        requests,
+                        itemIndex,
+                        field,
+                        sourceField,
+                        is,
+                        retainBinary,
+                        order,
+                        inputIndex
+                    );
                     default -> {
                         setInferenceResponseFailure(
                             itemIndex,
@@ -859,6 +871,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             String field,
             String sourceField,
             InferenceString input,
+            boolean retainBinary,
             int order,
             int sourceFieldInputIndex
         ) {
@@ -876,6 +889,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return -1;
             }
             if (input.dataFormat() == DataFormat.BASE64) {
+                if (retainBinary == false && input.description() == null) {
+                    setInferenceResponseFailure(
+                        itemIndex,
+                        new ElasticsearchStatusException(
+                            "Input for field [{}] from source field [{}] has no description. A description is required for binary inputs"
+                                + " when ["
+                                + RETAIN_BINARY_FIELD
+                                + "] is false.",
+                            RestStatus.BAD_REQUEST,
+                            field,
+                            sourceField
+                        )
+                    );
+                    return -1;
+                }
                 long decodedSize = base64BinarySize(input.value());
                 if (decodedSize == 0) {
                     setInferenceResponseFailure(

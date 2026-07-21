@@ -51,7 +51,7 @@ public class PackDims extends UnaryPlan {
     }
 
     public static FieldAttribute newPackedAttribute(Source source) {
-        EsField field = new EsField(PACKED_FIELD_NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION);
+        EsField field = new EsField(PACKED_FIELD_NAME, DataType.SOURCE, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION);
         return new FieldAttribute(source, null, null, PACKED_FIELD_NAME, field, Nullability.TRUE, new NameId(), true);
     }
 

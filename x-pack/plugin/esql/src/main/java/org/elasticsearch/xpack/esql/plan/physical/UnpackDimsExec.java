@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -59,7 +60,14 @@ public class UnpackDimsExec extends UnaryExec {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = CollectionUtils.combine(child().output(), dims);
+            List<Attribute> childOutput = child().output();
+            lazyOutput = new ArrayList<>(childOutput.size() - 1 + dims.size());
+            for (Attribute attr : childOutput) {
+                if (attr.id().equals(packed.id()) == false) {
+                    lazyOutput.add(attr);
+                }
+            }
+            lazyOutput.addAll(dims);
         }
         return lazyOutput;
     }

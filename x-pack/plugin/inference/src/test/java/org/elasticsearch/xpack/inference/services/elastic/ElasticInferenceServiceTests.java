@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
-§import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;

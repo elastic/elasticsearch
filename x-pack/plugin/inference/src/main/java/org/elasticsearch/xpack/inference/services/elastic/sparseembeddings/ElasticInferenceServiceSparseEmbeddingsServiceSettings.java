@@ -243,7 +243,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         static {
             StatefulValue.declareNullable(PARSER, (update, value) -> update.maxBatchSize = value, p -> {
                 Integer value = p.intValue();
-                validatePositiveInteger(value, MAX_BATCH_SIZE);
                 validatePositiveIntegerLessThanOrEqualToMax(value, MAX_BATCH_SIZE, MAX_BATCH_SIZE_UPPER_BOUND);
                 return value;
             }, new ParseField(MAX_BATCH_SIZE), ObjectParser.ValueType.INT_OR_NULL);
@@ -290,7 +289,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         }
 
         public void setMaxBatchSize(Integer maxBatchSize) {
-            validatePositiveInteger(maxBatchSize, MAX_BATCH_SIZE);
             validatePositiveIntegerLessThanOrEqualToMax(maxBatchSize, MAX_BATCH_SIZE, MAX_BATCH_SIZE_UPPER_BOUND);
             this.maxBatchSize = maxBatchSize;
         }

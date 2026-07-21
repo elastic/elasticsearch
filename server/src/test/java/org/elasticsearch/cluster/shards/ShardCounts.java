@@ -93,6 +93,8 @@ public class ShardCounts {
         int maxShardsPerNode = (mainIndexShards * mainIndexReplicas + failingIndexShards * numSearchNodes - 1) / numSearchNodes;
         if (shardsPerNode < maxShardsPerNode) {
             shardsPerNode = ESTestCase.between(shardsPerNode, maxShardsPerNode);
+        } else {
+            shardsPerNode = maxShardsPerNode;
         }
 
         int failingIndexReplicas = (int) Math.ceil(

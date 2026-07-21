@@ -20,17 +20,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Accumulates {@code (doc, value)} entries across a batch for low-cardinality string metadata
- * (e.g. {@code _field_names}, {@code _ignored}) and drains them into an {@link EscfColumnData}
- * of kind {@code ARRAY[STRING]} via {@link #finish}.
- *
- * <p>A {@link HashMap} dictionary interns each distinct value to an ordinal, so all documents
- * referencing the same string share one {@link BytesRef}. {@link #finish} iterates docs in
- * ascending order, satisfying {@link EscfRowColumnBuilder}'s non-decreasing row contract without
- * an explicit sort. Single-use: {@link #finish} releases state.
- *
- * <p>Each {@code (doc, value)} pair must be unique: the columnar path invokes each mapper once
- * per batch, so duplicate entries indicate a bug and are caught by assertions.
+ * Accumulates {@code (doc, value)} string pairs for metadata fields (e.g. {@code _field_names})
+ * and drains them into an {@code ARRAY[STRING]} {@link EscfColumnData} via {@link #finish}.
+ * Interns values by ordinal to share {@link BytesRef} instances across documents. Single-use:
+ * {@link #finish} releases all state. Duplicate {@code (doc, value)} pairs are a bug and are
+ * caught by assertions.
  */
 final class DeduplicatingStringColumnAccumulator {
 
@@ -38,8 +32,7 @@ final class DeduplicatingStringColumnAccumulator {
     private BytesRef[] ordToValue = new BytesRef[4];
     private int ordCount;
 
-    // docOrds[doc] holds the ordinals recorded for that document (null until first record).
-    // The array is exact-size: docOrds[doc].length is the count.
+    // docOrds[doc]: ordinals recorded for that document; null until first record; exact-size.
     private int[][] docOrds;
 
     private boolean hasEntries;

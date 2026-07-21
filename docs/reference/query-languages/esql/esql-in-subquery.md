@@ -1,5 +1,5 @@
 ---
-navigation_title: "Filter rows with IN subqueries"
+navigation_title: "Use IN subqueries in a WHERE command"
 applies_to:
   serverless: preview
   stack: preview 9.5.0
@@ -7,20 +7,20 @@ products:
   - id: elasticsearch
 ---
 
-# {{esql}} `IN` subquery [esql-in-subquery]
+# Filter rows with {{esql}} `IN` subquery in a `WHERE` command [esql-in-subquery]
 
-An `IN` subquery is an ES|QL query wrapped in parentheses that can be used on the
+An {{esql}} query wrapped in parentheses can be used as a subquery on the
 right-hand side of the [`IN` and `NOT IN`](/reference/query-languages/esql/functions-operators/operators.md#esql-in-operator)
 operators in the [`WHERE`](/reference/query-languages/esql/commands/where.md)
-command. It filters the rows of the outer query by comparing a field or
-expression against the set of values returned by the subquery.
+command.
 
-The subquery is non-correlated: it is executed independently of the outer query
-and cannot reference the outer query's columns. Because it runs at query time,
-the filter always reflects the current state of the data.
+The subquery filters rows from the outer query by comparing a field or
+expression against the set of values it returns. This lets you filter against
+the current results of another query without running it separately and copying
+its values into a literal `IN` list.
 
-Use `IN` to keep only the rows whose value appears in the subquery result, and
-`NOT IN` to keep only the rows whose value does not appear.
+Use `IN` to keep rows whose values match subquery results and `NOT IN` to
+exclude them.
 
 ## Syntax
 
@@ -42,15 +42,17 @@ The outer query is not limited to `FROM` either: it can also start with `ROW` or
 
 ## Description
 
-An `IN` subquery lets you filter rows based on the results of another query,
-without having to run that query separately and paste the values back into a
-literal [`IN`](/reference/query-languages/esql/functions-operators/operators.md)
-list.
+A subquery in a `WHERE` command is non-correlated: it runs independently and
+cannot reference columns from the outer query. Because it runs at query time,
+its results reflect the current state of the data.
 
-Much like [subqueries in the `FROM` command](/reference/query-languages/esql/esql-subquery.md),
-the subquery runs its own pipeline of processing commands. Its single output
-column is used as the list of values that the outer `IN` or `NOT IN` predicate
-matches against.
+Unlike a [subquery in a `FROM` command](/reference/query-languages/esql/esql-subquery.md),
+which contributes rows to the combined result set, a subquery in a `WHERE`
+command returns exactly one column. The outer `IN` or `NOT IN` predicate uses
+the values from that column as its comparison set.
+
+An `IN` subquery can itself contain another `IN` subquery, and multiple `IN`
+subqueries can be combined with other predicates using `AND`, `OR`, and `NOT`.
 
 The subquery pipeline can include commands such as the following:
 
@@ -80,9 +82,6 @@ Processing commands:
 - [`SORT`](/reference/query-languages/esql/commands/sort.md)
 - [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 - [`WHERE`](/reference/query-languages/esql/commands/where.md)
-
-An `IN` subquery can itself contain another `IN` subquery, and multiple `IN` subqueries
-can be combined with other predicates using `AND`, `OR`, and `NOT`.
 
 ## Examples
 

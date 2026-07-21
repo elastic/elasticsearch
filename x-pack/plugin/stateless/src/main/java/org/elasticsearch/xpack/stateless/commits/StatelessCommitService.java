@@ -635,9 +635,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
                         assert waitingForGlobalCheckpoint <= globalCheckpoint
                             : "only advanced to [" + globalCheckpoint + "] while waiting for [" + waitingForGlobalCheckpoint + "]";
+                        logger.info(
+                            "GCP advanced to [{}], satisfied wait for [{}], sending commit notification",
+                            globalCheckpoint,
+                            waitingForGlobalCheckpoint
+                        );
                         l.onResponse(null);
                     } else {
                         if (e instanceof TimeoutException) {
+                            logger.info(
+                                "GCP listener timed out waiting for [{}], triggering translog sync and re-registering without timeout",
+                                waitingForGlobalCheckpoint
+                            );
                             try {
                                 // TODO: ideally we'd pass the checkpoint to the translog replicator sync call so it ensures seqnos up to
                                 // the given one are persisted. This'd avoid the need for provoking the sync of higher seqnos unnecessarily.
@@ -724,6 +733,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch() || commitAfterRelocationStarted) {
                 // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
                 // however, except for peer recovery, we can safely assume no search shards.
+                logger.info(
+                    "{} skipping CC commit notification for generation [{}]: routingTableEmpty={}, initializingNoSearch={}, commitAfterReloc={}",
+                    shardId,
+                    generation,
+                    shardRoutingTable.isEmpty(),
+                    commitState.isInitializingNoSearch(),
+                    commitAfterRelocationStarted
+                );
                 commitState.notifyCommitNotificationSuccessListeners(generation);
             } else {
                 // Fetch these values up front for consistent relative values: `virtualBcc` and `commitState` may be modified later in
@@ -738,6 +755,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // of the local checkpoint in the commit.
                 try {
                     var maxSeqNo = Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+                    logger.info(
+                        "{} waiting for GCP >= [{}] before sending commit notification for generation [{}]",
+                        shardId,
+                        maxSeqNo,
+                        generation
+                    );
                     addGlobalCheckpointListener(
                         commitState.addGlobalCheckpointListenerFunction,
                         commitState.triggerTranslogReplicator,
@@ -2248,6 +2271,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + state;
 
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            logger.info(
+                "{} sending CC commit notification for generation [{}] to [{}] search shards",
+                shardId,
+                lastCompoundCommit.generation(),
+                shardRoutingTable.assignedUnpromotableShards().size()
+            );
             statelessCommitNotificationPublisher.sendNewCommitNotification(
                 shardRoutingTable,
                 lastCompoundCommit,

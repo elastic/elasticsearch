@@ -497,7 +497,7 @@ public class SearchEngine extends Engine {
      * is visible to searches.
      */
     public void onCommitNotification(NewCommitNotification notification, ActionListener<Void> listener) {
-        logger.trace(
+        logger.info(
             "{} received new commit notification [bcc={}, cc={}] with latest uploaded {} from node [{}] and cluster state version [{}]",
             shardId,
             notification.batchedCompoundCommitGeneration(),
@@ -682,6 +682,12 @@ public class SearchEngine extends Engine {
 
             private void doUpdateInternalState(NewCommitNotification latestNotification, SegmentInfos current) throws IOException {
                 final StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
+                logger.info(
+                    "{} doUpdateInternalState: applying commit [{}], current gen [{}]",
+                    shardId,
+                    latestCommit.primaryTermAndGeneration(),
+                    current.getGeneration()
+                );
                 final SegmentInfos next = Lucene.readSegmentInfos(directory);
                 setSequenceNumbers(next);
 

@@ -485,9 +485,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         // Bound read schema wins when non-null; null falls through to per-file inference.
         // Prevents cross-file type drift on multi-file globs (e.g. y:LONG vs file-with-1.5 y:DOUBLE).
+        //
+        // Either way the result goes through inferSchemaIfNeeded, which supplements a schema that names a
+        // dotted column without its prefix. The decoder reads "a.b" as a flat key only when "a" is also in
+        // the schema; without the prefix it walks the nested path instead and misreads any file that also
+        // carries a scalar "a". A bound schema is a projection and routinely omits the prefix, so it needs
+        // that supplement exactly as much as an inferred one does.
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
-            : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
+            : inferSchemaIfNeeded(mergeBoundWithProjection(context.readSchema(), resolvedSchema), object, skipFirstLine);
         // Whole-file read: first + last split, no parallel slicing. See CsvFormatReader.read for the
         // rationale. mtime is pinned here at open-time so a mid-scan file replacement cannot pair a
         // new mtime with old data.

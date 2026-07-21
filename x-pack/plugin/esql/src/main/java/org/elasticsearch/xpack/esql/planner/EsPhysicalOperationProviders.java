@@ -413,6 +413,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
+        public boolean isExplicitlyMapped(String name) {
+            // For the unmapped field we are loading, bypass the explicit-mapping gate.
+            // This allows both truly unmapped fields (which use a source-based loader) and
+            // dynamic subfields of flattened fields (which use the keyed block loader) to
+            // produce real values rather than ConstantNull.
+            return name.equals(fullFieldName) || super.isExplicitlyMapped(name);
+        }
+
+        @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
@@ -781,7 +790,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Don't use fieldType() for the existence check — it resolves sub-keys of
             // flattened fields dynamically, but those are not reported by field caps
             // and would cause element_type mismatches at runtime.
-            if (ctx.isExplicitlyMapped(name) == false) {
+            // Use isExplicitlyMapped() (virtual) so subclasses such as DefaultShardContextForUnmappedField
+            // can allow specific unmapped fields to pass through.
+            if (isExplicitlyMapped(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             MappedFieldType fieldType = fieldType(name);

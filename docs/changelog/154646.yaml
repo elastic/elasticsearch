@@ -1,0 +1,5 @@
+area: Infra/Stats
+issues: []
+pr: 154646
+summary: "Fix(stats): avoid NPE in index mode stats for unknown mode on coordinator"
+type: bug

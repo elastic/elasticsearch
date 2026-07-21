@@ -619,3 +619,6 @@ tests:
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testInvalidatingTokensInMixedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154620
+- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
+  method: testTokensStayInvalidatedInUpgradedCluster
+  issue: https://github.com/elastic/elasticsearch/issues/154627

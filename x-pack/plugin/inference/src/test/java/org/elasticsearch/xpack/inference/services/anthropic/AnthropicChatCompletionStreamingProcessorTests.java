@@ -310,4 +310,22 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
             is("Field [model] in Anthropic chat completions response is of unexpected type [Integer]. Expected type is [String].")
         );
     }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() {
+        var firstDelta = """
+            {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}\
+            """;
+        var secondDelta = """
+            {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"World"}}\
+            """;
+        var item = events(List.of(Pair.of("content_block_delta", firstDelta + "\n" + secondDelta)));
+
+        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        }), item);
+        assertThat(response.chunks().size(), is(2));
+        assertContent(response, "Hello");
+        assertContent(response, "World");
+    }
 }

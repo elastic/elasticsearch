@@ -231,6 +231,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "long_csv_equiv",
         "long_parquet_equiv",
         "typed_strings_parquet",
+        "empty_string_double",
         "logs_deferred_coerce",
         "logs_bad_date_token",
         "logs_bad_date_failfast",
@@ -2030,6 +2031,65 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         long parquetValue = readSingleLong("FROM long_parquet_equiv | SORT id | KEEP n | LIMIT 1");
         assertThat("text and columnar coerce the same token to the same long", parquetValue, equalTo(csvValue));
         assertThat(csvValue, equalTo(42L));
+    }
+
+    public void testEmptyStringDeclaredDoubleReproducesReportedFailureWithContext() throws Exception {
+        // Reproduces the exact reported failure end to end: a string column of EMPTY strings declared `double`.
+        // Double.parseDouble("") threw a bare `NumberFormatException: empty String` with no column or type, on the
+        // query that materialized the column. The read still fails under fail_fast, but the client-visible message
+        // now names the column and the declared type and points at error_mode -- the original `empty String` detail
+        // survives as context, no longer the whole story.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetEmptyStringFixture();
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("long", null));
+        props.put("d", new DatasetFieldMapping("double", "s")); // s is the empty string ""
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "empty_string_double",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet", "error_mode", "fail_fast")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props))
+                )
+            )
+        );
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM empty_string_double | KEEP d | LIMIT 10"), TIMEOUT).close()
+        );
+        String message = e.getMessage();
+        assertThat("the original symptom is retained as context", message, containsString("empty String"));
+        assertThat("the failing column is named", message, containsString("Column ["));
+        assertThat("the declared type is named", message, containsString("declared type [double]"));
+        assertThat("the tolerance path is pointed at", message, containsString("error_mode=null_field"));
+    }
+
+    private Path writeParquetEmptyStringFixture() throws IOException {
+        // One required UTF8 string column holding the empty string -- the exact value from the reported incident.
+        MessageType schema = MessageTypeParser.parseMessageType("message empties { required int64 id; required binary s (UTF8); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            g.add("s", "");
+            writer.write(g);
+        }
+        Path tempFile = createTempDir().resolve("empty_string.parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
     }
 
     private long readSingleLong(String query) {

@@ -74,6 +74,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
     public void setupIndex() throws IOException {
         final boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         if (afterRestart) {
+            ensureGreen("test");
             return;
         }
 

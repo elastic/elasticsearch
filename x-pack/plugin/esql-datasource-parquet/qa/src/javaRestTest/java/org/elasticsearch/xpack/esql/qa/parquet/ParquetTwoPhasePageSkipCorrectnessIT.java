@@ -134,8 +134,8 @@ public class ParquetTwoPhasePageSkipCorrectnessIT extends AbstractFromDatasetSub
      *
      * <p>This is an end-to-end sanity check that the real S3-backed two-phase path produces the
      * correct aggregate; the deterministic regression guard for the {@code skipRows} accounting
-     * itself is the unit test {@code PageColumnReaderSkipOvershootReproTests}, which reproduces the
-     * overshoot directly without a fixture.
+     * itself is {@code PageColumnReaderCorrectnessTests#testSkipCoveringExcludedPageLandsAtNextPageStart},
+     * which reproduces the overshoot directly without a fixture.
      */
     public void testGroupedDistinctSurvivesExcludedProjectionPageSkip() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);

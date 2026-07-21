@@ -143,9 +143,9 @@ final class PageColumnReader implements Releasable {
      * reader silently ahead and misread later survivor rows).
      *
      * <p>Only {@link #skipRows} spends this credit. The read entry point ({@link #readBatch}) requires
-     * it to be zero, and asserts as much: a prejump only ever crosses survivor-excluded pages, so the
-     * caller always reaches the next survivor through a {@code skipRows} whose gap fully drains the
-     * surplus before any decode happens.
+     * it to be zero and throws {@link IllegalStateException} otherwise: a prejump only ever crosses
+     * survivor-excluded pages, so the caller always reaches the next survivor through a {@code skipRows}
+     * whose gap fully drains the surplus before any decode happens.
      */
     private long pendingPrejumped;
 
@@ -180,8 +180,14 @@ final class PageColumnReader implements Releasable {
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
-        assert pendingPrejumped == 0
-            : "readBatch called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position";
+        // A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
+        // skipRows may spend that credit. Decoding here would read from the wrong source rows and
+        // silently undercount an aggregate. The check is per-batch, so failing loudly costs nothing.
+        if (pendingPrejumped != 0) {
+            throw new IllegalStateException(
+                "readBatch called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position"
+            );
+        }
         loadDictionaryIfNeeded();
         // Declared-type coercion beyond the fused pairs: decode the column at the file's own type
         // with the arms below, then coerce the block to the declared type. Per-value failures
@@ -561,6 +567,9 @@ final class PageColumnReader implements Releasable {
     }
 
     void skipRows(int count) {
+        // Guard non-positive counts before the credit block below: a negative count would make
+        // Math.min(pendingPrejumped, count) negative, so `pendingPrejumped -= credited` would inflate
+        // the banked surplus instead of spending it, leaving the reader permanently ahead of the caller.
         if (count <= 0) {
             return;
         }

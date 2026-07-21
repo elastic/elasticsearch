@@ -27,9 +27,7 @@ abstract class AbstractFixed64Column extends EscfColumn {
 
     AbstractFixed64Column(int docCount, FixedBitSet validity, BytesReference data) {
         super(docCount, validity);
-        assert data.length() == (long) docCount * 8
-            : "fixed-64 column data length " + data.length() + " != docCount * 8 = " + ((long) docCount * 8);
-        assert assertChunksAligned(data);
+        assert assertDataValid(docCount, data);
         this.data = data;
     }
 
@@ -38,7 +36,9 @@ abstract class AbstractFixed64Column extends EscfColumn {
         return data.getLongLE(row * 8);
     }
 
-    private static boolean assertChunksAligned(BytesReference data) {
+    private static boolean assertDataValid(int docCount, BytesReference data) {
+        assert data.length() == (long) docCount * 8
+            : "fixed-64 column data length " + data.length() + " != docCount * 8 = " + ((long) docCount * 8);
         try {
             BytesRefIterator iter = data.iterator();
             BytesRef chunk;

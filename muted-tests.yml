@@ -586,6 +586,3 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testMasterFailoverDuringForceMerge
-  issue: https://github.com/elastic/elasticsearch/issues/154505

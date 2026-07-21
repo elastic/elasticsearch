@@ -21,7 +21,7 @@ import java.util.function.Function;
  * {@value #REGISTER_PROPERTY} to {@code false}.
  *
  * <p>This is a deliberately coarse, static lever, not a dynamic setting: the value is read once at
- * class initialization (forced at node startup via {@link #init()}), so changing it requires
+ * class initialization (forced at node startup by {@code EsqlPlugin}), so changing it requires
  * restarting the node. That trade-off is intentional for an emergency lever that is expected to be
  * used rarely, and it keeps the mechanism simple (a dynamic enabler would be considerably more
  * complex). Cloud/GovCloud can set system properties on any deployment.
@@ -63,22 +63,14 @@ public final class Federation {
     static {
         // Mirror FeatureFlag: surface the effective state in the node log so an operator can confirm
         // the switch after a bounce. Only log the exceptional (disabled) state to avoid noise. Because
-        // the read and this log run in the static initializer, plugin startup calls init() to force
-        // class initialization at boot rather than deferring it to the first federation operation.
+        // the read and this log run in the static initializer, EsqlPlugin forces class initialization
+        // at boot rather than deferring it to the first federation operation.
         if (ENABLED == false) {
             logger.info("ES|QL federation (external data sources) is not registered ([{}]=false)", REGISTER_PROPERTY);
         }
     }
 
     private Federation() {}
-
-    /**
-     * Forces this class to initialize now, so the property is read (failing fast on an invalid value) and
-     * the disabled state is logged at node startup rather than on the first federation operation. Intended
-     * to be called once during plugin component creation; it does nothing beyond triggering the static
-     * initializer.
-     */
-    public static void init() {}
 
     /**
      * Parses the enabled state from the given property source. Defaults to enabled when the property
@@ -94,17 +86,17 @@ public final class Federation {
     }
 
     /**
-     * Whether the federation feature is registered on this node. Read by {@code EsqlPlugin} at startup to
+     * Whether the federation feature is available on this node. Read by {@code EsqlPlugin} at startup to
      * decide whether to register the federation REST handlers and transport actions, and by
      * {@code DatasetResolver} to decide whether to attempt the {@code FROM <dataset>} rewrite.
      */
-    public static boolean isEnabled() {
+    public static boolean isAvailable() {
         return ENABLED;
     }
 
-    /** No-op when federation is enabled; throws {@link #notAvailableException()} when the kill switch is engaged. */
+    /** No-op when federation is available; throws {@link #notAvailableException()} when the kill switch is engaged. */
     public static void ensureEnabled() {
-        ensureEnabled(isEnabled());
+        ensureEnabled(isAvailable());
     }
 
     static void ensureEnabled(boolean enabled) {

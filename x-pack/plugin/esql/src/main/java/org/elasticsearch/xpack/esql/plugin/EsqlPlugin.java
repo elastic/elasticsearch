@@ -156,6 +156,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -373,9 +374,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
 
-        // Read the federation kill switch now so the property is validated (fail fast on an invalid value) and
-        // the disabled state is logged at startup, rather than lazily on the first federation operation.
-        Federation.init();
+        // Force Federation to initialize now so the kill-switch property is validated (fail fast on an invalid value)
+        // and the disabled state is logged at startup, rather than lazily on the first federation operation.
+        try {
+            MethodHandles.publicLookup().ensureInitialized(Federation.class);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Failed to initialize " + Federation.class.getName(), e);
+        }
 
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
         // This discovers built-in plugins from this plugin's classloader
@@ -677,7 +682,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Federation (external data sources) REST handlers are registered only when the feature is on. When
         // suppressed the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
-        if (Federation.isEnabled()) {
+        if (Federation.isAvailable()) {
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());

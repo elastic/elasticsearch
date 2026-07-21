@@ -65,7 +65,7 @@ public class DatasetResolver {
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      */
     public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        replaceDatasets(parsed, projectMetadata, listener, Federation.isEnabled());
+        replaceDatasets(parsed, projectMetadata, listener, Federation.isAvailable());
     }
 
     /**

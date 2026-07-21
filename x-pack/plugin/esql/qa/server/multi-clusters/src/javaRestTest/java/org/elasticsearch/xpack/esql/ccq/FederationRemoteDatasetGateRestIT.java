@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -43,7 +44,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Exercises the federation kill switch's remote-dataset gate in {@code EsqlResolveFieldsAction} at its call site,
  * which the pure-unit {@code FederationTests} cannot: that helper test drives {@code Federation.ensureEnabled(boolean)}
- * directly, so deleting the {@code && Federation.isEnabled()} guard from the resolve action would not make it fail.
+ * directly, so deleting the {@code && Federation.isAvailable()} guard from the resolve action would not make it fail.
  *
  * <p>The gate only runs on a remote cluster (the {@code resolveDatasets} option is set only on the request the
  * originating cluster sends to a remote), and to go red on removal the disabled remote must still hold a dataset in
@@ -85,6 +86,17 @@ public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
 
     public void testDisabledRemoteResolvesDatasetAsMissingIndex() throws Exception {
         assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
+        // The remote-dataset gate needs the federation kill switch on both nodes: the coordinator sends the
+        // resolveDatasets option to the remote, and the remote honors the switch by dropping its datasets. Older nodes
+        // predate the feature and do not report the capability, so a mixed cluster correctly skips this scenario.
+        List<String> killSwitchCapability = List.of(EsqlCapabilities.Cap.REGISTER_FEDERATION_FEATURE.capabilityName());
+        try (RestClient capabilityClient = remoteClusterClient()) {
+            assumeTrue(
+                "federation kill switch requires the feature on both clusters",
+                clusterHasCapability("POST", "/_query", List.of(), killSwitchCapability).orElse(false)
+                    && clusterHasCapability(capabilityClient, "POST", "/_query", List.of(), killSwitchCapability).orElse(false)
+            );
+        }
 
         final String dataSource = "gate_ds";
         final String dataset = "gate_dataset";

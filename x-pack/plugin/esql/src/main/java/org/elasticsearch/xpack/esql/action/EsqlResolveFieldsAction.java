@@ -92,7 +92,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         // When federation is suppressed this node reports no datasets, so a FROM <remote:name> falls through to normal
         // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
         // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
-        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && Federation.isEnabled()
+        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && Federation.isAvailable()
             ? qualify(request.clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
             : List.of();
         boolean hasRemoteViews = remoteViews.isEmpty() == false;

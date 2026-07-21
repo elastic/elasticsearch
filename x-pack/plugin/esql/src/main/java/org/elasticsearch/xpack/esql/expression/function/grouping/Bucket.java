@@ -630,6 +630,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return getDateRounding(foldContext, null, null);
     }
 
+    /**
+     * The folded start of the {@code from}..{@code to} range, in millis since epoch. Requires the four-argument form.
+     */
+    public long rangeFromMillis(FoldContext foldContext) {
+        return foldToLong(foldContext, from);
+    }
+
+    /**
+     * The folded end of the {@code from}..{@code to} range, in millis since epoch. Requires the four-argument form.
+     */
+    public long rangeToMillis(FoldContext foldContext) {
+        return foldToLong(foldContext, to);
+    }
+
     public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
 
@@ -664,7 +678,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return prepared;
     }
 
-    private double getNumberRoundTo(FoldContext foldContext) {
+    /**
+     * The numeric bucket width: buckets are the multiples of this value.
+     */
+    public double getNumberRoundTo(FoldContext foldContext) {
         if (from != null) {
             assert to != null : "Both from and to must be set";
             long b = ((Number) buckets.fold(foldContext)).longValue();

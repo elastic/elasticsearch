@@ -42,6 +42,7 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
+import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -175,6 +177,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -211,11 +214,13 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -394,6 +399,8 @@ public class LocalExecutionPlanner {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
+        } else if (node instanceof InsertEmptyBucketsExec insertEmptyBuckets) {
+            return planInsertEmptyBuckets(insertEmptyBuckets, context);
         } else if (node instanceof LimitByExec limitBy) {
             return planLimitBy(limitBy, context);
         } else if (node instanceof LimitExec limit) {
@@ -2075,6 +2082,75 @@ public class LocalExecutionPlanner {
             );
         }
         return filterOperation;
+    }
+
+    private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(insertEmptyBuckets.child(), context);
+
+        SequencedMap<Integer, InsertEmptyBucketsOperator.BucketCursor> bucketChannels = new LinkedHashMap<>();
+        insertEmptyBuckets.buckets().forEach((attribute, bucket) -> {
+            Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
+            if (channelAndType != null) {
+                bucketChannels.put(channelAndType.channel(), bucketCursor(bucket, context.foldCtx));
+            }
+        });
+
+        List<Integer> groupChannels = insertEmptyBuckets.groups()
+            .stream()
+            .map(group -> getAttributeChannel(group, source.layout(), "InsertEmptyBuckets group must be an attribute"))
+            .toList();
+
+        // One entry per value channel (= every input channel that is neither a bucket nor a group).
+        // PushdownInsertEmptyBucketsAndSetDefaultValues determines the value an empty bucket takes per output attribute, but it
+        // works on the logical plan and cannot see internal input channels (e.g. the packed dimension of a time-series query),
+        // which the operator still needs an element type for. So enumerate the channels from the actual input layout here and
+        // null-fill any that the rule did not assign.
+        Map<Integer, InsertEmptyBucketsOperator.DefaultValue> defaultValues = new HashMap<>();
+        if (insertEmptyBuckets.defaultValues() != null) {
+            insertEmptyBuckets.defaultValues().forEach((attribute, defaultValue) -> {
+                Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
+                if (channelAndType != null) {
+                    defaultValues.put(channelAndType.channel(), defaultValue);
+                }
+            });
+        }
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < source.layout.numberOfChannels(); channel++) {
+            if (bucketChannels.containsKey(channel) || groupChannels.contains(channel) || defaultValues.containsKey(channel)) {
+                continue;
+            }
+            defaultValues.put(
+                channel,
+                new InsertEmptyBucketsOperator.DefaultValue(PlannerUtils.toElementType(inverse.get(channel).type()), null)
+            );
+        }
+
+        return source.with(
+            new InsertEmptyBucketsOperator.Factory(
+                bucketChannels,
+                groupChannels,
+                defaultValues,
+                context.pageSize(insertEmptyBuckets, insertEmptyBuckets.estimatedRowSize())
+            ),
+            source.layout
+        );
+    }
+
+    private static InsertEmptyBucketsOperator.BucketCursor bucketCursor(Bucket bucket, FoldContext foldCtx) {
+        return switch (bucket.dataType()) {
+            case DATETIME, DATE_NANOS -> new InsertEmptyBucketsOperator.DateCursor(
+                bucket.getDateRoundingOrNull(foldCtx),
+                bucket.rangeFromMillis(foldCtx),
+                bucket.rangeToMillis(foldCtx),
+                bucket.dataType() == DataType.DATE_NANOS
+            );
+            case DOUBLE -> new InsertEmptyBucketsOperator.NumericCursor(
+                bucket.getNumberRoundTo(foldCtx),
+                ((Number) Foldables.valueOf(foldCtx, bucket.from())).doubleValue(),
+                ((Number) Foldables.valueOf(foldCtx, bucket.to())).doubleValue()
+            );
+            default -> throw new EsqlIllegalArgumentException("unexpected data type [{}]", bucket.dataType());
+        };
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {

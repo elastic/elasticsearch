@@ -20,8 +20,8 @@ import org.elasticsearch.xcontent.XContentString;
 /** An ESCF column whose values are all UTF-8 strings (variable-length layout: offset vector + dense byte payload). */
 final class EscfStringColumn extends AbstractVarColumn {
 
-    EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
-        super(docCount, absent, data, offsets);
+    EscfStringColumn(int docCount, FixedBitSet validity, BytesReference data, IntsRef offsets) {
+        super(docCount, validity, data, offsets);
     }
 
     @Override
@@ -41,7 +41,7 @@ final class EscfStringColumn extends AbstractVarColumn {
     }
 
     @Override
-    AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets) {
-        return new EscfStringColumn(count, sliceAbsent, sliceData, sliceOffsets);
+    AbstractVarColumn newSlice(int count, FixedBitSet sliceValidity, BytesReference sliceData, IntsRef sliceOffsets) {
+        return new EscfStringColumn(count, sliceValidity, sliceData, sliceOffsets);
     }
 }

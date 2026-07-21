@@ -340,8 +340,9 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
-        // This returns a flush result which is not skipped due to collision, but does not actually flush anything. Mostly to appease
-        // flushOnIdle so it does not retry endlessly unnecessarily.
+        // This returns a flush result which is not skipped due to collision. Mostly to appease flushOnIdle so it does not retry
+        // endlessly unnecessarily. Itself does not actually flush anything but does ensure flush of the current generation
+        // (the hollow commit) is completed before invoking the listener.
         final long generation = segmentInfos.getGeneration();
         statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener.map(v -> new FlushResult(false, generation)));
     }

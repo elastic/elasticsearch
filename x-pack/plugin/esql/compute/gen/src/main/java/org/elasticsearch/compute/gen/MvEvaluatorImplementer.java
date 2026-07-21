@@ -33,11 +33,9 @@ import static org.elasticsearch.compute.gen.Types.ABSTRACT_MULTIVALUE_FUNCTION_E
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_RANGE;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
-import static org.elasticsearch.compute.gen.Types.LONG_RANGE;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -214,7 +212,7 @@ public class MvEvaluatorImplementer {
             builderType = builderType(blockType(resultType));
         } else if (resultType.equals(BYTES_REF)) {
             builderType = builderType(vectorType(resultType));
-        }  else if (vectorType(resultType) != null) {
+        } else if (vectorType(resultType) != null) {
             builderType = vectorFixedBuilderType(resultType);
         } else {
             // Some types, such as range types have no vector type; use the block builder for both nullable and non-nullable paths
@@ -323,9 +321,7 @@ public class MvEvaluatorImplementer {
                 }
             } else {
                 // process function evaluates position at a time
-                String scratch = (scratchType(fieldType.toString()) != null)
-                    ? ", valueScratch"
-                    : "";
+                String scratch = (scratchType(fieldType.toString()) != null) ? ", valueScratch" : "";
                 builder.addStatement(
                     "$T result = $T.$L(v, first, end$L)",
                     resultType,

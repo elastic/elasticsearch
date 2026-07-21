@@ -355,3 +355,34 @@ setup:
   - not_exists: hits.hits.0._source.semantic_field.value
   - match:      { hits.hits.0._source.semantic_field.description: "a cat on a windowsill" }
   - exists:     hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.embeddings
+
+---
+"Not retaining binary requires a description":
+  - requires:
+      cluster_features: "semantic_field.retain_binary"
+      reason: "retain_binary mapping parameter needs to be available"
+
+  - do:
+      indices.create:
+        index: test-semantic-field-require-description-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+                retain_binary: false
+
+  - do:
+      catch: bad_request
+      index:
+        index: test-semantic-field-require-description-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "Input for field [semantic_field] from source field [semantic_field] has no description. A description is required for binary inputs when [retain_binary] is false." }

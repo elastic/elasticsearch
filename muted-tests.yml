@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
-  method: test20SecurityNotAutoConfiguredOnReInstallation
-  issue: https://github.com/elastic/elasticsearch/issues/112635
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
@@ -101,9 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
-  method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
-  issue: https://github.com/elastic/elasticsearch/issues/147656
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
@@ -189,14 +183,8 @@ tests:
   method: testFullClusterRestart
   issue: https://github.com/elastic/elasticsearch/issues/150960
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
-  method: plugin projects are wired into test cluster setup
-  issue: https://github.com/elastic/elasticsearch/issues/148014
-- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: yamlRestTest does nothing when there are no tests
   issue: https://github.com/elastic/elasticsearch/issues/150983
-- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
-  method: module projects are wired into test cluster setup
-  issue: https://github.com/elastic/elasticsearch/issues/150984
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
@@ -209,9 +197,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPluginFuncTest
   method: testing convention tasks are cacheable and uptodate
   issue: https://github.com/elastic/elasticsearch/issues/152371
-- class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
-  method: testUserSearchWithBindUserOpenLDAP
-  issue: https://github.com/elastic/elasticsearch/issues/152601
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/152607
@@ -254,6 +239,36 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=field_caps/10_basic/Get prefix field caps}
   issue: https://github.com/elastic/elasticsearch/issues/153913
+- class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/154059
+- class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
+  method: testLimitsFileCount
+  issue: https://github.com/elastic/elasticsearch/issues/149557
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testOperationBasedRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/154165
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRecoveryClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/154166
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testSoftDeletesDisabledWarning
+  issue: https://github.com/elastic/elasticsearch/issues/154167
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/260_knn_lookup_query_builder/Test error when document not found}
+  issue: https://github.com/elastic/elasticsearch/issues/154242
+- class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
+  method: testComputeNeighbours
+  issue: https://github.com/elastic/elasticsearch/issues/154321
+- class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
+  method: testUserSearchWithBindUserOpenLDAP
+  issue: https://github.com/elastic/elasticsearch/issues/152601
+- class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
+  method: testLinearRetrieverPartialSearchErrorsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/154370
+- class: org.elasticsearch.indices.ShardLimitValidatorTests
+  method: testOverShardLimit
+  issue: https://github.com/elastic/elasticsearch/issues/154511
 
 # Examples:
 #

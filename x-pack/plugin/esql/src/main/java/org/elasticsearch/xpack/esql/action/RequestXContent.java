@@ -95,6 +95,7 @@ final class RequestXContent {
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
+    private static final ObjectParser<EsqlQueryRequest, Void> STREAM_PARSER = objectParserStream(() -> syncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
@@ -106,6 +107,13 @@ final class RequestXContent {
     /** Parses an asynchronous request. */
     static EsqlQueryRequest parseAsync(XContentParser parser) {
         EsqlQueryRequest request = ASYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
+    }
+
+    /** Parses a streaming request (the only endpoint that accepts {@code page_size}). */
+    static EsqlQueryRequest parseStream(XContentParser parser) {
+        EsqlQueryRequest request = STREAM_PARSER.apply(parser, null);
         request.applyCanonicalRequestSettings();
         return request;
     }
@@ -125,7 +133,6 @@ final class RequestXContent {
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
-        parser.declareInt(EsqlQueryRequest::pageSize, PAGE_SIZE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
         declareRegistryAliases(parser);
         parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
@@ -208,6 +215,13 @@ final class RequestXContent {
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
         objectParserCommon(parser);
+        return parser;
+    }
+
+    private static ObjectParser<EsqlQueryRequest, Void> objectParserStream(Supplier<EsqlQueryRequest> supplier) {
+        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/stream_query", false, supplier);
+        objectParserCommon(parser);
+        parser.declareInt(EsqlQueryRequest::pageSize, PAGE_SIZE_FIELD);
         return parser;
     }
 

@@ -25,7 +25,7 @@ import java.util.function.Function;
  * Backpressure is provided by {@link PageStreamPublisher#waitForWriting()}: the driver stalls
  * until the REST subscriber signals demand via {@code request(1)}.
  */
-public class TieredPageOperator extends SinkOperator {
+public class StreamingPageOperator extends SinkOperator {
 
     private final PageStreamPublisher stream;
     private final Function<Page, Page> alignment;
@@ -33,7 +33,7 @@ public class TieredPageOperator extends SinkOperator {
     private int pagesEmitted;
     private long rowsEmitted;
 
-    public TieredPageOperator(PageStreamPublisher stream, Function<Page, Page> alignment) {
+    public StreamingPageOperator(PageStreamPublisher stream, Function<Page, Page> alignment) {
         this.stream = stream;
         this.alignment = alignment;
     }
@@ -76,18 +76,18 @@ public class TieredPageOperator extends SinkOperator {
     }
 
     /**
-     * Factory for {@link TieredPageOperator}.
+     * Factory for {@link StreamingPageOperator}.
      */
     public record Factory(PageStreamPublisher stream, Function<Page, Page> alignment) implements SinkOperatorFactory {
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
-            return new TieredPageOperator(stream, alignment);
+            return new StreamingPageOperator(stream, alignment);
         }
 
         @Override
         public String describe() {
-            return "TieredPageOperator";
+            return "StreamingPageOperator";
         }
     }
 
@@ -97,7 +97,7 @@ public class TieredPageOperator extends SinkOperator {
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "tiered_page",
+            "streaming_page",
             Status::new
         );
 

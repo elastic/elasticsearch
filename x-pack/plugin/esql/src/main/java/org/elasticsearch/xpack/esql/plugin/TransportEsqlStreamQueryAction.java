@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -30,20 +34,29 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
@@ -52,7 +65,7 @@ import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOr
  * <p>
  * Mirrors {@link TransportEsqlQueryAction} but responds to the REST listener immediately
  * after analysis (with schema + publisher), before compute finishes. Pages flow directly
- * from the compute driver through {@link org.elasticsearch.compute.operator.TieredPageOperator}
+ * from the compute driver through {@link StreamingPageOperator}
  * into the {@link PageStreamPublisher}, which the REST listener subscribes to.
  * </p>
  */
@@ -71,6 +84,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
     private final TransportActionServices services;
     private final ClusterService clusterService;
     private final Executor requestExecutor;
+    private final Client client;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -87,7 +101,8 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         PlanExecutor planExecutor,
         TransportEsqlQueryAction transportEsqlQueryAction,
         ClusterService clusterService,
-        ViewResolver viewResolver
+        ViewResolver viewResolver,
+        Client client
     ) {
         super(EsqlStreamQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -98,6 +113,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.client = client;
         this.enrichPolicyResolver = transportEsqlQueryAction.enrichPolicyResolver();
         this.datasetResolver = transportEsqlQueryAction.datasetResolver();
 
@@ -147,23 +163,52 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
 
         PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> {
             List<ColumnInfoImpl> columns = buildColumns(plan.output());
-            StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
 
-            // Signal the REST listener before compute starts so HTTP headers can be sent
-            responded.set(true);
-            listener.onResponse(new EsqlStreamQueryAction.Response(columns, publisher));
+            // Launches compute after we have the null-column mask (or null when no dropping is needed).
+            Consumer<boolean[]> startCompute = nullColumns -> {
+                StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
+                // Signal the REST listener before compute starts so HTTP headers can be sent.
+                responded.set(true);
+                listener.onResponse(new EsqlStreamQueryAction.Response(columns, publisher, nullColumns));
+                computeService.execute(
+                    sessionId,
+                    (CancellableTask) task,
+                    flags,
+                    streamingPlan,
+                    configuration,
+                    foldCtx,
+                    executionInfo,
+                    planTimeProfile,
+                    resultListener
+                );
+            };
 
-            computeService.execute(
-                sessionId,
-                (CancellableTask) task,
-                flags,
-                streamingPlan,
-                configuration,
-                foldCtx,
-                executionInfo,
-                planTimeProfile,
-                resultListener
-            );
+            if (request.dropNullColumns()) {
+                Set<String> indexFieldNames = collectIndexFieldNames(plan.output());
+                if (indexFieldNames.isEmpty()) {
+                    // No index-backed columns in the output (e.g. ROW or SHOW queries) — nothing to drop.
+                    startCompute.accept(null);
+                } else {
+                    Set<String> indexPatterns = collectIndexPatterns(plan);
+                    FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+                    fieldCapsRequest.indices(indexPatterns.toArray(String[]::new));
+                    fieldCapsRequest.fields(indexFieldNames.toArray(String[]::new));
+                    // Ask only for fields that actually have data; absent fields are empty.
+                    fieldCapsRequest.includeEmptyFields(false);
+                    client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest, ActionListener.wrap(response -> {
+                        Set<String> nonEmptyFields = response.get().keySet();
+                        Set<String> emptyFieldNames = new HashSet<>(indexFieldNames);
+                        emptyFieldNames.removeAll(nonEmptyFields);
+                        startCompute.accept(classifyNullColumns(plan.output(), emptyFieldNames));
+                    }, ex -> {
+                        // Field caps failed — fall back to showing all columns rather than failing the query.
+                        logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
+                        startCompute.accept(null);
+                    }));
+                }
+            } else {
+                startCompute.accept(null);
+            }
         };
 
         planExecutor.esql(
@@ -210,6 +255,55 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
             }
             return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, null);
         }).toList();
+    }
+
+    /**
+     * Returns the set of field names (mapping-path strings) for all index-backed columns in the
+     * plan output. {@link UnsupportedAttribute}s are excluded because their type is unresolved and
+     * they are always kept. Derived columns ({@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute},
+     * {@link org.elasticsearch.xpack.esql.core.expression.MetadataAttribute}) are not included.
+     */
+    private static Set<String> collectIndexFieldNames(List<Attribute> output) {
+        Set<String> fieldNames = new HashSet<>();
+        for (Attribute attr : output) {
+            if (attr instanceof FieldAttribute fa && (attr instanceof UnsupportedAttribute) == false) {
+                fieldNames.add(fa.fieldName().string());
+            }
+        }
+        return fieldNames;
+    }
+
+    /**
+     * Collects the index patterns referenced by the physical plan. Handles both the single-node
+     * case (direct {@link EsQueryExec}/{@link EsSourceExec} leaves) and the distributed case
+     * (coordinator-side plan with {@link FragmentExec} nodes that contain logical {@link EsRelation}s).
+     */
+    private static Set<String> collectIndexPatterns(PhysicalPlan plan) {
+        Set<String> patterns = new HashSet<>();
+        plan.forEachDown(EsQueryExec.class, exec -> patterns.add(exec.indexPattern()));
+        plan.forEachDown(EsSourceExec.class, exec -> patterns.add(exec.indexPattern()));
+        plan.forEachDown(
+            FragmentExec.class,
+            frag -> frag.fragment().forEachDown(EsRelation.class, rel -> patterns.add(rel.indexPattern()))
+        );
+        return patterns;
+    }
+
+    /**
+     * Builds a per-column null mask: {@code true} for each index-backed column whose field name
+     * appears in {@code emptyFieldNames}, {@code false} for derived/metadata columns and for
+     * index fields that do have data.
+     */
+    private static boolean[] classifyNullColumns(List<Attribute> output, Set<String> emptyFieldNames) {
+        boolean[] nullColumns = new boolean[output.size()];
+        for (int i = 0; i < output.size(); i++) {
+            Attribute attr = output.get(i);
+            if (attr instanceof FieldAttribute fa && (attr instanceof UnsupportedAttribute) == false) {
+                nullColumns[i] = emptyFieldNames.contains(fa.fieldName().string());
+            }
+            // ReferenceAttribute, MetadataAttribute, UnsupportedAttribute → false (always keep)
+        }
+        return nullColumns;
     }
 
     private List<String> extractWarnings() {

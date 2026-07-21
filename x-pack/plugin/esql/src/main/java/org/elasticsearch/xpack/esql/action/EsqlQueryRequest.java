@@ -72,9 +72,18 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     /**
      * Number of rows per streamed NDJSON chunk when using the streaming endpoint ({@code POST /_query/stream}).
-     * Zero means "use native compute page size" (no re-chunking).
+     * Only accepted on {@code POST /_query/stream}; must be {@code >= 1}.
+     * {@code null} when unset (the streaming endpoint rejects unset values).
      */
-    private int pageSize = 0;
+    private Integer pageSize = null;
+
+    /**
+     * When {@code true}, columns that have no data in any of the queried indices are omitted from
+     * the NDJSON response, matching the static-analysis approach described in the pagination design doc.
+     * Only accepted on {@code POST /_query/stream}; the sync and async endpoints use the existing
+     * URL-param-based {@code drop_null_columns} mechanism instead.
+     */
+    private boolean dropNullColumns = false;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -126,6 +135,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
         this.pageSize = source.pageSize;
+        this.dropNullColumns = source.dropNullColumns;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -343,14 +353,30 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     /**
-     * Number of rows per NDJSON chunk for the streaming endpoint. Zero means use native compute page size.
+     * Number of rows per NDJSON chunk for the streaming endpoint ({@code POST /_query/stream}).
+     * Only accepted on the streaming endpoint and must be {@code >= 1}.
+     * Returns {@code null} when the field was not set in the request.
      */
-    public int pageSize() {
+    public Integer pageSize() {
         return pageSize;
     }
 
     public EsqlQueryRequest pageSize(int pageSize) {
         this.pageSize = pageSize;
+        return this;
+    }
+
+    /**
+     * Whether to drop columns that have no data in the queried indices from the streaming response.
+     * Uses static analysis (field caps) rather than a post-execution page scan, so the column set
+     * is stable before the first page is streamed.
+     */
+    public boolean dropNullColumns() {
+        return dropNullColumns;
+    }
+
+    public EsqlQueryRequest dropNullColumns(boolean dropNullColumns) {
+        this.dropNullColumns = dropNullColumns;
         return this;
     }
 

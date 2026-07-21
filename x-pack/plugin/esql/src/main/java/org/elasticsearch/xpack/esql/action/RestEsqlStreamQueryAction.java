@@ -17,8 +17,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 
 /**
  * REST handler for the streaming ES|QL query endpoint ({@code POST /_query/stream}).
@@ -41,11 +43,22 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
     }
 
     @Override
+    protected Set<String> responseParams() {
+        return Set.of(DROP_NULL_COLUMNS_OPTION);
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = RequestXContent.parseSync(parser);
+            esqlRequest = RequestXContent.parseStream(parser);
         }
+        if (esqlRequest.pageSize() == null || esqlRequest.pageSize() < 1) {
+            throw new IllegalArgumentException(
+                "[" + RequestXContent.PAGE_SIZE_FIELD.getPreferredName() + "] must be greater than or equal to 1"
+            );
+        }
+        esqlRequest.dropNullColumns(request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false));
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(EsqlStreamQueryAction.INSTANCE, esqlRequest, new EsqlStreamResponseListener(channel));

@@ -1930,12 +1930,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
+            String name = attribute.name();
+            int lastDot = name.lastIndexOf('.');
+            String parentName = lastDot < 0 ? null : name.substring(0, lastDot);
+            String leafName = lastDot < 0 ? name : name.substring(lastDot + 1);
             return new FieldAttribute(
                 attribute.source(),
-                null,
+                parentName,
                 attribute.qualifier(),
-                attribute.name(),
-                new PotentiallyUnmappedKeywordEsField(attribute.name())
+                name,
+                new PotentiallyUnmappedKeywordEsField(leafName)
             );
         }
 

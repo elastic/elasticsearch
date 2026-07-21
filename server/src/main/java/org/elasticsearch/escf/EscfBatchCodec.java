@@ -34,11 +34,11 @@ import java.util.List;
  * schema_offset(i32) column_index_offset(i32) data_offset(i32) total_size(i32)
  * [Schema]        non_leaf_count(u16) { parent(u16) name_len(u16) name }* leaf_count(u16) { parent(u16) name_len(u16) name }*
  * [Column Index]  per leaf: kind(u8) present_flags(u8) base_offset(i32)
- *                 absent_len(i32) typevec_len(i32) offsets_len(i32) data_len(i32)   [= 22 bytes]
- * [Column Data]   per leaf, present fields concatenated: [absent_bitset] [type_vector] [offsets] [data]
+ *                 validity_len(i32) typevec_len(i32) offsets_len(i32) data_len(i32)   [= 22 bytes]
+ * [Column Data]   per leaf, present fields concatenated: [validity_bitset] [type_vector] [offsets] [data]
  * </pre>
- * {@code present_flags} bit 0 = absent bitset, bit 1 = type vector, bit 2 = offsets; the data field is
- * always present. {@code base_offset} is relative to {@code data_offset}.
+ * {@code present_flags} bit 0 = Arrow-style validity bitset (bit set = present), bit 1 = type vector,
+ * bit 2 = offsets; the data field is always present. {@code base_offset} is relative to {@code data_offset}.
  */
 final class EscfBatchCodec {
 
@@ -49,7 +49,7 @@ final class EscfBatchCodec {
     private static final int HEADER_SIZE = 32;
     private static final int COLUMN_INDEX_ENTRY_SIZE = 22;
 
-    private static final int FLAG_ABSENT = 0x1;
+    private static final int FLAG_VALIDITY = 0x1;
     private static final int FLAG_TYPE_VECTOR = 0x2;
     private static final int FLAG_OFFSETS = 0x4;
 
@@ -93,14 +93,14 @@ final class EscfBatchCodec {
             int dataLen = data.getIntLE(entryBase + 18);
 
             int pos = base;
-            FixedBitSet absent = null;
-            if ((flags & FLAG_ABSENT) != 0) {
-                absent = bytesToFixedBitSet(data, pos, docCount);
+            FixedBitSet validity = null;
+            if ((flags & FLAG_VALIDITY) != 0) {
+                validity = bytesToFixedBitSet(data, pos, docCount);
                 pos += absentLen;
             }
-            byte[] typeVector = null;
+            BytesRef typeVector = null;
             if ((flags & FLAG_TYPE_VECTOR) != 0) {
-                typeVector = bytesToByteArray(data, pos, typeVecLen);
+                typeVector = new BytesRef(bytesToByteArray(data, pos, typeVecLen));
                 pos += typeVecLen;
             }
             int[] offsets = null;
@@ -111,25 +111,25 @@ final class EscfBatchCodec {
             // For BOOL the data field carries the value bitset; ARRAY carries a nested child column;
             // every other kind keeps its payload as a byte slice.
             columns[c] = switch (kind) {
-                case EscfColumnKind.BOOL -> EscfColumnData.ofBool(docCount, absent, bytesToFixedBitSet(data, pos, docCount));
+                case EscfColumnKind.BOOL -> EscfColumnData.ofBool(docCount, validity, bytesToFixedBitSet(data, pos, docCount));
                 case EscfColumnKind.ARRAY -> EscfColumnData.ofArray(
                     docCount,
-                    absent,
+                    validity,
                     offsets,
                     decodeArrayChild(data, pos, dataLen, offsets[docCount])
                 );
-                case EscfColumnKind.UNION -> EscfColumnData.ofUnion(docCount, absent, typeVector, offsets, data.slice(pos, dataLen));
+                case EscfColumnKind.UNION -> EscfColumnData.ofUnion(docCount, validity, typeVector, offsets, data.slice(pos, dataLen));
                 case EscfColumnKind.STRING, EscfColumnKind.BINARY -> EscfColumnData.ofVarWidth(
                     kind,
                     docCount,
-                    absent,
+                    validity,
                     offsets,
                     data.slice(pos, dataLen)
                 );
                 case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> EscfColumnData.ofFixed64(
                     kind,
                     docCount,
-                    absent,
+                    validity,
                     data.slice(pos, dataLen)
                 );
                 default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(kind));
@@ -154,8 +154,10 @@ final class EscfBatchCodec {
         BytesReference[] dataPart = new BytesReference[colCount];
         for (int c = 0; c < colCount; c++) {
             EscfColumnData col = columns[c];
-            absentPart[c] = col.absent() != null ? bitsetToRef(col.absent(), docCount) : null;
-            typeVecPart[c] = col.typeVector() != null ? new BytesArray(col.typeVector()) : null;
+            absentPart[c] = col.validity() != null ? bitsetToRef(col.validity(), docCount) : null;
+            typeVecPart[c] = col.typeVector() != null
+                ? new BytesArray(col.typeVector().bytes, col.typeVector().offset, col.typeVector().length)
+                : null;
             offsetsPart[c] = col.offsets() != null ? intArrayToRef(col.offsets()) : null;
             // BOOL keeps its value bitset in the data slot; ARRAY flattens its native child column to
             // child_kind(1) | child_values bytes here (the only place ESCF serializes an ARRAY's child);
@@ -176,7 +178,7 @@ final class EscfBatchCodec {
             baseOffsets[c] = cumDataOffset;
             int f = 0;
             if (absentPart[c] != null) {
-                f |= FLAG_ABSENT;
+                f |= FLAG_VALIDITY;
                 cumDataOffset += absentPart[c].length();
             }
             if (typeVecPart[c] != null) {

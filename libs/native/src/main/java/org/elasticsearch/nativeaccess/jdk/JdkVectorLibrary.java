@@ -619,8 +619,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static int dotProductI7uChecked(MemorySegment a, MemorySegment b, int length) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
+            Objects.checkFromIndexSize(0L, length, b.byteSize());
             return callSingleDistanceInt(dotI7uHandle, a, b, length);
         }
 
@@ -629,8 +629,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static int squareDistanceI7uChecked(MemorySegment a, MemorySegment b, int length) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
+            Objects.checkFromIndexSize(0L, length, b.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
         }
 
@@ -649,8 +649,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float cosineI8Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
             return callSingleDistanceFloat(cosI8Handle, a, b, elementCount);
         }
 
@@ -659,8 +659,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float dotProductI8Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
             return callSingleDistanceFloat(dotI8Handle, a, b, elementCount);
         }
 
@@ -669,8 +669,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float squareDistanceI8Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
             return callSingleDistanceFloat(squareI8Handle, a, b, elementCount);
         }
 
@@ -679,8 +679,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float dotProductF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Float.BYTES);
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Float.BYTES);
             return callSingleDistanceFloat(dotF32Handle, a, b, elementCount);
         }
 
@@ -689,8 +689,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float squareDistanceF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Float.BYTES);
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Float.BYTES);
             return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
         }
 
@@ -699,7 +699,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float dotProductDBF16QF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize() / 2);
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Float.BYTES);
             return callSingleDistanceFloat(dotDBF16QF32Handle, a, b, elementCount);
@@ -710,7 +709,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float dotProductDBF16QBF16Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Short.BYTES);
             return callSingleDistanceFloat(dotDBF16QBF16Handle, a, b, elementCount);
@@ -721,7 +719,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float squareDistanceDBF16QF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize() / 2);
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Float.BYTES);
             return callSingleDistanceFloat(squareDBF16QF32Handle, a, b, elementCount);
@@ -732,7 +729,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static float squareDistanceDBF16QBF16Checked(MemorySegment a, MemorySegment b, int elementCount) {
-            checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Short.BYTES);
             return callSingleDistanceFloat(squareDBF16QBF16Handle, a, b, elementCount);
@@ -796,12 +792,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD2Q4PackedHandle, a, query, length);
-        }
-
-        private static void checkByteSize(long aSize, long bSize) {
-            if (aSize != bSize) {
-                throw new IllegalArgumentException("Dimensions differ: " + aSize + "!=" + bSize);
-            }
         }
 
         private static final MethodHandle dotProductI7uBulk$mh = HANDLES.get(

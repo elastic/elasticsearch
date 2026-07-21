@@ -423,10 +423,15 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
             case FLOAT32 -> size * Float.BYTES;
         };
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, aSize), segment.asSlice(0L, bSize + 2), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size) * BFloat16.BYTES;
+        var bTail = randomIntBetween(0, size) * switch (queryType) {
+            case BFLOAT16 -> BFloat16.BYTES;
+            case FLOAT32 -> Float.BYTES;
+        };
+        similarity(segment.asSlice(0L, aSize + aTail), segment.asSlice(0L, bSize + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, aSize), segment.asSlice(bSize, bSize), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, aSize), segment.asSlice(bSize, bSize), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, aSize), segment.asSlice(bSize, bSize), -1));

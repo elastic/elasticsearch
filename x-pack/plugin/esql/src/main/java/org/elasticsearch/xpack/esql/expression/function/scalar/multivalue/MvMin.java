@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -41,6 +43,7 @@ public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpr
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMin.class).unary(MvMin::new).name("mv_min");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "unsigned_long", "version" },
         briefSummary = "Returns the smallest value from a multi-value field.",
         description = "Converts a multivalued expression into a single valued column containing the minimum value.",

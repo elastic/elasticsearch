@@ -197,10 +197,6 @@ class ImplClassWriter {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Field-name disambiguation
-    // -------------------------------------------------------------------------
-
     /**
      * Computes the {@code MethodHandle} field name for each {@code @Function} method. Methods
      * whose Java name is unique within {@code functionMethods} keep the existing {@code <name>$mh}

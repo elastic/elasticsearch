@@ -62,7 +62,7 @@ public class EscfColumnSliceTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(data);
         EscfColumn slice = col.sliceInternal(2, 2);
 
-        assertNull("dense column slice has no absent bitset", sliceData(slice).absent());
+        assertNull("dense column slice has no validity bitset", sliceData(slice).validity());
         assertEquals(300L, slice.getLongValue(0));
         assertEquals(400L, slice.getLongValue(1));
     }
@@ -266,12 +266,8 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertTrue(reparsed.isNull(2));
     }
 
-    /**
-     * Verifies that slicing a column whose absent bitset is sized to the last absent document
-     * (not the full column width) still correctly reports absence for the last document.
-     */
     public void testAbsentBitsetNormalizationOnFrom() {
-        // Build: 4 docs, absent at position 3 (last). The builder sizes the bitset to 4 (last_absent+1).
+        // Build: 4 docs, absent at position 3 (last).
         EscfColumnBuilder b = new EscfColumnBuilder();
         b.addLong(1);
         b.addLong(2);

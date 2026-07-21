@@ -168,8 +168,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * A field column that arrived NULL-typed, like a field nullified by {@code unmapped_fields="nullify"}.
-     * Constants are never null-typed — they must match their declared type exactly.
+     * A field column that arrived NULL-typed, the shape {@code unmapped_fields="nullify"} gives fields
+     * missing from all indices. Multi-row-ness is what marks a column as a field: agg tests supply
+     * fields as multi-row columns and constants as single-row literals. Only fields get nullified this
+     * way — a NULL-typed constant ({@code EVAL x = null}) is a different scenario, not covered here —
+     * so constants must still match their declared type exactly.
      */
     private static boolean isNullTypedField(TypedData data) {
         return data.type() == DataType.NULL && data.isMultiRow();

@@ -344,14 +344,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        // doc_values can't be disabled here.
+        // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
         return ESTestCase.randomFrom(
             List.of(
                 true,
                 Map.of("multi_value", true),
                 Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")),
                 Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")),
-                Map.of("multi_value", false, "on_failure", "ignore"),
                 Map.of("nullability", false, "on_failure", "ignore")
             )
         );

@@ -1953,7 +1953,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         {
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
-            if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
+            if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedOrRelocatingShardsForIndex(startedShard.index()) == 1) {
                 verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
             }
             verifyNoMoreInteractions(clusterInfoSimulator);
@@ -1975,17 +1975,17 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             if (startedShard.currentNodeId() == startedRelocatingShard.currentNodeId()) {
                 // The shards were moved to the same node: if the index is new to that node, then there should be a call to simulate adding
                 // the index stats for the node.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 2) {
+                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedOrRelocatingShardsForIndex(startedShard.index()) == 2) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
                 }
             } else {
                 // Check if the index is new on either node that received a new shard: if either is new, then the index stats should have
                 // been simulated, too.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
+                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedOrRelocatingShardsForIndex(startedShard.index()) == 1) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
                 }
                 if (routingNodes.node(startedRelocatingShard.currentNodeId())
-                    .numberOfStartedShardsForIndex(startedRelocatingShard.index()) == 1) {
+                    .numberOfStartedOrRelocatingShardsForIndex(startedRelocatingShard.index()) == 1) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(
                         startedRelocatingShard.currentNodeId(),
                         startedRelocatingShard.index()

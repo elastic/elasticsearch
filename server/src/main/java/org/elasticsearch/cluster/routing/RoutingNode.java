@@ -283,10 +283,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
     }
 
-    /**
-     * This counts shards which are started or relocating
-     */
-    public int numberOfStartedShardsForIndex(final Index index) {
+    public int numberOfStartedOrRelocatingShardsForIndex(final Index index) {
         final Set<ShardRouting> shardRoutings = shardsByIndex.get(index);
         if (shardRoutings == null) {
             return 0;

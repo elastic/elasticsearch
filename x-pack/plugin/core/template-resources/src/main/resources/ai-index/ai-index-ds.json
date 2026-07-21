@@ -3,8 +3,8 @@
   "data_stream": {},
   "priority": 500,
   "composed_of": [
-    "ai-index-mappings",
-    "ai-index-ds-settings"
+    "ai-index@mappings",
+    "ai-index@ds-settings"
   ],
   "_meta": {
     "description": "Template applied by default to data stream backed AI indices.",

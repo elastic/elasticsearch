@@ -31,7 +31,7 @@ setup:
         index: ai-index-idx-foo
   - match: { acknowledged: true }
 
-  # Mappings from the ai-index-mappings component confirm the ai-index-idx template was applied.
+  # Mappings from the ai-index@mappings component confirm the ai-index-idx template was applied.
   - do:
       indices.get_mapping:
         index: ai-index-idx-foo

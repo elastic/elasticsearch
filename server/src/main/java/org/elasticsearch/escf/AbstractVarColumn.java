@@ -24,14 +24,14 @@ abstract class AbstractVarColumn extends EscfColumn {
     final BytesReference data;
     final IntsRef offsets;
 
-    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
-        super(docCount, absent);
+    AbstractVarColumn(int docCount, FixedBitSet validity, BytesReference data, IntsRef offsets) {
+        super(docCount, validity);
         this.data = data;
         this.offsets = offsets;
         assert offsets.length == docCount + 1;
     }
 
-    abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets);
+    abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceValidity, BytesReference sliceData, IntsRef sliceOffsets);
 
     @Override
     final BytesRef getBinaryValue(int row) {
@@ -42,13 +42,13 @@ abstract class AbstractVarColumn extends EscfColumn {
     @Override
     final EscfColumn sliceInternal(int from, int count) {
         // data is kept full/shared; the slice is expressed by adjusting dataOffsets.offset.
-        return newSlice(count, windowBitSet(absent, from, count), data, sliceOffsets(offsets, from, count));
+        return newSlice(count, windowValidity(validity, from, count), data, sliceOffsets(offsets, from, count));
     }
 
     @Override
     final EscfColumnData toColumnData() {
         BytesReference newData = sliceData(offsets, data, docCount);
         int[] newOffsets = rebasedOffsets(offsets, docCount);
-        return EscfColumnData.ofVarWidth(kind(), docCount, absent, newOffsets, newData);
+        return EscfColumnData.ofVarWidth(kind(), docCount, validity, newOffsets, newData);
     }
 }

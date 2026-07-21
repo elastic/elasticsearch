@@ -13,12 +13,15 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -26,6 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.script.field.SeqNoDocValuesField;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -286,6 +290,35 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static final IndexableFieldType DV_ONLY_COLUMN_FIELD_TYPE = NumericDocValuesField.indexedField(
+        NAME,
+        SequenceNumbers.UNASSIGNED_SEQ_NO
+    ).fieldType();
+    private static final IndexableFieldType POINTS_AND_DV_COLUMN_FIELD_TYPE = SingleValueLongField.FIELD_TYPE;
+    private static final IndexableFieldType PRIMARY_TERM_COLUMN_FIELD_TYPE = NumericDocValuesField.TYPE;
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        // Engine-assigned: register array-backed columns over the context's mutable seq-no/primary
+        // term arrays; the engine fills the real per-document values (see InternalEngine) after
+        // mapping, just before requesting the ColumnBatch.
+        // Unlike the x-content pathway we do not need to handle tombstone. Tombstones are only ever used
+        // inside the engine for applying a no-op.
+        // TODO: We should eventually move tombstones to the columnar pathway for consistentcy
+        final boolean withPoints = context.indexSettings().sequenceNumbersDisabled() == false
+            && context.indexSettings().seqNoIndexOptions() == SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
+        final IndexableFieldType seqNoFieldType = withPoints ? POINTS_AND_DV_COLUMN_FIELD_TYPE : DV_ONLY_COLUMN_FIELD_TYPE;
+        context.addColumn(MappedColumns.longColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
+        context.addColumn(
+            MappedColumns.longColumn(context.primaryTerms(), PRIMARY_TERM_NAME, PRIMARY_TERM_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
+        );
     }
 
     private static Query rangeQueryForSeqNo(boolean withPoints, long lowerValue, long upperValue) {

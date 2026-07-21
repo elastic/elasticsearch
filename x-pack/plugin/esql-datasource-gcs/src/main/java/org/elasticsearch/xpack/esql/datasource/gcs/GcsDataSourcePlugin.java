@@ -23,11 +23,9 @@ import java.util.concurrent.ExecutorService;
  * Data source plugin providing Google Cloud Storage support for ESQL.
  * Supports the gs:// URI scheme.
  * <p>
- * Usage in ESQL:
- * <pre>
- *   EXTERNAL "gs://my-bucket/data/sales.parquet"
- *   EXTERNAL "gs://my-bucket/data/sales.parquet" WITH {"credentials": "{ ... service account JSON ... }", "project_id": "my-project"}
- * </pre>
+ * Usage in ESQL: register a dataset over a {@code gs://} resource, optionally with the
+ * {@code credentials} (service account JSON) and {@code project_id} settings, then query it with
+ * {@code FROM <dataset>}.
  * <p>
  * GCS is not in the released ship set yet (S3 is the released cloud provider), so registration is
  * gated on {@link #ESQL_EXTERNAL_GCS_FEATURE_FLAG}: available in snapshot/development builds, disabled

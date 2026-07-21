@@ -158,6 +158,54 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(1, result.splits().size());
     }
 
+    /**
+     * The signal the coordinator relies on to swap in {@link FileList#EMPTY}: when a partition filter prunes every
+     * file of a resolved, non-empty fileList, {@link FileSplitProvider} emits zero splits, reports
+     * {@code filesScanned == 0}, and flags the result {@code exhaustivelyPruned} — because the files were removed by a
+     * row-count-preserving filter contradiction, so a full read would emit zero rows too.
+     */
+    public void testAllPartitionsPrunedYieldsNoSplitsAndExhaustivePrune() {
+        StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
+        StoragePath path2023 = StoragePath.of("s3://b/year=2023/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path2024, 100, Instant.EPOCH), new StorageEntry(path2023, 200, Instant.EPOCH)),
+            "s3://b/year=*/*.parquet"
+        );
+        PartitionMetadata partitions = new PartitionMetadata(
+            Map.of("year", DataType.INTEGER),
+            Map.of(path2024, Map.of("year", 2024), path2023, Map.of("year", 2023))
+        );
+        // No file carries year == 1999, so every partition is pruned.
+        Expression filter = new Equals(SRC, fieldAttr("year"), intLiteral(1999));
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryResult result = provider.discoverSplits(ctx);
+
+        assertTrue("a zero-match partition filter must prune every file", result.splits().isEmpty());
+        assertEquals("filesScanned reports survivors only, so it must be 0 when nothing survives", 0, result.filesScanned());
+        assertTrue("a filter-contradiction prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
+        assertTrue("the fileList itself is still resolved and non-empty", fileList.isResolved() && fileList.fileCount() > 0);
+    }
+
+    /**
+     * An unresolved or already-empty fileList yields zero splits, but that is NOT an exhaustive prune: there is
+     * nothing to read anyway (empty) or the listing happens at runtime (unresolved), so the coordinator must not
+     * treat it as "pruned to nothing" and swap in {@link FileList#EMPTY}.
+     */
+    public void testEmptyOrUnresolvedFileListIsNotExhaustivePrune() {
+        SplitDiscoveryContext empty = new SplitDiscoveryContext(null, FileList.EMPTY, Map.of(), PartitionMetadata.EMPTY, List.of());
+        assertFalse("an already-empty fileList is not an exhaustive prune", provider.discoverSplits(empty).exhaustivelyPruned());
+
+        SplitDiscoveryContext unresolved = new SplitDiscoveryContext(
+            null,
+            FileList.UNRESOLVED,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of()
+        );
+        assertFalse("an unresolved fileList is not an exhaustive prune", provider.discoverSplits(unresolved).exhaustivelyPruned());
+    }
+
     public void testFilesScannedZeroForEmptyOrUnresolved() {
         SplitDiscoveryContext empty = new SplitDiscoveryContext(null, FileList.EMPTY, Map.of(), PartitionMetadata.EMPTY, List.of());
         assertEquals(0, provider.discoverSplits(empty).filesScanned());
@@ -2274,6 +2322,61 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         assertEquals(3, provider.discoverSplits(ctx).splits().size());
+    }
+
+    // -- the matcher may only ever fail to prune; these pin the cases where it used to prune a matching file --
+
+    /**
+     * Integral partition values must be compared as longs, not doubles. Above 2^53 a double cannot separate adjacent
+     * longs, so {@code 9007199254740992 == 9007199254740993} came out TRUE, {@code !=} came out FALSE, and a file
+     * whose every row matches the filter was pruned away. A LONG partition column holding epoch-micros or snowflake
+     * ids reaches this range routinely.
+     */
+    public void testLargeLongPartitionValuesAreNotCollapsedByDoublePrecision() {
+        Map<String, Object> values = Map.of("ts", 9007199254740992L);
+        Literal adjacent = new Literal(SRC, 9007199254740993L, DataType.LONG);
+
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new Equals(SRC, fieldAttr("ts"), adjacent), values));
+        assertTrue(
+            "ts != <adjacent long> is TRUE, so the file must be kept — pruning it drops every matching row",
+            FileSplitProvider.matchesPartitionFilters(values, List.of(new NotEquals(SRC, fieldAttr("ts"), adjacent)))
+        );
+        assertTrue(
+            "ts < <adjacent long> is TRUE, so the file must be kept",
+            FileSplitProvider.matchesPartitionFilters(values, List.of(new LessThan(SRC, fieldAttr("ts"), adjacent)))
+        );
+    }
+
+    /**
+     * Keyword ranges must order by UTF-8 bytes, the way ES|QL orders keywords. {@link String#compareTo} orders by
+     * UTF-16 code units, which puts a supplementary-plane character (its leading surrogate, 0xD83D) <em>below</em>
+     * a private-use char like U+E000 — the opposite of the engine's answer. The file would be pruned while its rows
+     * satisfy the predicate.
+     */
+    public void testKeywordRangeUsesUtf8ByteOrderNotUtf16() {
+        Map<String, Object> values = Map.of("region", "\uD83D\uDE00"); // U+1F600 GRINNING FACE, above the BMP
+        Literal privateUse = new Literal(SRC, new BytesRef("\uE000"), DataType.KEYWORD); // U+E000, top of the BMP
+
+        assertEquals(
+            "U+1F600 > U+E000 by code point, so the row matches and the file must be kept",
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new GreaterThan(SRC, fieldAttr("region"), privateUse), values)
+        );
+    }
+
+    /**
+     * A literal on the left of an asymmetric operator keeps its side. Applying the comparator with the column first
+     * would evaluate {@code year > 2024} for {@code 2024 > year} — the exact inverse, pruning precisely the files
+     * that match. {@code LiteralsOnTheRight} normalizes this away upstream, so the matcher is never handed this shape
+     * today; it must still not be wrong if it is.
+     */
+    public void testLiteralOnTheLeftKeepsOperandOrder() {
+        Map<String, Object> values = Map.of("year", 2020);
+
+        // 2024 > year -> 2024 > 2020 -> TRUE (the file matches, and must be kept)
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThan(SRC, intLiteral(2024), fieldAttr("year")), values));
+        // 2024 < year -> 2024 < 2020 -> FALSE (the file cannot match, and may be pruned)
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new LessThan(SRC, intLiteral(2024), fieldAttr("year")), values));
     }
 
     // -- helpers --

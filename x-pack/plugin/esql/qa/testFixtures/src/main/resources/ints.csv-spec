@@ -1590,3 +1590,149 @@ MV_MAX(VALUES(languages.byte)):integer | first_letter:keyword
 2                                      | S
 4                                      | T
 ;
+
+mvInRange
+required_capability: fn_mv_in_range
+// tag::mv_in_range[]
+ROW values = [1, 5, 10]
+| EVAL in_range = mv_in_range(values, 4, 6)
+// end::mv_in_range[]
+;
+
+// tag::mv_in_range-result[]
+values:integer | in_range:boolean
+[1, 5, 10]     | true
+// end::mv_in_range-result[]
+;
+
+mvInRangeElementWise
+required_capability: fn_mv_in_range
+// tag::mv_in_range_element_wise[]
+ROW values = [0, 100]
+| EVAL in_range = mv_in_range(values, 40, 60)
+// end::mv_in_range_element_wise[]
+;
+
+// tag::mv_in_range_element_wise-result[]
+values:integer | in_range:boolean
+[0, 100]       | false
+// end::mv_in_range_element_wise-result[]
+;
+
+mvInRangeNullFieldIsFalse
+required_capability: fn_mv_in_range
+// two-valued: a null field is out of range (false), so NOT of it is true
+ROW x = 1
+| EVAL in_range = mv_in_range(null, 1, 2), negated = NOT mv_in_range(null, 1, 2)
+;
+
+x:integer | in_range:boolean | negated:boolean
+1         | false            | true
+;
+
+mvInRangeNullBoundIsFalse
+required_capability: fn_mv_in_range
+ROW values = [1, 2, 3]
+| EVAL in_range = mv_in_range(values, null, 2)
+;
+
+values:integer | in_range:boolean
+[1, 2, 3]      | false
+;
+
+mvInRangeMultivaluedBoundIsFalse
+required_capability: fn_mv_in_range
+// a multivalued bound has no single range endpoint, so the evaluator returns false
+ROW values = [1, 2, 3]
+| EVAL in_range = mv_in_range(values, [1, 2], 5)
+;
+
+values:integer | in_range:boolean
+[1, 2, 3]      | false
+;
+
+mvInRangeKeyword
+required_capability: fn_mv_in_range
+// tag::mv_in_range_keyword[]
+ROW words = ["apple", "cherry"]
+| EVAL in_range = mv_in_range(words, "banana", "date")
+// end::mv_in_range_keyword[]
+;
+
+// tag::mv_in_range_keyword-result[]
+words:keyword       | in_range:boolean
+[apple, cherry]     | true
+// end::mv_in_range_keyword-result[]
+;
+
+mvInRangeHalfOpen
+required_capability: fn_mv_in_range
+// tag::mv_in_range_half_open[]
+ROW values = [3, 6]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_upper": false})
+// end::mv_in_range_half_open[]
+;
+
+// tag::mv_in_range_half_open-result[]
+values:integer | in_range:boolean
+[3, 6]         | false
+// end::mv_in_range_half_open-result[]
+;
+
+mvInRangeOpen
+required_capability: fn_mv_in_range
+// tag::mv_in_range_open[]
+ROW values = [4, 6]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_lower": false, "include_upper": false})
+// end::mv_in_range_open[]
+;
+
+// tag::mv_in_range_open-result[]
+values:integer | in_range:boolean
+[4, 6]         | false
+// end::mv_in_range_open-result[]
+;
+
+mvInRangeExclusiveLowerInteriorMatches
+required_capability: fn_mv_in_range
+// an exclusive lower bound still matches an interior value: 4 is excluded but 5 is in (4, 6]
+ROW values = [4, 5]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_lower": false})
+;
+
+values:integer | in_range:boolean
+[4, 5]         | true
+;
+
+mvInRangeExplicitInclusiveEqualsDefault
+required_capability: fn_mv_in_range
+// spelling out the defaults is identical to omitting the options map
+ROW values = [4]
+| EVAL default = mv_in_range(values, 4, 6), explicit = mv_in_range(values, 4, 6, {"include_lower": true, "include_upper": true})
+;
+
+values:integer | default:boolean | explicit:boolean
+[4]            | true            | true
+;
+
+mvInRangeOpenPointIsFalse
+required_capability: fn_mv_in_range
+// an open range (5, 5) contains nothing, so a value on the excluded bound does not match — unlike the closed [5, 5]
+ROW values = [5]
+| EVAL open = mv_in_range(values, 5, 5, {"include_lower": false, "include_upper": false}), closed = mv_in_range(values, 5, 5)
+;
+
+values:integer | open:boolean | closed:boolean
+[5]            | false        | true
+;
+
+mvInRangeOpenAdjacentIntsIsFalse
+required_capability: fn_mv_in_range
+// no integer lies strictly between 5 and 6, so the open range (5, 6) matches nothing
+ROW values = [5, 6]
+| EVAL in_range = mv_in_range(values, 5, 6, {"include_lower": false, "include_upper": false})
+;
+
+values:integer | in_range:boolean
+[5, 6]         | false
+;

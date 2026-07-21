@@ -1785,3 +1785,62 @@ a:unsigned_long
 [100, 200]
 [200, 300]
 ;
+
+matchOperatorFunctionOnLhsConcatKeyword
+skip_flattened_rewrite: concat_rejects_flattened_fields
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+required_capability: match_operator_lhs_expression
+
+FROM employees
+| WHERE CONCAT(first_name, " ", last_name):"Anneke Preusig"
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10006          | Anneke             | Preusig
+;
+
+matchOperatorFunctionOnLhsNestedFunctionCalls
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+required_capability: match_operator_lhs_expression
+
+FROM books
+| WHERE TO_TEXT(CONCAT(title, " ", description)):"Tolkien"
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+2301            | Smith of Wootton Major & Farmer Giles of Ham
+;
+
+matchOperatorFunctionOnLhsConstantFolded
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+required_capability: match_operator_lhs_expression
+
+ROW a = "test"
+| WHERE CONCAT("Anneke", " ", "Preusig"):"Anneke Preusig"
+;
+
+a:keyword
+test
+;
+
+matchOperatorFunctionOnLhsFromRow
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+required_capability: match_operator_lhs_expression
+
+ROW a = "Anneke", b = "Preusig"
+| WHERE CONCAT(a, " ", b):"Anneke Preusig"
+;
+
+a:keyword | b:keyword
+Anneke    | Preusig
+;

@@ -622,3 +622,6 @@ tests:
 - class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
   method: testSemanticTextOperations {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/154621
+- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
+  method: testTokensStayInvalidatedInUpgradedCluster
+  issue: https://github.com/elastic/elasticsearch/issues/154627

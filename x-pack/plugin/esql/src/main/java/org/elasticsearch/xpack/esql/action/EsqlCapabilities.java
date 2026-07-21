@@ -186,6 +186,11 @@ public class EsqlCapabilities {
         REPEAT,
 
         /**
+         * Empty input used to loop {@code count} times; int length*count overflow used to bypass the size guard.
+         */
+        FN_REPEAT_FIX_SIZE_GUARD,
+
+        /**
          * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
          */
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,

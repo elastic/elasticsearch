@@ -734,7 +734,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
                 // however, except for peer recovery, we can safely assume no search shards.
                 logger.info(
-                    "{} skipping CC commit notification for generation [{}]: routingTableEmpty={}, initializingNoSearch={}, commitAfterReloc={}",
+                    "{} skipping CC commit notification for generation [{}]: routingTableEmpty={}, "
+                        + "initializingNoSearch={}, commitAfterReloc={}",
                     shardId,
                     generation,
                     shardRoutingTable.isEmpty(),

@@ -64,7 +64,7 @@
         "type": "string",
         "description": "Slice routing value, used instead of routing when the index has index.slice.enabled set to true",
         "visibility": "feature_flag",
-        "feature_flag": "es.index_mode_feature_flag_registered"
+        "feature_flag": "es.slice_indexing_feature_flag_enabled"
       },
       "_source": {
         "type": "list",

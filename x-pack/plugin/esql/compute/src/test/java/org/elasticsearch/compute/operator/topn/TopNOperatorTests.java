@@ -1105,11 +1105,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN
-                || e == COMPOSITE
-                || e == AGGREGATE_METRIC_DOUBLE
-                || e == EXPONENTIAL_HISTOGRAM
-                || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1573,7 +1569,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             Supplier<Object> randomValueSupplier = () -> randomValue(e);
             if (e == BYTES_REF) {
                 if (rarely()) {
@@ -2473,7 +2469,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
                 List<Object> previousValue = null;
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
@@ -2603,7 +2599,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
@@ -2809,7 +2805,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             Supplier<Object> randomValueSupplier = () -> randomValue(e);
             if (e == ElementType.BYTES_REF) {
                 if (rarely()) {

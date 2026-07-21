@@ -178,7 +178,7 @@ public final class DoubleRangeArrayBlock extends AbstractBlockRefCounted impleme
 
     @Override
     public MvOrdering mvOrdering() {
-        return MvOrdering.UNORDERED;
+        return fromBlock.mvOrdering();
     }
 
     @Override

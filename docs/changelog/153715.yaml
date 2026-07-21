@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 153715
+summary: "Cache single-file metadata, skip warm probe"
+type: enhancement

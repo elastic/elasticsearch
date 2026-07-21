@@ -1097,36 +1097,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals(optimizedPlan, optimizedTwice);
     }
 
-    public void testPushdownLimitsPastRemoteLeftJoin() {
-        var rule = new PushDownAndCombineLimits();
-
-        var leftChild = emptySource();
-        var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), EmptyLocalSupplier.EMPTY);
-
-        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
-        var join = new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.REMOTE);
-
-        var limit = new Limit(EMPTY, L(10), join);
-
-        var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
-
-        // Unlike a non-remote join, the limit duplicated below a remote join is marked local: it only needs to
-        // bound per-shard/per-node work on the remote, and must stay non-blocking so the mapper can push the
-        // whole join down as a single fragment instead of gathering the left side to the coordinator.
-        var expectedPlan = new Limit(
-            limit.source(),
-            limit.limit(),
-            join.replaceChildren(limit.withLocal(true).replaceChild(join.left()), join.right()),
-            true,
-            false
-        );
-
-        assertEquals(expectedPlan, optimizedPlan);
-
-        var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);
-        assertEquals(optimizedPlan, optimizedTwice);
-    }
-
     public void testMultipleCombineLimits() {
         var numberOfLimits = randomIntBetween(3, 10);
         var minimum = randomIntBetween(10, 99);

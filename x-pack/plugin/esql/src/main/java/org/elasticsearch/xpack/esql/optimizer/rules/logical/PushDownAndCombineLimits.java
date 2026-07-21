@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -97,12 +96,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // The InlineJoin is currently excluded, as its right-hand side uses as data source a StubRelation that points to the entire
             // left-hand side, so adding a limit in there would lead to the right-hand side work on incomplete data.
             // To avoid repeating this infinitely, we have to set duplicated = true.
-            // For remote joins we use withLocal = true: this copy only needs to bound per-shard/per-node work on the
-            // remote (correctness is still guaranteed by the limit retained above the join), and marking it local
-            // keeps it from acting as a pipeline breaker in the mapper, so it stays inside the fragment pushed down
-            // to the remote instead of forcing a premature gather to the coordinator. Non-remote joins keep
-            // withLocal = false, which forces them onto the coordinator, same as before.
-            return duplicateLimitAsFirstGrandchild(limit, join.executesOn() == ExecuteLocation.REMOTE);
+            // We use withLocal = false because if we have a remote join it will be forced into the fragment by the mapper anyway,
+            // And the verifier checks that there are no non-synthetic limits before the join.
+            // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
+            return duplicateLimitAsFirstGrandchild(limit, false);
         } else if (limit.child() instanceof Fork fork) {
             return maybePushDownLimitToFork(limit, fork, ctx);
         }

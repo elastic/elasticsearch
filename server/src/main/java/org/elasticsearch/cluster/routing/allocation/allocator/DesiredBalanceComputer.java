@@ -559,8 +559,8 @@ public class DesiredBalanceComputer {
         // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
-            for (var shardRouting : routingNode.started()) {
-                if (clusterInfo.hasShardMoved(shardRouting)) {
+            for (var shardRouting : routingNode) {
+                if ((shardRouting.started() || shardRouting.relocating()) && clusterInfo.hasShardMoved(shardRouting)) {
                     startedShards.add(shardRouting);
                 }
             }

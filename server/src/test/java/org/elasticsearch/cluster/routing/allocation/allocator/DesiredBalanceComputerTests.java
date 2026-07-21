@@ -2002,6 +2002,68 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
     }
 
+    /**
+     * A shard that starts and immediately begins relocating after the ClusterInfo snapshot is taken will appear in RoutingNodes as
+     * RELOCATING (not STARTED). Before the fix, the scan used {@code routingNode.started()}, which omitted RELOCATING shards, so
+     * such a shard was never simulated. Verifies that the RELOCATING shard is detected and simulated as a new shard (null sourceNodeId
+     * because no ClusterInfo entry exists for it).
+     */
+    public void testMaybeSimulateAlreadyStartedShardsIncludesRelocating() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+
+        // 3 data nodes, 2 shards, no replicas: shard 0 will be in ClusterInfo; shard 1 will not.
+        final ClusterState initialState = createInitialClusterState(3, 2, 0);
+        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
+        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
+
+        // Shard 0: start it and record it in ClusterInfo.
+        final String shard0NodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        final ShardRouting startedShard0 = routingNodes.startShard(
+            routingNodes.initializeShard(
+                indexRoutingTable.shard(0).primaryShard(),
+                shard0NodeId,
+                null,
+                randomLongBetween(100, 999),
+                RoutingChangesObserver.NOOP
+            ),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .dataPath(Map.of(NodeAndShard.from(startedShard0), "/data/" + randomIdentifier()))
+            .build();
+
+        // Shard 1: start it and immediately relocate it — ClusterInfo has no entry for it.
+        final String shard1SourceNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        final String shard1TargetNodeId = randomValueOtherThan(
+            shard1SourceNodeId,
+            () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()
+        );
+        final Tuple<ShardRouting, ShardRouting> relocationTuple = routingNodes.relocateShard(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(1).primaryShard(),
+                    shard1SourceNodeId,
+                    null,
+                    randomLongBetween(100, 999),
+                    RoutingChangesObserver.NOOP
+                ),
+                RoutingChangesObserver.NOOP,
+                randomLongBetween(100, 999)
+            ),
+            shard1TargetNodeId,
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP
+        );
+
+        // The RELOCATING shard on the source node has no ClusterInfo data and must be detected and simulated.
+        // sourceNodeId is null because no node in ClusterInfo holds this shard.
+        DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+        verify(clusterInfoSimulator).simulateAlreadyStartedShard(relocationTuple.v1(), null);
+        verifyNoMoreInteractions(clusterInfoSimulator);
+    }
+
     private static ShardRouting findShard(ClusterState clusterState, String name, boolean primary) {
         final var indexShardRoutingTable = clusterState.getRoutingTable().index(name).shard(0);
         return primary ? indexShardRoutingTable.primaryShard() : indexShardRoutingTable.replicaShards().getFirst();

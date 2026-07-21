@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -70,7 +71,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -115,6 +115,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 
@@ -470,22 +471,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
-    }
-
-    @Override
-    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
-        var source = source(ctx);
-        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
-            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
-                Source neSource = ne.source();
-                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
-            }
-        });
-        return input -> new Insist(
-            source,
-            input,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
-        );
     }
 
     @Override
@@ -898,7 +883,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+                child = child.transformDown(
+                    LookupJoin.class,
+                    lj -> new LookupJoin(
+                        lj.source(),
+                        lj.left(),
+                        lj.right(),
+                        lj.config(),
+                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                    )
+                );
             }
 
             return new Enrich(
@@ -1098,7 +1092,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
         }
-        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+        var rightPatternSplit = RemoteClusterAware.splitIndexName(rightPattern);
+        var mode = Objects.equals(rightPatternSplit.clusterAlias(), "_coordinator") ? ExecuteLocation.COORDINATOR : ExecuteLocation.ANY;
+        if (rightPatternSplit.clusterAlias() != null && mode != ExecuteLocation.COORDINATOR) {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
@@ -1115,7 +1111,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new IndexPattern(source(target.index), rightPattern),
+            new IndexPattern(source(target.index), rightPatternSplit.indexExpression()),
             false,
             emptyList(),
             IndexMode.LOOKUP,
@@ -1130,7 +1126,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             p,
             right,
             joinInfo.joinFields(),
-            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
+            mode
         );
     }
 
@@ -1458,7 +1455,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         final String prefix = highlightPrefix(ctx);
         // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
         // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
-        Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
+        Expression query = ctx.queryExpression == null ? null : expression(ctx.queryExpression);
         // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
         List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
             .stream()

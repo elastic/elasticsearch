@@ -82,7 +82,7 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testNoCounterBytecodeForNewObjectWhenDisabled() {
-        // The @allocates_constant visitNewObject path must also be clean when tracking is off.
+        // The @allocates visitNewObject path must also be clean when tracking is off.
         String asm = bytecode("new ArrayList(); return 1;", -1L);
         assertThat(asm, not(containsString("$checkAllocBytes")));
         assertThat(asm, not(containsString("AllocationGuard")));
@@ -94,7 +94,7 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testNoEstimatorBytecodeWhenDisabled() {
-        // @allocates_dynamic sites must also be clean when tracking is off.
+        // @allocates sites must also be clean when tracking is off.
         String asm = bytecode("String s = 'hello'; s.substring(0, 3); new ArrayList(new ArrayList()); return 1;", -1L);
         assertThat(asm, not(containsString("$checkAllocBytes")));
         assertThat(asm, not(containsString("AllocationEstimators")));
@@ -129,6 +129,30 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, not(containsString("AllocationGuard")));
         assertThat(asm, not(containsString("AllocationEstimators")));
         assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testNoLambdaOrReferenceChargeBytecodeWhenDisabled() {
+        // A static lambda body and a constructor reference must be clean when tracking is off: no charge, plain bootstrap.
+        String asm = bytecode(
+            "int c(Supplier s) { s.get(); return 1; } "
+                + "Optional.empty().orElseGet(() -> { return new int[10]; }); return c(ArrayList::new);",
+            -1L
+        );
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("lambdaBootstrapWithAllocation")));
+        assertThat(asm, not(containsString("$chargeAllocation")));
+    }
+
+    public void testStaticLambdaBodyChargeBytecodePresentWhenEnabled() {
+        // With tracking on, a static lambda's body (a synthetic method on the script class) charges via $checkAllocBytes.
+        String asm = bytecode("Optional.empty().orElseGet(() -> { return new int[10]; }); return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testConstructorReferenceUsesAllocationBootstrapWhenEnabled() {
+        // With tracking on, an annotated constructor reference links through the allocation-charging lambda bootstrap.
+        String asm = bytecode("int c(Supplier s) { s.get(); return 1; } return c(ArrayList::new);", 1024 * 1024L);
+        assertThat(asm, containsString("lambdaBootstrapWithAllocation"));
     }
 
     public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {

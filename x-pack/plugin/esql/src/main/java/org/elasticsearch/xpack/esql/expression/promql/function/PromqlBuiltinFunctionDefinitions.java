@@ -31,6 +31,27 @@ import java.time.temporal.ChronoField;
  */
 public class PromqlBuiltinFunctionDefinitions {
 
+    /**
+     * {@code topk(k, v)} selects the {@code k} series with the highest values rather than reducing the input
+     * vector to a single value, so - unlike {@code sum}/{@code avg}/{@code max}/{@code min} - it has no ES|QL
+     * aggregate function to build: the ctor reference passes the input field through unchanged, and the PromQL
+     * translator (see {@code TranslatePromqlToEsqlPlan#wrapWithTopNBy}) appends the ranking/limiting step itself.
+     */
+    public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
+        .acrossSeriesBinaryReduction(PromqlFunctionDefinition.K, (source, field, filter, window, k) -> field)
+        .description(
+            "Returns `k` time series with the highest values, keeping their full label set. "
+                + "When used with `by`, `topk` ranks independently within each group."
+        )
+        .example("topk(3, http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .differenceFromPrometheus(
+            "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
+                + "A `without` grouping clause is not yet supported."
+        )
+        .name("topk");
+
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

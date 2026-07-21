@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154314
+pr: 154544
+summary: Replace umapped keyword fields with mapped variants during local optimization
+type: enhancement

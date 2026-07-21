@@ -11,6 +11,8 @@ products:
 
 Some {{es}} features need to store sensitive values, such as credentials for {{esql}} data federation, in cluster state. With **cluster state encryption**, this data is protected both at rest and in transit between nodes, so that secrets are never persisted or replicated in plain text.
 
+These feature-managed secrets differ from [secure settings](docs-content://deploy-manage/security/secure-settings.md) in the {{es}} keystore. Secure settings are provided by the operator and stored locally on each node. They are not designed for secrets that features create or update through cluster APIs and then store in cluster state.
+
 {{es}} generates a single, cluster-wide encryption key automatically. Features that need to persist secrets never handle the key directly. They call an internal encryption service that encrypts and decrypts values on their behalf. The key itself is never exposed through any API.
 
 The first feature to use this mechanism is [{{esql}} data federation](/reference/query-languages/esql/esql-data-federation.md), which encrypts the credentials used to connect to external data sources. Other features may adopt it over time.

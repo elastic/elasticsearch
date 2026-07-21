@@ -15,66 +15,14 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Central router for fallback storage decisions.
+ * Single owner of fallback storage routing decisions.
  * <p>
- * When a document field value cannot be indexed normally — because it is malformed, violates a
- * cardinality constraint, or cannot be reconstructed from doc values in synthetic source mode —
- * it must be diverted to one of several alternative storage locations so the value is not silently
- * dropped. This class is the <em>single</em> place that knows which destination to use for which
- * failure, and it owns all writes to those destinations.
- *
- * <h2>Destinations</h2>
- * <ul>
- *   <li>{@link Destination#IGNORED_SOURCE} — {@code _ignored_source} metadata field,
- *       used for synthetic source reconstruction of fields in fallback mode, fields with
- *       {@code source_keep}, copy-to destinations, and unmapped fields under dynamic: false/runtime.</li>
- *   <li>{@link Destination#IGNORE_MALFORMED} — per-field {@code ._ignore_malformed}
- *       column, used when a value fails to parse with {@code ignore_malformed: true}.</li>
- *   <li>{@link Destination#ON_FAILURE} — per-field {@code ._on_failure} column,
- *       used when a {@code multi_value: false} cardinality constraint is violated with
- *       {@code on_failure: ignore}.</li>
- * </ul>
- *
- * <h2>Pre-capture routing</h2>
- * <p>
- * The central routing decision for field-level pre-capture — <em>should we capture a field's full
- * XContent to {@code _ignored_source} before parsing it?</em> — is made entirely within this class
- * via {@link #resolvePrecaptureReason}. Callers supply a {@link FieldContext} record containing all
- * state needed for the decision (pulled from the live {@link DocumentParserContext} and
- * {@link FieldMapper} before calling), so the decision logic has no external dependencies and is
- * straightforward to unit-test by constructing {@link FieldContext} values directly.
- *
- * <pre>{@code
- * // Regular field parse path:
- * var fc = FallbackStorageRouter.FieldContext.forField(context, fieldMapper, parsesArrayValue);
- * Optional<FallbackStorageRouter.Reason> preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
- * if (preCapReason.isPresent()) {
- *     context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fieldMapper.fullPath(), preCapReason.get());
- * }
- * fieldMapper.parse(context);
- *
- * // Array elements path:
- * var fc = FallbackStorageRouter.FieldContext.forArrayElements(context, mapper, fullPath);
- * Optional<FallbackStorageRouter.Reason> preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
- * if (preCapReason.isPresent()) {
- *     context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fullPath, preCapReason.get());
- * }
- * }</pre>
- *
- * <h2>Immediate writes</h2>
- * <pre>{@code
- * // Malformed / cardinality violations:
- * FallbackStorageRouter.write(context, fieldPath, Reason.MALFORMED, parser);
- *
- * // Immediate write to _ignored_source (field is a child of context.parent()):
- * FallbackStorageRouter.writeToIgnoredSource(context, fieldPath, Reason.DYNAMIC_DISABLED);
- *
- * // Immediate write to _ignored_source (context.parent() IS the field being stored):
- * FallbackStorageRouter.writeParentToIgnoredSource(context, Reason.OBJECT_DISABLED);
- *
- * // Pre-capture context.parent() to _ignored_source (object source_keep):
- * context = FallbackStorageRouter.preCaptureParentToIgnoredSource(context, Reason.SOURCE_KEEP_ALL);
- * }</pre>
+ * When a field value cannot be indexed normally it is diverted to one of three destinations:
+ * {@link Destination#IGNORED_SOURCE} ({@code _ignored_source}),
+ * {@link Destination#IGNORE_MALFORMED} ({@code ._ignore_malformed}), or
+ * {@link Destination#ON_FAILURE} ({@code ._on_failure}).
+ * Call {@link #resolvePrecaptureReason} for pre-capture decisions and {@link #write} for
+ * immediate malformed/cardinality writes.
  */
 public final class FallbackStorageRouter {
 
@@ -84,36 +32,13 @@ public final class FallbackStorageRouter {
     // Destination enum — WHERE a redirected value is stored
     // -------------------------------------------------------------------------
 
-    /**
-     * The possible storage destinations for a document field value that cannot be indexed normally.
-     * <p>
-     * Every fallback write lands in exactly one destination; the choice is made by {@link #route}.
-     */
+    /** The storage destination for a field value that cannot be indexed normally. */
     public enum Destination {
-
-        /**
-         * The value is preserved in the {@code _ignored_source} metadata field and included verbatim
-         * in synthetic {@code _source} reconstruction. Used for fields that cannot reconstruct their
-         * value from doc values (synthetic source fallback mode), fields with {@code source_keep},
-         * copy-to destinations, and unmapped fields under {@code dynamic: false} or
-         * {@code dynamic: runtime}.
-         */
+        /** {@code _ignored_source} metadata field; used for synthetic source reconstruction. */
         IGNORED_SOURCE,
-
-        /**
-         * The value is stored in a per-field {@code fieldPath._ignore_malformed} column (binary doc
-         * values on new indices; stored field on old indices). Used when a value fails to parse with
-         * {@code ignore_malformed: true}, so that synthetic {@code _source} reconstruction can still
-         * reproduce the original value verbatim.
-         */
+        /** Per-field {@code ._ignore_malformed} column; used with {@code ignore_malformed: true}. */
         IGNORE_MALFORMED,
-
-        /**
-         * The value is stored in a per-field {@code fieldPath._on_failure} binary doc values column.
-         * Used when a {@code multi_value: false} field receives a duplicate value and the field is
-         * configured with {@code doc_values.on_failure: ignore}, so that indexing continues without
-         * the excess value reaching the field's own doc values.
-         */
+        /** Per-field {@code ._on_failure} column; used with {@code multi_value: false, on_failure: ignore}. */
         ON_FAILURE;
     }
 
@@ -122,152 +47,61 @@ public final class FallbackStorageRouter {
     // -------------------------------------------------------------------------
 
     /**
-     * The reason a field value is being redirected to fallback storage.
-     * <p>
+     * Why a field value is being redirected to fallback storage.
      * The reason alone determines the {@link Destination}; see {@link #route}.
      */
     public enum Reason {
-        /**
-         * The value failed to parse with {@code ignore_malformed: true}.
-         * Routes to {@link Destination#IGNORE_MALFORMED}.
-         */
+        /** Value failed to parse with {@code ignore_malformed: true}. Routes to {@link Destination#IGNORE_MALFORMED}. */
         MALFORMED,
-
-        /**
-         * A {@code multi_value: false} field received a second value in the same document and the
-         * field is configured with {@code on_failure: ignore}.
-         * Routes to {@link Destination#ON_FAILURE}.
-         */
+        /** {@code multi_value: false} field received a duplicate with {@code on_failure: ignore}. Routes to {@link Destination#ON_FAILURE}. */
         MULTI_VALUE_VIOLATION,
-
-        /**
-         * The field uses synthetic source fallback mode ({@link FieldMapper.SyntheticSourceMode#FALLBACK})
-         * and cannot reconstruct its value purely from doc values.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field uses {@link FieldMapper.SyntheticSourceMode#FALLBACK}. Routes to {@link Destination#IGNORED_SOURCE}. */
         SYNTHETIC_FALLBACK,
-
-        /**
-         * The field or object is configured with {@code source_keep: all}.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field or object has {@code source_keep: all}. Routes to {@link Destination#IGNORED_SOURCE}. */
         SOURCE_KEEP_ALL,
-
-        /**
-         * The field is inside an array scope on a parent with {@code source_keep: arrays}, and the
-         * mapper does not natively parse arrays.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field is in an array with {@code source_keep: arrays} and the mapper doesn't handle arrays natively. Routes to {@link Destination#IGNORED_SOURCE}. */
         SOURCE_KEEP_ARRAYS_IN_ARRAY,
-
-        /**
-         * The field is a {@code copy_to} destination (and the parse is not itself a copy-to traversal).
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field is a {@code copy_to} destination (not within a copy-to traversal). Routes to {@link Destination#IGNORED_SOURCE}. */
         COPY_TO_DESTINATION,
-
-        /**
-         * The field is unmapped under a parent with {@code dynamic: false}.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field is unmapped under {@code dynamic: false}. Routes to {@link Destination#IGNORED_SOURCE}. */
         DYNAMIC_DISABLED,
-
-        /**
-         * The field is unmapped under a parent with {@code dynamic: runtime}.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field is unmapped under {@code dynamic: runtime}. Routes to {@link Destination#IGNORED_SOURCE}. */
         DYNAMIC_RUNTIME,
-
-        /**
-         * The field is inside a disabled object mapper ({@code enabled: false}).
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Field is inside a disabled object ({@code enabled: false}). Routes to {@link Destination#IGNORED_SOURCE}. */
         OBJECT_DISABLED,
-
-        /**
-         * A dynamic field was not indexed because the index's total field count would exceed
-         * {@code index.mapping.total_fields.limit}.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Dynamic field skipped because the index field-count limit would be exceeded. Routes to {@link Destination#IGNORED_SOURCE}. */
         FIELD_LIMIT_EXCEEDED,
-
-        /**
-         * A dynamic field was not indexed because the field's name exceeds
-         * {@code index.mapping.field_name_length.limit}.
-         * Routes to {@link Destination#IGNORED_SOURCE}.
-         */
+        /** Dynamic field skipped because its name exceeds the field-name length limit. Routes to {@link Destination#IGNORED_SOURCE}. */
         FIELD_NAME_TOO_LONG;
     }
 
     // -------------------------------------------------------------------------
-    // FieldContext — data record for routing decisions
+    // FieldContext — plain-data snapshot for pre-capture routing decisions
     // -------------------------------------------------------------------------
 
     /**
-     * A plain-data snapshot of the state needed to decide whether and why a field's XContent should
-     * be pre-captured to {@code _ignored_source} before the field mapper runs.
-     * <p>
-     * All fields are primitive values or enums extracted from the live {@link DocumentParserContext}
-     * and {@link FieldMapper} at the point of the routing decision. Because the record holds no live
-     * objects, {@link FallbackStorageRouter#resolvePrecaptureReason} can be unit-tested by
-     * constructing {@code FieldContext} values directly, without needing a real mapping, parser, or
-     * document context.
-     * <p>
-     * Use the factory methods {@link #forField} and {@link #forArrayElements} to build instances from
-     * live objects in production code.
+     * Plain-data snapshot of the state needed to decide whether and why a field's XContent should be
+     * pre-captured to {@code _ignored_source} before parsing. Holding only primitives and enums means
+     * {@link #resolvePrecaptureReason} has no live-object dependencies and can be tested by
+     * constructing records directly. Use {@link #forField} or {@link #forArrayElements} in production.
      */
     public record FieldContext(
-        /** True when {@link DocumentParserContext#canAddIgnoredField()} returns true. */
         boolean canAddIgnoredField,
-        /**
-         * True when the mapper stores arrays natively via sidecar offsets or ordered binary doc values.
-         * When true, the field reconstructs its arrays from its own doc values and must not be
-         * diverted to {@code _ignored_source}.
-         */
+        /** True when the mapper reconstructs arrays from its own doc values (sidecar offsets or ordered BDV). */
         boolean storesArraysNatively,
-        /**
-         * True when the field uses {@link FieldMapper.SyntheticSourceMode#FALLBACK} and cannot
-         * reconstruct its value purely from doc values, or when an object mapper's {@code source_keep}
-         * setting implies that array elements must be pre-captured.
-         */
+        /** True when the mapper uses {@link FieldMapper.SyntheticSourceMode#FALLBACK}, or when an object's {@code source_keep} forces pre-capture of array elements. */
         boolean syntheticFallback,
-        /** The effective {@link Mapper.SourceKeepMode} for this field or object. */
         Mapper.SourceKeepMode sourceKeepMode,
-        /** True when the mapper enforces a single-value constraint ({@code multi_value: false}). */
         boolean singleValueEnforced,
-        /**
-         * The mapper's {@code on_failure} behavior for {@code multi_value: false} violations.
-         * Only meaningful when {@link #singleValueEnforced} is true.
-         */
         FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior,
-        /**
-         * True when the mapper natively handles arrays in its parse method
-         * ({@link FieldMapper#parsesArrayValue()} returns true). When true, the ARRAYS-mode
-         * pre-capture branch is skipped.
-         */
+        /** True when the mapper handles arrays natively in its parse method ({@link FieldMapper#parsesArrayValue()}). */
         boolean parsesArrayValue,
-        /**
-         * True when the current parse position is inside an array scope, i.e.
-         * {@link DocumentParserContext#inArrayScope()} would return true.
-         */
         boolean inArrayScope,
-        /** True when the current parse is itself a copy-to traversal. */
         boolean isWithinCopyTo,
-        /** True when the field's full path is a registered copy-to destination in this document. */
         boolean isCopyToDestinationField
     ) {
 
-        /**
-         * Builds a {@link FieldContext} for the regular field parse path
-         * ({@code parseObjectOrField} in {@link DocumentParser}).
-         * <p>
-         * The effective {@link Mapper.SourceKeepMode} is resolved from the mapper's own setting,
-         * falling back to the index-level default when the mapper has no explicit preference.
-         *
-         * @param ctx             the current document parsing context
-         * @param mapper          the field mapper about to be parsed
-         * @param parsesArrayValue whether the mapper natively handles array values
-         */
+        /** Builds a {@link FieldContext} for the regular field parse path ({@code parseObjectOrField}). */
         public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper, boolean parsesArrayValue) {
             Mapper.SourceKeepMode mode = mapper.sourceKeepMode().isPresent()
                 ? mapper.sourceKeepMode().get()
@@ -287,27 +121,20 @@ public final class FallbackStorageRouter {
         }
 
         /**
-         * Builds a {@link FieldContext} for the array elements path
-         * ({@code parseArrayElements} in {@link DocumentParser}).
-         * <p>
-         * Handles both {@link FieldMapper} and {@link ObjectMapper} mappers. The {@code fullPath}
-         * parameter must be the complete dot-separated field path for copy-to destination lookup.
-         *
-         * @param ctx      the current document parsing context
-         * @param mapper   the mapper for the field or object being parsed, or {@code null} if unmapped
-         * @param fullPath the full dot-separated field path
+         * Builds a {@link FieldContext} for the array elements path ({@code parseArrayElements}).
+         * Handles both {@link FieldMapper} and {@link ObjectMapper}.
          */
         public static FieldContext forArrayElements(DocumentParserContext ctx, Mapper mapper, String fullPath) {
-            boolean storesArraysNatively = mapper != null && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
+            boolean storesArraysNatively = mapper != null
+                && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean syntheticFallback = false;
             if (mapper instanceof ObjectMapper objectMapper) {
                 mode = objectMapper.sourceKeepMode().isPresent()
                     ? objectMapper.sourceKeepMode().get()
                     : ctx.sourceKeepModeFromIndexSettings();
-                // An object with source_keep:all or source_keep:arrays (but not nested) must have its
-                // array elements pre-captured, since object content cannot be reconstructed field-by-field
-                // from doc values when any sub-field is missing from the mapping or uses fallback mode.
+                // Objects with source_keep:all or source_keep:arrays (non-nested) must pre-capture array
+                // elements because object content cannot be reconstructed field-by-field from doc values.
                 syntheticFallback = mode == Mapper.SourceKeepMode.ALL
                     || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
             } else if (mapper instanceof FieldMapper fieldMapper) {
@@ -332,13 +159,10 @@ public final class FallbackStorageRouter {
     }
 
     // -------------------------------------------------------------------------
-    // Routing decision (pure, no I/O)
+    // Routing decisions (pure, no I/O)
     // -------------------------------------------------------------------------
 
-    /**
-     * Maps a {@link Reason} to its {@link Destination}.
-     * This is the single place in the codebase that defines the reason → destination mapping.
-     */
+    /** Maps a {@link Reason} to its {@link Destination}. Single source of truth for this mapping. */
     public static Destination route(Reason reason) {
         return switch (reason) {
             case MALFORMED -> Destination.IGNORE_MALFORMED;
@@ -349,28 +173,16 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Decides whether and why a field's XContent should be pre-captured to {@code _ignored_source}
-     * before the field mapper runs, based solely on the plain-data {@link FieldContext} snapshot.
+     * Returns the {@link Reason} to use when pre-capturing a field's XContent to {@code _ignored_source}
+     * before the mapper runs, or {@link Optional#empty()} if no pre-capture is needed.
      * <p>
-     * Returns the {@link Reason} to use for the pre-capture write, or {@link Optional#empty()} if
-     * no pre-capture is needed. The returned reason is guaranteed to route to
-     * {@link Destination#IGNORED_SOURCE}.
-     * <p>
-     * Pre-capture is intentionally skipped for fields that redirect {@code multi_value: false}
-     * cardinality violations to {@code ._on_failure}: a duplicate value must land in exactly one
-     * storage location, and the {@code on_failure: ignore} path already handles that write.
-     *
-     * @param fc a snapshot of all state needed for the routing decision; create via
-     *           {@link FieldContext#forField} or {@link FieldContext#forArrayElements}
-     * @return the pre-capture {@link Reason}, or empty if no pre-capture is required
+     * Pre-capture is skipped for {@code multi_value=false, on_failure=ignore} fields: their extra values
+     * go to {@code ._on_failure} and pre-capturing would double-store the first accepted value.
      */
     public static Optional<Reason> resolvePrecaptureReason(FieldContext fc) {
         if (fc.canAddIgnoredField() == false || fc.storesArraysNatively()) {
             return Optional.empty();
         }
-        // A multi_value=false field with on_failure=ignore writes its extra values to ._on_failure.
-        // Routing it through the pre-capture path would write the first (accepted) occurrence to
-        // _ignored_source AND index it normally — double-storing it.
         if (fc.singleValueEnforced() && fc.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
             return Optional.empty();
         }
@@ -394,14 +206,10 @@ public final class FallbackStorageRouter {
     // -------------------------------------------------------------------------
 
     /**
-     * Encodes the current parser token and immediately writes it to {@code _ignored_source} for
-     * {@code fieldPath}, which must be a child field of {@code context.parent()}.
-     * <p>
-     * Uses {@link IgnoredSourceFieldMapper.NameValue#fromContext} to compute the correct parent
-     * offset, including the special case where the parent is the document root.
+     * Encodes the current parser token and writes it to {@code _ignored_source} for {@code fieldPath}
+     * (a child of {@code context.parent()}).
      *
-     * @return {@code true} if the value was written; {@code false} if
-     *         {@link DocumentParserContext#canAddIgnoredField()} returned {@code false}
+     * @return {@code true} if written; {@code false} if {@link DocumentParserContext#canAddIgnoredField()} is false
      */
     public static boolean writeToIgnoredSource(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
@@ -412,16 +220,10 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Encodes the current parser token and immediately writes {@code context.parent()} to
-     * {@code _ignored_source}. Use this when {@code context.parent()} is itself the field being
-     * stored (e.g. a disabled object mapper), not a parent container of the field.
-     * <p>
-     * Computes the correct {@code parentOffset} as
-     * {@code parent.fullPath().lastIndexOf(parent.leafName())}, which resolves to {@code 0} for
-     * top-level objects and to the index after the last dot for nested objects.
+     * Encodes the current parser token and writes {@code context.parent()} to {@code _ignored_source}.
+     * Use when {@code context.parent()} is the field being stored (e.g. a disabled object), not a container.
      *
-     * @return {@code true} if the value was written; {@code false} if
-     *         {@link DocumentParserContext#canAddIgnoredField()} returned {@code false}
+     * @return {@code true} if written; {@code false} if {@link DocumentParserContext#canAddIgnoredField()} is false
      */
     public static boolean writeParentToIgnoredSource(DocumentParserContext context, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
@@ -437,13 +239,8 @@ public final class FallbackStorageRouter {
 
     /**
      * Pre-captures the current parser position to {@code _ignored_source} for {@code fieldPath}
-     * before the field is parsed, so the original XContent is retained regardless of what the mapper
-     * indexes. {@code fieldPath} must be a child field of {@code context.parent()}.
-     * <p>
-     * If {@link DocumentParserContext#canAddIgnoredField()} returns {@code false}, the context is
-     * returned unchanged and no pre-capture is performed.
-     *
-     * @return the (possibly new, wrapped) {@link DocumentParserContext} for subsequent parsing
+     * (a child of {@code context.parent()}) before the field is parsed.
+     * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
     public static DocumentParserContext preCaptureToIgnoredSource(DocumentParserContext context, String fieldPath, Reason reason)
         throws IOException {
@@ -454,15 +251,9 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Pre-captures the current parser position to {@code _ignored_source} for
-     * {@code context.parent()}, before the object's fields are parsed. Use this when
-     * {@code context.parent()} is itself the object being captured (e.g. for {@code source_keep}
-     * on the object), not a parent container of it.
-     * <p>
-     * If {@link DocumentParserContext#canAddIgnoredField()} returns {@code false}, the context is
-     * returned unchanged and no pre-capture is performed.
-     *
-     * @return the (possibly new, wrapped) {@link DocumentParserContext} for subsequent parsing
+     * Pre-captures the current parser position to {@code _ignored_source} for {@code context.parent()}.
+     * Use when {@code context.parent()} is the object being captured, not a container.
+     * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
     public static DocumentParserContext preCaptureParentToIgnoredSource(DocumentParserContext context, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
@@ -480,28 +271,17 @@ public final class FallbackStorageRouter {
     // -------------------------------------------------------------------------
 
     /**
-     * Encodes the current parser token and immediately writes it to the appropriate fallback
-     * storage destination for the given reason.
-     * <p>
-     * This method handles {@link Reason#MALFORMED} and {@link Reason#MULTI_VALUE_VIOLATION}.
-     * All {@link Destination#IGNORED_SOURCE} writes must use {@link #writeToIgnoredSource},
-     * {@link #writeParentToIgnoredSource}, or {@link #preCaptureToIgnoredSource} instead.
-     *
-     * @param context   the current document parsing context; the encoded value is written to its
-     *                  Lucene document
-     * @param fieldPath the full path of the field whose fallback column the value is stored under
-     * @param reason    why this value is being redirected to fallback storage
-     * @param parser    positioned at the value to encode and store
-     * @throws IOException if encoding or writing fails
-     * @throws IllegalArgumentException if {@code reason} routes to {@link Destination#IGNORED_SOURCE}
+     * Writes the current parser token to the appropriate fallback destination for {@link Reason#MALFORMED}
+     * or {@link Reason#MULTI_VALUE_VIOLATION}. Throws {@link IllegalArgumentException} if the reason
+     * routes to {@link Destination#IGNORED_SOURCE}; use {@link #writeToIgnoredSource} or
+     * {@link #preCaptureToIgnoredSource} for those.
      */
     public static void write(DocumentParserContext context, String fieldPath, Reason reason, XContentParser parser) throws IOException {
         switch (route(reason)) {
             case IGNORE_MALFORMED -> IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, parser);
             case ON_FAILURE -> {
-                // Stored source already retains the offending value verbatim; only synthetic source
-                // (and columnar_stored, which reconstructs its per-document source the same way)
-                // need the value captured in the failure column to survive reconstruction.
+                // Stored source retains the value verbatim; only synthetic/columnar_stored source needs
+                // the failure column to reproduce it during reconstruction.
                 if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
                     OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, parser);
                 }

@@ -35,10 +35,8 @@ import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -373,11 +371,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkRemoteJoin(Failures failures) {
-        Set<Source> fails = new HashSet<>();
-
-        var myself = this;
         this.forEachUp(LogicalPlan.class, u -> {
-            if (u == myself) {
+            if (u == Join.this) {
                 return; // skip myself
             }
             if (u instanceof Limit) {
@@ -386,14 +381,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 return;
             }
             if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
-
-        fails.forEach(
-            f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.text() + "]" + f.source()))
-        );
-
     }
 
     @Override

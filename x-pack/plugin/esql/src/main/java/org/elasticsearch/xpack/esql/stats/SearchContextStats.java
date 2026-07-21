@@ -109,7 +109,9 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (context.isFieldMapped(field)) {
+            // Don't use isFieldMapped here — it includes dynamically resolved sub-keys of flattened
+            // fields, which are not reported by field caps and would cause type mismatches at runtime.
+            if (context.getMappingLookup().getFullNameToFieldType().containsKey(field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -139,7 +141,9 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (context.isFieldMapped(field)) {
+            // Don't use isFieldMapped here — it includes dynamically resolved sub-keys of flattened
+            // fields, which are not reported by field caps and would cause type mismatches at runtime.
+            if (context.getMappingLookup().getFullNameToFieldType().containsKey(field)) {
                 return true;
             }
         }

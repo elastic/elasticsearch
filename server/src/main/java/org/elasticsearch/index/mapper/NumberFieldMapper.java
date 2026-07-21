@@ -2423,6 +2423,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
         }
 
+        /** Returns the numeric type of this field. */
+        public NumberType numberType() {
+            return type;
+        }
+
+        /** Returns {@code true} if this field is indexed with BKD points. */
+        public boolean isIndexedWithPoints() {
+            return indexType.hasPoints();
+        }
+
+        /** Returns {@code true} if this field uses an inverted index for terms ({@code index_terms: true}). */
+        public boolean isIndexedWithTerms() {
+            return indexType.hasTerms();
+        }
+
         /**
          * Maps a query value to the sortable-bytes term used by an {@code index_terms} integer
          * field, or returns {@code null} if the value cannot match any document. Byte, Short,

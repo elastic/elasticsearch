@@ -634,6 +634,69 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A zero-projection {@code STATS COUNT(*)} over a Hive-partitioned dataset. The query references no
+     * columns, so its output attribute list is empty, while the dataset's partition stamp keeps
+     * {@code partitionColumnNames} non-empty. Before the fix, {@code wrapWithVirtualColumns} gated only
+     * on the dataset axis and constructed a {@link VirtualColumnIterator} with the empty output as
+     * {@code fullOutput}, tripping the constructor's {@code "fullOutput cannot be null or empty"} check
+     * during {@code openNext*} — the exact partitioned-text {@code COUNT(*)} crash. The guard now also
+     * skips the wrap on the output axis, forwarding the reader's position-only pages unchanged so the
+     * row count rides {@code positionCount} to the count aggregator (mirroring the already-working
+     * unpartitioned path). This is the factory-level behavioral pin for the fix.
+     */
+    public void testZeroProjectionCountStarOverPartitionedSourceForwardsPositionOnlyPages() throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/year=2024/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/**/*.parquet");
+
+        // COUNT(*) projects zero columns: the reader emits a position-only page (0 data blocks).
+        FormatReader formatReader = new SinglePageReader(() -> new Page(2));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        // Empty output — the defining feature of a bare STATS COUNT(*) read — over a partitioned stamp.
+        List<Attribute> attributes = List.of();
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).partitionColumnNames(Set.of("year")).partitionValues(Map.of("year", 2024)).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+
+            assertEquals("one page produced", 1, pages.size());
+            Page page = pages.get(0);
+            assertEquals("zero-projection read carries no data blocks", 0, page.getBlockCount());
+            assertEquals("the row count rides positionCount", 2, page.getPositionCount());
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
     public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 

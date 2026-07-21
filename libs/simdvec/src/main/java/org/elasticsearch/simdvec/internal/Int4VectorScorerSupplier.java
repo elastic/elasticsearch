@@ -17,6 +17,7 @@ import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -32,7 +33,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
     private final QuantizedByteVectorValues values;
     private final VectorSimilarityType similarityType;
     private final int packedDims;
-    private final long vectorPitch;
+    private final int vectorPitch;
     private final Int4VectorScorer.ScorerImpl scorerImpl;
     private final MemorySegment unpackedQuerySegment;
 
@@ -44,16 +45,23 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         this.values = values;
         this.similarityType = similarityType;
         this.packedDims = dims / 2;
-        this.vectorPitch = packedDims + 3L * Float.BYTES + Integer.BYTES;
+        this.vectorPitch = packedDims + Int4VectorScorer.CORRECTIONS_BYTES;
         this.unpackedQuerySegment = Arena.ofAuto().allocate(dims, 32);
+        float centroidDP;
+        try {
+            centroidDP = values.getCentroidDP();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.scorerImpl = new Int4VectorScorer.ScorerImpl(
             input,
             values,
             dims,
             packedDims,
             vectorPitch,
-            Int4Corrections.singleCorrectionFor(similarityType),
-            Int4Corrections.bulkCorrectionFor(similarityType)
+            similarityType.function(),
+            centroidDP,
+            Int4Corrections.singleCorrectionFor(similarityType)
         );
     }
 

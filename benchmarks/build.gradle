@@ -104,6 +104,8 @@ dependencies {
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   nativeLib(project(':libs:native'))
+  implementation project(':modules:bitmap')
+  implementation("org.roaringbitmap:RoaringBitmap:1.6.15")
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   annotationProcessor project(':benchmarks:processor')

@@ -45,6 +45,9 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -74,6 +77,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -90,6 +94,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -195,6 +200,53 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(1L));
+
+        reader.close();
+        dir.close();
+    }
+
+    public void testBinaryDvConfirmationChecksCircuitBreaker() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        Document doc = new Document();
+        LuceneDocument parseDoc = new LuceneDocument();
+        addFields(parseDoc, doc, randomAlphaOfLength(5) + "a" + randomAlphaOfLength(5));
+        indexDoc(parseDoc, doc, iw);
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        iw.close();
+
+        // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit test, so we
+        // substitute a breaker that always trips to verify the confirmation query consults the request breaker and passes 0 bytes.
+        AtomicLong checkpointedBytes = new AtomicLong(-1);
+        CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                checkpointedBytes.set(bytes);
+                throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+            }
+        };
+
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+        searcher.setCircuitBreaker(breaker);
+
+        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
+        expectThrows(CircuitBreakingException.class, () -> searcher.count(wildcardFieldQuery));
+        // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
+        assertThat(checkpointedBytes.get(), equalTo(0L));
+
+        // With no breaker configured the confirmation query runs normally.
+        searcher.setCircuitBreaker(null);
+        assertThat(searcher.count(wildcardFieldQuery), equalTo(1));
 
         reader.close();
         dir.close();

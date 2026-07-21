@@ -477,16 +477,10 @@ public final class DocumentParser {
                 parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
-                var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
-                if (FallbackStorageRouter.shouldPreCaptureToIgnoredSource(context, fieldMapper, sourceKeepMode, parsesArrayValue(mapper))) {
-                    FallbackStorageRouter.Reason preCapReason = fieldMapper
-                        .syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        ? FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK
-                        : sourceKeepMode == Mapper.SourceKeepMode.ALL ? FallbackStorageRouter.Reason.SOURCE_KEEP_ALL
-                        : context.isWithinCopyTo() == false && context.isCopyToDestinationField(fieldMapper.fullPath())
-                            ? FallbackStorageRouter.Reason.COPY_TO_DESTINATION
-                        : FallbackStorageRouter.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;
-                    context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fieldMapper.fullPath(), preCapReason);
+                var fc = FallbackStorageRouter.FieldContext.forField(context, fieldMapper, parsesArrayValue(mapper));
+                var preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
+                if (preCapReason.isPresent()) {
+                    context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fieldMapper.fullPath(), preCapReason.get());
                 }
                 fieldMapper.parse(context);
             }
@@ -744,50 +738,20 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
-        // A field that stores its array natively (via a sidecar offsets field, or in-order in binary doc values) must not be diverted
-        // to _ignored_source: it reconstructs arrays from its own doc values.
-        boolean storesArraysNatively = mapper != null && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
         String fullPath = context.path().pathAsText(arrayFieldName);
-
-        if (context.canAddIgnoredField() && storesArraysNatively == false) {
-            Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
-            boolean objectWithFallbackSyntheticSource = false;
-            if (mapper instanceof ObjectMapper objectMapper) {
-                mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
-                objectWithFallbackSyntheticSource = mode == Mapper.SourceKeepMode.ALL
-                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
-            }
-            boolean fieldWithFallbackSyntheticSource = false;
-            boolean fieldWithStoredArraySource = false;
-            if (mapper instanceof FieldMapper fieldMapper) {
-                mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
-                fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-                fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
-            }
-            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-
-            if (objectWithFallbackSyntheticSource
-                || fieldWithFallbackSyntheticSource
-                || fieldWithStoredArraySource
-                || copyToFieldHasValuesInDocument) {
-                FallbackStorageRouter.Reason captureReason;
-                if (copyToFieldHasValuesInDocument) {
-                    captureReason = FallbackStorageRouter.Reason.COPY_TO_DESTINATION;
-                } else if (fieldWithFallbackSyntheticSource || objectWithFallbackSyntheticSource) {
-                    captureReason = FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK;
-                } else if (mode == Mapper.SourceKeepMode.ALL) {
-                    captureReason = FallbackStorageRouter.Reason.SOURCE_KEEP_ALL;
-                } else {
-                    captureReason = FallbackStorageRouter.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;
-                }
-                context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fullPath, captureReason);
-            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+        var fc = FallbackStorageRouter.FieldContext.forArrayElements(context, mapper, fullPath);
+        var preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
+        if (preCapReason.isPresent()) {
+            context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fullPath, preCapReason.get());
+        } else if (fc.canAddIgnoredField()
+            && fc.storesArraysNatively() == false
+            && mapper instanceof ObjectMapper objectMapper
+            && objectMapper.isEnabled() == false) {
                 // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
                 // get tracked through ignored source.
                 FallbackStorageRouter.writeToIgnoredSource(context, fullPath, FallbackStorageRouter.Reason.OBJECT_DISABLED);
                 return;
             }
-        }
 
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
         // elements from regular source loading that are then skipped from the synthesized array source.

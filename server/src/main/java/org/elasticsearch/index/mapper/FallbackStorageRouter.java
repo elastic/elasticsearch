@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Central router for fallback storage decisions.
@@ -34,39 +35,45 @@ import java.io.IOException;
  *       {@code on_failure: ignore}.</li>
  * </ul>
  *
- * <h2>Usage patterns</h2>
- * <h3>Immediate write for malformed / cardinality violations</h3>
- * <pre>{@code
- * FallbackStorageRouter.write(context, fieldPath, Reason.MALFORMED, parser);
- * FallbackStorageRouter.write(context, fieldPath, Reason.MULTI_VALUE_VIOLATION, parser);
- * }</pre>
+ * <h2>Pre-capture routing</h2>
+ * <p>
+ * The central routing decision for field-level pre-capture — <em>should we capture a field's full
+ * XContent to {@code _ignored_source} before parsing it?</em> — is made entirely within this class
+ * via {@link #resolvePrecaptureReason}. Callers supply a {@link FieldContext} record containing all
+ * state needed for the decision (pulled from the live {@link DocumentParserContext} and
+ * {@link FieldMapper} before calling), so the decision logic has no external dependencies and is
+ * straightforward to unit-test by constructing {@link FieldContext} values directly.
  *
- * <h3>Immediate post-parse write to {@code _ignored_source} (field is a child of context.parent())</h3>
  * <pre>{@code
- * if (FallbackStorageRouter.writeToIgnoredSource(context, fieldPath, Reason.DYNAMIC_DISABLED) == false) {
- *     skipChildren(context); // canAddIgnoredField() was false
- * }
- * }</pre>
- *
- * <h3>Immediate post-parse write to {@code _ignored_source} (context.parent() is itself the field)</h3>
- * <pre>{@code
- * if (FallbackStorageRouter.writeParentToIgnoredSource(context, Reason.OBJECT_DISABLED) == false) {
- *     skipChildren(context); // canAddIgnoredField() was false
- * }
- * }</pre>
- *
- * <h3>Pre-capture to {@code _ignored_source} before {@link FieldMapper#parse} is called</h3>
- * <pre>{@code
- * if (FallbackStorageRouter.shouldPreCaptureToIgnoredSource(context, fieldMapper, sourceKeepMode, parsesArrayValue)) {
- *     context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fieldMapper.fullPath(), Reason.SYNTHETIC_FALLBACK);
+ * // Regular field parse path:
+ * var fc = FallbackStorageRouter.FieldContext.forField(context, fieldMapper, parsesArrayValue);
+ * Optional<FallbackStorageRouter.Reason> preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
+ * if (preCapReason.isPresent()) {
+ *     context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fieldMapper.fullPath(), preCapReason.get());
  * }
  * fieldMapper.parse(context);
+ *
+ * // Array elements path:
+ * var fc = FallbackStorageRouter.FieldContext.forArrayElements(context, mapper, fullPath);
+ * Optional<FallbackStorageRouter.Reason> preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
+ * if (preCapReason.isPresent()) {
+ *     context = FallbackStorageRouter.preCaptureToIgnoredSource(context, fullPath, preCapReason.get());
+ * }
  * }</pre>
  *
- * <h3>Pre-capture to {@code _ignored_source} for an object (context.parent() is the object)</h3>
+ * <h2>Immediate writes</h2>
  * <pre>{@code
+ * // Malformed / cardinality violations:
+ * FallbackStorageRouter.write(context, fieldPath, Reason.MALFORMED, parser);
+ *
+ * // Immediate write to _ignored_source (field is a child of context.parent()):
+ * FallbackStorageRouter.writeToIgnoredSource(context, fieldPath, Reason.DYNAMIC_DISABLED);
+ *
+ * // Immediate write to _ignored_source (context.parent() IS the field being stored):
+ * FallbackStorageRouter.writeParentToIgnoredSource(context, Reason.OBJECT_DISABLED);
+ *
+ * // Pre-capture context.parent() to _ignored_source (object source_keep):
  * context = FallbackStorageRouter.preCaptureParentToIgnoredSource(context, Reason.SOURCE_KEEP_ALL);
- * // ... parse object fields ...
  * }</pre>
  */
 public final class FallbackStorageRouter {
@@ -193,6 +200,138 @@ public final class FallbackStorageRouter {
     }
 
     // -------------------------------------------------------------------------
+    // FieldContext — data record for routing decisions
+    // -------------------------------------------------------------------------
+
+    /**
+     * A plain-data snapshot of the state needed to decide whether and why a field's XContent should
+     * be pre-captured to {@code _ignored_source} before the field mapper runs.
+     * <p>
+     * All fields are primitive values or enums extracted from the live {@link DocumentParserContext}
+     * and {@link FieldMapper} at the point of the routing decision. Because the record holds no live
+     * objects, {@link FallbackStorageRouter#resolvePrecaptureReason} can be unit-tested by
+     * constructing {@code FieldContext} values directly, without needing a real mapping, parser, or
+     * document context.
+     * <p>
+     * Use the factory methods {@link #forField} and {@link #forArrayElements} to build instances from
+     * live objects in production code.
+     */
+    public record FieldContext(
+        /** True when {@link DocumentParserContext#canAddIgnoredField()} returns true. */
+        boolean canAddIgnoredField,
+        /**
+         * True when the mapper stores arrays natively via sidecar offsets or ordered binary doc values.
+         * When true, the field reconstructs its arrays from its own doc values and must not be
+         * diverted to {@code _ignored_source}.
+         */
+        boolean storesArraysNatively,
+        /**
+         * True when the field uses {@link FieldMapper.SyntheticSourceMode#FALLBACK} and cannot
+         * reconstruct its value purely from doc values, or when an object mapper's {@code source_keep}
+         * setting implies that array elements must be pre-captured.
+         */
+        boolean syntheticFallback,
+        /** The effective {@link Mapper.SourceKeepMode} for this field or object. */
+        Mapper.SourceKeepMode sourceKeepMode,
+        /** True when the mapper enforces a single-value constraint ({@code multi_value: false}). */
+        boolean singleValueEnforced,
+        /**
+         * The mapper's {@code on_failure} behavior for {@code multi_value: false} violations.
+         * Only meaningful when {@link #singleValueEnforced} is true.
+         */
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior,
+        /**
+         * True when the mapper natively handles arrays in its parse method
+         * ({@link FieldMapper#parsesArrayValue()} returns true). When true, the ARRAYS-mode
+         * pre-capture branch is skipped.
+         */
+        boolean parsesArrayValue,
+        /**
+         * True when the current parse position is inside an array scope, i.e.
+         * {@link DocumentParserContext#inArrayScope()} would return true.
+         */
+        boolean inArrayScope,
+        /** True when the current parse is itself a copy-to traversal. */
+        boolean isWithinCopyTo,
+        /** True when the field's full path is a registered copy-to destination in this document. */
+        boolean isCopyToDestinationField
+    ) {
+
+        /**
+         * Builds a {@link FieldContext} for the regular field parse path
+         * ({@code parseObjectOrField} in {@link DocumentParser}).
+         * <p>
+         * The effective {@link Mapper.SourceKeepMode} is resolved from the mapper's own setting,
+         * falling back to the index-level default when the mapper has no explicit preference.
+         *
+         * @param ctx             the current document parsing context
+         * @param mapper          the field mapper about to be parsed
+         * @param parsesArrayValue whether the mapper natively handles array values
+         */
+        public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper, boolean parsesArrayValue) {
+            Mapper.SourceKeepMode mode = mapper.sourceKeepMode().isPresent()
+                ? mapper.sourceKeepMode().get()
+                : ctx.sourceKeepModeFromIndexSettings();
+            return new FieldContext(
+                ctx.canAddIgnoredField(),
+                false,
+                mapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK,
+                mode,
+                mapper.isSingleValueEnforced(),
+                mapper.onFailureBehavior(),
+                parsesArrayValue,
+                ctx.inArrayScope(),
+                ctx.isWithinCopyTo(),
+                ctx.isCopyToDestinationField(mapper.fullPath())
+            );
+        }
+
+        /**
+         * Builds a {@link FieldContext} for the array elements path
+         * ({@code parseArrayElements} in {@link DocumentParser}).
+         * <p>
+         * Handles both {@link FieldMapper} and {@link ObjectMapper} mappers. The {@code fullPath}
+         * parameter must be the complete dot-separated field path for copy-to destination lookup.
+         *
+         * @param ctx      the current document parsing context
+         * @param mapper   the mapper for the field or object being parsed, or {@code null} if unmapped
+         * @param fullPath the full dot-separated field path
+         */
+        public static FieldContext forArrayElements(DocumentParserContext ctx, Mapper mapper, String fullPath) {
+            boolean storesArraysNatively = mapper != null && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
+            Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
+            boolean syntheticFallback = false;
+            if (mapper instanceof ObjectMapper objectMapper) {
+                mode = objectMapper.sourceKeepMode().isPresent()
+                    ? objectMapper.sourceKeepMode().get()
+                    : ctx.sourceKeepModeFromIndexSettings();
+                // An object with source_keep:all or source_keep:arrays (but not nested) must have its
+                // array elements pre-captured, since object content cannot be reconstructed field-by-field
+                // from doc values when any sub-field is missing from the mapping or uses fallback mode.
+                syntheticFallback = mode == Mapper.SourceKeepMode.ALL
+                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
+            } else if (mapper instanceof FieldMapper fieldMapper) {
+                mode = fieldMapper.sourceKeepMode().isPresent()
+                    ? fieldMapper.sourceKeepMode().get()
+                    : ctx.sourceKeepModeFromIndexSettings();
+                syntheticFallback = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+            }
+            return new FieldContext(
+                ctx.canAddIgnoredField(),
+                storesArraysNatively,
+                syntheticFallback,
+                mode,
+                false,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
+                false,
+                true, // by definition, parseArrayElements is called within an array
+                ctx.isWithinCopyTo(),
+                ctx.isCopyToDestinationField(fullPath)
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Routing decision (pure, no I/O)
     // -------------------------------------------------------------------------
 
@@ -209,51 +348,45 @@ public final class FallbackStorageRouter {
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Pre-capture gate (for _ignored_source pre-capture in DocumentParser)
-    // -------------------------------------------------------------------------
-
     /**
-     * Returns {@code true} if a field mapper should have its entire XContent pre-captured to
-     * {@code _ignored_source} before {@link FieldMapper#parse} is called.
+     * Decides whether and why a field's XContent should be pre-captured to {@code _ignored_source}
+     * before the field mapper runs, based solely on the plain-data {@link FieldContext} snapshot.
      * <p>
-     * Pre-capturing is needed when the mapper cannot reconstruct the original value from its own
-     * doc values during synthetic source reconstruction, or when the field is explicitly configured
-     * to preserve its source. Pre-capture works by cloning the live {@link XContentParser} at the
-     * current position (via {@link #preCaptureToIgnoredSource}) before parsing begins, so the value
-     * is retained verbatim regardless of what the mapper actually indexes.
+     * Returns the {@link Reason} to use for the pre-capture write, or {@link Optional#empty()} if
+     * no pre-capture is needed. The returned reason is guaranteed to route to
+     * {@link Destination#IGNORED_SOURCE}.
      * <p>
      * Pre-capture is intentionally skipped for fields that redirect {@code multi_value: false}
      * cardinality violations to {@code ._on_failure}: a duplicate value must land in exactly one
      * storage location, and the {@code on_failure: ignore} path already handles that write.
      *
-     * @param context               the current document parsing context
-     * @param fieldMapper           the field mapper about to be parsed
-     * @param sourceKeepMode        the effective {@link Mapper.SourceKeepMode} for this field
-     * @param mapperParsesArrayValue whether the mapper natively parses array values
-     *                              (i.e. {@code mapper instanceof FieldMapper fm && fm.parsesArrayValue()})
-     * @return {@code true} if the field's content must be pre-captured to {@code _ignored_source}
+     * @param fc a snapshot of all state needed for the routing decision; create via
+     *           {@link FieldContext#forField} or {@link FieldContext#forArrayElements}
+     * @return the pre-capture {@link Reason}, or empty if no pre-capture is required
      */
-    public static boolean shouldPreCaptureToIgnoredSource(
-        DocumentParserContext context,
-        FieldMapper fieldMapper,
-        Mapper.SourceKeepMode sourceKeepMode,
-        boolean mapperParsesArrayValue
-    ) {
-        if (context.canAddIgnoredField() == false) {
-            return false;
+    public static Optional<Reason> resolvePrecaptureReason(FieldContext fc) {
+        if (fc.canAddIgnoredField() == false || fc.storesArraysNatively()) {
+            return Optional.empty();
         }
-        // A multi_value=false field configured with on_failure=ignore writes its extra values to
-        // ._on_failure, not _ignored_source. Routing it through the pre-capture path would write the
-        // first (accepted) occurrence to _ignored_source AND index it normally — double-storing it.
-        if (fieldMapper.isSingleValueEnforced()
-            && fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
-            return false;
+        // A multi_value=false field with on_failure=ignore writes its extra values to ._on_failure.
+        // Routing it through the pre-capture path would write the first (accepted) occurrence to
+        // _ignored_source AND index it normally — double-storing it.
+        if (fc.singleValueEnforced() && fc.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+            return Optional.empty();
         }
-        return fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-            || sourceKeepMode == Mapper.SourceKeepMode.ALL
-            || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && mapperParsesArrayValue == false)
-            || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(fieldMapper.fullPath()));
+        if (fc.isCopyToDestinationField() && fc.isWithinCopyTo() == false) {
+            return Optional.of(Reason.COPY_TO_DESTINATION);
+        }
+        if (fc.syntheticFallback()) {
+            return Optional.of(Reason.SYNTHETIC_FALLBACK);
+        }
+        if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ALL) {
+            return Optional.of(Reason.SOURCE_KEEP_ALL);
+        }
+        if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ARRAYS && fc.inArrayScope() && fc.parsesArrayValue() == false) {
+            return Optional.of(Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY);
+        }
+        return Optional.empty();
     }
 
     // -------------------------------------------------------------------------

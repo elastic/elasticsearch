@@ -242,6 +242,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                     public TokenStream create(TokenStream tokenStream) {
                         return new StopFilter(tokenStream, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
                     }
+
+                    @Override
+                    public Object sharingKey() {
+                        return this;
+                    }
                 } }
             )
         );

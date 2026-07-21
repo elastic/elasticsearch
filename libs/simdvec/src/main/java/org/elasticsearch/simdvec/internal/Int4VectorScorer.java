@@ -229,7 +229,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
             return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg.asSlice(0, packedDims), packedDims);
+                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg, packedDims);
                 return applyCorrections(rawScore, seg.asSlice(packedDims, CORRECTIONS_BYTES), query);
             });
         }

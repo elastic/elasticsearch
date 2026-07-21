@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.geo;
 
-import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.geo.GeoJson;
@@ -201,7 +200,7 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
     }
 
     protected Polygon nextPolygon() {
-        org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
+        org.apache.lucene.geo.Polygon randomPoly = GeometryTestUtils.nextLucenePolygon();
         return new Polygon(new LinearRing(randomPoly.getPolyLons(), randomPoly.getPolyLats()));
     }
 

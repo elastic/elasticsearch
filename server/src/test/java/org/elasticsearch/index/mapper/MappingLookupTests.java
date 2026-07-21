@@ -51,7 +51,7 @@ public class MappingLookupTests extends ESTestCase {
         List<RuntimeField> runtimeFields,
         IndexMode indexMode
     ) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(
@@ -72,6 +72,25 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
         assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+    }
+
+    public void testFirstFieldNotReconstructableFromDocValues() {
+        // The columnar contract allows a field only if its _source is reconstructable from doc-value columns (synthetic
+        // source mode NATIVE); a FALLBACK field is flagged so the index mode can reject it. Use fake mappers so this
+        // tests the rule itself rather than the current behaviour of any specific field type.
+        FieldMapper nativeField = new MockFieldMapper("native_field") {
+            @Override
+            protected SyntheticSourceSupport syntheticSourceSupport() {
+                return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
+            }
+        };
+        FieldMapper fallbackField = new MockFieldMapper("fallback_field"); // no native synthetic source -> FALLBACK
+
+        MappingLookup withFallback = createMappingLookup(List.of(nativeField, fallbackField), emptyList(), emptyList());
+        assertEquals("fallback_field", withFallback.firstFieldNotReconstructableFromDocValues());
+
+        MappingLookup allNative = createMappingLookup(List.of(nativeField), emptyList(), emptyList());
+        assertNull(allNative.firstFieldNotReconstructableFromDocValues());
     }
 
     public void testRuntimeFieldLeafOverride() {

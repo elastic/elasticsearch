@@ -88,6 +88,29 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         return this;
     }
 
+    /**
+     * Cancels the current position entry, discarding all values appended since the last
+     * {@link #beginPositionEntry()} call. After this call the builder is in the same state
+     * as before {@code beginPositionEntry} was called: the caller must immediately either
+     * start a new position entry or append a null or a scalar value for the current position.
+     *
+     * <p>Subclasses that maintain auxiliary storage beyond the base {@code valueCount} and
+     * values array (e.g., {@code BytesRefBlockBuilder} with its {@code BytesRefArray}) must
+     * override this to also roll back that auxiliary storage to the point recorded by
+     * {@link #beginPositionEntry()}.
+     */
+    public AbstractBlockBuilder cancelPositionEntry() {
+        assert positionEntryIsOpen : "cancelPositionEntry called without a matching beginPositionEntry";
+        valueCount = firstValueIndexes[positionCount];
+        positionEntryIsOpen = false;
+        // If rolling back brings valueCount to zero there are no previously committed non-null values:
+        // reset hasNonNullValue so build() does not take the constant-vector fast path while nullsMask is set.
+        if (valueCount == 0) {
+            hasNonNullValue = false;
+        }
+        return this;
+    }
+
     protected final boolean isDense() {
         return nullsMask == null;
     }
@@ -103,6 +126,25 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
             }
             positionCount++;
         }
+    }
+
+    /**
+     * Registers {@code numValuesAppended} new single-valued positions in bulk.
+     * All values must already have been written to the values array and
+     * {@code valueCount} must already reflect them.
+     */
+    protected final void updatePositions(int numValuesAppended) {
+        if (positionEntryIsOpen) {
+            return;
+        }
+        if (firstValueIndexes != null) {
+            ensureFirstValueIndexesCapacity(positionCount + numValuesAppended);
+            int firstValue = valueCount - numValuesAppended;
+            for (int i = 0; i < numValuesAppended; i++) {
+                firstValueIndexes[positionCount + i] = firstValue + i;
+            }
+        }
+        positionCount += numValuesAppended;
     }
 
     /**
@@ -142,11 +184,19 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
     protected abstract int elementSize();
 
     protected final void ensureCapacity() {
+        ensureCapacity(1);
+    }
+
+    /**
+     * Ensures the values array has room for at least {@code additionalValueCount} more values.
+     */
+    protected final void ensureCapacity(int additionalValueCount) {
         int valuesLength = valuesLength();
-        if (valueCount < valuesLength) {
+        int requiredSize = valueCount + additionalValueCount;
+        if (requiredSize <= valuesLength) {
             return;
         }
-        int newSize = ArrayUtil.oversize(valueCount, elementSize());
+        int newSize = ArrayUtil.oversize(requiredSize, elementSize());
         adjustBreaker((long) newSize * elementSize());
         growValuesArray(newSize);
         adjustBreaker(-(long) valuesLength * elementSize());
@@ -172,15 +222,19 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         assert estimatedBytes >= 0;
     }
 
-    private void setFirstValue(int position, int value) {
-        if (position >= firstValueIndexes.length) {
-            final int currentSize = firstValueIndexes.length;
-            // We grow the `firstValueIndexes` at the same rate as the `values` array, but independently.
-            final int newLength = ArrayUtil.oversize(position + 1, Integer.BYTES);
-            adjustBreaker((long) newLength * Integer.BYTES);
-            firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
-            adjustBreaker(-(long) currentSize * Integer.BYTES);
+    private void ensureFirstValueIndexesCapacity(int minSize) {
+        if (minSize <= firstValueIndexes.length) {
+            return;
         }
+        final int currentSize = firstValueIndexes.length;
+        final int newLength = ArrayUtil.oversize(minSize, Integer.BYTES);
+        adjustBreaker((long) newLength * Integer.BYTES);
+        firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
+        adjustBreaker(-(long) currentSize * Integer.BYTES);
+    }
+
+    private void setFirstValue(int position, int value) {
+        ensureFirstValueIndexesCapacity(position + 1);
         firstValueIndexes[position] = value;
     }
 

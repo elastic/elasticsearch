@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
@@ -564,6 +565,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
 
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
+        boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
+        String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
         if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
             // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
@@ -583,7 +586,9 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             vectorSimilarity,
             parentBitSet,
             heuristic,
-            hnswEarlyTermination
+            hnswEarlyTermination,
+            sliceEnabled,
+            sliceRouting
         );
     }
 
@@ -620,11 +625,13 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
     private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
-            builder.add(f, BooleanClause.Occur.FILTER);
+            // MatchAllDocsQuery adds no selectivity; skip to avoid materializing a full-index bitset via CachingEnableFilterQuery.
+            if (f.getClass() != MatchAllDocsQuery.class) {
+                builder.add(f, BooleanClause.Occur.FILTER);
+            }
         }
         BooleanQuery booleanQuery = builder.build();
-        Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
-        return filterQuery;
+        return booleanQuery.clauses().isEmpty() ? null : booleanQuery;
     }
 
     @Override

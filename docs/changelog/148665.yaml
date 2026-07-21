@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 148665
+summary: Add AI bots to user-agent regex
+type: enhancement

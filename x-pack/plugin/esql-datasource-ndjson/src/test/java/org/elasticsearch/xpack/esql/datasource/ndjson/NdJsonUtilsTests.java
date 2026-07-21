@@ -58,6 +58,20 @@ public class NdJsonUtilsTests extends ESTestCase {
     }
 
     /**
+     * {@link NdJsonPageDecoder}'s identity-keyed field-name cache only avoids the {@code
+     * HashMap} probe when {@link com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer} returns
+     * stable {@code String} instances per name across records. That stability is the default and
+     * is driven by {@link JsonFactory.Feature#CANONICALIZE_FIELD_NAMES} being on; pin it here so
+     * a future tuning change has to surface the consequence explicitly.
+     */
+    public void testFactoryEnablesCanonicalizeFieldNames() {
+        assertTrue(
+            "CANONICALIZE_FIELD_NAMES must be on; NdJsonPageDecoder's identity-keyed field-name cache depends on it",
+            NdJsonUtils.JSON_FACTORY.isEnabled(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES)
+        );
+    }
+
+    /**
      * Behavioural check for {@code AUTO_CLOSE_SOURCE = false}: closing the parser must not
      * close the underlying stream. Schema inference and parse-error recovery rely on this.
      */

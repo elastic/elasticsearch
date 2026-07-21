@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.settings.secure;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
@@ -27,5 +30,18 @@ public class SecureSettingsPlugin extends Plugin implements ReloadAwarePlugin {
     @Override
     public void setReloadCallback(ReloadablePlugin reloadablePlugin) {
         this.clusterStateSecretsListener.setReloadCallback(reloadablePlugin);
+    }
+
+    /**
+     * Retained for rolling-upgrade compatibility so upgraded nodes can deserialize cluster state
+     * from non-upgraded masters that still contain {@link ClusterStateSecretsMetadata}.
+     * TODO Remove once all nodes are upgraded (ES-13910).
+     */
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, ClusterStateSecretsMetadata.TYPE, ClusterStateSecretsMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, ClusterStateSecretsMetadata.TYPE, ClusterStateSecretsMetadata::readDiffFrom)
+        );
     }
 }

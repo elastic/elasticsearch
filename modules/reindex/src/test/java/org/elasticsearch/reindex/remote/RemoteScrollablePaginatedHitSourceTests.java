@@ -32,9 +32,12 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -451,6 +454,38 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         assertTrue(cleanupCallbackCalled.get());
     }
 
+    /**
+     * Verifies cleanup and close shut down the (search-scoped) RestClient but do not close the (request-scoped) RemoteInfo credentials.
+     * Ownership of the RemoteInfo lifecycle belongs to {@code Reindexer}, so the credentials must remain usable afterwards (they need to
+     * survive a relocation handoff serialization).
+     */
+    public void testCleanupDoesNotCloseRemoteInfoCredentials() throws Exception {
+        RestClient client = mock(RestClient.class);
+        SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        RemoteInfo remoteInfo = new RemoteInfo(
+            "http",
+            randomAlphaOfLength(8),
+            randomIntBetween(4000, 9000),
+            null,
+            new BytesArray("{}"),
+            randomAlphaOfLength(8),
+            password,
+            Map.of(),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30))
+        );
+        try {
+            TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client, remoteInfo);
+            AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+            paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+            assertTrue(closeCallbackCalled.get());
+            verify(client).close();
+            assertArrayEquals(password.getChars(), remoteInfo.getPassword().getChars());
+        } finally {
+            remoteInfo.close();
+        }
+    }
+
     /** When scroll ID is empty or null, close runs cleanup immediately without calling clearScroll. */
     public void testCloseWhenScrollIdEmpty() throws Exception {
         RestClient client = mock(RestClient.class);
@@ -571,7 +606,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                         RESPONSE_PARSER,
                         RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                         threadPool,
-                        restClient
+                        restClient,
+                        new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                        1024L
                     );
                 } else {
                     super.doFirstSearch(searchListener);
@@ -662,7 +699,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             remoteInfo(),
             searchRequest,
             initialRemoteVersion,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
     }
 
@@ -702,7 +741,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 remoteInfo,
                 RemoteScrollablePaginatedHitSourceTests.this.searchRequest,
                 randomBoolean() ? Version.CURRENT : null,
-                keepaliveDeadline()
+                keepaliveDeadline(),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                1024L
             );
         }
     }

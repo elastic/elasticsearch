@@ -154,7 +154,12 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     @Override
     public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
-        return new SortedSetOrdinalsBuilder(factory, ordinals, count);
+        return OrdinalsBuilder.sortedSet(factory, ordinals, count);
+    }
+
+    @Override
+    public BlockLoader.SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
+        return OrdinalsBuilder.arrayOrder(factory, ordinals, count);
     }
 
     @Override

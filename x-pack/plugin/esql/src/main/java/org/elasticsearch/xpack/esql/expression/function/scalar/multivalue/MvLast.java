@@ -16,13 +16,18 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -32,23 +37,30 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvLast extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvLast", MvLast::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvLast.class).unary(MvLast::new).name("mv_last");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvLast.class)
+        .unary(MvLast::new)
+        .capabilities("flattened")
+        .name("mv_last");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
             "boolean",
             "cartesian_point",
             "cartesian_shape",
             "date",
             "date_nanos",
+            "date_range",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -60,6 +72,7 @@ public class MvLast extends AbstractMultivalueFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the last value from a multi-value field.",
         description = """
             Converts a multivalue expression into a single valued column containing the last
             value. This is most useful when reading from a function that emits multivalued
@@ -82,7 +95,9 @@ public class MvLast extends AbstractMultivalueFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -112,7 +127,18 @@ public class MvLast extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> isRepresentable(dt)
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.AGGREGATE_METRIC_DOUBLE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+        );
     }
 
     @Override
@@ -123,6 +149,7 @@ public class MvLast extends AbstractMultivalueFunction {
             case DOUBLE -> new MvLastDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvLastIntEvaluator.Factory(fieldEval);
             case LONG -> new MvLastLongEvaluator.Factory(fieldEval);
+            case LONG_RANGE -> new MvLastLongRangeEvaluator.Factory(fieldEval);
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
@@ -161,5 +188,10 @@ public class MvLast extends AbstractMultivalueFunction {
     @MvEvaluator(extraName = "BytesRef")
     static BytesRef process(BytesRefBlock block, int start, int end, BytesRef scratch) {
         return block.getBytesRef(end - 1, scratch);
+    }
+
+    @MvEvaluator(extraName = "LongRange")
+    static LongRangeBlockBuilder.LongRange process(LongRangeBlock block, int start, int end, LongRangeBlockBuilder.LongRange scratch) {
+        return block.getLongRange(end - 1, scratch);
     }
 }

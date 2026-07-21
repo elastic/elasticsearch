@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 152295
+summary: Read OTel SDK switches from assembled JVM options
+type: bug

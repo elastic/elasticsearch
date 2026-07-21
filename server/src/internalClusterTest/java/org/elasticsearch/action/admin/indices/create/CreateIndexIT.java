@@ -46,6 +46,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -432,6 +433,29 @@ public class CreateIndexIT extends ESIntegTestCase {
         final var response = FutureUtils.get(responseFuture, 10, TimeUnit.SECONDS);
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertTrue((boolean) extractValue("acknowledged", entityAsMap(response)));
+    }
+
+    public void testCreateIndexWithMappingAndTemplate() {
+        assertAcked(
+            indicesAdmin().preparePutTemplate("my_template")
+                .setPatterns(Collections.singletonList("*"))
+                .setMapping("field1", "type=keyword")
+                .setOrder(0)
+                .get()
+        );
+        assertAcked(prepareCreate("my-index").setMapping("""
+            {
+              "properties": {
+                 "field2": {
+                    "type": "text"
+                 }
+              }
+            }
+            """).get());
+        var response = admin().indices().prepareGetMappings(TimeValue.THIRTY_SECONDS, "my-index").get();
+        Map<?, ?> properties = (Map<?, ?>) response.getMappings().get("my-index").getSourceAsMap().get("properties");
+        assertThat(properties.get("field1"), equalTo(Map.of("type", "keyword")));
+        assertThat(properties.get("field2"), equalTo(Map.of("type", "text")));
     }
 
 }

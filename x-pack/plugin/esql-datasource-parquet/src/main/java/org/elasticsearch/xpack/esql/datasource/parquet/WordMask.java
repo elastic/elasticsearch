@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import java.nio.LongBuffer;
 import java.util.Arrays;
 import java.util.BitSet;
 
@@ -246,6 +247,6 @@ final class WordMask {
     }
 
     BitSet toBitSet() {
-        return BitSet.valueOf(Arrays.copyOf(words, wordCount()));
+        return BitSet.valueOf(LongBuffer.wrap(words, 0, wordCount()));
     }
 }

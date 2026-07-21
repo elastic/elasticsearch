@@ -38,6 +38,8 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
@@ -155,10 +158,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
         return switch (indexMode) {
             case STANDARD, LOOKUP -> createDocumentMapper(mappings);
+            case VECTORDB_DOCUMENT -> createVectordbDocumentModeDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
             case COLUMNAR -> createColumnarModeDocumentMapper(mappings);
-            case COLUMNAR_LOGSDB -> createColumnarLogsdbModeDocumentMapper(mappings);
+            case LOGSDB_COLUMNAR -> createColumnarLogsdbModeDocumentMapper(mappings);
         };
     }
 
@@ -185,7 +189,15 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createColumnarLogsdbModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
+    protected final DocumentMapper createVectordbDocumentModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_DOCUMENT.getName())
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
         return createMapperService(settings, mappings).documentMapper();
     }
 
@@ -210,7 +222,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     public final MapperService createSytheticSourceMapperService(XContentBuilder mappings) throws IOException {
-        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        return createSytheticSourceMapperService(mappings, false);
+    }
+
+    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings, boolean isColumnar) throws IOException {
+        Settings settings;
+        if (isColumnar) {
+            settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        } else {
+            settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        }
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }
 
@@ -404,9 +425,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected MapperMetrics createTestMapperMetrics() {
+        Settings envSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment env = TestEnvironment.newEnvironment(envSettings);
         var telemetryProvider = getPlugins().stream()
             .filter(p -> p instanceof TelemetryPlugin)
-            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(Settings.EMPTY))
+            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(env))
             .findFirst()
             .orElse(TelemetryProvider.NOOP);
         return new MapperMetrics(new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), new LongSupplier() {
@@ -416,7 +439,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             public long getAsLong() {
                 return value++;
             }
-        }));
+        }), new TokenCountingMetrics(telemetryProvider.getMeterRegistry()));
     }
 
     protected static void withLuceneIndex(
@@ -429,7 +452,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             mapperService::fieldType,
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
-        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+        IndexWriterConfig iwc = new IndexWriterConfig(
+            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
+        ).setCodec(
             new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
         );
         if (indexSort != null) {

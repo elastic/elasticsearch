@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -181,9 +182,9 @@ public final class IndexSortConfig {
                 indexMode = indexMode.toLowerCase(Locale.ROOT);
             }
 
-            if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
+            if (IndexMode.isTsdbName(indexMode)) {
                 return TIME_SERIES_SORT;
-            } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.COLUMNAR_LOGSDB.getName().equals(indexMode)) {
+            } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.LOGSDB_COLUMNAR.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
                 if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
                     || version.between(
@@ -425,8 +426,8 @@ public final class IndexSortConfig {
                 );
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
-                if (this.indexMode == IndexMode.TIME_SERIES) {
-                    err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
+                if (this.indexMode.isTsdb()) {
+                    err += " required by [" + IndexSettings.MODE.getKey() + "=" + this.indexMode.getName() + "]";
                 }
                 throw new IllegalArgumentException(err);
             }
@@ -516,6 +517,8 @@ public final class IndexSortConfig {
 
     public static SortField.Type getSortFieldType(SortField sortField) {
         if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof BinarySortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();

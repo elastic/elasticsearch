@@ -506,6 +506,99 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test: when a pooled outer hit already has inner hits attached by {@code InnerHitsPhase}
+     * (e.g. from a nested query with {@code inner_hits}), {@code ExpandSearchPhase} must merge its
+     * collapse inner hits into the existing map rather than overwriting it.
+     * Before the fix this triggered {@code AssertionError: null} at {@code SearchHit.setInnerHits}
+     * because the assertion {@code this.innerHits == null} fired on the second call.
+     */
+    public void testCollapseWithPreExistingNestedQueryInnerHitsOnPooledHit() throws IOException {
+        // collapse inner hits — ExpandSearchPhase will attach these via a multi-search
+        SearchHits collapseInnerHits = new SearchHits(
+            new SearchHit[] { SearchHit.unpooled(2, "collapse-inner") },
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            1.0F
+        );
+        // nested-query inner hits — already attached by InnerHitsPhase before ExpandSearchPhase runs
+        SearchHits nestedQueryInnerHits = new SearchHits(
+            new SearchHit[] { SearchHit.unpooled(3, "nested-inner") },
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            1.0F
+        );
+
+        final MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        try {
+            mockSearchPhaseContext.getRequest()
+                .source(
+                    new SearchSourceBuilder().collapse(
+                        new CollapseBuilder("group_id").setInnerHits(new InnerHitBuilder().setName("collapse_hits"))
+                    )
+                );
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
+                @Override
+                void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                    try (var sections = new SearchResponseSections(collapseInnerHits, null, null, false, null, null, 1, null)) {
+                        mockSearchPhaseContext.sendSearchResponse(sections, null);
+                    }
+                    MultiSearchResponse.Item item = new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null);
+                    mockSearchPhaseContext.searchResponse.set(null);
+                    ActionListener.respondAndRelease(
+                        listener,
+                        new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, randomIntBetween(1, 10000))
+                    );
+                }
+            };
+
+            // new SearchHit(int, String) creates a pooled hit (uses SimpleRefCounted, not ALWAYS_REFERENCED)
+            SearchHit outerHit = new SearchHit(1, "outer");
+            assertTrue("outer hit must be pooled to exercise setInnerHits path", outerHit.isPooled());
+            outerHit.setDocumentField(new DocumentField("group_id", Collections.singletonList("group-a")));
+            // simulate InnerHitsPhase: mustIncRef before handing ownership to the hit
+            nestedQueryInnerHits.mustIncRef();
+            outerHit.setInnerHits(Map.of("nested_items", nestedQueryInnerHits));
+
+            ExpandSearchPhase phase = newExpandSearchPhase(
+                mockSearchPhaseContext,
+                new SearchResponseSections(
+                    new SearchHits(new SearchHit[] { outerHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null
+                ),
+                null
+            );
+
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            SearchResponse theResponse = mockSearchPhaseContext.searchResponse.get();
+            assertNotNull(theResponse);
+
+            Map<String, SearchHits> innerHits = theResponse.getHits().getHits()[0].getInnerHits();
+            assertNotNull("merged inner hits must be present", innerHits);
+            assertEquals("both collapse and nested-query inner hits must be present", 2, innerHits.size());
+            assertNotNull("collapse inner hits must be present", innerHits.get("collapse_hits"));
+            assertNotNull("nested-query inner hits must be present", innerHits.get("nested_items"));
+            assertSame(collapseInnerHits, innerHits.get("collapse_hits"));
+            assertSame(nestedQueryInnerHits, innerHits.get("nested_items"));
+        } finally {
+            // The test owns one extra ref on nestedQueryInnerHits (from the mustIncRef() above that simulates
+            // InnerHitsPhase). outerHit.deallocate() releases the other ref (the one transferred via setInnerHits).
+            // collapseInnerHits has no test-owned ref: ExpandSearchPhase owns its mustIncRef, which outerHit
+            // releases via deallocate(); SearchResponseSections.close() and the inner SearchResponse's decRef
+            // account for all other refs. An extra decRef here would undercount.
+            nestedQueryInnerHits.decRef();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
     private static ExpandSearchPhase newExpandSearchPhase(
         MockSearchPhaseContext mockSearchPhaseContext,
         SearchResponseSections searchResponseSections,

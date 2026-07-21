@@ -1,0 +1,5 @@
+pr: 150204
+summary: "ES|QL|DS: self-heal external object-store reads on transient faults"
+area: ES|QL
+type: bug
+issues: []

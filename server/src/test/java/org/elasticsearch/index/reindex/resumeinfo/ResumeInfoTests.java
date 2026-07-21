@@ -13,9 +13,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.BulkByScrollTaskStatusTests;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusTests;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -154,7 +154,7 @@ public class ResumeInfoTests extends ESTestCase {
     public void testScrollWorkerResumeInfoAccessors() {
         String scrollId = "scroll-id";
         long startTime = 42L;
-        BulkByScrollTask.Status status = taskStatus();
+        BulkByPaginatedSearchTask.Status status = taskStatus();
         Version remote = Version.CURRENT;
         ScrollWorkerResumeInfo info = new ScrollWorkerResumeInfo(scrollId, startTime, status, remote);
         assertThat(info.scrollId(), equalTo(scrollId));
@@ -196,7 +196,7 @@ public class ResumeInfoTests extends ESTestCase {
         BytesArray pitId = new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8));
         Object[] searchAfterValues = new Object[] { 100L, "sort2" };
         long startTime = 42L;
-        BulkByScrollTask.Status status = taskStatus();
+        BulkByPaginatedSearchTask.Status status = taskStatus();
         Version remote = Version.CURRENT;
         PitWorkerResumeInfo info = new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, status, remote);
         assertThat(info.pitId(), equalTo(pitId));
@@ -222,7 +222,13 @@ public class ResumeInfoTests extends ESTestCase {
 
     /** Constructor rejects having both a response and a failure. */
     public void testWorkerResultRejectsBothResponseAndFailure() {
-        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.ZERO, taskStatus(), emptyList(), emptyList(), false);
+        BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.ZERO,
+            taskStatus(),
+            emptyList(),
+            emptyList(),
+            false
+        );
         expectThrows(IllegalArgumentException.class, () -> new WorkerResult(response, new ElasticsearchException("e")));
     }
 
@@ -232,7 +238,13 @@ public class ResumeInfoTests extends ESTestCase {
     }
 
     public void testWorkerResultWithResponse() {
-        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.ZERO, taskStatus(), emptyList(), emptyList(), false);
+        BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.ZERO,
+            taskStatus(),
+            emptyList(),
+            emptyList(),
+            false
+        );
         WorkerResult result = new WorkerResult(response, null);
         assertTrue(result.getResponse().isPresent());
         assertThat(result.getResponse().get(), equalTo(response));
@@ -293,7 +305,13 @@ public class ResumeInfoTests extends ESTestCase {
     }
 
     public void testSliceStatusWithResultResponse() {
-        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.ZERO, taskStatus(), emptyList(), emptyList(), false);
+        BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.ZERO,
+            taskStatus(),
+            emptyList(),
+            emptyList(),
+            false
+        );
         WorkerResult result = new WorkerResult(response, null);
         SliceStatus status = new SliceStatus(2, null, result);
         assertThat(status.sliceId(), equalTo(2));
@@ -317,11 +335,11 @@ public class ResumeInfoTests extends ESTestCase {
         assertThat(origin.originalStartTimeMillis(), equalTo(startMillis));
     }
 
-    private static BulkByScrollTask.Status taskStatus() {
-        return BulkByScrollTaskStatusTests.randomStatusWithoutException();
+    private static BulkByPaginatedSearchTask.Status taskStatus() {
+        return BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException();
     }
 
-    private static ScrollWorkerResumeInfo scrollWorkerResumeInfo(String scrollId, long startTime, BulkByScrollTask.Status status) {
+    private static ScrollWorkerResumeInfo scrollWorkerResumeInfo(String scrollId, long startTime, BulkByPaginatedSearchTask.Status status) {
         return new ScrollWorkerResumeInfo(scrollId, startTime, status, null);
     }
 

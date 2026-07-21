@@ -269,6 +269,7 @@ public class IndexSettingsTests extends ESTestCase {
                     "index",
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
                 ),
@@ -1204,9 +1205,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.COLUMNAR_LOGSDB, IndexMode.COLUMNAR));
-        }
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
@@ -1253,7 +1252,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersDefaultForColumnarModes() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         // Test COLUMNAR mode
@@ -1262,12 +1260,12 @@ public class IndexSettingsTests extends ESTestCase {
         IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
         assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
 
-        // Test COLUMNAR_LOGSDB mode
-        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
+        // Test LOGSDB_COLUMNAR mode
+        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
         IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
         IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
         assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR_LOGSDB mode",
+            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
             columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
             is(true)
         );
@@ -1281,6 +1279,31 @@ public class IndexSettingsTests extends ESTestCase {
             standardIndexSettings.sequenceNumbersDisabled(),
             is(false)
         );
+    }
+
+    public void testDynamicStringsAutoTextDefaultByIndexMode() {
+        // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_text should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+
+        // All other modes default to true (text + keyword subfield)
+        for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
     }
 
     public void testBloomFilterSettingsFromScopedSettings() {

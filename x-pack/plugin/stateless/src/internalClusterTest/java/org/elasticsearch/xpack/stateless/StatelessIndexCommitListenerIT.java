@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.stateless;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -21,6 +24,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
 import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -256,7 +260,9 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
 
     @After
     public void teardownTest() {
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        if (indexName != null) {
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+        }
         indexNode = null;
         searchNode = null;
         indexName = null;
@@ -407,22 +413,38 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
         releaseCommit(lastFlushGeneration);
     }
 
-    public void testRefIsNotReleasedUponNotificationFailure() {
-        var plugin = getStatelessPluginInstance();
-        try {
-            indexDocs(indexName, scaledRandomIntBetween(10, 100));
-            plugin.throwOnNewCommitNotification();
-            var flushResponse = indicesAdmin().prepareFlush(indexName).get();
-            assertThat(flushResponse.getFailedShards(), is(greaterThan(0)));
-            plugin.doNotThrowOnNewCommitNotification();
-            ensureRed(indexName);
+    public void testRefIsNotReleasedUponNotificationFailure() throws Exception {
+        final var plugin = getStatelessPluginInstance();
+        final var waitForPrimaryShardFailed = ClusterServiceUtils.addMasterTemporaryStateListener(
+            state -> state.projectState(ProjectId.DEFAULT).routingTable().index(indexName).allPrimaryShardsUnassigned()
+        );
+        updateIndexSettings(Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0), indexName);
+
+        indexDocs(indexName, scaledRandomIntBetween(10, 100));
+        plugin.throwOnNewCommitNotification();
+
+        var flushResponse = indicesAdmin().prepareFlush(indexName).get();
+        assertThat(flushResponse.getFailedShards(), is(greaterThan(0)));
+
+        safeAwait(waitForPrimaryShardFailed, TimeValue.THIRTY_SECONDS);
+
+        var indexHealth = clusterAdmin().prepareHealth(TimeValue.THIRTY_SECONDS).setIndices(indexName).get().getIndices().get(indexName);
+        assertThat(indexHealth, notNullValue());
+        assertThat(indexHealth.getStatus(), is(ClusterHealthStatus.RED));
+
+        plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
+        plugin.doNotThrowOnNewCommitNotification();
+
+        updateIndexSettings(Settings.builder().putNull(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey()), indexName);
+        ensureGreen(indexName);
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+        indexName = null;
+
+        assertBusy(() -> {
             plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
-            // Wait until the shard is marked as failed and then reallocated so we can
-            // release the new commits once it becomes green again.
-            ensureGreen(indexName);
-        } finally {
-            plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
-        }
+            assertThat(plugin.listRetainedCommits(shardId), emptyIterable());
+        });
     }
 
     private TestStatelessPlugin getStatelessPluginInstance() {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152851
+summary: Implement watchdog timeout for `GROK`
+type: enhancement

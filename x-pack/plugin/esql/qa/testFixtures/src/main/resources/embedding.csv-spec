@@ -84,7 +84,9 @@ all we have to decide is what to do with the time that is given to us
 ;
 
 
-embedding with multiple knn queries in fork#[skip:-9.4.99,reason:vector scoring order differs on older versions]
+// Requires embedding_function (GA in 9.5.0) as a proxy for the scoring-order
+// fix; no dedicated capability exists for the underlying behavior change.
+embedding with multiple knn queries in fork
 required_capability: embedding_function
 required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5

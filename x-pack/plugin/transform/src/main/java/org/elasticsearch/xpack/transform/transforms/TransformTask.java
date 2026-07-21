@@ -220,7 +220,11 @@ public class TransformTask extends AllocatedPersistentTask
             );
             return;
         }
-        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
+        transformsCheckpointService.getCheckpointProvider(
+            parentTaskClient,
+            transformIndexer.getConfig(),
+            () -> getContext().getPersistedCloudCredential()
+        )
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),
@@ -510,6 +514,7 @@ public class TransformTask extends AllocatedPersistentTask
     @Override
     public void shutdown() {
         logger.debug("[{}] shutdown of transform requested", transform.getId());
+        context.close();
         transformScheduler.deregisterTransform(getTransformId());
         markAsCompleted();
     }
@@ -568,6 +573,7 @@ public class TransformTask extends AllocatedPersistentTask
                         transformNode.nodeId(),
                         reason
                     );
+                context.close();
                 markAsLocallyAborted("Node is shutting down.");
                 listener.onResponse(null);
                 return;

@@ -69,17 +69,20 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersects.class)
         .binary(MvIntersects::new)
+        .capabilities("flattened")
         .name("mv_intersects");
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks if any value from one multi-value exists in another.",
         description = "Checks if any value yielded by the second multivalue expression is present in the values yielded by "
             + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
             @Example(file = "mv_intersects", tag = "mv_intersects"),
             @Example(file = "mv_intersects", tag = "mv_intersects_bothsides"),
             @Example(file = "mv_intersects", tag = "mv_intersects_where"), },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }
     )
     public MvIntersects(
         Source source,
@@ -92,6 +95,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -115,6 +119,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

@@ -127,12 +127,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     public void testCreateDataStreamLogsdbColumnar() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName + "*"))
-            .template(new Template(Settings.builder().put("index.mode", "columnar_logsdb").build(), null, null))
+            .template(new Template(Settings.builder().put("index.mode", "logsdb_columnar").build(), null, null))
             .dataStreamTemplate(new DataStreamTemplate())
             .build();
         final var projectId = randomProjectIdOrDefault();
@@ -156,7 +155,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
         assertThat(index, notNullValue());

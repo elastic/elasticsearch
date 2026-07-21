@@ -7,145 +7,126 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.API_VERSION;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.MODEL_REQUIRED_FOR_V2_API;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.apiVersionFromMap;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 
 /**
  * Settings for the Cohere reranking service.
- * This class encapsulates the configuration settings required to use Cohere models for generating rerankings.
  */
-public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
+public class CohereRerankServiceSettings extends FilteredXContentObject implements CohereServiceSettings {
+
     public static final String NAME = "cohere_rerank_service_settings";
-    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+
+    public static class Builder extends CohereCommonServiceSettings.Builder<CohereRerankServiceSettings> {
+
+        protected Builder(ConfigurationParseContext context) {
+            super(context);
+        }
+
+        @Override
+        protected CohereRerankServiceSettings build(CohereCommonServiceSettings commonSettings) {
+            return new CohereRerankServiceSettings(commonSettings);
+        }
+    }
+
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            () -> new Builder(context)
+        );
+        CohereCommonServiceSettings.declareCommonFields(parser, context);
+        return parser;
+    }
 
     /**
      * Creates {@link CohereRerankServiceSettings} from a map of settings.
-     * @param map the map to parse
+     *
+     * @param map     the map to parse
      * @param context the context in which the parsing is done
      * @return the created {@link CohereRerankServiceSettings}
-     * @throws ValidationException If there are validation errors in the provided settings.
      */
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var uri = extractOptionalUri(map, URL, validationException);
-        var modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        var apiVersion = apiVersionFromMap(map, context, validationException);
-        if (apiVersion == CohereServiceSettings.CohereApiVersion.V2 && modelId == null) {
-            validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
-        }
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new CohereRerankServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return CohereCommonServiceSettings.fromMap(map, context, parser);
     }
 
-    private final URI uri;
-    private final String modelId;
-    private final RateLimitSettings rateLimitSettings;
-    private final CohereServiceSettings.CohereApiVersion apiVersion;
+    private final CohereCommonServiceSettings commonSettings;
 
-    public CohereRerankServiceSettings(
-        @Nullable URI uri,
-        @Nullable String modelId,
-        @Nullable RateLimitSettings rateLimitSettings,
-        CohereServiceSettings.CohereApiVersion apiVersion
-    ) {
-        this.uri = uri;
-        this.modelId = modelId;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        this.apiVersion = apiVersion;
+    public CohereRerankServiceSettings(CohereCommonServiceSettings commonSettings) {
+        this.commonSettings = Objects.requireNonNull(commonSettings);
     }
 
-    public CohereRerankServiceSettings(
-        @Nullable String url,
-        @Nullable String modelId,
-        @Nullable RateLimitSettings rateLimitSettings,
-        CohereServiceSettings.CohereApiVersion apiVersion
-    ) {
-        this(createOptionalUri(url), modelId, rateLimitSettings, apiVersion);
-    }
-
-    /**
-     * Creates {@link CohereRerankServiceSettings} from a {@link StreamInput}.
-     * @param in the stream input
-     * @throws IOException if an I/O exception occurs
-     */
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
-        this.uri = createOptionalUri(in.readOptionalString());
-        this.modelId = in.readOptionalString();
-        this.rateLimitSettings = new RateLimitSettings(in);
-
-        if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
-            this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
+        if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
+            // Old format: uri, modelId, rateLimitSettings, [apiVersion]
+            var uri = createOptionalUri(in.readOptionalString());
+            var modelId = in.readOptionalString();
+            var rateLimitSettings = new RateLimitSettings(in);
+            var apiVersion = in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)
+                ? in.readEnum(CohereCommonServiceSettings.CohereApiVersion.class)
+                : CohereCommonServiceSettings.CohereApiVersion.V1;
+            this.commonSettings = new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
         } else {
-            this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
+            this.commonSettings = new CohereCommonServiceSettings(in);
         }
     }
 
     @Override
-    public URI uri() {
-        return uri;
+    public CohereCommonServiceSettings commonSettings() {
+        return commonSettings;
     }
 
     @Override
     public String modelId() {
-        return modelId;
+        return commonSettings.modelId();
     }
 
     @Override
     public CohereRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new CohereRerankServiceSettings(this.uri, this.modelId, extractedRateLimitSettings, this.apiVersion);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Cohere rerank service settings update", e);
+        }
     }
 
-    @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+        return commonSettings.rateLimitSettings();
     }
 
-    @Override
-    public CohereServiceSettings.CohereApiVersion apiVersion() {
-        return apiVersion;
+    public CohereCommonServiceSettings.CohereApiVersion apiVersion() {
+        return commonSettings.apiVersion();
     }
 
     @Override
@@ -156,26 +137,14 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
-        toXContentFragmentOfExposedFields(builder, params);
-        builder.field(API_VERSION, apiVersion); // API version is persisted but not exposed to the user
-
+        commonSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
-
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
-
-        rateLimitSettings.toXContent(builder, params);
-
+        commonSettings.toXContentFragmentOfExposedFields(builder, params);
         return builder;
     }
 
@@ -186,12 +155,15 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
-        out.writeOptionalString(modelId);
-        rateLimitSettings.writeTo(out);
-        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
-            out.writeEnum(apiVersion);
+        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
+            out.writeOptionalString(commonSettings.uri() != null ? commonSettings.uri().toString() : null);
+            out.writeOptionalString(commonSettings.modelId());
+            commonSettings.rateLimitSettings().writeTo(out);
+            if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
+                out.writeEnum(commonSettings.apiVersion());
+            }
+        } else {
+            commonSettings.writeTo(out);
         }
     }
 
@@ -200,19 +172,29 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         CohereRerankServiceSettings that = (CohereRerankServiceSettings) object;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && apiVersion == that.apiVersion;
+        return Objects.equals(commonSettings, that.commonSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings, apiVersion);
+        return Objects.hash(commonSettings);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    private static class Update extends CohereCommonServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
+
+        public CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
+            return new CohereRerankServiceSettings(existing.commonSettings().update(this));
+        }
     }
 }

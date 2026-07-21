@@ -11,8 +11,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,13 +29,31 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
     private final String template;
     private final List<String> columnNames;
+    /** Original placeholder names that {@link ReservedPartitionNames#surface} renamed, for the per-detect warning. */
+    private final List<String> renamedColumns;
 
     public TemplatePartitionDetector(String template) {
         if (template == null || template.isEmpty()) {
             throw new IllegalArgumentException("template cannot be null or empty");
         }
         this.template = template;
-        this.columnNames = parseTemplateColumns(template);
+        // Reserved metadata names are dedicated; a template placeholder like {_index} cannot claim
+        // one (the placeholder grammar accepts any \w+ name, including underscore-led standard
+        // metadata names). Surface those columns under the _partition.* prefix — same contract as
+        // the Hive detector. Rename targets contain a dot, which the placeholder grammar cannot
+        // produce, so a rename can never collide with another template column.
+        List<String> parsed = parseTemplateColumns(template);
+        List<String> surfaced = new ArrayList<>(parsed.size());
+        List<String> renamed = new ArrayList<>(0);
+        for (String name : parsed) {
+            String surface = ReservedPartitionNames.surface(name);
+            if (surface.equals(name) == false) {
+                renamed.add(name);
+            }
+            surfaced.add(surface);
+        }
+        this.columnNames = surfaced;
+        this.renamedColumns = renamed;
         if (this.columnNames.isEmpty()) {
             throw new IllegalArgumentException("template must contain at least one {name} placeholder: " + template);
         }
@@ -53,6 +69,9 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
+        // Warn at detection time (not construction) so the header lands on the resolving request's
+        // thread context, mirroring the Hive detector.
+        ReservedPartitionNames.warnRenamed(renamedColumns);
 
         int segmentCount = columnNames.size();
         List<Map<String, String>> allRawPartitions = new ArrayList<>();
@@ -119,18 +138,10 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         LinkedHashMap<String, String> result = Maps.newLinkedHashMapWithExpectedSize(expectedSegments);
         for (int i = 0; i < expectedSegments; i++) {
             String segment = nonEmpty.get(startIdx + i);
-            String decoded = urlDecode(segment);
+            String decoded = HivePartitionDetector.decodePartitionValue(segment);
             result.put(columnNames.get(i), decoded);
         }
         return result;
-    }
-
-    private static String urlDecode(String value) {
-        try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException e) {
-            return value;
-        }
     }
 
     public static List<String> parseTemplateColumns(String template) {

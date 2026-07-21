@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequestUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +51,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements OutboundUnifi
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        decorateWithAuth(httpPost);
+        model.authHeaderDecorator().accept(httpPost, model);
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
@@ -63,10 +62,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements OutboundUnifi
      */
     private String extractModelId() {
         return unifiedChatInput.getRequest().model() != null ? unifiedChatInput.getRequest().model() : model.getServiceSettings().modelId();
-    }
-
-    public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     @Override

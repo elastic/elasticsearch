@@ -7,9 +7,7 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**

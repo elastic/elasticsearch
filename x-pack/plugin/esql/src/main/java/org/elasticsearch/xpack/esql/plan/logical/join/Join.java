@@ -35,10 +35,8 @@ import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -111,11 +109,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
     // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
-    private transient boolean isRemote = false;
-
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        this(source, left, right, config, false);
-    }
+    private final transient boolean isRemote;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
         super(source, left, right);
@@ -130,15 +124,16 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType type,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        boolean isRemote
     ) {
-        super(source, left, right);
-        this.config = new JoinConfig(type, leftFields, rightFields, joinOnConditions);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
+        this.isRemote = false;
     }
 
     @Override
@@ -183,7 +178,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.type(),
             config.leftFields(),
             config.rightFields(),
-            config.joinOnConditions()
+            config.joinOnConditions(),
+            isRemote
         );
     }
 
@@ -375,11 +371,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkRemoteJoin(Failures failures) {
-        Set<Source> fails = new HashSet<>();
-
-        var myself = this;
         this.forEachUp(LogicalPlan.class, u -> {
-            if (u == myself) {
+            if (u == Join.this) {
                 return; // skip myself
             }
             if (u instanceof Limit) {
@@ -388,14 +381,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 return;
             }
             if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
-
-        fails.forEach(
-            f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.text() + "]" + f.source()))
-        );
-
     }
 
     @Override

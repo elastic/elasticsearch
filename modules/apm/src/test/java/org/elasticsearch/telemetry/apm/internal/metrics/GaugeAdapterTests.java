@@ -161,6 +161,42 @@ public class GaugeAdapterTests extends ESTestCase {
         otelMeter.getRecorder().resetCalls();
         otelMeter.collectMetrics();
         metrics = otelMeter.getRecorder().getMeasurements(gauge);
-        assertThat("Old meter does not record anything anymore after being overriden", metrics, hasSize(0));
+        assertThat("Old meter does not record anything anymore after being overridden", metrics, hasSize(0));
+    }
+
+    public void testLongGaugeIsRemovedFromTheRegistryAfterClosing() throws Exception {
+        var gauge = registry.registerLongGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(42));
+
+        otelMeter.collectMetrics();
+        var metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).getLong(), equalTo(42L));
+
+        gauge.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat("OTel SDK does not record anything anymore after the instrument is closed", metrics, hasSize(0));
+
+        assertNull("Instrument is removed from the registry after closing", registry.getLongGauge(gauge.getName()));
+    }
+
+    public void testDoubleGaugeIsRemovedFromTheRegistryAfterClosing() throws Exception {
+        var gauge = registry.registerDoubleGauge("es.test.name.total", "desc", "thingies", () -> new DoubleWithAttributes(42.0));
+
+        otelMeter.collectMetrics();
+        var metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).getDouble(), equalTo(42.0));
+
+        gauge.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat("OTel SDK does not record anything anymore after the instrument is closed", metrics, hasSize(0));
+
+        assertNull("Instrument is removed from the registry after closing", registry.getDoubleGauge(gauge.getName()));
     }
 }

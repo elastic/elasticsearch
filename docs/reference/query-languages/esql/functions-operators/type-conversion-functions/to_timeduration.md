@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_TIMEDURATION` function [esql-to_timeduration]
 
-:::{include} ../../_snippets/functions/layout/to_timeduration.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_timeduration.md
 :::

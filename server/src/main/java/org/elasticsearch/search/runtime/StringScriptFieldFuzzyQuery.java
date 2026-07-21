@@ -12,6 +12,9 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 
@@ -25,10 +28,20 @@ public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutoma
         String term,
         int maxEdits,
         int prefixLength,
-        boolean transpositions
+        boolean transpositions,
+        @Nullable SearchExecutionContext context
     ) {
         int maxExpansions = 1; // We don't actually expand anything so the value here doesn't matter
-        FuzzyQuery delegate = new FuzzyQuery(new Term(fieldName, term), maxEdits, prefixLength, maxExpansions, transpositions);
+        FuzzyQuery delegate = FuzzyQueries.create(
+            new Term(fieldName, term),
+            maxEdits,
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            null,
+            context,
+            fieldName
+        );
         ByteRunAutomaton automaton = delegate.getAutomata().runAutomaton;
         return new StringScriptFieldFuzzyQuery(script, leafFactory, fieldName, automaton, delegate);
     }

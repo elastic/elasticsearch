@@ -80,7 +80,7 @@ The following examples show common `ENRICH` patterns.
 using the `match_field` defined in the [enrich policy](/reference/query-languages/esql/esql-enrich-data.md#esql-enrich-policy).
 The input table must have a column with the same name (`language_code` in this example):
 
-:::{include} ../examples/enrich.csv-spec/enrich.md
+:::{include} ../../generated/x-pack-esql/commands/examples/enrich.csv-spec/enrich.md
 :::
 
 ### Match on a different field using ON
@@ -88,7 +88,7 @@ The input table must have a column with the same name (`language_code` in this e
 To use a column with a different name than the `match_field` defined in the
 policy as the match field, use `ON <column-name>`:
 
-:::{include} ../examples/enrich.csv-spec/enrich_on.md
+:::{include} ../../generated/x-pack-esql/commands/examples/enrich.csv-spec/enrich_on.md
 :::
 
 ### Select specific enrich fields using WITH
@@ -97,12 +97,12 @@ By default, each of the enrich fields defined in the policy is added as a
 column. To explicitly select the enrich fields that are added, use
 `WITH <field1>, <field2>, ...`:
 
-:::{include} ../examples/enrich.csv-spec/enrich_with.md
+:::{include} ../../generated/x-pack-esql/commands/examples/enrich.csv-spec/enrich_with.md
 :::
 
 ### Rename enrich fields using WITH
 
 Rename the columns that are added using `WITH new_name=<field1>`:
 
-:::{include} ../examples/enrich.csv-spec/enrich_rename.md
+:::{include} ../../generated/x-pack-esql/commands/examples/enrich.csv-spec/enrich_rename.md
 :::

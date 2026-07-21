@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.HashMap;
 import java.util.List;
@@ -21,30 +20,31 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 
 public class EsIndexGenerator {
 
     public static EsIndex esIndex(String name) {
-        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping) {
-        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of(), Map.of());
+        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of(), Map.of());
+        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of());
     }
 
     public static EsIndex randomEsIndex() {
-        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Map.of(), Map.of(), Map.of());
+        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Map.of(), Map.of());
     }
 
     public static Map<String, EsField> randomMapping() {
         int size = ESTestCase.between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(randomIdentifier(), EsFieldTests.randomAnyEsField(1));
+            result.put(randomIdentifier(), randomSerializableEsField(1));
         }
         return result;
     }

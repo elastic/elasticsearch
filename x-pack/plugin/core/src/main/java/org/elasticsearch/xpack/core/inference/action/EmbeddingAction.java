@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.TaskType;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.inference.EmbeddingRequest.INPUT_FIELD;
 
 public class EmbeddingAction extends ActionType<InferenceAction.Response> {
     public static final EmbeddingAction INSTANCE = new EmbeddingAction();
@@ -99,13 +101,13 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
             if (embeddingRequest.inputs() == null) {
-                e = addValidationError("Field [inputs] cannot be null", e);
+                e = addValidationError(Strings.format("Field [%s] cannot be null", INPUT_FIELD), e);
             } else if (embeddingRequest.inputs().isEmpty()) {
-                e = addValidationError("Field [inputs] cannot be an empty array", e);
+                e = addValidationError(Strings.format("Field [%s] cannot be an empty array", INPUT_FIELD), e);
             }
 
             if (taskType.isAnyOrSame(TaskType.EMBEDDING) == false) {
-                e = addValidationError("Field [taskType] must be [embedding]", e);
+                e = addValidationError(Strings.format("Field [%s] must be [embedding]", TaskType.NAME), e);
             }
 
             return e;

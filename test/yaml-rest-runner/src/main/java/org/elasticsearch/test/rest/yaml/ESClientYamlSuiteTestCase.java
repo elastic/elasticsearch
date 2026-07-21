@@ -349,12 +349,29 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
-        Map<String, Set<Path>> files = new HashMap<>();
         Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
-        for (Path root : roots) {
-            for (String strPath : paths) {
+        return loadSuites(roots, paths);
+    }
+
+    /**
+     * Find all yaml suites that match the given list of paths under the supplied {@code roots}.
+     *
+     * A yamlRestTest task can have more than one root on its classpath: the project's own
+     * {@code src/yamlRestTest/resources/rest-api-spec/test} resources, plus the output of
+     * {@code copyYamlTestsTask} (in {@code build/restResources/yamlTests}) that may pull in
+     * tests from sibling projects. A given user-specified suite path normally only lives in
+     * one of those roots, so requiring it to exist in every root produces spurious failures.
+     * Instead, require each path to be resolvable as a directory or {@code .yml} file in at
+     * least one root, and just skip roots where it isn't present.
+     */
+    static Map<String, Set<Path>> loadSuites(Path[] roots, String... paths) throws Exception {
+        Map<String, Set<Path>> files = new HashMap<>();
+        for (String strPath : paths) {
+            boolean found = false;
+            for (Path root : roots) {
                 Path path = root.resolve(strPath);
                 if (Files.isDirectory(path)) {
+                    found = true;
                     try (var filesStream = Files.walk(path)) {
                         filesStream.forEach(file -> {
                             if (file.toString().endsWith(".yml")) {
@@ -365,11 +382,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                         });
                     }
                 } else {
-                    path = root.resolve(strPath + ".yml");
-                    assert Files.exists(path) : "Path " + path + " does not exist in YAML test root";
-                    addSuite(root, path, files);
+                    Path ymlPath = root.resolve(strPath + ".yml");
+                    if (Files.exists(ymlPath)) {
+                        found = true;
+                        addSuite(root, ymlPath, files);
+                    }
                 }
             }
+            // The empty string is the "include everything" sentinel used by the default
+            // createParameters() entry point. It is legitimately allowed to resolve to
+            // nothing - e.g. a yamlRestCompatTest task whose project has no compat tests
+            // at all, so the classpath exposes no rest-api-spec/test root. Only enforce
+            // the typo guard for explicit, non-empty user-supplied suite paths.
+            assert strPath.isEmpty() || found : "Path " + strPath + " does not exist in any YAML test root: " + Arrays.toString(roots);
         }
         return files;
     }

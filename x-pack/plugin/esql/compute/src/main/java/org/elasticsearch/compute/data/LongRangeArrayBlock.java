@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
-public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted implements LongRangeBlock {
+public final class LongRangeArrayBlock extends AbstractBlockRefCounted implements LongRangeBlock {
     private final LongBlock fromBlock;
     private final LongBlock toBlock;
 
@@ -51,7 +51,7 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public int getTotalValueCount() {
-        return fromBlock.getTotalValueCount() + toBlock.getTotalValueCount();
+        return fromBlock.getTotalValueCount();
     }
 
     @Override
@@ -66,7 +66,7 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public int getValueCount(int position) {
-        return Math.max(fromBlock.getValueCount(position), toBlock.getValueCount(position));
+        return fromBlock.getValueCount(position);
     }
 
     @Override
@@ -86,6 +86,7 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         fromBlock.allowPassingToDifferentDriver();
         toBlock.allowPassingToDifferentDriver();
     }
@@ -137,13 +138,13 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public LongRangeBlock filter(boolean mayContainDuplicates, int... positions) {
+    public LongRangeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         LongRangeBlock result = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
         try {
-            newFromBlock = fromBlock.filter(mayContainDuplicates, positions);
-            newToBlock = toBlock.filter(mayContainDuplicates, positions);
+            newFromBlock = fromBlock.filter(mayContainDuplicates, positions, offset, length);
+            newToBlock = toBlock.filter(mayContainDuplicates, positions, offset, length);
             result = new LongRangeArrayBlock(newFromBlock, newToBlock);
             return result;
         } finally {
@@ -184,8 +185,23 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public LongRangeBlock expand() {
-        this.incRef();
-        return this;
+        if (doesHaveMultivaluedFields() == false) {
+            incRef();
+            return this;
+        }
+        LongRangeBlock result = null;
+        LongBlock newFromBlock = null;
+        LongBlock newToBlock = null;
+        try {
+            newFromBlock = fromBlock.expand();
+            newToBlock = toBlock.expand();
+            result = new LongRangeArrayBlock(newFromBlock, newToBlock);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(newFromBlock, newToBlock);
+            }
+        }
     }
 
     @Override

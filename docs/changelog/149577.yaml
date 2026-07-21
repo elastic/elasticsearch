@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149577
+summary: Fast-path CSV datetime parsing
+type: enhancement

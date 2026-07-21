@@ -10,7 +10,7 @@ steps:
 notify:
   - slack: "#es-delivery"
     if: build.state == "failed"
-  - slack: "#es-data-management"
+  - slack: "#es-storage-engine"
     if: build.state == "failed"
   - email: "logs-plus@elastic.co"
     if: build.state == "failed"

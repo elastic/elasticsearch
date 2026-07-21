@@ -655,7 +655,7 @@ changelogs:
 
         The syntax is illustrated in the following example:
 
-        ```yaml
+        ```esql
         PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
         | SORT avg_bytes DESC, step;
         ```
@@ -1732,7 +1732,7 @@ changelogs:
       body: |-
         Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
 
-        ```yaml
+        ```esql
         TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
         ```
 
@@ -1781,7 +1781,7 @@ changelogs:
       body: |-
         Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-        ```yaml
+        ```esql
         TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
         ```
 
@@ -2532,7 +2532,6 @@ changelogs:
     issues: []
   - pr: 145400
     summary: |2-
-
       In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
       Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
       If a user was relying on this behaviour they will need to update their ILM policy, either by adding a force merge action in the same or a subsequent phase of the policy or by setting the `force_merge_index` parameter of the downsample action to `true`.
@@ -2639,7 +2638,6 @@ changelogs:
     issues: []
   - pr: 145737
     summary: |2-
-
       Sequence numbers have significant storage footprint in metrics applications (up to 30% for OTLP). To alleviate this, we are disabling sequence numbers for indices in time-series mode, meaning that they get trimmed once they are no longer needed for replication. This helps with storage efficiency, as well as reducing the overhead for segment merging.
       The downside is that [Optimistic Concurrency Control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control) is no longer applicable to these indices. Index, update and delete operations using `if_seq_no` error out, and search calls with `seq_no_primary_term` set return sentinel values for sequence numbers. Moreover, `update_by_query` and `delete_by_query` operations proceed without conflict detection, so concurrent modifications may silently overwrite the affected docs without triggering version conflict errors.
       This is largely a favorable tradeoff as concurrent modifications are rather rare in metrics applications and the storage savings are substantial. Still, users requiring OCC support can restore the old behavior by setting `index.disable_sequence_numbers` to `false` in their time-series index templates.

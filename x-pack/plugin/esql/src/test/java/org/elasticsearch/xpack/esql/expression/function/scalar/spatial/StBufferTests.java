@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.GeometryDocSvg;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.operation.buffer.BufferOp;
+import org.locationtech.jts.operation.buffer.BufferParameters;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -78,12 +79,12 @@ public class StBufferTests extends AbstractSpatialGeometryTransformTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StBuffer(source, args.get(0), args.get(1));
+        return new StBuffer(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 
     /**
-     * Diagrams shown in the generated docs to illustrate the effect of {@code distance}.
-     * Each entry renders the original geometry beneath the result.
+     * Diagrams shown in the generated docs to illustrate the effect of {@code distance} and the
+     * named buffer options. Each entry renders the original geometry beneath the result.
      */
     public static List<DocsV3Support.GeometryDiagram> geometryDiagrams() {
         return List.of(
@@ -104,9 +105,42 @@ public class StBufferTests extends AbstractSpatialGeometryTransformTestCase {
             diagram(
                 "line_round",
                 "Default round end caps on a line",
-                "A line buffered with the default round end caps becomes a stadium shape.",
+                "A line buffered with default options has rounded end caps (`endcap=round`).",
                 "LINESTRING(0 0, 10 0)",
                 BufferOp.bufferOp(jts("LINESTRING(0 0, 10 0)"), 2)
+            ),
+            diagram(
+                "line_flat",
+                "Flat end caps on a line",
+                "Setting `endcap=flat` keeps the buffer flush with the line's endpoints.",
+                "LINESTRING(0 0, 10 0)",
+                bufferWith(
+                    jts("LINESTRING(0 0, 10 0)"),
+                    2,
+                    new BufferParameters(8, BufferParameters.CAP_FLAT, BufferParameters.JOIN_ROUND, 5.0)
+                )
+            ),
+            diagram(
+                "line_square",
+                "Square end caps on a line",
+                "`endcap=square` extends the buffer past each endpoint by the buffer distance.",
+                "LINESTRING(0 0, 10 0)",
+                bufferWith(
+                    jts("LINESTRING(0 0, 10 0)"),
+                    2,
+                    new BufferParameters(8, BufferParameters.CAP_SQUARE, BufferParameters.JOIN_ROUND, 5.0)
+                )
+            ),
+            diagram(
+                "corner_mitre",
+                "Mitre joins on a buffered corner",
+                "`join=mitre` produces sharp corners. Combined with `endcap=flat` you get a clean rectangle for a buffered L-shape.",
+                "LINESTRING(0 0, 10 0, 10 10)",
+                bufferWith(
+                    jts("LINESTRING(0 0, 10 0, 10 10)"),
+                    2,
+                    new BufferParameters(8, BufferParameters.CAP_FLAT, BufferParameters.JOIN_MITRE, 5.0)
+                )
             )
         );
     }
@@ -146,5 +180,9 @@ public class StBufferTests extends AbstractSpatialGeometryTransformTestCase {
         } catch (IOException | ParseException e) {
             throw new AssertionError("invalid wkt: " + wkt, e);
         }
+    }
+
+    private static Geometry bufferWith(Geometry input, double distance, BufferParameters params) {
+        return BufferOp.bufferOp(input, distance, params);
     }
 }

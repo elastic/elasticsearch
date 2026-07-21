@@ -97,9 +97,10 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
     }
 
     @Override
-    public LongBlock filter(boolean mayContainDuplicates, int... positions) {
-        try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public LongBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newLongBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;
@@ -236,6 +237,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

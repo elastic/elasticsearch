@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -97,6 +98,7 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     public void testPrioritiesOnSuccess() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -110,7 +112,7 @@ public class EsqlQueryLogTests extends ESTestCase {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
                 new Versioned<>(
-                    new Result(List.of(), List.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
+                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
                     TransportVersion.current()
                 ),
                 query
@@ -148,6 +150,7 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     public void testPrioritiesOnFailure() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -201,7 +204,14 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
-                    randomIntBetween(0, 100)
+                    randomTimeSpan(),
+                    randomIntBetween(0, 100),
+                    randomIntBetween(0, 100),
+                    randomIntBetween(0, 1000),
+                    randomNonNegativeLong(),
+                    randomFrom(UnmappedResolution.values()),
+                    randomIntBetween(0, 100),
+                    randomNonNegativeLong()
                 );
             }
         };

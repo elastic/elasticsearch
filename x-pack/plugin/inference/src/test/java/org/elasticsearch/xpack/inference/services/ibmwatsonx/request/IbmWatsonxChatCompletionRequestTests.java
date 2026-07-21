@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
-import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests;
 
 import java.io.IOException;
@@ -80,18 +78,7 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
             randomAlphaOfLength(5),
             apiKey
         );
-        return new IbmWatsonxChatCompletionWithoutAuthRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
-    }
-
-    private static class IbmWatsonxChatCompletionWithoutAuthRequest extends IbmWatsonxChatCompletionRequest {
-        IbmWatsonxChatCompletionWithoutAuthRequest(UnifiedChatInput input, IbmWatsonxChatCompletionModel model) {
-            super(input, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
+        return new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 
     private void assertCreateRequestWithStreaming(boolean isStreaming) throws URISyntaxException, IOException {

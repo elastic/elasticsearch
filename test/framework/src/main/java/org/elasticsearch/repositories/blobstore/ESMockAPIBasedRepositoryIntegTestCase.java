@@ -18,7 +18,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -47,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -74,7 +74,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      */
     @SuppressForbidden(reason = "Uses a HttpServer to emulate a cloud-based storage service")
     protected interface BlobStoreHttpHandler extends HttpHandler {
-        Map<String, BytesReference> blobs();
+        Set<String> blobsKeyset();
     }
 
     private static final byte[] BUFFER = new byte[1024];
@@ -139,14 +139,14 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
                 if (h instanceof BlobStoreHttpHandler) {
-                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobs());
+                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobsKeyset());
                 }
             }
         }
     }
 
-    protected static void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
-        List<String> blobs = blobsMap.keySet().stream().filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
+    protected static void assertEmptyRepo(Set<String> blobsKeyset) {
+        List<String> blobs = blobsKeyset.stream().filter(blob -> blob.contains("index") == false).toList();
         assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
     }
 

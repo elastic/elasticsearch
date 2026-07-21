@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -33,8 +35,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 
@@ -57,8 +57,8 @@ import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINE
 /**
  * Core memory metrics tracking service for stateless clusters. Tracks per-shard memory metrics
  * and provides per-node and per-shard heap usage estimates. This class lives in the self-managed
- * stateless module (primarily to support the heap-based allocation via the StatelessHeapUsageCollector) and is used by both self-managed
- * and serverless stateless deployments.
+ * stateless module (primarily to support the heap-based allocation via {@link StatelessHeapUsageReader}) and is used by both
+ * self-managed and serverless stateless deployments.
  */
 public class StatelessMemoryMetricsService implements ClusterStateListener {
 
@@ -105,7 +105,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * <p>
      * By default, the Fixed Method is used. To switch to the Adaptive Method, explicitly set
      * the `memory_metrics.shard_memory_overhead` setting to -1.
-     * <p>
      */
     public static final ByteSizeValue FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
     public static final Setting<ByteSizeValue> FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
@@ -145,7 +144,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // The memory overhead of each field found in Lucene segments
     public static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
 
-    private static final Logger logger = LogManager.getLogger(StatelessMemoryMetricsService.class);
     // visible for testing
     public static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
 
@@ -159,6 +157,16 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private volatile long workloadMemoryOverhead = WORKLOAD_MEMORY_OVERHEAD;
 
     private volatile boolean initialized = false;
+    /**
+     * Master-only state. Two independent things update this map:
+     * <ul>
+     *     <li>{@link #clusterChanged} owns the keys: it creates an uninitialized entry when a shard is created, removes entries on
+     *     index delete, and marks entries {@link MetricQuality#MINIMUM} on mapping changes or shard relocation.</li>
+     *     <li>{@link #updateShardsMappingSize} owns the values: it's called by the master-side transport handler for
+     *     {@link ShardMappingSize} publications that originate on index nodes in {@link ShardsMappingSizeCollector}, one network hop
+     *     away, not a direct call from that class.</li>
+     * </ul>
+     */
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
@@ -212,6 +220,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      *  <li>Relocating shards are accounted for on the source and target node</li>
      *  <li>Any shard missing {@link ShardMemoryMetrics} is given a default (non-zero) estimate</li>
      * </ul>
+     * Called by {@link StatelessHeapUsageReader#collectClusterHeapUsage}, the node-level entry point into this service, whose results
+     * reach {@link org.elasticsearch.cluster.ClusterInfo#getEstimatedHeapUsages()} and are read from there by
+     * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider} and
+     * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor}.
      *
      * @param clusterState The cluster state used to determine which shard is where
      * @return A map of node id to heap usage estimate in bytes
@@ -268,8 +280,12 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return nodeIdToHeapUsage;
     }
 
+    public long getIndexMemoryOverhead() {
+        return INDEX_MEMORY_OVERHEAD * totalIndices;
+    }
+
     public long getNodeBaseHeapEstimateInBytes() {
-        return INDEX_MEMORY_OVERHEAD * totalIndices + workloadMemoryOverhead;
+        return getIndexMemoryOverhead() + workloadMemoryOverhead;
     }
 
     // Visible for testing
@@ -327,15 +343,23 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, long heapBytes) {}
 
     /**
-     * Estimates the heap usage for a single shard, based on: segment, number of fields and live doc byte counts.
+     * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
+     * <b>excluding</b> postings memory ({@link ShardMemoryMetrics#getPostingsInMemoryBytes()}); callers that need the full shard heap
+     * usage, postings included, should use {@link #computeShardHeapUsage} instead.
+     * <p>
+     * Called by {@link EstimatedHeapUsageBuilder#add} (node-level estimate) and {@link #computeShardHeapUsage} (shard-level estimate) —
+     * see those methods for how each consumes the result.
+     * <p>
+     * Also called directly from the elasticsearch-serverless autoscaling metrics service, which builds the indexing-tier memory total
+     * from this method by name.
      */
-    public long estimateShardMemoryUsageInBytes(ShardMemoryMetrics metrics) {
+    public long estimateShardOverheadExcludingPostings(ShardMemoryMetrics metrics) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
         if (fixedShardOverhead.getBytes() > 0) {
             return fixedShardOverhead.getBytes();
         }
         long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
-            + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes;
+            + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes + metrics.pointsInMemoryBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
 
         if (this.adaptiveShardMemoryEstimationMinThresholdEnabled) {
@@ -393,6 +417,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                     shardMappingSize.totalFields(),
                     shardMappingSize.postingsInMemoryBytes(),
                     shardMappingSize.liveDocsBytes(),
+                    shardMappingSize.pointsInMemoryBytes(),
                     shardMappingSize.shardMemoryOverheadBytes(),
                     heapMemoryUsage.publicationSeqNo(),
                     shardMappingSize.nodeId(),
@@ -473,16 +498,19 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
-            for (IndexMetadata indexMetadata : event.state().metadata().indicesAllProjects()) {
-                for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                    var shardMemoryMetrics = newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong());
-                    // new master should track the current assigned primary shard node in order to accept updates from such nodes
-                    ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
-                    ShardRouting shardRouting = event.state().routingTable().shardRoutingTable(shardId).primaryShard();
-                    if (shardRouting.assignedToNode()) {
-                        shardMemoryMetrics.update(shardRouting.currentNodeId(), relativeTimeInNanos());
+            for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
+                final ProjectId projectId = projectEntry.getKey();
+                for (IndexMetadata indexMetadata : projectEntry.getValue()) {
+                    for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                        var shardMemoryMetrics = newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong());
+                        // new master should track the current assigned primary shard node in order to accept updates from such nodes
+                        ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
+                        ShardRouting shardRouting = event.state().routingTable(projectId).shardRoutingTable(shardId).primaryShard();
+                        if (shardRouting.assignedToNode()) {
+                            shardMemoryMetrics.update(shardRouting.currentNodeId(), relativeTimeInNanos());
+                        }
+                        this.shardMemoryMetrics.put(shardId, shardMemoryMetrics);
                     }
-                    this.shardMemoryMetrics.put(shardId, shardMemoryMetrics);
                 }
             }
             initialized = true;
@@ -500,46 +528,49 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 }
             }
 
-            for (IndexMetadata indexMetadata : event.state().metadata().indicesAllProjects()) {
-                final Index index = indexMetadata.getIndex();
-                for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                    // index created use case, EXACT values will be sent by index node
-                    shardMemoryMetrics.putIfAbsent(
-                        new ShardId(index, id),
-                        newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong())
-                    );
-                }
-                // index mapping update use case
-                final IndexMetadata oldIndexMetadata = event.previousState().metadata().findIndex(index).orElse(null);
-                final IndexMetadata newIndexMetadata = event.state().metadata().findIndex(index).orElse(null);
+            for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
+                final ProjectId projectId = projectEntry.getKey();
+                for (IndexMetadata indexMetadata : projectEntry.getValue()) {
+                    final Index index = indexMetadata.getIndex();
+                    for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                        // index created use case, EXACT values will be sent by index node
+                        shardMemoryMetrics.putIfAbsent(
+                            new ShardId(index, id),
+                            newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong())
+                        );
+                    }
+                    // index mapping update use case
+                    final IndexMetadata oldIndexMetadata = event.previousState().metadata().findIndex(index).orElse(null);
+                    final IndexMetadata newIndexMetadata = event.state().metadata().findIndex(index).orElse(null);
 
-                if (oldIndexMetadata != null
-                    && newIndexMetadata != null
-                    && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) {
-                    if (oldIndexMetadata.getMappingVersion() < newIndexMetadata.getMappingVersion()) {
-                        // set last known value as MINIMUM, EXACT value will be sent by index node
-                        for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                            shardMemoryMetrics.get(new ShardId(index, id)).update(MetricQuality.MINIMUM, relativeTimeInNanos());
+                    if (oldIndexMetadata != null
+                        && newIndexMetadata != null
+                        && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) {
+                        if (oldIndexMetadata.getMappingVersion() < newIndexMetadata.getMappingVersion()) {
+                            // set last known value as MINIMUM, EXACT value will be sent by index node
+                            for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                                shardMemoryMetrics.get(new ShardId(index, id)).update(MetricQuality.MINIMUM, relativeTimeInNanos());
+                            }
                         }
                     }
-                }
 
-                // moving shards use case
-                if (event.indexRoutingTableChanged(index)) {
-                    for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                        ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
-                        ShardRouting newShardRouting = event.state().routingTable().shardRoutingTable(shardId).primaryShard();
-                        final ShardMemoryMetrics shardMemoryMetrics = this.shardMemoryMetrics.get(shardId);
-                        if (newShardRouting.assignedToNode()) {
-                            assert shardMemoryMetrics != null;
-                            final String lastKnownShardNodeId = shardMemoryMetrics.getMetricShardNodeId();
-                            final String newShardNodeId = newShardRouting.currentNodeId();
-                            if (newShardNodeId.equals(lastKnownShardNodeId) == false) {
-                                // preserve last-known value, since shard has moved and no mapping change happened
-                                shardMemoryMetrics.update(newShardRouting.currentNodeId(), relativeTimeInNanos());
+                    // moving shards use case
+                    if (event.indexRoutingTableChanged(index)) {
+                        for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                            ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
+                            ShardRouting newShardRouting = event.state().routingTable(projectId).shardRoutingTable(shardId).primaryShard();
+                            final ShardMemoryMetrics shardMemoryMetrics = this.shardMemoryMetrics.get(shardId);
+                            if (newShardRouting.assignedToNode()) {
+                                assert shardMemoryMetrics != null;
+                                final String lastKnownShardNodeId = shardMemoryMetrics.getMetricShardNodeId();
+                                final String newShardNodeId = newShardRouting.currentNodeId();
+                                if (newShardNodeId.equals(lastKnownShardNodeId) == false) {
+                                    // preserve last-known value, since shard has moved and no mapping change happened
+                                    shardMemoryMetrics.update(newShardRouting.currentNodeId(), relativeTimeInNanos());
+                                }
+                            } else {
+                                shardMemoryMetrics.update(MetricQuality.MINIMUM, relativeTimeInNanos());
                             }
-                        } else {
-                            shardMemoryMetrics.update(MetricQuality.MINIMUM, relativeTimeInNanos());
                         }
                     }
                 }
@@ -602,6 +633,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private int totalFields = 0;
         private long postingsInMemoryBytes = 0;
         private long liveDocsBytes = 0;
+        private long pointsInMemoryBytes = 0;
         private long shardMemoryOverheadBytes;
         private long seqNo;
         private MetricQuality metricQuality;
@@ -614,6 +646,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             int totalFields,
             long postingsInMemoryBytes,
             long liveDocsBytes,
+            long pointsInMemoryBytes,
             long shardMemoryOverheadBytes,
             long seqNo,
             MetricQuality metricQuality,
@@ -625,6 +658,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             this.totalFields = totalFields;
             this.postingsInMemoryBytes = postingsInMemoryBytes;
             this.liveDocsBytes = liveDocsBytes;
+            this.pointsInMemoryBytes = pointsInMemoryBytes;
             this.shardMemoryOverheadBytes = shardMemoryOverheadBytes;
             this.seqNo = seqNo;
             this.metricQuality = metricQuality;
@@ -638,6 +672,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             int totalFields,
             long postingsInMemoryBytes,
             long liveDocsBytes,
+            long pointsInMemoryBytes,
             long shardMemoryOverheadBytes,
             long seqNo,
             String metricShardNodeId,
@@ -654,6 +689,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                     this.totalFields = totalFields;
                     this.postingsInMemoryBytes = postingsInMemoryBytes;
                     this.liveDocsBytes = liveDocsBytes;
+                    this.pointsInMemoryBytes = pointsInMemoryBytes;
                     this.shardMemoryOverheadBytes = shardMemoryOverheadBytes;
                     this.metricQuality = MetricQuality.EXACT;
                     this.metricShardNodeId = metricShardNodeId;
@@ -710,6 +746,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return liveDocsBytes;
         }
 
+        public synchronized long getPointsInMemoryBytes() {
+            return pointsInMemoryBytes;
+        }
+
         // visible for testing
         public synchronized long getShardMemoryOverheadBytes() {
             return shardMemoryOverheadBytes;
@@ -723,13 +763,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         public String toString() {
             return Strings.format(
                 "ShardMemoryMetrics{mappingSizeInBytes=%d, numSegments=%d, totalFields=%d, "
-                    + "postingsInMemoryBytes=%d, liveDocsBytes=%d, shardMemoryOverheadBytes=%d, seqNo=%d, "
+                    + "postingsInMemoryBytes=%d, liveDocsBytes=%d, pointsInMemoryBytes=%d, shardMemoryOverheadBytes=%d, seqNo=%d, "
                     + "metricQuality=%s, metricShardNodeId='%s', updateTimestampNanos='%d'}",
                 mappingSizeInBytes,
                 numSegments,
                 totalFields,
                 postingsInMemoryBytes,
                 liveDocsBytes,
+                pointsInMemoryBytes,
                 shardMemoryOverheadBytes,
                 seqNo,
                 metricQuality,
@@ -802,7 +843,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 totalShardMemoryOverheadBytes += shardMemoryMetrics.getShardMemoryOverheadBytes();
                 totalShardsWithSelfReportedOverhead++;
             } else {
-                shardMemoryUsageInBytes += estimateShardMemoryUsageInBytes(shardMemoryMetrics);
+                // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
+                // getPerNodeMemoryMetrics later overrides totalPostingsInMemoryBytes with the max across all nodes.
+                shardMemoryUsageInBytes += estimateShardOverheadExcludingPostings(shardMemoryMetrics);
                 totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
             }
             totalShards++;
@@ -832,6 +875,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             0,
             0L,
             0L,
+            0L,
             UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
             0L,
             MetricQuality.MISSING,
@@ -843,6 +887,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /**
      * Per-shard heap usage from tracked metrics, plus {@link ShardHeapUsageEstimates#defaultForShardsWithoutMetrics()} derived from
      * {@link #newUninitialisedShardMemoryMetrics} so it matches uninitialized shards in {@link #shardMemoryMetrics}.
+     * <p>
+     * Called by {@link StatelessHeapUsageReader#collectShardHeapUsage}, the shard-level entry point into this service, whose results
+     * reach {@link org.elasticsearch.cluster.ClusterInfo#getEstimatedShardHeapUsages()} and are read from there by
+     * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider} and
+     * {@link org.elasticsearch.cluster.ClusterInfoSimulator}.
      */
     public ShardHeapUsageEstimates getShardHeapUsageEstimates() {
         final Map<ShardId, ShardAndIndexHeapUsage> heapUsagePerShard = new HashMap<>();
@@ -862,6 +911,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     /**
      * Goes through the shard memory metrics and returns a map of shards to their shard-level and index-level heap usage components.
+     * Only used by tests; production code should call {@link #getShardHeapUsageEstimates()} instead.
      */
     // visible for testing
     public Map<ShardId, ShardAndIndexHeapUsage> getShardHeapUsages() {
@@ -869,16 +919,24 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * Computes the shard-level heap usage.
+     * Computes the shard-level heap usage: the self-reported overhead if available, otherwise
+     * {@link #estimateShardOverheadExcludingPostings} plus postings memory.
      * Ignores index-level heap usage, {@link #computeIndexHeapUsage} should be called for that.
-     * Same computation as {@link EstimatedHeapUsageBuilder#add}, except excludes index and node level overheads.
+     * Same self-reported-overhead-vs-estimate branching as {@link EstimatedHeapUsageBuilder#add}, except this also folds postings
+     * memory directly into the result (that method keeps postings separate to later apply the per-node max, see
+     * {@link #getPerNodeMemoryMetrics}).
+     * <p>
+     * Called by {@link #getShardHeapUsageEstimates} — see that method's Javadoc for consumers.
+     * <p>
+     * Also powers the elasticsearch-serverless autoscaling metrics service, which builds the search-tier memory total
+     * from this method by name.
      */
     // Visible for testing.
     public long computeShardHeapUsage(ShardMemoryMetrics shardMemoryMetrics) {
         if (isSelfReportedShardMemoryOverheadAvailable(shardMemoryMetrics)) {
             return shardMemoryMetrics.getShardMemoryOverheadBytes();
         }
-        return estimateShardMemoryUsageInBytes(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes();
+        return estimateShardOverheadExcludingPostings(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes();
     }
 
     /**
@@ -886,6 +944,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * for all indices regardless of shard assignments: see {@link #getNodeBaseHeapEstimateInBytes()}.
      *
      * Same computation as {@link EstimatedHeapUsageBuilder#add}, except excludes shard and node level overheads.
+     * <p>
+     * Called by {@link #getShardHeapUsageEstimates} — see that method's Javadoc for consumers.
      */
     // Visible for testing.
     public long computeIndexHeapUsage(ShardMemoryMetrics shardMemoryMetrics) {

@@ -13,12 +13,87 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.4 [connectors-9.4.4-release-notes]
+
+### Fixes [connectors-9.4.4-fixes]
+* Fix Slack connector float timestamp causing messages to be deleted on scheduled syncs. [#4168](https://github.com/elastic/connectors/pull/4168)
+* Handle out-of-range BSON datetimes in the MongoDB connector to prevent sync failures. [#4155](https://github.com/elastic/connectors/pull/4155)
+* Fix Outlook connector to dispatch Contacts by item type and harden folder and field assumptions. [#4151](https://github.com/elastic/connectors/pull/4151)
+* Fix GitHub connector to propagate fetch errors instead of swallowing them. [#4135](https://github.com/elastic/connectors/pull/4135)
+* Fix Outlook connector to harden sync against missing Exchange field values. [#4132](https://github.com/elastic/connectors/pull/4132)
+* Drop unused `space.permissions` from content query in the Confluence Data Center and Server connector. [#4121](https://github.com/elastic/connectors/pull/4121)
+* Fix Outlook connector to verify Exchange TLS with an in-memory CA, removing a cert-file race condition. [#4115](https://github.com/elastic/connectors/pull/4115)
+* Fix Outlook connector to skip mailbox-less accounts and prevent SSL misconfiguration from aborting sync. [#4092](https://github.com/elastic/connectors/pull/4092)
+
+## 9.3.8 [connectors-9.3.8-release-notes]
+
+### Fixes [connectors-9.3.8-fixes]
+* Fix Slack connector float timestamp causing messages to be deleted on scheduled syncs. [#4167](https://github.com/elastic/connectors/pull/4167)
+* Handle out-of-range BSON datetimes in the MongoDB connector to prevent sync failures. [#4166](https://github.com/elastic/connectors/pull/4166)
+* Fix Outlook connector to dispatch Contacts by item type and harden folder and field assumptions. [#4152](https://github.com/elastic/connectors/pull/4152)
+* Fix GitHub connector to propagate fetch errors instead of swallowing them. [#4134](https://github.com/elastic/connectors/pull/4134)
+* Fix Outlook connector to harden sync against missing Exchange field values. [#4131](https://github.com/elastic/connectors/pull/4131)
+* Drop unused `space.permissions` from content query in the Confluence Data Center and Server connector. [#4120](https://github.com/elastic/connectors/pull/4120)
+* Fix Outlook connector to verify Exchange TLS with an in-memory CA, removing a cert-file race condition. [#4114](https://github.com/elastic/connectors/pull/4114)
+* Fix Outlook connector to skip mailbox-less accounts and prevent SSL misconfiguration from aborting sync. [#4091](https://github.com/elastic/connectors/pull/4091)
+
+## 9.4.3 [connectors-9.4.3-release-notes]
+
+### Fixes [connectors-9.4.3-fixes]
+* Fix Confluence connector failing against Confluence Data Center / Server with HTTP 500 from `/rest/api/space?expand=permissions,history`. [#4049](https://github.com/elastic/connectors/pull/4049), [#4041](https://github.com/elastic/connectors/pull/4041)
+* Fix sync jobs incorrectly reporting `indexed_document_count`, `indexed_document_volume`, and `deleted_document_count` as `0` despite successful ingestion. [#4055](https://github.com/elastic/connectors/pull/4055), [#4047](https://github.com/elastic/connectors/pull/4047)
+* Fix the Jira connector failing to sync issues on Jira Server and Data Center deployments older than v10. [#4060](https://github.com/elastic/connectors/pull/4060), [#4059](https://github.com/elastic/connectors/pull/4059)
+* Reduce Jira connector memory usage during full syncs and fix a case where a failed fetch could leave a sync waiting indefinitely. [#4077](https://github.com/elastic/connectors/pull/4077), [#4062](https://github.com/elastic/connectors/pull/4062)
+* Fix Outlook connector crashing on localized Exchange servers. [#4068](https://github.com/elastic/connectors/pull/4068), [#4065](https://github.com/elastic/connectors/pull/4065)
+* Fix Outlook connector failing on on-prem Exchange when AD users have no mail attribute. [#4080](https://github.com/elastic/connectors/pull/4080), [#4078](https://github.com/elastic/connectors/pull/4078)
+
+## 9.3.7 [connectors-9.3.7-release-notes]
+
+### Fixes [connectors-9.3.7-fixes]
+* Fix Outlook Server connector aborting sync when an Active Directory user has a valid SMTP address but no Exchange mailbox (`ErrorNonExistentMailbox`); the account is now skipped with a warning and the sync continues. Also fix a crash (`NO_CERTIFICATE_OR_CRL_FOUND`) when SSL is enabled but no certificate is provided; the connector now falls back to unverified connections and logs a clear warning. [#4091](https://github.com/elastic/connectors/pull/4091), [#4085](https://github.com/elastic/connectors/pull/4085)
+
+## 9.3.6 [connectors-9.3.6-release-notes]
+
+### Fixes [connectors-9.3.6-fixes]
+* The Jira connector now falls back to the deprecated `rest/api/2/search` endpoint for Jira Server and Data Center deployments, fixing syncs against versions older than v10 that do not support the newer `rest/api/3/search/jql` endpoint. [#4059](https://github.com/elastic/connectors/pull/4059), [#4058](https://github.com/elastic/connectors/issues/4058)
+* Reduced the Jira connector's memory usage during full syncs and fixed a case where a failed fetch could leave a sync waiting indefinitely, both of which contributed to growing memory consumption in agentless deployments. [#4062](https://github.com/elastic/connectors/pull/4062), [#3914](https://github.com/elastic/connectors/issues/3914)
+* Fixed sync jobs reporting an indexed document count of `0` even when documents were successfully ingested; the counts are now updated correctly when the bulk error monitor triggers mid-batch, and user-supplied `elasticsearch.bulk.error_monitor.*` settings are now honored. [#4047](https://github.com/elastic/connectors/pull/4047), [#3736](https://github.com/elastic/connectors/issues/3736)
+* Fixed the Confluence connector failing against Confluence Data Center and Server with an HTTP 500 from `/rest/api/space`; the connector no longer requests the unused `permissions` and `history` expansions on Data Center and Server. [#4041](https://github.com/elastic/connectors/pull/4041)
+* Fixed an Outlook connector crash on localized (non-English) Exchange servers by resolving the contacts and archive folders through locale-agnostic distinguished folder IDs instead of English display names. [#4065](https://github.com/elastic/connectors/pull/4065), [#4064](https://github.com/elastic/connectors/issues/4064)
+* Fixed an Outlook connector crash on on-premises Exchange when Active Directory contained users without a mail attribute; those users are now skipped with a warning instead of aborting the sync. [#4078](https://github.com/elastic/connectors/pull/4078)
+
+## 9.4.2 [connectors-9.4.2-release-notes]
+
+### Features and enhancements [connectors-9.4.2-features-enhancements]
+* Tuned default Elasticsearch ingestion settings to better protect content-heavy connectors against bulk timeouts. Applies to self-managed, agent-managed, and Agentless deployments. [#4009](https://github.com/elastic/connectors/pull/4009), [#14289](https://github.com/elastic/search-team/issues/14289), [#14452](https://github.com/elastic/search-team/issues/14452)
+
+### Fixes [connectors-9.4.2-fixes]
+* Fixed an issue where the Elasticsearch sink could dispatch bulk requests larger than the configured `chunk_max_mem_size`, triggering `413 Request Entity Too Large` errors or memory pressure on the cluster. [#4012](https://github.com/elastic/connectors/pull/4012), [#14453](https://github.com/elastic/search-team/issues/14453)
+* Fixed a `TypeError: Issuer (iss) must be a string` crash that prevented GitHub App authentication from working with PyJWT 2.11.0 or later. [#4027](https://github.com/elastic/connectors/pull/4027), [#1881](https://github.com/elastic/sdh-search/issues/1881)
+* Fixed a `ModuleNotFoundError: No module named 'pkg_resources'` crash that prevented the Microsoft SQL Server connector from starting a sync on the official Docker image. [#4015](https://github.com/elastic/connectors/pull/4015), [#4014](https://github.com/elastic/connectors/issues/4014)
+
+## 9.4.1 [connectors-9.4.1-release-notes]
+
+### Fixes [connectors-9.4.1-fixes]
+
+* Fixes a bug for {{connectors-app}} Document Level Security, where the generated query filter used an incorrect subfield. [#4006](https://github.com/elastic/connectors/pull/4006), [#4005](https://github.com/elastic/connectors/issues/4005)
+
 ## 9.4.0 [connectors-9.4.0-release-notes]
 
 ### Fixes [connectors-9.4.0-fixes]
 * Fixed a bug in the Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
 * Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
 * Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885), [#3884](https://github.com/elastic/connectors/issues/3884)
+
+## 9.3.5 [connectors-9.3.5-release-notes]
+
+### Features and enhancements [connectors-9.3.5-features-enhancements]
+* Tuned default Elasticsearch ingestion settings to better protect content-heavy connectors against bulk timeouts. Applies to self-managed, agent-managed, and Agentless deployments. [#4009](https://github.com/elastic/connectors/pull/4009), [#14289](https://github.com/elastic/search-team/issues/14289), [#14452](https://github.com/elastic/search-team/issues/14452)
+
+### Fixes [connectors-9.3.5-fixes]
+* Fixed a bug for {{connectors-app}} Document Level Security, where the generated query filter used an incorrect subfield. [#4006](https://github.com/elastic/connectors/pull/4006), [#4005](https://github.com/elastic/connectors/issues/4005)
+* Fixed an issue where the Elasticsearch sink could dispatch bulk requests larger than the configured `chunk_max_mem_size`, triggering `413 Request Entity Too Large` errors or memory pressure on the cluster. [#4012](https://github.com/elastic/connectors/pull/4012), [#14453](https://github.com/elastic/search-team/issues/14453)
+* Fixed a `TypeError: Issuer (iss) must be a string` crash that prevented GitHub App authentication from working with PyJWT 2.11.0 or later. [#4027](https://github.com/elastic/connectors/pull/4027), [#1881](https://github.com/elastic/sdh-search/issues/1881)
 
 ## 9.3.4 [connectors-9.3.4-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.

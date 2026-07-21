@@ -142,6 +142,9 @@ When creating roles, refer to this page for a complete list of available privile
 `manage_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
 :   All read and write operations on [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing. Builds on `read_project_routing` by adding the ability to create and delete named project routing expressions.
 
+`manage_reindex` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   All operations on reindex tasks. This includes listing, getting status, cancelling, and rethrottling.
+
 `manage_rollup` {applies_to}`serverless: unavailable`
 :   All rollup operations, including creating, starting, stopping and deleting rollup jobs.
 
@@ -213,6 +216,8 @@ When creating roles, refer to this page for a complete list of available privile
 `monitor_rollup` {applies_to}`serverless: unavailable`
 :   All read-only rollup operations, such as viewing the list of historical and currently running rollup jobs and their capabilities.
 
+`monitor_reindex` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   All read-only operations on reindex tasks. This includes listing and getting status.
 
 `monitor_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to list and view details on existing repositories and snapshots.

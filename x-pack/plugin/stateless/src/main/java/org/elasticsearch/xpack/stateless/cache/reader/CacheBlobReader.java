@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.InputStream;
@@ -50,4 +51,16 @@ public interface CacheBlobReader {
      * @param listener listener for the input stream to fetch the data from
      */
     void getRangeInputStream(long position, int length, ActionListener<InputStream> listener);
+
+    /**
+     * Returns the name of the thread pool on which {@link #getRangeInputStream} expects to be invoked, and on which it will
+     * complete the supplied listener. Used by callers that want to schedule the fetch on a compatible executor.
+     * <p>
+     * Defaults to stateless_shard_read, suits the {@link ObjectStoreCacheBlobReader} contract.
+     * Implementations that have stricter requirements (e.g. {@link IndexingShardCacheBlobReader}, which forbids running on the
+     * shard read pool) must override this.
+     */
+    default String executorName() {
+        return StatelessPlugin.SHARD_READ_THREAD_POOL;
+    }
 }

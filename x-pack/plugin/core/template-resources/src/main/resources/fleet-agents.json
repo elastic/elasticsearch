@@ -451,6 +451,9 @@
                 "properties": {
                   "description": {
                     "type": "keyword"
+                  },
+                  "name": {
+                    "type": "keyword"
                   }
                 }
               },

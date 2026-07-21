@@ -79,16 +79,26 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
             modified = replace(nullExpressions, others, splits, this::nullify);
         }
         if (notNullExpressions == null) {
-            logger.error(
-                "notNullExpressions is null before second replace() call. " + "nullExpressions={}, others={}, splits={}, and={}",
+            // Observed in production (#148944, follow-up to #141579): the JVM has nullified this local even though Java
+            // source semantics guarantee it is non-null — it was allocated with `new LinkedHashSet<>()` a few lines above
+            // and is never reassigned. The original empty-set short-circuit added in #148277 turned out not to cover this
+            // shape (the guard fires even when the first replace() call is skipped). Re-derive notNullExpressions from
+            // splits — which is a deterministic function of the splits already populated — and continue, so callers
+            // see a successful optimization instead of an IllegalStateException.
+            logger.warn(
+                "PropagateNullable [#141579]: notNullExpressions local was nullified by the JVM; "
+                    + "rebuilding from splits. nullExpressions={}, others={}, splits={}, and={}",
                 nullExpressions,
                 others,
                 splits,
                 and
             );
-            throw new IllegalStateException(
-                "PropagateNullable: notNullExpressions is null before second replace() call [#141579]. and=" + and
-            );
+            notNullExpressions = new LinkedHashSet<>();
+            for (Expression ex : splits) {
+                if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
+                }
+            }
         }
         if (notNullExpressions.isEmpty() == false) {
             modified |= replace(notNullExpressions, others, splits, this::nonNullify);

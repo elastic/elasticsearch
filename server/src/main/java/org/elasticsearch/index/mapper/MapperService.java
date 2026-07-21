@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadToken;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -138,6 +139,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    public static final Setting<Long> INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.array_objects.limit",
+        50000L,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.total_fields.limit",
         1000L,
@@ -153,13 +163,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING = Setting.boolSetting(
         "index.mapping.total_fields.ignore_dynamic_beyond_limit",
         settings -> {
-            boolean isLogsDBIndexMode = IndexSettings.MODE.get(settings) == IndexMode.LOGSDB;
+            IndexMode mode = IndexSettings.MODE.get(settings);
+            boolean isLogsDBLikeIndexMode = mode == IndexMode.LOGSDB || mode == IndexMode.LOGSDB_COLUMNAR;
             final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
             boolean isNewIndexVersion = indexVersionCreated.between(
                 IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             ) || indexVersionCreated.onOrAfter(IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT);
-            return String.valueOf(isLogsDBIndexMode && isNewIndexVersion);
+            return String.valueOf(isLogsDBLikeIndexMode && isNewIndexVersion);
         },
         Property.Dynamic,
         Property.IndexScope,
@@ -343,13 +354,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(mappingParserContext);
             if (builder != null) {
                 metadataBuilders.put(builder.leafName(), builder);
-            }
-        }
-        if (indexSettings.isSliceEnabled()) {
-            MetadataFieldMapper.Builder routingBuilder = metadataBuilders.get(RoutingFieldMapper.NAME);
-            if (routingBuilder instanceof RoutingFieldMapper.Builder builder) {
-                builder.required.setValue(true);
-                builder.docValues.setValue(true);
             }
         }
         return metadataBuilders;
@@ -830,6 +834,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
+    /**
+     * Determines whether the columnar ID mode is enabled for the index.
+     *
+     * @return true if columnar ID mode is enabled, either explicitly via the provided ID field mapper
+     *         or by default in the index settings; false otherwise.
+     */
+    public boolean isUseColumnarId() {
+        if (this.mapper == null) {
+            return indexSettings.isUseColumnarIdByDefault();
+        }
+
+        return mappingLookup().isColumnarId();
+    }
+
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();
@@ -877,11 +895,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * @return The names of reloaded resources (or resources that would be reloaded if {@code preview} is true).
      * @throws IOException
      */
-    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource, boolean preview)
-        throws IOException {
+    public synchronized List<String> reloadSearchAnalyzers(
+        AnalysisRegistry registry,
+        @Nullable String resource,
+        boolean preview,
+        @Nullable ReloadToken reloadToken
+    ) throws IOException {
         logger.debug("reloading search analyzers for index [{}]", indexSettings.getIndex().getName());
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
-        return indexAnalyzers.reload(registry, indexSettings, resource, preview);
+        return indexAnalyzers.reload(registry, indexSettings, resource, preview, reloadToken);
     }
 
     /**

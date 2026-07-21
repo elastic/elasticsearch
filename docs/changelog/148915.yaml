@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 148905
+pr: 148915
+summary: Fix inner hits overwrite when collapse and nested query both set inner hits
+type: bug

@@ -19,6 +19,8 @@ and the values from the `<group_column>` and `<score_column>`
 Learn more about [how search works in ES|QL](docs-content://solutions/search/esql-for-search.md#how-search-works-in-esql).
 :::::
 
+`FUSE` can also normalize scores, making it simple to apply a minimum score cutoff and filter out low-quality results.
+
 A `LIMIT` is required before `FUSE`, because `FUSE` can only work with a finite set of rows.
 
 ::::{applies-switch}

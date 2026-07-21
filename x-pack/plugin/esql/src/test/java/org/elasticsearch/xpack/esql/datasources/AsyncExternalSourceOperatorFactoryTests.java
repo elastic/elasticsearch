@@ -1171,6 +1171,198 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
+    /**
+     * A genuine whole-file split (offset 0, no split-partitioning markers) owns the file's true EOF, so the
+     * single-threaded fallback must build the read context with {@code lastSplit=true}. Otherwise the reader
+     * applies the split-continuation trim and drops an un-terminated final record.
+     */
+    public void testSliceQueueWholeFileSplitMarksLastSplitTrue() throws Exception {
+        FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/whole.csv"), 0, 300, "csv", Map.of(), Map.of());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        List<Boolean> capturedLastSplit = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine, capturedLastSplit);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/whole.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedLastSplit.size());
+        assertTrue("A whole-file split owns EOF and must not trim its final record", capturedLastSplit.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * A FIRST compressed block-aligned macro-split starts at offset 0 and carries {@code FIRST_SPLIT} but no
+     * {@code LAST_SPLIT} marker. It is NOT the file's final split, so it must keep {@code lastSplit=false} and
+     * trim its block-boundary tail (the next split re-reads it). This guards against widening the whole-file
+     * fallback to every offset-0 split.
+     */
+    public void testSliceQueueFirstCompressedOffsetSplitKeepsLastSplitFalse() throws Exception {
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/data.ndjson.bz2"),
+            0,
+            300,
+            "ndjson",
+            Map.of(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY, "true", FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+            Map.of()
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        List<Boolean> capturedLastSplit = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine, capturedLastSplit);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data.ndjson.bz2");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedLastSplit.size());
+        assertFalse("A first compressed macro-split is not file-final and must keep trimming", capturedLastSplit.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * A FIRST record-aligned macro-split starts at offset 0 and carries {@code RECORD_ALIGNED_MACRO_SPLIT}
+     * plus {@code FIRST_SPLIT}, but no {@code LAST_SPLIT} marker. It is NOT the file's final split, so it
+     * must keep {@code lastSplit=false}. This locks the {@code recordAlignedMacro == false} limb of the
+     * whole-file predicate against a future refactor that widens the fallback to every offset-0 split.
+     */
+    public void testSliceQueueFirstRecordAlignedMacroSplitKeepsLastSplitFalse() throws Exception {
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/data.ndjson"),
+            0,
+            300,
+            "ndjson",
+            Map.of(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY, "true", FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+            Map.of()
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        List<Boolean> capturedLastSplit = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine, capturedLastSplit);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data.ndjson");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedLastSplit.size());
+        assertFalse("A first record-aligned macro-split is not file-final and must keep trimming", capturedLastSplit.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
     public void testSliceQueueMultipleSplitsWithMixedOffsets() throws Exception {
         List<ExternalSplit> splits = List.of(
             new FileSplit(
@@ -3315,8 +3507,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
-     * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
+     * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit, and
+     * optionally the lastSplit flag when a {@code capturedLastSplit} sink is supplied. Used to verify
+     * that RangeStorageObject wrapping, skipFirstLine, and whole-file lastSplit logic are correct.
      */
     private static class SplitCapturingFormatReader implements NoConfigFormatReader {
         @Override
@@ -3326,10 +3519,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
+        private final List<Boolean> capturedLastSplit;
 
         SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
+            this(capturedObjects, capturedSkipFirstLine, null);
+        }
+
+        SplitCapturingFormatReader(
+            List<StorageObject> capturedObjects,
+            List<Boolean> capturedSkipFirstLine,
+            List<Boolean> capturedLastSplit
+        ) {
             this.capturedObjects = capturedObjects;
             this.capturedSkipFirstLine = capturedSkipFirstLine;
+            this.capturedLastSplit = capturedLastSplit;
         }
 
         @Override
@@ -3341,6 +3544,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             capturedObjects.add(object);
             capturedSkipFirstLine.add(context.firstSplit() == false);
+            if (capturedLastSplit != null) {
+                capturedLastSplit.add(context.lastSplit());
+            }
             return singlePageIterator();
         }
 

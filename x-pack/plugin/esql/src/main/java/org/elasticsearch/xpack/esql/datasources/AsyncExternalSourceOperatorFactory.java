@@ -2042,7 +2042,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     bufferedInformationalWarningSink(state.buffer)
                 );
                 if (pages == null) {
-                    boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                    // A genuine whole-file split (offset 0 with none of the partitioning markers) owns the
+                    // file's true EOF, so its final record must be read even when the file has no trailing
+                    // newline. splitIsFileFinal cannot serve here: its offset-0 fallback also matches a FIRST
+                    // compressed-offset macro-split, which is not file-final and must keep trimming its
+                    // block-boundary tail (the next split re-reads it via skipFirstLine). Every partitioned
+                    // split (compressed, record-aligned macro, range) therefore keeps the LAST_SPLIT_KEY-only
+                    // value; only an unpartitioned whole-file split adds the offset-0 fallback. A split
+                    // explicitly tagged FIRST_SPLIT belongs to a multi-part file and is excluded too, so the
+                    // fallback never relies on the absence of the other markers alone.
+                    boolean wholeFileSplit = recordAlignedMacro == false
+                        && compressedOffsetSplit == false
+                        && isRangeSplit == false
+                        && "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY)) == false
+                        && fileSplit.offset() == 0;
+                    boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY)) || wholeFileSplit;
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)

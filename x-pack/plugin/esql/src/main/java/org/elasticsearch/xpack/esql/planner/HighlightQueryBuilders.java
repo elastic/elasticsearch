@@ -147,41 +147,19 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Returns a MATCH or MATCH_PHRASE with a lexical query builder for its ON column. The normal index rewrite may
-     * produce an inference query or use a mapped field name that differs from the ON column.
+     * Builds the query used by HIGHLIGHT. For MATCH and MATCH_PHRASE it builds a lexical query from the ON column name,
+     * so the query runs against the per-row MemoryIndex rather than the target index. This handles runtime and
+     * union-typed columns and avoids an inference query for {@code semantic_text}. The function options are serialized
+     * with the plan, so they are available here on the data node. QSTR and KQL resolve their own fields and use the
+     * standard translation path.
      */
-    public static Expression resolveLexicalQueryBuilder(Expression expr) {
-        return switch (expr) {
-            case Match match when match.queryBuilder() == null -> match.replaceQueryBuilder(lexicalQueryBuilder(match));
-            case MatchPhrase matchPhrase when matchPhrase.queryBuilder() == null -> matchPhrase.replaceQueryBuilder(
-                lexicalQueryBuilder(matchPhrase)
-            );
-            default -> expr;
-        };
-    }
-
-    /**
-     * Builds a lexical query builder for a MATCH or MATCH_PHRASE expression.
-     * @param expr The MATCH or MATCH_PHRASE expression.
-     * @return The lexical query builder.
-     */
-    private static QueryBuilder lexicalQueryBuilder(Expression expr) {
-        return switch (expr) {
-            case Match match -> match.queryBuilder() != null ? match.queryBuilder() : match.asLexicalQueryBuilder(fieldName(match.field()));
-            case MatchPhrase matchPhrase -> matchPhrase.queryBuilder() != null
-                ? matchPhrase.queryBuilder()
-                : matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
-            default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");
-        };
-    }
-
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
             case Or or -> QueryBuilders.boolQuery().should(build(or.left())).should(build(or.right()));
             case Not not -> QueryBuilders.boolQuery().mustNot(build(not.field()));
-            case Match match -> lexicalQueryBuilder(match);
-            case MatchPhrase matchPhrase -> lexicalQueryBuilder(matchPhrase);
+            case Match match -> match.asLexicalQueryBuilder(fieldName(match.field()));
+            case MatchPhrase matchPhrase -> matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
             case QueryString queryString -> pushdownQueryBuilder(queryString);
             case Kql kql -> pushdownQueryBuilder(kql);
             default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");

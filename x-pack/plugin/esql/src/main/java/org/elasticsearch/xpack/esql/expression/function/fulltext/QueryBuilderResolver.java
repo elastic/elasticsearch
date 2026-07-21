@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -101,10 +100,13 @@ public final class QueryBuilderResolver {
             LogicalPlan newPlan = plan.transformDown(logicalPlan -> {
                 boolean isHighlight = logicalPlan instanceof Highlight;
                 return logicalPlan.transformExpressionsOnly(Expression.class, expr -> {
+                    // HIGHLIGHT builds its own lexical queries for MATCH and MATCH_PHRASE against a per-row MemoryIndex keyed
+                    // by the ON column names (see HighlightQueryBuilders), so skip the index-context rewrite here. It would
+                    // otherwise resolve an inference query for a semantic_text field, or a union type's concrete field instead
+                    // of the ON column, neither of which the highlighter can run. QSTR and KQL resolve against the indices
+                    // as usual.
                     if (isHighlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
-                        Expression resolved = HighlightQueryBuilders.resolveLexicalQueryBuilder(expr);
-                        updated.set(updated.get() || resolved != expr);
-                        return resolved;
+                        return expr;
                     }
                     Expression finalExpression = expr;
                     if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {

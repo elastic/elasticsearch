@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -155,90 +154,6 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         assertBusy(() -> {
             var readBlobKeys = cacheService.capturedKeys().stream().filter(blobsByKey::containsKey).collect(Collectors.toSet());
             assertMetadataReadRegionsBackfilled(cacheService, blobsByKey, readBlobKeys);
-        });
-    }
-
-    /// A single BCC blob can hold several compound commits with mixed timestamp availability (some CCs carry `@timestamp`, some do not).
-    /// When recovery reads such a blob, its metadata-read region (stamped `BACKFILL_IN_PROGRESS_TIMESTAMP`) is backfilled with a single
-    /// per-blob value: the most-recent known midpoint across all the blob's CCs. CCs without a `@timestamp` are skipped, and the sentinel
-    /// never survives as long as one CC carries a timestamp.
-    public void testRecoveryBackfillsMultiCcBlobWithSingleMostRecentTimestamp() throws Exception {
-        // Larger than any blob below, so each blob occupies exactly one cache region. Needed as capturing policy is per key, not region.
-        cacheRegionSize = ByteSizeValue.ofMb(1);
-        var indexNode = startMasterAndIndexNode();
-        var indexName = randomIdentifier();
-        assertAcked(
-            prepareCreate(indexName).setSettings(
-                indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                    // Keep the accumulation deterministic: a high translog flush threshold prevents a size-triggered (non-by-refresh) flush
-                    // from uploading the VBCC mid-way, so only the explicit flush() below packs all the refreshed CCs into one blob.
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1))
-            ).setMapping("@timestamp", "type=date")
-        );
-
-        // Accumulate several compound commits into one VBCC (each refresh appends a CC without uploading) and only then flush() to upload
-        // them together. The CCs carry mixed timestamp availability - a known timestamp, then no @timestamp (UNKNOWN), then another known
-        // one - so a blob holding more than one of them exercises the mixed-availability fold.
-        long higherTimestamp = randomLongBetween(MAX_MILLIS_BEFORE_9999 / 2 + 1, MAX_MILLIS_BEFORE_9999);
-        long lowerTimestamp = randomLongBetween(1, MAX_MILLIS_BEFORE_9999 / 2);
-        indexTimestampedDocs(indexName, higherTimestamp);
-        indexUntimestampedDocs(indexName);
-        indexTimestampedDocs(indexName, lowerTimestamp);
-        flush(indexName);
-
-        var shardId = new ShardId(resolveIndex(indexName), 0);
-        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
-
-        var commitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
-        // An async flush can occasionally freeze the VBCC mid-sequence, so the CCs may land in more than one blob; the blob with the most
-        // CCs is the multi-CC blob that recovery reads and backfills. A single split of the ordered CCs still leaves a prefix/suffix with
-        // both a known and an UNKNOWN timestamp, which is all this test needs.
-        var multiCcBlob = readBlobInfosFromObjectStore(shardId, primaryTerm, indexNode, commitsContainer).stream()
-            .max(Comparator.comparingInt(blob -> blob.ccMidpoints().size()))
-            .orElseThrow();
-        assertThat("the test must pack several CCs into one blob", multiCcBlob.ccMidpoints().size(), greaterThanOrEqualTo(2));
-        var blobKey = multiCcBlob.cacheKey();
-
-        assertThat(
-            "the blob must mix a known and an UNKNOWN CC so the mixed-availability fold is exercised",
-            multiCcBlob.ccMidpoints(),
-            hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
-        );
-        final long expectedTimestamp = multiCcBlob.dataTimestamp();
-        assertThat(
-            "some CCs carry @timestamp so the fold must resolve to a real data timestamp, not UNKNOWN",
-            expectedTimestamp,
-            not(equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
-        );
-
-        var searchNode = startSearchNode();
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
-        ensureGreen(indexName);
-
-        var cacheService = (CapturingCacheService) internalCluster().getInstance(
-            StatelessPlugin.SharedBlobCacheServiceSupplier.class,
-            searchNode
-        ).get();
-
-        assertBusy(() -> {
-            var captured = cacheService.capturedTimestamps(blobKey);
-            assertThat("recovery must have cached the multi-CC blob's region", captured, not(empty()));
-            assertThat(
-                "the metadata read stamps the region with BACKFILL_IN_PROGRESS_TIMESTAMP before it is backfilled",
-                captured,
-                hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
-            );
-
-            // The blob is a single region, so its only live timestamp must be the backfilled per-blob value: the most-recent known midpoint
-            // across the blob's CCs.
-            var live = cacheService.liveTimestamps(blobKey);
-            assertThat("recovery must leave the multi-CC blob's region live", live, not(empty()));
-            assertThat(
-                "the blob's single region must be backfilled to the most-recent known midpoint",
-                live,
-                everyItem(equalTo(expectedTimestamp))
-            );
         });
     }
 

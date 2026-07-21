@@ -263,3 +263,95 @@ setup:
   - length: { hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field: 1 }
   - match:  { hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.input_index: 0 }
   - exists: hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.embeddings
+
+---
+"Retain binary retains the base64 value in the source":
+  - requires:
+      cluster_features: "semantic_field.retain_binary"
+      reason: "retain_binary mapping parameter needs to be available"
+
+  - do:
+      indices.create:
+        index: test-semantic-field-retain-binary-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+                retain_binary: true
+
+  - do:
+      index:
+        index: test-semantic-field-retain-binary-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            description: "a cat on a windowsill"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-retain-binary-index
+        body:
+          query:
+            match_all: { }
+          _source:
+            exclude_vectors: false
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: doc_1 }
+
+  # retain_binary is true, so the base64 value is kept alongside the type and description
+  - match:  { hits.hits.0._source.semantic_field.type: image }
+  - match:  { hits.hits.0._source.semantic_field.value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  - match:  { hits.hits.0._source.semantic_field.description: "a cat on a windowsill" }
+  - exists: hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.embeddings
+
+---
+"Not retaining binary removes the base64 value from the source":
+  - requires:
+      cluster_features: "semantic_field.retain_binary"
+      reason: "retain_binary mapping parameter needs to be available"
+
+  - do:
+      indices.create:
+        index: test-semantic-field-remove-binary-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+                retain_binary: false
+
+  - do:
+      index:
+        index: test-semantic-field-remove-binary-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            description: "a cat on a windowsill"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-remove-binary-index
+        body:
+          query:
+            match_all: { }
+          _source:
+            exclude_vectors: false
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: doc_1 }
+
+  # retain_binary is false, so the base64 value is stripped while the type and description are kept
+  - match:      { hits.hits.0._source.semantic_field.type: image }
+  - not_exists: hits.hits.0._source.semantic_field.value
+  - match:      { hits.hits.0._source.semantic_field.description: "a cat on a windowsill" }
+  - exists:     hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.embeddings

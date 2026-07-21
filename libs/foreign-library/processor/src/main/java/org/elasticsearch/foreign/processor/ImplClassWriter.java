@@ -135,7 +135,7 @@ class ImplClassWriter {
         }
 
         ClassDesc generatedDesc = ClassDesc.of(model.implQualifiedName());
-        ClassDesc interfaceDesc = ClassDesc.of(model.qualifiedName());
+        ClassDesc superDesc = ClassDesc.of(model.qualifiedName());
         List<MethodModel> nativeMethods = model.methods();
 
         // Collect only non-struct-factory methods (methods with @Function)
@@ -144,8 +144,12 @@ class ImplClassWriter {
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.FINAL, AccessFlag.SUPER);
-            cb.withSuperclass(CD_Object);
-            cb.withInterfaceSymbols(interfaceDesc);
+            if (model.isAbstractClass()) {
+                cb.withSuperclass(superDesc);
+            } else {
+                cb.withSuperclass(CD_Object);
+                cb.withInterfaceSymbols(superDesc);
+            }
 
             // MethodHandle fields: one per @Function method
             for (var nm : functionMethods) {
@@ -170,7 +174,7 @@ class ImplClassWriter {
             // <init>: package-private no-arg constructor
             cb.withMethodBody("<init>", MethodTypeDesc.of(CD_void), 0, init -> {
                 init.aload(0);
-                init.invokespecial(CD_Object, "<init>", MethodTypeDesc.of(CD_void));
+                init.invokespecial(model.isAbstractClass() ? superDesc : CD_Object, "<init>", MethodTypeDesc.of(CD_void));
                 init.return_();
             });
 
@@ -323,7 +327,8 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+        int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), accessFlag, code -> {
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm);
@@ -606,7 +611,7 @@ class ImplClassWriter {
         // Method descriptor: (ElementType[]) -> StructInterface
         MethodTypeDesc methodDesc = MethodTypeDesc.of(structInterfaceDesc, elementArrayDesc);
 
-        cb.withMethodBody(nm.methodName(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+        cb.withMethodBody(nm.methodName(), methodDesc, nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC, code -> {
             // slot 0 = this, slot 1 = elements (ElementType[])
             // result = new SockFProg$Impl()
             code.new_(structImplDesc);

@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -97,4 +98,21 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         // hash_set_size = 2 should give us two buckets
         assertStreamHasNumberOfTokens(tokenFilter.create(tokenizer), 2);
     }
+
+    public void testOversizedParametersRejected() {
+        // hash_count * bucket_count * hash_set_size far exceeds the default max_token_count (10000)
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", "2147483639")
+            .put("index.analysis.filter.test_min_hash.bucket_count", "2147483639")
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "1")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString(IndexSettings.MAX_TOKEN_COUNT_SETTING.getKey()));
+    }
+
 }

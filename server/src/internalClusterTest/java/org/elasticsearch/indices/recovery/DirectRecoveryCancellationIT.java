@@ -723,7 +723,6 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         } finally {
             TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         }
-
         ensureGreen(blockerIndexName);
     }
 

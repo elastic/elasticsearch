@@ -368,6 +368,24 @@ public class ExternalDistributionTests extends ESTestCase {
         assertTrue(ComputeService.hasCollapsibleExternalExchange(limit));
     }
 
+    public void testNeedsGatherBoundaryOnlyForPerDriverUnsafeOperators() {
+        ExternalRelation external = createExternalRelation();
+        Mapper mapper = new Mapper();
+
+        PhysicalPlan aggPlan = mapper.map(new Versioned<>(new Aggregate(SRC, external, List.of(), List.of()), TransportVersion.current()));
+        assertTrue(
+            "STATS emits one row per driver when replicated, so it needs a gather",
+            ExternalDistributionStrategy.needsGatherBoundary(aggPlan)
+        );
+
+        // A limit is enforced across drivers by a single shared Limiter, so replicating it stays correct and the
+        // scan must keep its cheaper collapsed path rather than being rerouted through an exchange.
+        PhysicalPlan limitPlan = mapper.map(
+            new Versioned<>(new Limit(SRC, new Literal(SRC, 10, DataType.INTEGER), external), TransportVersion.current())
+        );
+        assertFalse("a limit-only plan must not be rerouted through a gather", ExternalDistributionStrategy.needsGatherBoundary(limitPlan));
+    }
+
     public void testHasCollapsibleExternalExchangeFalseWithoutExchange() {
         ExternalSourceExec externalSource = createExternalSourceExec();
         LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), null);

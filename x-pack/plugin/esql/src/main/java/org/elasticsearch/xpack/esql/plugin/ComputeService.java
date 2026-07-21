@@ -331,6 +331,13 @@ public class ComputeService {
      * scan drivers. {@link SplitCoalescer} clamps the result to the input split count. The value is held at or
      * above one (a degenerate {@code task_concurrency} of zero or below still leaves the scan coalescible) and at
      * or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
+     *
+     * <p>Deliberately counts the whole cluster even for a scan that ends up staying local: coalescing runs before
+     * the distribution decision, and the group count is itself an input to that decision
+     * ({@code AdaptiveStrategy} weighs splits against nodes). A local scan therefore gets more groups than its one
+     * node can occupy. That overshoot is harmless — the groups become slices in a shared queue and the driver count
+     * is still capped at {@code min(groupCount, task_concurrency)} — whereas undershooting would leave a
+     * distributable scan unable to fill the cluster.
      */
     static int externalCoalesceFloor(int taskConcurrency, int eligibleNodeCount) {
         long floor = (long) taskConcurrency * eligibleNodeCount;
@@ -389,7 +396,12 @@ public class ComputeService {
         // Staying local but a gather is required: preserve the exchange and run the partial-aggregation stage on the local
         // (coordinator) node via the same path the distributed modes use, so the parallel per-group drivers are gathered into a
         // single final aggregation. Collapsing here instead would drop the gather boundary and emit one row per split group.
-        if (externalSplits.size() > 1 && hasCollapsibleExternalExchange(resolvedPlan)) {
+        // Restricted to plans that actually hold an operator unsafe to replicate per driver: a collapsed scan is the cheaper
+        // path (no exchange, no self transport hop), and it stays correct for everything else — notably a limit-only plan,
+        // where all drivers share one Limiter. Widening this would reroute queries that were never broken.
+        if (externalSplits.size() > 1
+            && ExternalDistributionStrategy.needsGatherBoundary(resolvedPlan)
+            && hasCollapsibleExternalExchange(resolvedPlan)) {
             ExternalDistributionPlan localNodePlan = new ExternalDistributionPlan(
                 Map.of(clusterService.localNode().getId(), externalSplits),
                 true

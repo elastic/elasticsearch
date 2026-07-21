@@ -83,6 +83,10 @@ public final class SplitCoalescer {
      * to a single unit when tiny files would otherwise bin-pack into one group. The size budget still raises the
      * group count above the floor when the data needs more bins to stay under {@code targetGroupSizeBytes}; the
      * floor only ever adds groups, never merges past the size budget.
+     *
+     * <p>The returned list is always the coalescer's own, never {@code splits} itself, including when the input is
+     * too small to be worth grouping. Callers replace the contents of the list they passed in, so handing theirs
+     * back would make them clear the list they are copying from and silently empty the scan.
      */
     public static List<ExternalSplit> coalesce(
         List<ExternalSplit> splits,

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -58,6 +59,8 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 
 public class ExternalDistributionTests extends ESTestCase {
 
@@ -538,7 +541,7 @@ public class ExternalDistributionTests extends ESTestCase {
         }
         ExternalSourceExec exec = createExternalSourceExec().withSplits(splits);
 
-        PhysicalPlan coalesced = ComputeService.coalesceSplits(exec, minGroupCount);
+        PhysicalPlan coalesced = ComputeService.coalesceSplits(exec, () -> minGroupCount);
 
         List<ExternalSourceExec> sources = new ArrayList<>();
         coalesced.forEachDown(ExternalSourceExec.class, sources::add);
@@ -546,6 +549,28 @@ public class ExternalDistributionTests extends ESTestCase {
         List<ExternalSplit> result = sources.get(0).splits();
         assertEquals("tiny files must stay spread across the floor, not collapse to one split", minGroupCount, result.size());
         assertEquals("no leaves lost", fileCount, CoalescedSplit.flatten(result).size());
+    }
+
+    public void testCoalesceSplitsResolvesFloorAtMostOnceAndOnlyWhenNeeded() {
+        AtomicInteger resolutions = new AtomicInteger();
+        IntSupplier countingFloor = () -> {
+            resolutions.incrementAndGet();
+            return 14;
+        };
+
+        // Resolving the floor reads cluster state and thread-pool info, so a plan with nothing to coalesce must not
+        // pay for it: split discovery runs on every query, the overwhelming majority of which have no external source.
+        ComputeService.coalesceSplits(createExternalSourceExec(), countingFloor);
+        assertEquals("a plan with no coalescible external source must not resolve the floor", 0, resolutions.get());
+
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < SplitCoalescer.COALESCING_THRESHOLD + 1; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        ComputeService.coalesceSplits(createExternalSourceExec().withSplits(splits), countingFloor);
+        assertEquals("a coalescible external source resolves the floor exactly once", 1, resolutions.get());
     }
 
     public void testExternalCoalesceFloorIsTaskConcurrencyTimesNodes() {

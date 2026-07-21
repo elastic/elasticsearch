@@ -116,6 +116,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -269,7 +270,7 @@ public class ComputeService {
                 isCancelled
             );
             recordExternalScanStats(execInfo, result);
-            return coalesceSplits(result.plan(), externalCoalesceFloor(configuration));
+            return coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration));
         } catch (TaskCancelledException e) {
             // Cancellation is not a discovery failure — propagate it without the warn.
             throw e;
@@ -290,13 +291,23 @@ public class ComputeService {
         }
     }
 
-    static PhysicalPlan coalesceSplits(PhysicalPlan plan, int minGroupCount) {
+    /**
+     * Applies the coalescing floor to every external source in the plan. The floor is resolved through a supplier and
+     * at most once per plan, because resolving it reads cluster state and thread-pool info while the overwhelming
+     * majority of queries carry no external source that needs coalescing at all.
+     */
+    static PhysicalPlan coalesceSplits(PhysicalPlan plan, IntSupplier minGroupCount) {
+        // externalCoalesceFloor never returns less than one, so zero is a safe "not yet resolved" marker.
+        int[] resolvedFloor = new int[1];
         return plan.transformUp(ExternalSourceExec.class, exec -> {
             List<ExternalSplit> splits = exec.splits();
             if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
                 return exec;
             }
-            return exec.withSplits(SplitCoalescer.coalesce(splits, minGroupCount));
+            if (resolvedFloor[0] == 0) {
+                resolvedFloor[0] = minGroupCount.getAsInt();
+            }
+            return exec.withSplits(SplitCoalescer.coalesce(splits, resolvedFloor[0]));
         });
     }
 
@@ -305,9 +316,10 @@ public class ComputeService {
         // The TASK_CONCURRENCY default is computed from Settings.EMPTY at class-load time and therefore ignores
         // node.processors. On a K8s node with node.processors=4 on a 64-CPU host the default is 97 while the
         // esql_worker pool has only 7 threads. Cap against the pool size so the floor never creates more groups
-        // than there are workers to drain them.
-        int poolMax = threadPool.info(EsqlPlugin.computePool()).getMax();
-        int effectiveConcurrency = Math.min(taskConcurrency, poolMax);
+        // than there are workers to drain them. ThreadPool#info returns null for a pool this node did not register,
+        // in which case there is no pool size to cap against and the pragma value stands on its own.
+        ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
+        int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
         int eligibleNodes = Math.max(1, NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(clusterService.state().nodes()).size());
         return externalCoalesceFloor(effectiveConcurrency, eligibleNodes);
     }
@@ -422,8 +434,13 @@ public class ComputeService {
                 PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
-                    splits.clear();
-                    splits.addAll(coalesced);
+                    // coalesce hands back the very list it was given when it declines to group. Clearing `splits`
+                    // in that case would empty the list being copied from and silently drop the whole scan, so the
+                    // identity check stays even though the size guard above currently makes it unreachable.
+                    if (coalesced != splits) {
+                        splits.clear();
+                        splits.addAll(coalesced);
+                    }
                 }
                 return new CollectedSplits(rewritten, splits);
             }

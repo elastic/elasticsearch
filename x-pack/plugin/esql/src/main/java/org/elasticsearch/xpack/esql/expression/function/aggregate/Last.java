@@ -59,7 +59,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Last extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Last", Last::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Last.class).binary(Last::new).name("last");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Last.class)
+        .binary(Last::new)
+        // Fix a crash when the sort argument is a foldable/null value and @timestamp has been dropped from a TS query's output.
+        .capabilities("fix_null_sort_dropped_timestamp")
+        .name("last");
 
     private final Expression sort;
 

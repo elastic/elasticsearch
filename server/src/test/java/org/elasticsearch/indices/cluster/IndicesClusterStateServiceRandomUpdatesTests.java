@@ -54,6 +54,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -85,16 +87,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private ThreadPool threadPool;
     private ClusterStateChanges cluster;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startCluster() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateCluster() throws Exception {
         terminate(threadPool);
     }
 

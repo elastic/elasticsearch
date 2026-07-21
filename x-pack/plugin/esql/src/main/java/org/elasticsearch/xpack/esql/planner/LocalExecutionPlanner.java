@@ -126,7 +126,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -330,7 +330,8 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            physicalOperationProviders.analysisRegistry(),
+            new Holder<>()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -680,15 +681,32 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(exec.attributesToExtract());
         Layout newLayout = layoutBuilder.build();
 
+        // Deferred columns are pulled from the source file by name, and a columnar extractor resolves them against the
+        // FILE's own (physical) schema — so a declared `path` rename must be applied here too, exactly as the eager
+        // projection is. Physicalize through the same PhysicalNames chokepoint the source reader used; without this a
+        // deferred renamed column (not in the eager projection) fails at extract time with "column [x] is missing".
+        Map<String, String> deferredRenames = Map.of();
+        for (PhysicalPlan p = exec.child(); p != null; p = (p instanceof UnaryExec u) ? u.child() : null) {
+            if (p instanceof ExternalSourceExec ese) {
+                deferredRenames = ese.declaredReadSpec().renames();
+                break;
+            }
+        }
         List<String> deferredColumnNames = new ArrayList<>(exec.attributesToExtract().size());
+        // The declared/planner type per deferred column: extraction decodes the file's own type and
+        // coerces to this exactly like the eager decode paths (DeclaredTypeCoercions), so a coerced
+        // column reads the same whether it was scanned eagerly or materialized after TopN.
+        List<DataType> deferredColumnTypes = new ArrayList<>(exec.attributesToExtract().size());
         for (Attribute a : exec.attributesToExtract()) {
-            deferredColumnNames.add(a.name());
+            deferredColumnNames.add(PhysicalNames.translate(a.name(), deferredRenames));
+            deferredColumnTypes.add(a.dataType());
         }
 
         ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(
             rowPositionChannel,
             passThroughChannels,
             deferredColumnNames,
+            deferredColumnTypes,
             capable::sourceExtractorsFor
         );
         return source.with(factory, newLayout);
@@ -763,6 +781,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
         // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
@@ -1088,7 +1107,8 @@ public class LocalExecutionPlanner {
                 common.orders,
                 groupKeys,
                 context.pageSize(topNByExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes()
+                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+                topNByExec.outputOrdering()
             ),
             source.layout
         );
@@ -1296,30 +1316,44 @@ public class LocalExecutionPlanner {
 
         Expression queryExpr = highlight.query();
         if (queryExpr == null) {
-            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
-        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
-        // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
+        // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
+        String analyzerName = options.analyzerName();
+
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            queryExpr,
+            fieldNames,
+            analyzerName,
+            context.analysisRegistry()
+        );
         HighlightConfig config = new HighlightConfig(
-            queryText,
+            translated.queryText(),
             options.preTag(),
             options.postTag(),
             options.encoder(),
             options.numberOfFragments(),
             options.fragmentSize(),
-            options.noMatchSize()
-        );
+            options.noMatchSize(),
+            HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
+            options.boundaryScannerLocale(),
+            HighlightOptions.ORDER_SCORE.equals(options.order()),
+            analyzerName,
+            options.maxAnalyzedOffset()
+            // The query and MemoryIndex must use the same analyzer.
+        ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
 
+        Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
         // The generated attributes are appended in the same order as the ON fields,
         // so the operator's appended blocks line up with these layout channels.
-        Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
@@ -1882,13 +1916,23 @@ public class LocalExecutionPlanner {
         // output only via METADATA, or the temporary EXTERNAL shim — they are no longer auto-attached
         // to every external schema). Passed through SourceOperatorContext.partitionColumnNames
         // (legacy method name kept to avoid an SPI rename on this PR).
-        Set<String> virtualColumnNames = new LinkedHashSet<>();
-        if (fileList != null) {
-            PartitionMetadata pm = fileList.partitionMetadata();
-            if (pm != null && pm.isEmpty() == false) {
-                virtualColumnNames.addAll(pm.partitionColumns().keySet());
-            }
-        }
+        // Partition column names come from the serialized PARTITION_COLUMNS_KEY stamp via the node-safe
+        // accessor, NOT the fileList: on a data node the resolved FileList is not serialized (see the
+        // slice-queue note above), so reading it there yields nothing, whereas the stamp travels with the
+        // relation. VirtualColumnIterator materialises each as a constant block even when ONLY a partition
+        // column is projected (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as
+        // a data column, the reader emits a 0-block page, and the downstream aggregator reads a non-existent
+        // block. The assert checks — rather than trusts — that on the coordinator (where the fileList IS
+        // resolved) the stamp already covers every fileList partition name, so dropping the fileList read
+        // here is a strict no-op.
+        Set<String> virtualColumnNames = new LinkedHashSet<>(externalSource.partitionColumnNames());
+        assert fileList == null
+            || fileList.partitionMetadata() == null
+            || virtualColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
+            : "partition stamp "
+                + virtualColumnNames
+                + " is missing resolved fileList partition columns "
+                + fileList.partitionMetadata().partitionColumns().keySet();
         for (Attribute attr : externalSource.output()) {
             if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
                 virtualColumnNames.add(attr.name());
@@ -1906,6 +1950,7 @@ public class LocalExecutionPlanner {
             .executor(operatorFactoryRegistry.executor())
             .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
             .config(externalSource.config())
+            .declaredReadSpec(externalSource.declaredReadSpec())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
             .pushedExpressions(externalSource.pushedExpressions())
@@ -2235,7 +2280,8 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        Holder<TopNExec> lastVisitedTopN
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

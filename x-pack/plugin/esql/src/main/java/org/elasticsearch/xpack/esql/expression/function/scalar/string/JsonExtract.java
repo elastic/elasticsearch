@@ -47,7 +47,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Extracts a value from a JSON string using a {@link JsonPath} subset.
- * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}.
  */
 public class JsonExtract extends EsqlScalarFunction {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
@@ -63,6 +62,8 @@ public class JsonExtract extends EsqlScalarFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(JsonExtract.class)
         .binary(JsonExtract::new)
+        // Fix ClassCastException when path is a foldable multi-value expression.
+        .capabilities("mv_path_fix")
         .name("json_extract");
 
     private final Expression str;
@@ -70,8 +71,9 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.4"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5+") },
         briefSummary = "Extracts a value from a JSON string using JSONPath syntax.",
         description = """
             Extracts a value from a JSON string using a subset of
@@ -436,11 +438,16 @@ public class JsonExtract extends EsqlScalarFunction {
         boolean isSource = str.dataType() == DataType.SOURCE;
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         if (path.foldable()) {
-            JsonPath jsonPath = JsonPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
-            if (isSource) {
-                return new JsonExtractSourceConstantEvaluator.Factory(source(), strExpr, jsonPath);
+            Object foldedPath = path.fold(toEvaluator.foldCtx());
+            if (foldedPath instanceof BytesRef bytesRef) {
+                JsonPath jsonPath = JsonPath.parse(bytesRef.utf8ToString());
+                if (isSource) {
+                    return new JsonExtractSourceConstantEvaluator.Factory(source(), strExpr, jsonPath);
+                }
+                return new JsonExtractConstantEvaluator.Factory(source(), strExpr, jsonPath);
             }
-            return new JsonExtractConstantEvaluator.Factory(source(), strExpr, jsonPath);
+            // null or multi-value path: fall through to the non-constant evaluator, which handles
+            // null (→ null) and multi-value (→ warning + null) correctly at evaluation time.
         }
         ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
         if (isSource) {

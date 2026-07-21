@@ -10,6 +10,9 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -19,6 +22,10 @@ import static org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections.
 /** Native / panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
+
     public MemorySegmentES92NativeInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
     }
@@ -26,19 +33,19 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
         assert q.length == dimensions;
-        return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
+        return IndexInputUtils.withSlice(in, dimensions, scratch::get, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
-            return (long) Similarities.dotProductI7u(segment, querySegment, dimensions);
+            return (long) DISTANCE_FUNCS.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
+        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch::get, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
-            Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+            DISTANCE_FUNCS.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
             return null;
         });
     }
@@ -56,7 +63,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
         int bulkSize
     ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
-        IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch::get, memorySegment -> {
             nativeApplyCorrectionsBulk(
                 similarityFunction,
                 memorySegment,

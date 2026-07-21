@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
@@ -18,16 +19,25 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.time.DateTimeException;
 import java.time.Duration;
+import java.util.Arrays;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
@@ -80,6 +90,132 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
     }
 
+    /**
+     * Whether decoding this column can turn a physically-present value into {@code null}. Temporal coercion is
+     * partial: a negative epoch under {@code date_nanos}, a range overflow, or a format-parse failure all produce a
+     * {@code null} for a value the row-group statistics counted as present. When that is possible, {@code IS NULL}
+     * pushdown must decline — the decoded null set is larger than the physical one, so pushing {@code eq(col, null)}
+     * would prune a group whose {@code nullCount == 0} yet holds rows that decode to null.
+     *
+     * <p>Precise on purpose: returning {@code true} for the identity cases would needlessly forfeit {@code IS NULL}
+     * pruning on the common inferred reads (bare {@code INT64}, {@code TIMESTAMP(MILLIS)} datetime, and
+     * {@code TIMESTAMP(NANOS)} date_nanos), which never null.
+     */
+    static boolean decodeCanNull(PrimitiveType primitiveType, DataType declaredType, @Nullable String declaredFormat) {
+        if (declaredFormat != null) {
+            return true; // a format parse can fail per value
+        }
+        if (primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+            // The only INT32 datetime is an inferred DATE (days -> millis), which never nulls; a format arm is
+            // already handled above. So a no-format INT32 keeps its IS NULL pushdown.
+            return false;
+        }
+        if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return true; // conservative for shapes this method does not model
+        }
+        LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        boolean millisAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
+            && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
+        boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
+            && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
+        return switch (declaredType) {
+            // Identity reads never null; every rescaling read can overflow at its edge.
+            case DATETIME -> (logical == null || millisAnnotated) == false;
+            // Bare INT64 rejects negatives via castBlock; NANOS is the identity; MICROS/MILLIS scale and can overflow.
+            case DATE_NANOS -> nanosAnnotated == false;
+            default -> true;
+        };
+    }
+
+    @Nullable
+    /**
+     * How this column's decoded value relates to the raw value its parquet statistics hold, or {@code null} when no
+     * exact relation exists and every stats-based decision must decline.
+     *
+     * <p>The derivation is parquet-local because annotation semantics are; the relation and the bound math it feeds
+     * are shared ({@link DeclaredTypeCoercions}) because format semantics are reader-agnostic. This is the single
+     * place the question is answered for predicate translation, the TopN threshold rail, and the page index — they
+     * previously each re-derived it, which is how one of them was always wrong.
+     *
+     * <p>Note the direction flips on the DECLARED type, not on the file: a {@code TIMESTAMP(MICROS)} column decodes
+     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code raw / 1000}, truncating)
+     * when it is declared {@code date}. An explicit declaration is allowed to be lossy — that is the point of
+     * declaring it — but the pruning must know which way the map goes.
+     *
+     * @param declaredType the ES|QL type the column reads as ({@code DATETIME} or {@code DATE_NANOS})
+     * @param declaredFormat the column's declared date format, or {@code null}
+     */
+    static DeclaredTypeCoercions.RawDecodeRelation rawDecodeRelation(
+        PrimitiveType primitiveType,
+        DataType declaredType,
+        @Nullable String declaredFormat
+    ) {
+        if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        if (declaredFormat != null) {
+            // A format composed on top of an annotation's own transform is not a single scale: decline.
+            if (logical != null) {
+                return null;
+            }
+            Long scale = DeclaredTypeCoercions.declaredEpochFormatScale(declaredFormat, declaredType);
+            return scale == null ? null : new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(scale);
+        }
+        if (logical == null) {
+            // A bare INT64 reads as the declared type's own unit — the fused identity.
+            return new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return switch (declaredType) {
+                case DATETIME -> switch (ts.getUnit()) {
+                    case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                    // narrowed through DateUtils.toMilliSeconds: one decoded milli covers a band of raw ticks
+                    case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000L);
+                    case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000_000L);
+                };
+                case DATE_NANOS -> switch (ts.getUnit()) {
+                    case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                    case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MICRO);
+                    case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MILLI);
+                };
+                default -> null;
+            };
+        }
+        // TIME (nanos-of-day, not an epoch), DECIMAL, unsigned INT64 (sign-wrap ordering), and anything this method
+        // has never heard of: the scan applies a transform not modeled here, so no stats decision is safe.
+        return null;
+    }
+
+    /**
+     * Whether decoding a physical column with logical annotation {@code annotation} into an ESQL integral value
+     * ({@code long}/{@code integer}) applies a scaling factor that the raw parquet footer statistics do NOT carry, so
+     * a raw integral predicate pushed against those stats would mis-prune. This is the ground truth for the pushdown
+     * decline guard ({@code ParquetPushedExpressions.pushDeclinedForUnitMismatch}); it lives here, next to the decode
+     * transforms it summarizes, so the two cannot drift when a logical type is added:
+     * <ul>
+     *   <li>{@code DATE} — {@link #dateDaysToMillis} scales days ×86_400_000 to epoch-millis;</li>
+     *   <li>{@code TIMESTAMP(MICROS)} / {@code TIME(MICROS)} — {@link #convertTimestampToNanos} / the time nanos
+     *       multiplier scale ×1_000 to nanos ({@code MILLIS}/{@code NANOS} are identity);</li>
+     *   <li>{@code DECIMAL(scale>0)} — the value reader divides the unscaled integer by 10^scale.</li>
+     * </ul>
+     */
+    static boolean integralDecodeScalesRelativeToRawStats(LogicalTypeAnnotation annotation) {
+        if (annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return true;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation dec) {
+            return dec.getScale() != 0;
+        }
+        return false;
+    }
+
     /** Whether scaling a {@code TIMESTAMP(MICROS)} value to epoch-nanoseconds would overflow a {@code long}. */
     static boolean microsOverflowsNanos(long micros) {
         return micros > MAX_MICROS_AS_NANOS || micros < MIN_MICROS_AS_NANOS;
@@ -123,6 +259,75 @@ final class ParquetColumnDecoding {
     /** Converts a date32 value (days since epoch) to epoch milliseconds. */
     static long dateDaysToMillis(long days) {
         return days * MILLIS_PER_DAY;
+    }
+
+    /**
+     * Declared string&rarr;datetime coercion over an already-decoded bytes block: parses every value with the
+     * column's declared format (ISO default when {@code null}) via the shared
+     * {@link DeclaredTypeCoercions#parseDatetimeMillis} scalar — the same conversion the text readers apply at
+     * parse time, so identical bytes with an identical declared format yield the identical instant. Preserves
+     * nulls and multi-value positions. Does NOT take ownership of {@code source}; the caller closes it.
+     * An unparseable value routes through {@link DeclaredTypeCoercions#onCoercionFailure} with the same
+     * per-position semantics as {@code castBlock}: a live {@code warnings} sink nulls the whole position and
+     * records one Warning, a {@code null} sink (strict, {@code fail_fast}) propagates the failure.
+     */
+    static Block bytesBlockToDatetimeMillis(
+        Block source,
+        @Nullable DateFormatter dateFormatter,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings
+    ) {
+        int positions = source.getPositionCount();
+        if (source.areAllValuesNull()) {
+            return blockFactory.newConstantNullBlock(positions);
+        }
+        BytesRefBlock bytes = (BytesRefBlock) source;
+        BytesRef scratch = new BytesRef();
+        long[] parsed = null;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
+            for (int pos = 0; pos < positions; pos++) {
+                int count = bytes.getValueCount(pos);
+                if (bytes.isNull(pos) || count == 0) {
+                    builder.appendNull();
+                } else if (count == 1) {
+                    BytesRef value = bytes.getBytesRef(bytes.getFirstValueIndex(pos), scratch);
+                    try {
+                        builder.appendLong(DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter));
+                    } catch (IllegalArgumentException | DateTimeException e) {
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                        builder.appendNull();
+                    }
+                } else {
+                    // Parse the whole position before appending: a failure mid-entry cannot be
+                    // rolled back on the builder, and the bulk model nulls the whole position.
+                    if (parsed == null || parsed.length < count) {
+                        parsed = new long[count];
+                    }
+                    int firstIdx = bytes.getFirstValueIndex(pos);
+                    boolean failed = false;
+                    for (int v = 0; v < count && failed == false; v++) {
+                        BytesRef value = bytes.getBytesRef(firstIdx + v, scratch);
+                        try {
+                            parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
+                        } catch (IllegalArgumentException | DateTimeException e) {
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                            failed = true;
+                        }
+                    }
+                    if (failed) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int v = 0; v < count; v++) {
+                        builder.appendLong(parsed[v]);
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**
@@ -235,6 +440,42 @@ final class ParquetColumnDecoding {
             && intLogical.getBitWidth() == bitWidth;
     }
 
+    /**
+     * Decodes a FLOAT16 or DECIMAL footer stat value into the same {@code double} the scan path
+     * produces (mirrors {@code readFloat16Column} / {@code readDecimalAsDoubleColumn}), so
+     * pushed-down MIN/MAX match a scan. FLOAT16 is always Binary-backed (physical
+     * {@code FIXED_LEN_BYTE_ARRAY(2)}), so its footer stat is a Parquet {@link Binary}. DECIMAL can
+     * be backed by INT32, INT64, BINARY, or FIXED_LEN_BYTE_ARRAY — its stat arrives as an
+     * {@link Integer}/{@link Long} unscaled value for the former two, and as {@link Binary} bytes
+     * (big-endian two's complement) for the latter two.
+     *
+     * <p>Returns {@code null} when the type is not FLOAT16/DECIMAL, or the value's runtime type
+     * doesn't match what the physical type implies (caller falls through to other normalization).
+     */
+    static Double decodeBinaryNumericStat(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+            if (value instanceof Binary binary) {
+                byte[] bytes = binary.getBytes();
+                short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
+                return (double) Float.float16ToFloat(float16Bits);
+            }
+            return null;
+        }
+        if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
+            BigInteger unscaled;
+            if (value instanceof Binary binary) {
+                unscaled = new BigInteger(binary.getBytes());
+            } else if (value instanceof Number number) {
+                unscaled = BigInteger.valueOf(number.longValue());
+            } else {
+                return null;
+            }
+            return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
+        }
+        return null;
+    }
+
     // ---- Unsigned long encoding ----
 
     /**
@@ -322,6 +563,44 @@ final class ParquetColumnDecoding {
      * as a constant null block.
      */
     static Block readListColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+        return readListColumn(cr, info, rows, blockFactory, null, null);
+    }
+
+    /**
+     * As {@link #readListColumn(ColumnReader, ColumnInfo, int, BlockFactory)}, coercing a
+     * declared element type beyond the fused pairs: the list decodes at the file's own element
+     * type, then {@link DeclaredTypeCoercions#castBlock} coerces each element to the declared
+     * type ({@code warnings} carries the per-value failure sink; {@code null} = strict).
+     */
+    static Block readListColumn(
+        ColumnReader cr,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings
+    ) {
+        DataType declared = info.esqlType();
+        DataType fileElementType = info.fileEsqlType();
+        if (fileElementType != null
+            && declared != fileElementType
+            && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
+            && DeclaredTypeCoercions.supports(fileElementType, declared)) {
+            Block physical = readListColumn(cr, info.fileTyped(), rows, blockFactory);
+            try {
+                return DeclaredTypeCoercions.castBlock(
+                    physical,
+                    fileElementType,
+                    declared,
+                    info.dateFormatter(),
+                    blockFactory,
+                    columnName,
+                    warnings
+                );
+            } finally {
+                physical.close();
+            }
+        }
         DataType elementType = info.esqlType();
         int maxDef = info.maxDefLevel();
         return switch (elementType) {
@@ -340,7 +619,7 @@ final class ParquetColumnDecoding {
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
-            case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory);
+            case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
             case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
             default -> {
                 skipListValues(cr, rows);
@@ -476,12 +755,88 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+    private static Block readListDatetimeColumn(
+        ColumnReader cr,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings
+    ) {
+        // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
+        // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
+        // failure follows castBlock's bulk semantics (whole position nulls, or propagates when strict), so
+        // this arm gathers each row before appending.
+        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
+            return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
+        }
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             int maxDef = info.maxDefLevel();
             Runnable appender = () -> builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * The string&rarr;datetime LIST decode: walks each row's repetition levels like
+     * {@link #readListRow} (defined elements append, null elements are skipped, a row with no
+     * defined element is a null position) but parses the row into a primitive scratch first so a
+     * mid-row parse failure can null the WHOLE position — {@code castBlock}'s bulk semantics —
+     * instead of leaving a half-built entry. On failure the remaining elements are still
+     * materialised (not parsed) so the column reader's data cursor stays in lock-step with its
+     * level cursor for the rows that follow. {@code warnings} carries the per-position failure
+     * sink; {@code null} = strict, the failure propagates.
+     */
+    private static Block readListStringDatetimeColumn(
+        ColumnReader cr,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings
+    ) {
+        int maxDef = info.maxDefLevel();
+        DateFormatter dateFormatter = info.dateFormatter();
+        long[] parsed = new long[8];
+        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+            for (int row = 0; row < rows; row++) {
+                int count = 0;
+                boolean failed = false;
+                boolean rowDone = false;
+                while (rowDone == false) {
+                    if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                        // Always read the value so the data cursor advances even after a failure.
+                        String value = cr.getBinary().toStringUsingUTF8();
+                        if (failed == false) {
+                            if (count == parsed.length) {
+                                parsed = Arrays.copyOf(parsed, count * 2);
+                            }
+                            try {
+                                parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
+                            } catch (IllegalArgumentException | DateTimeException e) {
+                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                failed = true;
+                            }
+                        }
+                    }
+                    cr.consume();
+                    rowDone = cr.getCurrentRepetitionLevel() == 0;
+                }
+                if (failed || count == 0) {
+                    // failed: bulk semantics null the whole position (already warned above).
+                    // count == 0: null list, empty list, or all-null elements — a null position,
+                    // matching readListRow's no-defined-values branch.
+                    builder.appendNull();
+                } else {
+                    builder.beginPositionEntry();
+                    for (int v = 0; v < count; v++) {
+                        builder.appendLong(parsed[v]);
+                    }
+                    builder.endPositionEntry();
+                }
             }
             return builder.build();
         }

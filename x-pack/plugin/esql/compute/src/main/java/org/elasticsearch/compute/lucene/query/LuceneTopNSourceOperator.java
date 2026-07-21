@@ -35,6 +35,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -144,7 +145,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             long estimatedPerRowSortSize,
             boolean needsScore,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -157,7 +159,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 needsScore,
                 scoreModeFunction(sorts, needsScore),
                 directoryBytesRead,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                singleValueQueryWarnings
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -180,7 +183,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 sliceQueue,
                 needsScore,
                 perShardCollectorProvider,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         }
 
@@ -237,9 +241,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         boolean needsScore,
         PerShardCollectorProvider perShardCollectorProvider,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue, directoryBytesRead);
+        super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.driverContext = driverContext;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;

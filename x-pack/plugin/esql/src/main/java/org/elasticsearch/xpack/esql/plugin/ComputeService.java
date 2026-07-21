@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -58,26 +59,26 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -321,14 +322,19 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled
     ) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled);
+        CollectedSplits collected = collectExternalSplits(plan, configuration, execInfo, isCancelled);
+        // Fragment-path discovery may have rewritten exhaustively-pruned relations to FileList.EMPTY; use the
+        // rewritten plan from here on so the empty-splits (coordinator-local) and distributed paths both read nothing
+        // for those relations instead of scanning the whole dataset only to have a downstream row filter drop it all.
+        PhysicalPlan resolvedPlan = collected.plan();
+        List<ExternalSplit> externalSplits = collected.splits();
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
+            return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
         ExternalDistributionContext context = new ExternalDistributionContext(
-            plan,
+            resolvedPlan,
             externalSplits,
             clusterService.state().nodes(),
             configuration.pragmas()
@@ -342,11 +348,14 @@ public class ComputeService {
                 externalSplits.size(),
                 distributionPlan.nodeAssignments().size()
             );
-            return new ExternalDistributionResult(plan, distributionPlan, List.of());
+            return new ExternalDistributionResult(resolvedPlan, distributionPlan, List.of());
         }
 
-        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, externalSplits);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, externalSplits);
     }
+
+    /** Bundles the (possibly rewritten) plan produced by split discovery with the splits collected from it. */
+    private record CollectedSplits(PhysicalPlan plan, List<ExternalSplit> splits) {}
 
     record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
@@ -354,7 +363,7 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(
+    private CollectedSplits collectExternalSplits(
         PhysicalPlan plan,
         Configuration configuration,
         EsqlExecutionInfo execInfo,
@@ -366,11 +375,17 @@ public class ComputeService {
         // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
         // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
         // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
-        // needs to record scan stats here.
+        // needs to record scan stats here. On that top-level path the phase already swapped any
+        // exhaustively-pruned ExternalSourceExec to FileList.EMPTY, so the plan is returned unchanged here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
-            if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
+            if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
+                // Warm short-circuit: every external aggregate is answered from stripe / whole-file stats and
+                // the scan is skipped. Record the affirmative "served from stripes" signal on the profile
+                // here, the one place it is observable — no scan operator runs for a warm relation.
+                recordExternalWarmAggregates(execInfo, plan);
+            } else {
+                PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -378,10 +393,32 @@ public class ComputeService {
                         splits.addAll(coalesced);
                     }
                 }
+                return new CollectedSplits(rewritten, splits);
             }
             // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
-        return splits;
+        return new CollectedSplits(plan, splits);
+    }
+
+    /**
+     * Records, on the query profile, that the warm short-circuit fired for this plan — counting the
+     * external-relation aggregate fragments that were served from statistics rather than scanned. Only
+     * invoked when {@link #canSkipSplitDiscovery} returned {@code true}, so every {@link ExternalRelation}
+     * fragment is an ungrouped {@code Aggregate -> ExternalRelation} the optimizer will fold to constants.
+     */
+    private static void recordExternalWarmAggregates(EsqlExecutionInfo execInfo, PhysicalPlan plan) {
+        if (execInfo == null) {
+            return;
+        }
+        int[] warm = { 0 };
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            if (fragment.fragment() instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation) {
+                warm[0]++;
+            }
+        });
+        if (warm[0] > 0) {
+            execInfo.queryProfile().addExternalWarmAggregates(warm[0]);
+        }
     }
 
     /**
@@ -449,26 +486,39 @@ public class ComputeService {
         if (support == AggregatePushdownSupport.UNSUPPORTED) {
             return false;
         }
-        List<Expression> aggFunctions = extractAggregateFunctions(agg.aggregates());
+        List<Expression> aggFunctions = ExternalSourceAggregatePushdown.extractAggregateFunctions(agg.aggregates());
         // No aggregate functions to push (e.g. only literals): keep normal discovery.
         if (aggFunctions.isEmpty()) {
             return false;
         }
-        return support.canPushAggregates(aggFunctions, List.of()) == AggregatePushdownSupport.Pushability.YES;
-    }
-
-    private static List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {
-        List<Expression> result = new ArrayList<>(aggregates.size());
-        for (NamedExpression agg : aggregates) {
-            Expression toCheck = agg instanceof Alias alias ? alias.child() : agg;
-            if (toCheck instanceof AggregateFunction) {
-                result.add(toCheck);
-            }
+        if (support.canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return false;
         }
-        return result;
+        // The type-level canPushAggregates check above is necessary but not sufficient: the fold rule
+        // (PushStatsToExternalSource) additionally safe-misses when a column's statistics are unservable
+        // (unharvested text column, poisoned/divergent extremum). If the gate skipped discovery while the fold
+        // then bailed, the query would run a zero-split scan whose un-pruned union_by_name ColumnMapping trips
+        // SchemaAdaptingIterator's width guard (the union_by_name zero-split servability guard). Mirror the fold's exact resolution:
+        // on the skip path the fold's effectiveSplitStats() reduces to SplitStats.of(sourceMetadata) (splits are
+        // empty and STATS_PARTIAL was excluded above), so probing the same map here guarantees that whenever the
+        // gate skips discovery the fold can actually serve every aggregate from stats.
+        SplitStats stats = SplitStats.of(meta);
+        if (stats == null) {
+            return false;
+        }
+        // Feed the same partition-column set the fold uses (read from serialized sourceMetadata, so it matches the
+        // data-node fold): COUNT(partition_col) must safe-miss on both paths, or the gate skips discovery for a
+        // fold that then bails -> the zero-split crash above.
+        Set<String> pathDerivedColumns = SourceStatisticsSerializer.partitionColumnNames(meta);
+        return ExternalSourceAggregatePushdown.canServeAllFromStats(
+            agg.aggregates(),
+            stats,
+            support.appliesImplicitNullsForAbsentColumn(),
+            pathDerivedColumns
+        );
     }
 
-    private void discoverSplitsFromFragments(
+    private PhysicalPlan discoverSplitsFromFragments(
         PhysicalPlan plan,
         List<ExternalSplit> splits,
         int maxRecordBytes,
@@ -476,22 +526,49 @@ public class ComputeService {
         BooleanSupplier isCancelled
     ) {
         if (operatorFactoryRegistry == null) {
-            return;
+            return plan;
         }
-        plan.forEachDown(FragmentExec.class, fragment -> {
-            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
-                ExternalSourceExec tempExec = external.toPhysicalExec();
+        return plan.transformDown(FragmentExec.class, fragment -> {
+            // Relations whose coordinator-side discovery pruned every file. Their fragment must be rewritten to read
+            // FileList.EMPTY so the operator scans nothing; a downstream row filter still runs, so the answer (0 rows)
+            // is unchanged. Identity is stable because guardedRelations returns the relation instances living in the
+            // fragment tree, so the transformDown below can swap them by reference.
+            List<ExternalRelation> exhaustivelyPruned = new ArrayList<>();
+            // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
+            // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
+            // recovered before the lowering or partition pruning never sees the predicate at all.
+            for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
                 SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                    tempExec,
+                    guarded.relation().toPhysicalExec(),
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
-                    isCancelled
+                    isCancelled,
+                    guarded.filters()
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
+                    // The phase swaps an exhaustively-pruned source's fileList to FileList.EMPTY (its authoritative,
+                    // row-count-safe verdict). Detect that swap by identity and propagate it into the fragment's logical
+                    // relation so coordinator-local execution reads nothing; a downstream row filter still runs, so the
+                    // answer (0 rows) is unchanged.
+                    if (withSplits.fileList() == FileList.EMPTY) {
+                        exhaustivelyPruned.add(guarded.relation());
+                    }
                 }
                 recordExternalScanStats(execInfo, result);
+            }
+            if (exhaustivelyPruned.isEmpty()) {
+                return fragment;
+            }
+            LogicalPlan rewrittenFragment = fragment.fragment().transformDown(ExternalRelation.class, relation -> {
+                for (ExternalRelation pruned : exhaustivelyPruned) {
+                    if (relation == pruned) {
+                        return relation.withFileList(FileList.EMPTY);
+                    }
+                }
+                return relation;
             });
+            return fragment.withFragment(rewrittenFragment);
         });
     }
 
@@ -774,12 +851,17 @@ public class ComputeService {
     ) {
         final PhysicalPlan splitPlan;
         final ExternalDistributionResult distributionResult;
+        long splitDiscoveryStart = System.nanoTime();
         try {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
             // (or any discovery failure) is surfaced through the listener rather than thrown raw.
             splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
             distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+            if (execInfo != null
+                && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -1215,7 +1297,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
-        var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
+        QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
+        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -1226,7 +1309,8 @@ public class ComputeService {
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
             plannerSettings,
-            directoryBytesRead
+            directoryBytesRead,
+            singleValueQueryWarnings
         );
 
         try {

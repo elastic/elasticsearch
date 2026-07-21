@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -30,14 +31,28 @@ import java.util.List;
  * ({@link IllegalArgumentException}) naming the construct, rather than silently applying a widened superset. A filter
  * that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
- * <p>The rewrite is version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do not
- * have; the inserted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
- * an older node would fail to deserialize it. Below {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped
- * entirely — datasets are read unfiltered (the pre-feature behavior) with a warning — rather than shipping a plan a
- * peer cannot read. This mirrors how the analyzer and verifier gate version-sensitive rewrites on
+ * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets is a behavior change for anyone already
+ * querying one — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
+ * query — so it must not flip on by itself. {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG} is enabled automatically in
+ * snapshot builds (so development, CI and tests exercise it) and off in release builds until we choose to ship it.
+ * While it is off the relation is read unfiltered <em>with a warning</em>, which is the behavior datasets had before
+ * this feature existed — never a silent drop.
+ *
+ * <p>The rewrite is also version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do
+ * not have; the inserted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version
+ * cluster an older node would fail to deserialize it. Below {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is
+ * skipped entirely — datasets are read unfiltered (the pre-feature behavior) with a warning — rather than shipping a
+ * plan a peer cannot read. This mirrors how the analyzer and verifier gate version-sensitive rewrites on
  * {@code context.minimumVersion()}.
  */
 public final class RequestFilterRewriter {
+
+    /**
+     * Gates applying the request filter to datasets. Enabled in snapshot builds, off in release builds unless
+     * {@code -Des.esql_request_filter_on_dataset_feature_flag_enabled=true} — so shipping this code cannot change what
+     * an existing dataset query returns until we decide to turn it on.
+     */
+    public static final FeatureFlag REQUEST_FILTER_ON_DATASET_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_dataset");
 
     static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
 
@@ -57,6 +72,10 @@ public final class RequestFilterRewriter {
         TransportVersion minimumVersion
     ) {
         if (requestFilter == null) {
+            return analyzed;
+        }
+        if (REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled() == false) {
+            warnNotApplied(analyzed, "applying the request filter to datasets is not enabled in this build");
             return analyzed;
         }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {

@@ -72,7 +72,7 @@ Remote lookup joins are supported in [cross-cluster queries](/reference/query-la
 FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
-$$$coordinator-mode$$$ Run `LOOKUP JOIN` on coordinating node of local cluster [coordinator-mode]
+### Run `LOOKUP JOIN` on coordinating node of local cluster [coordinator-mode]
 
 ```{applies_to}
 stack: ga 9.6+

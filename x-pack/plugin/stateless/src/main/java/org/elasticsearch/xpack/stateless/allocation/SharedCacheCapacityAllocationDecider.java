@@ -29,10 +29,10 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
 
 /**
  * Deprioritizes allocation of search shards to a node whose shared cache is already, or would become, over-subscribed, by returning
- * {@link Decision#NOT_PREFERRED} rather than vetoing the allocation outright. The decider reasons about the boosted/unboosted cache
- * commitment data recorded in {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
- * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is
- * disabled by default via {@link #ENABLED_SETTING}.
+ * {@link Decision#NOT_PREFERRED}. The decider reasons about the boosted/unboosted cache commitment data recorded in
+ * {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
+ * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is disabled by default via
+ * {@link #ENABLED_SETTING}.
  */
 public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
@@ -75,9 +75,8 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * Reserved for a future {@code canRemain} implementation: the threshold above which the decider would deprioritize keeping existing
-     * shards on a node. This decider does not yet override {@code canRemain}; the setting is registered now so it can already be
-     * configured/experimented with ahead of that follow-up.
+     * The {@code canRemain} threshold. Above this, the decider will return {@link Decision#NO} for canRemain decisions for existing shards.
+     * Note: canRemain will be implemented in a future change.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",

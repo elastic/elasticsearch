@@ -34,6 +34,9 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 1;
 
+    // The computed checksum of all templates and components that are registered in this registry.
+    static final String COMPUTED_CHECKSUM = "27635e19";
+
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.ai-index.template.version";
 
     public static final String AI_INDEX_IDX_PREFIX = "ai-index-idx-";
@@ -63,37 +66,43 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private volatile boolean aiIndexRegistryEnabled;
 
-    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
-        new IndexTemplateConfig(
-            AI_INDEX_MAPPINGS_COMPONENT_NAME,
-            ROOT_RESOURCE_PATH + AI_INDEX_MAPPINGS_COMPONENT_NAME + JSON_EXTENSION,
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
-        ),
-        new IndexTemplateConfig(
-            AI_INDEX_DS_SETTINGS_COMPONENT_NAME,
-            ROOT_RESOURCE_PATH + AI_INDEX_DS_SETTINGS_COMPONENT_NAME + JSON_EXTENSION,
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
-        )
-    );
+    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(componentTemplateConfigs());
 
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
-        new IndexTemplateConfig(
-            AI_INDEX_IDX_TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + AI_INDEX_IDX_TEMPLATE_NAME + JSON_EXTENSION,
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Map.of("ai-index.idx.index_pattern", AI_INDEX_IDX_PATTERN)
-        ),
-        new IndexTemplateConfig(
-            AI_INDEX_DS_TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + AI_INDEX_DS_TEMPLATE_NAME + JSON_EXTENSION,
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Map.of("ai-index.ds.index_pattern", AI_INDEX_DS_PATTERN)
-        )
-    );
+    static IndexTemplateConfig[] componentTemplateConfigs() {
+        return new IndexTemplateConfig[] {
+            new IndexTemplateConfig(
+                AI_INDEX_MAPPINGS_COMPONENT_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_MAPPINGS_COMPONENT_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                AI_INDEX_DS_SETTINGS_COMPONENT_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_DS_SETTINGS_COMPONENT_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ) };
+    }
+
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(composableTemplateConfigs());
+
+    static IndexTemplateConfig[] composableTemplateConfigs() {
+        return new IndexTemplateConfig[] {
+            new IndexTemplateConfig(
+                AI_INDEX_IDX_TEMPLATE_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_IDX_TEMPLATE_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                Map.of("ai-index.idx.index_pattern", AI_INDEX_IDX_PATTERN)
+            ),
+            new IndexTemplateConfig(
+                AI_INDEX_DS_TEMPLATE_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_DS_TEMPLATE_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                Map.of("ai-index.ds.index_pattern", AI_INDEX_DS_PATTERN)
+            ) };
+    }
 
     public AiIndexTemplateRegistry(
         Settings nodeSettings,

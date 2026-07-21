@@ -960,7 +960,7 @@ public class SharedBlobCacheWarmingService {
         );
 
         final ActionListener<SearchRecoveryWaitOutcome> recordOutcomeThenForkResumeToGeneric = resumeRecoveryByForkingToGeneric.<
-            SearchRecoveryWaitOutcome>delegateFailureAndWrap((forkToGenericAndResume, outcome) -> {
+            SearchRecoveryWaitOutcome>map(outcome -> {
                 assert outcome == SearchRecoveryWaitOutcome.TIMEOUT || outcome == SearchRecoveryWaitOutcome.WARMING_COMPLETE
                     : "expected TIMEOUT || WARMING_COMPLETE; was " + outcome;
                 if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
@@ -972,7 +972,7 @@ public class SharedBlobCacheWarmingService {
                     );
                 }
                 recordSearchRecoveryWaitDuration(startedMillis, outcome);
-                forkToGenericAndResume.onResponse(null);
+                return null;
             }).delegateResponse((delegate, e) -> {
                 // Warming failed before the timeout fired. Record the wait metric anyway, attributed to WARMING_COMPLETE since the
                 // warming side won the race, before propagating the failure to the resume listener.
@@ -986,7 +986,7 @@ public class SharedBlobCacheWarmingService {
         race.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
 
         // warming finishing wins with WARMING_COMPLETE; warming failures propagate (after recording the wait metric).
-        return ActionListener.wrap(ignored -> race.onResponse(SearchRecoveryWaitOutcome.WARMING_COMPLETE), race::onFailure);
+        return race.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
     /// Records [#searchRecoveryWaitDurationMetric] for a wait that started at `startedMillis`, attributed to `outcome`.

@@ -831,6 +831,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                             public TokenStream create(TokenStream tokenStream) {
                                 return new org.apache.lucene.analysis.core.LowerCaseFilter(tokenStream);
                             }
+
+                            @Override
+                            public Object sharingKey() {
+                                return this;
+                            }
                         } }
                     )
                 )

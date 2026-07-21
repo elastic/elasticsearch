@@ -20,6 +20,110 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.3.8 [elasticsearch-9.3.8-release-notes]
+```{applies_to}
+stack: ga 9.3.8
+```
+
+### Features and enhancements [elasticsearch-9.3.8-features-enhancements]
+
+Authentication:
+* Upgrade OpenTelemetry in ms-graph-authz [#151968](https://github.com/elastic/elasticsearch/pull/151968)
+
+ES|QL:
+* Implement watchdog timeout for `GROK` [#152851](https://github.com/elastic/elasticsearch/pull/152851)
+
+Inference:
+* Update the commons-text library version to match commons.lang3 [#152092](https://github.com/elastic/elasticsearch/pull/152092)
+
+Infra/Core:
+* Upgrade Jackson [#152163](https://github.com/elastic/elasticsearch/pull/152163)
+
+Machine Learning:
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+
+### Fixes [elasticsearch-9.3.8-fixes]
+
+Aggregations:
+* Avoid out-of-memory errors by accounting for memory during the cardinality aggregation reduction phase [#152773](https://github.com/elastic/elasticsearch/pull/152773) (issue: [#150290](https://github.com/elastic/elasticsearch/issues/150290))
+* Fix non-monotonic T-Digest centroids caused by floating-point errors [#151979](https://github.com/elastic/elasticsearch/pull/151979)
+* Fix null pointer exception when aggregation parameter scripts return null [#152152](https://github.com/elastic/elasticsearch/pull/152152) (issue: [#136639](https://github.com/elastic/elasticsearch/issues/136639))
+
+Authorization:
+* Fix data stream privilege checking [#148179](https://github.com/elastic/elasticsearch/pull/148179)
+* Improve authorization for the simulate bulk action [#152148](https://github.com/elastic/elasticsearch/pull/152148)
+
+ES|QL:
+* Avoid dense run-length allocation in HyperLogLog [#152035](https://github.com/elastic/elasticsearch/pull/152035)
+
+Geo:
+* Fix infinite loop in `GeoLineDecomposer` dateline crossing checks [#152096](https://github.com/elastic/elasticsearch/pull/152096) (issue: [#152066](https://github.com/elastic/elasticsearch/issues/152066))
+
+Inference:
+* Translate `tools` and `tool_choice` to Anthropic format for Google Model Garden Anthropic chat completion [#152427](https://github.com/elastic/elasticsearch/pull/152427)
+
+Ingest Node:
+* Include ingest metadata in self-reference checks [#152932](https://github.com/elastic/elasticsearch/pull/152932)
+
+Machine Learning:
+* Automatically repair ML anomaly results aliases pointing at a .reindexed-v7 index [#147688](https://github.com/elastic/elasticsearch/pull/147688) (issue: [#147686](https://github.com/elastic/elasticsearch/issues/147686))
+* Extend the anomaly detection results template for reindexed indices and generalize healing beyond `job_id` mapping [#153755](https://github.com/elastic/elasticsearch/pull/153755) (issue: [#147686](https://github.com/elastic/elasticsearch/issues/147686))
+* Fix ML jobs stuck in starting state on Serverless trial projects [#150362](https://github.com/elastic/elasticsearch/pull/150362)
+* Roll reindexed ML state indices in daily maintenance [#149555](https://github.com/elastic/elasticsearch/pull/149555)
+
+Search:
+* Add defensive protections when parsing `query_string` [#152385](https://github.com/elastic/elasticsearch/pull/152385)
+* Apply search timeout to the DFS phase query rewrite [#153479](https://github.com/elastic/elasticsearch/pull/153479)
+* Apply search timeout to the query rewrite step [#153082](https://github.com/elastic/elasticsearch/pull/153082) (issue: [#104187](https://github.com/elastic/elasticsearch/issues/104187))
+* Fork `ensureShardSearchActive` callbacks off the refresh thread [#152509](https://github.com/elastic/elasticsearch/pull/152509) (issue: [#97280](https://github.com/elastic/elasticsearch/issues/97280))
+* Return a 400 (Bad Request) for invalid tokens in a `script` query [#152476](https://github.com/elastic/elasticsearch/pull/152476)
+* Trip request breaker on large completion suggest size/shardSize [#152552](https://github.com/elastic/elasticsearch/pull/152552)
+
+Snapshot/Restore:
+* Fix snapshot creation on CIFS shares when an access-denied exception occurs [#153219](https://github.com/elastic/elasticsearch/pull/153219) (issue: [#152053](https://github.com/elastic/elasticsearch/issues/152053))
+
+TSDB:
+* Ignore OTLP number data points without a value [#152733](https://github.com/elastic/elasticsearch/pull/152733)
+
+Transform:
+* Tighten retry startup logic [#152803](https://github.com/elastic/elasticsearch/pull/152803)
+
+
+
+## 9.3.7 [elasticsearch-9.3.7-release-notes]
+
+### Features and enhancements [elasticsearch-9.3.7-features-enhancements]
+
+Inference:
+* [Inference] Add requires org.apache.commons.lang3 to module-info [#151794](https://github.com/elastic/elasticsearch/pull/151794)
+
+Machine Learning:
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+
+### Fixes [elasticsearch-9.3.7-fixes]
+
+ES|QL:
+* Resolve surrogates in union type field resolution before plan serialization [#151633](https://github.com/elastic/elasticsearch/pull/151633) (issue: [#151475](https://github.com/elastic/elasticsearch/issues/151475))
+
+Infra/Core:
+* Pass through `includeSourceInError` [#142335](https://github.com/elastic/elasticsearch/pull/142335)
+
+Machine Learning:
+* Fix bug causing incorrect error on force deleting already deleted model [#107188](https://github.com/elastic/elasticsearch/pull/107188) (issue: [#105420](https://github.com/elastic/elasticsearch/issues/105420))
+* Revert "[ML] Add extra validation in `trained_model` creation" [#152000](https://github.com/elastic/elasticsearch/pull/152000)
+
+
+
 ## 9.4.3 [elasticsearch-9.4.3-release-notes]
 
 ### Features and enhancements [elasticsearch-9.4.3-features-enhancements]
@@ -91,35 +195,6 @@ TSDB:
 
 Vector Search:
 * Fix GPU SQ format name to match CPU equivalent [#149512](https://github.com/elastic/elasticsearch/pull/149512) (issue: [#148975](https://github.com/elastic/elasticsearch/issues/148975))
-
-
-
-## 9.3.7 [elasticsearch-9.3.7-release-notes]
-
-### Features and enhancements [elasticsearch-9.3.7-features-enhancements]
-
-Inference:
-* [Inference] Add requires org.apache.commons.lang3 to module-info [#151794](https://github.com/elastic/elasticsearch/pull/151794)
-
-Machine Learning:
-* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
-* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
-* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
-* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
-* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
-
-
-### Fixes [elasticsearch-9.3.7-fixes]
-
-ES|QL:
-* Resolve surrogates in union type field resolution before plan serialization [#151633](https://github.com/elastic/elasticsearch/pull/151633) (issue: [#151475](https://github.com/elastic/elasticsearch/issues/151475))
-
-Infra/Core:
-* Pass through `includeSourceInError` [#142335](https://github.com/elastic/elasticsearch/pull/142335)
-
-Machine Learning:
-* Fix bug causing incorrect error on force deleting already deleted model [#107188](https://github.com/elastic/elasticsearch/pull/107188) (issue: [#105420](https://github.com/elastic/elasticsearch/issues/105420))
-* Revert "[ML] Add extra validation in `trained_model` creation" [#152000](https://github.com/elastic/elasticsearch/pull/152000)
 
 
 

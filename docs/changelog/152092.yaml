@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 152092
-summary: "[Inference API] Bumping commons-text library version to match commons.lang3"
+summary: Update `commons-text` library version to match `commons-lang3`
 type: upgrade

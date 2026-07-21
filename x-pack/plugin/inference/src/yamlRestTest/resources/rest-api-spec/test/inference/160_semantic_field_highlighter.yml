@@ -182,3 +182,83 @@ setup:
   - match: { hits.hits.0._id: "doc_copy_to" }
   - length: { hits.hits.0.highlight.semantic_field: 1 }
   - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }
+
+---
+"Highlighting image values with descriptions":
+  - requires:
+      cluster_features: "semantic_field.retain_binary"
+      reason: "InferenceString descriptions arrived with the retain_binary feature"
+
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_description
+        body:
+          semantic_field:
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+              description: "a cat on a windowsill"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+              description: "a dog running in a park"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_description" }
+  - length: { hits.hits.0.highlight.semantic_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }
+  - match: { hits.hits.0.highlight.semantic_field.1: "a dog running in a park" }
+
+---
+"Highlighting mixed text and image values with descriptions":
+  - requires:
+      cluster_features: "semantic_field.retain_binary"
+      reason: "InferenceString descriptions arrived with the retain_binary feature"
+
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_mixed_description
+        body:
+          semantic_field:
+            - "a cat on a windowsill"
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+              description: "a photo of a cat"
+            - "a dog running in a park"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+              description: "a photo of a dog"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+                number_of_fragments: 4
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_mixed_description" }
+  - length: { hits.hits.0.highlight.semantic_field: 4 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }
+  - match: { hits.hits.0.highlight.semantic_field.1: "a photo of a cat" }
+  - match: { hits.hits.0.highlight.semantic_field.2: "a dog running in a park" }
+  - match: { hits.hits.0.highlight.semantic_field.3: "a photo of a dog" }

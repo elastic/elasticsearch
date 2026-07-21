@@ -18,9 +18,15 @@ stack: ga 9.4.4
 ```
 
 Inference:
-* Prevent overriding `secret_parameters` [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+* [Inference API] Prevent overriding `secret_parameters` [#153309](https://github.com/elastic/elasticsearch/pull/153309)
 
+## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
+```{applies_to}
+stack: ga 9.3.8
+```
 
+Inference:
+* [Inference API] Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
 
 ## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
 

@@ -10,8 +10,8 @@ breaking:
     endpoint with the `secret_parameters` moved to `task_settings` or no longer rely on the ability to override the
     `secret_parameters` within a POST request.
   notable: false
-  title: "Prevent overriding `secret_parameters`"
+  title: "Prevent overriding `secret_parameters` in the Inference API"
 issues: []
 pr: 153309
-summary: "Prevent overriding `secret_parameters`"
+summary: "Prevent overriding `secret_parameters` in the Inference API"
 type: breaking

@@ -730,7 +730,7 @@ public final class StreamingParallelParsingCoordinator {
                     if (lastNewline < 0) {
                         if (isEof) {
                             if (chunkIndex == 0) {
-                                bindSchemaFromFirstChunk(buf, totalBytes);
+                                prepareFromFirstChunk(buf, totalBytes);
                             }
                             if (dispatchChunk(chunkIndex, coverageStart, buf, totalBytes, true)) {
                                 chunkIndex++;
@@ -756,7 +756,7 @@ public final class StreamingParallelParsingCoordinator {
                             int grownNewline = result.boundary();
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
-                                    bindSchemaFromFirstChunk(grown, grown.length);
+                                    prepareFromFirstChunk(grown, grown.length);
                                 }
                                 if (dispatchChunk(chunkIndex, coverageStart, grown, grown.length, true)) {
                                     chunkIndex++;
@@ -771,7 +771,7 @@ public final class StreamingParallelParsingCoordinator {
                                 carry = new byte[carryLen];
                                 System.arraycopy(grown, validLen, carry, 0, carryLen);
                                 if (chunkIndex == 0) {
-                                    bindSchemaFromFirstChunk(grown, validLen);
+                                    prepareFromFirstChunk(grown, validLen);
                                 }
                                 if (dispatchChunk(chunkIndex, coverageStart, grown, validLen, false)) {
                                     chunkIndex++;
@@ -795,7 +795,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
 
                     if (chunkIndex == 0) {
-                        bindSchemaFromFirstChunk(buf, validLen);
+                        prepareFromFirstChunk(buf, validLen);
                     }
                     if (dispatchChunk(chunkIndex, coverageStart, buf, validLen, isEof)) {
                         chunkIndex++;
@@ -840,24 +840,32 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound
-         * variant returned by {@link FormatReader#withSchema(List)}; parser threads thereafter
-         * skip per-chunk inference. Same approach as ClickHouse / DuckDB / Spark.
+         * Does the once-per-file work that needs the file's leading bytes, before any chunk is dispatched.
          * <p>
-         * No-op when {@link #readSchema} is bound: the planner already resolved this file's typing, so
-         * re-inferring would replace it with whatever chunk 0's values happen to look like. That is not
-         * merely wasted work — readers overlay the reader-level schema onto the bound one by column name
-         * (see {@code NdJsonFormatReader#mergeBoundWithProjection}), so an inferred {@code INTEGER} silently
-         * displaces a declared {@code LONG} and the resulting block fails to cast in the compute engine.
-         * The rebind stays load-bearing for inference mode ({@code readSchema == null}), where chunks 1..N
-         * parse against the schema bound from chunk 0 rather than re-inferring (or, for CSV, re-reading a
-         * data row as a header).
+         * Which work depends on whether the planner already resolved this file's schema. If it did not, the
+         * schema is inferred here and bound onto the reader so chunks 1..N parse against it rather than
+         * re-inferring (or, for CSV, reading a data row as a header). If it did, that schema stands and
+         * nothing is inferred — but a header-bearing file still has to tell later chunks what its columns
+         * are called, since only chunk 0 can see the header.
+         * <p>
+         * The two are exclusive by construction: inferring over a resolved schema is what produced the
+         * compressed-read crashes, because readers merge the reader-level schema with the resolved one and
+         * an inferred {@code INTEGER} displaced a declared {@code LONG}.
          */
-        private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
+        private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
             if (readSchema != null && readSchema.isEmpty() == false) {
                 captureFileHeaderColumns(buffer, length);
-                return;
+            } else {
+                bindInferredSchema(buffer, length);
             }
+        }
+
+        /**
+         * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound variant
+         * returned by {@link FormatReader#withSchema(List)}, so parser threads skip per-chunk inference.
+         * Same approach as ClickHouse / DuckDB / Spark.
+         */
+        private void bindInferredSchema(byte[] buffer, int length) throws IOException {
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
             SourceMetadata metadata = reader.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();

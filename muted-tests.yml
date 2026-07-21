@@ -752,30 +752,6 @@ tests:
   method: test {csv-spec:conditional.singleCondition}
   issue: https://github.com/elastic/elasticsearch/issues/154436
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldTrailingTextArmKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154437
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldMultivalueTextKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154449
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldTextArmNullElseKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154450
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldKeywordIsGroupable}
-  issue: https://github.com/elastic/elasticsearch/issues/154451
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldMultivalueTextKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154452
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldTrailingTextArmKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154454
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldKeywordIsGroupable}
-  issue: https://github.com/elastic/elasticsearch/issues/154456
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
-  method: test {csv-spec:conditional.casePartialFoldTextArmNullElseKeepsKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/154457
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecConditionalIT
   method: test {csv-spec:conditional.docsCaseSuccessRate}
   issue: https://github.com/elastic/elasticsearch/issues/154458
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests

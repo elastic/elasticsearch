@@ -14,17 +14,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 /**
- * Partition-grouped file listing for Hive-partitioned data. Stores column value
- * dictionaries and groups files by partition, reducing memory to ~32 bytes/file
- * vs ~52 bytes for DictionaryFileList. Created by {@link FileListCompactor}.
+ * Compact file listing that groups files by the relative directory they were listed under. Each file
+ * carries the index of its directory; {@link #path(int)} replays {@code basePath + directory + leaf}
+ * verbatim, so the reconstructed key is byte-for-byte the one that was listed — value spelling, segment
+ * order, and any non-partition directories all survive, because nothing is re-derived from parsed
+ * partition values. Beats {@link DictionaryFileList} on layouts with many files per directory and few
+ * distinct directories; created by {@link FileListCompactor}.
  */
-final class HiveFileList implements FileList {
+final class DirectoryGroupedFileList implements FileList {
 
     private final String basePath;
-    private final String[] partitionColumnNames;
-    private final String[][] columnValueDicts;
-    private final short[][] groupValueIndices;
-    private final int[] groupFileStarts;
+    private final String[] groupDirs;
+    private final short[] fileGroups;
     private final long[] sizes;
     @Nullable
     private final long[] mtimesMillis;
@@ -46,12 +47,10 @@ final class HiveFileList implements FileList {
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
 
-    HiveFileList(
+    DirectoryGroupedFileList(
         String basePath,
-        String[] partitionColumnNames,
-        String[][] columnValueDicts,
-        short[][] groupValueIndices,
-        int[] groupFileStarts,
+        String[] groupDirs,
+        short[] fileGroups,
         long[] sizes,
         @Nullable long[] mtimesMillis,
         @Nullable long[] groupMtimes,
@@ -63,10 +62,8 @@ final class HiveFileList implements FileList {
         @Nullable FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
-        this.partitionColumnNames = partitionColumnNames;
-        this.columnValueDicts = columnValueDicts;
-        this.groupValueIndices = groupValueIndices;
-        this.groupFileStarts = groupFileStarts;
+        this.groupDirs = groupDirs;
+        this.fileGroups = fileGroups;
         this.sizes = sizes;
         this.mtimesMillis = mtimesMillis;
         this.groupMtimes = groupMtimes;
@@ -84,20 +81,6 @@ final class HiveFileList implements FileList {
         return fileSetFingerprint;
     }
 
-    private int findGroup(int fileIndex) {
-        int lo = 0;
-        int hi = groupFileStarts.length - 2;
-        while (lo < hi) {
-            int mid = (lo + hi + 1) >>> 1;
-            if (groupFileStarts[mid] <= fileIndex) {
-                lo = mid;
-            } else {
-                hi = mid - 1;
-            }
-        }
-        return lo;
-    }
-
     @Override
     public int fileCount() {
         return fileCount;
@@ -105,13 +88,8 @@ final class HiveFileList implements FileList {
 
     @Override
     public StoragePath path(int i) {
-        int group = findGroup(i);
         StringBuilder sb = new StringBuilder(basePath);
-        for (int c = 0; c < partitionColumnNames.length; c++) {
-            sb.append(partitionColumnNames[c]).append('=');
-            sb.append(columnValueDicts[c][Short.toUnsignedInt(groupValueIndices[group][c])]);
-            sb.append('/');
-        }
+        sb.append(groupDirs[Short.toUnsignedInt(fileGroups[i])]);
         sb.append(leafNames[i]);
         if (sharedExtension != null) {
             sb.append(sharedExtension);
@@ -127,7 +105,7 @@ final class HiveFileList implements FileList {
     @Override
     public long lastModifiedMillis(int i) {
         if (groupMtimes != null) {
-            return groupMtimes[findGroup(i)];
+            return groupMtimes[Short.toUnsignedInt(fileGroups[i])];
         }
         return mtimesMillis[i];
     }
@@ -160,15 +138,13 @@ final class HiveFileList implements FileList {
         long bytes = 64;
         // basePath String
         bytes += basePath.length() * (long) Character.BYTES;
-        for (String[] dict : columnValueDicts) {
-            for (String v : dict) {
-                // per-String: ~40B object overhead + char data
-                bytes += 40 + v.length() * (long) Character.BYTES;
-            }
+        // one String per distinct relative directory; the group keys are distinct by construction
+        for (String dir : groupDirs) {
+            // per-String: ~40B object overhead + char data
+            bytes += 40 + dir.length() * (long) Character.BYTES;
         }
-        // partition value indices: groups × columns × short
-        bytes += (long) groupValueIndices.length * partitionColumnNames.length * Short.BYTES;
-        bytes += (long) groupFileStarts.length * Integer.BYTES;
+        // per-file group index
+        bytes += fileGroups.length * (long) Short.BYTES;
         bytes += sizes.length * (long) Long.BYTES;
         if (mtimesMillis != null) {
             bytes += mtimesMillis.length * (long) Long.BYTES;

@@ -633,6 +633,30 @@ public class QueryRewriteContext {
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 
+    /**
+     * Returns {@code true} if {@code name} is explicitly mapped - either as a
+     * concrete field in the index mapping or as a runtime field - and is permitted
+     * by the {@link #allowedFields} predicate when set.
+     * <p>
+     *     Unlike {@link SearchExecutionContext#isFieldMapped}, this does <em>not</em>
+     *     include fields that are only dynamically resolved, such as sub-keys of
+     *     {@code flattened} fields. Those sub-keys are not visible to the coordinator
+     *     via field caps and using them in a block loader would cause element-type
+     *     mismatches at runtime.
+     * </p>
+     * <p>
+     *      This is <strong>mostly</strong> used by ESQL because it exposes flattened
+     *      sub-fields using its own machinery.
+     * </p>
+     */
+    public boolean isExplicitlyMapped(String name) {
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return false;
+        }
+        String fieldName = resolveSliceAlias(name);
+        return mappingLookup.getFullNameToFieldType().containsKey(fieldName) || runtimeMappings.containsKey(fieldName);
+    }
+
     public ResolvedIndices getResolvedIndices() {
         return resolvedIndices;
     }

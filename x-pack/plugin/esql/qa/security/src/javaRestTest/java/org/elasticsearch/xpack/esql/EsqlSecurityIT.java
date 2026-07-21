@@ -78,6 +78,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
+        .user("fls_cross_index_user", "x-pack-test-password", "fls_cross_index", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
         .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
         .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
@@ -2177,6 +2178,44 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM logs-* | STATS COUNT(*)")), oneResult);
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM logs-* | STATS COUNT(*)")), oneResult);
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
+    }
+
+    /**
+     * FLS analogue of the flattened-field COUNT bug (issue #154011): {@code value} is an
+     * explicitly mapped {@code double} in both {@code index} and {@code index-user1}, but
+     * FLS denies it on {@code index-user1}. The denied shard appears to have no {@code value}
+     * field, so COUNT must count only the 2 documents from {@code index}.
+     * <p>
+     * The count pushdown goes through an EXISTS Lucene query. {@code FieldSubsetReader}
+     * enforces FLS at the Lucene level so the test passes regardless of the fix in
+     * {@code EsPhysicalOperationProviders.querySupplierForField}; it is here to document the
+     * correct aggregate behavior under per-index FLS restrictions.
+     */
+    public void testCountAcrossIndicesWithFlsDeniedField() throws Exception {
+        Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS c = COUNT(value)");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        // index: value allowed — 2 docs (10.0, 20.0); index-user1: value FLS-denied — contributes 0
+        assertThat(values.get(0).get(0), equalTo(2));
+    }
+
+    /**
+     * FLS analogue of the flattened-field cast bug (issue #154484): {@code value} is FLS-denied
+     * on {@code index-user1}. With an explicit {@code ::long} cast, the blocked shard must
+     * contribute null (not its raw double values), so SUM must return 30 (10+20 from
+     * {@code index} only), not 73 (which would include the 12+31 from {@code index-user1}).
+     * <p>
+     * Like {@link #testCountAcrossIndicesWithFlsDeniedField}, {@code FieldSubsetReader}
+     * handles enforcement at the Lucene level; this test documents the expected result.
+     */
+    public void testSumAcrossIndicesWithFlsDeniedFieldAndCast() throws Exception {
+        Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS s = SUM(value::long)");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        // index: value allowed — 10.0+20.0 → 30L; index-user1: value FLS-denied — contributes null
+        assertThat(values.get(0).get(0), equalTo(30));
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {

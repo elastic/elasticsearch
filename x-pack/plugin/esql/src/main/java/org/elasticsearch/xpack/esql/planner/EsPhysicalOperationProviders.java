@@ -168,6 +168,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * need one in ten documents.
          */
         public abstract double storedFieldsSequentialProportion();
+
+        /**
+         * Returns {@code true} if {@code name} is an explicitly mapped field in this shard's
+         * index — including index-level runtime fields, but excluding dynamically-resolved
+         * sub-keys of {@code flattened} fields. Those sub-keys appear in Lucene's field infos
+         * even though they are absent from the mapping, and counting them with an EXISTS query
+         * would inflate aggregation results when field types differ across indices.
+         * <p>
+         * The default implementation uses the mapping lookup alone. {@link DefaultShardContext}
+         * overrides this to also respect query-time runtime fields and {@code allowedFields}.
+         */
+        public boolean isExplicitlyMapped(String name) {
+            return mappingLookup().getFullNameToFieldType().containsKey(name);
+        }
     }
 
     private final IndexedByShardId<? extends ShardContext> shardContexts;
@@ -444,6 +458,29 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 queryBuilderAndTags.tags()
             );
         }).toList();
+    }
+
+    /**
+     * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
+     * explicitly mapped. Flattened fields store terms for their sub-keys in Lucene even though
+     * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
+     * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
+     * means COUNT(*) — count every document — so no per-field guard is applied in that case.
+     */
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplierForField(
+        QueryBuilder builder,
+        String fieldName
+    ) {
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> innerFn = querySupplier(builder);
+        if ("*".equals(fieldName)) {
+            return innerFn;
+        }
+        return ctx -> {
+            if (shardContexts.get(ctx.index()).isExplicitlyMapped(fieldName) == false) {
+                return List.of();
+            }
+            return innerFn.apply(ctx);
+        };
     }
 
     @Override
@@ -741,6 +778,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (asUnsupportedSource) {
                 return ConstantNull.INSTANCE;
             }
+            // Don't use fieldType() for the existence check — it resolves sub-keys of
+            // flattened fields dynamically, but those are not reported by field caps
+            // and would cause element_type mismatches at runtime.
+            if (ctx.isExplicitlyMapped(name) == false) {
+                return ConstantNull.INSTANCE;
+            }
             MappedFieldType fieldType = fieldType(name);
             if (fieldType == null) {
                 // the field does not exist in this context
@@ -777,6 +820,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
+        }
+
+        @Override
+        public boolean isExplicitlyMapped(String name) {
+            return ctx.isExplicitlyMapped(name);
         }
 
         @Override

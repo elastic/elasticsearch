@@ -21,10 +21,8 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -40,10 +38,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * <a href="https://github.com/elastic/elasticsearch/issues/154484">#154484</a>
  * ({@code element_type [BYTES_REF] NOT IN (NULL, LONG)}).
  * <p>
- * The coordinator builds a {@code CompactMultiTypeEsField} with converters
- * for each typed leg, but the converter is not applied on shards where the
- * field is a flattened sub-key ({@code BYTES_REF} element type), causing
- * {@code ValuesSourceReaderOperator.sanityCheckBlock} to throw.
+ * Each scenario has a {@code SameNode} sibling that pins both indices to the
+ * same node.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FlattenedConflictsIT extends ESRestTestCase {
@@ -81,26 +77,46 @@ public class FlattenedConflictsIT extends ESRestTestCase {
      * and a sub-key of a {@code flattened} field in another.
      */
     public void testDateVsFlattened() throws Exception {
-        createIndicesIfMissing(
-            "idx_date",
-            """
-                { "properties": { "metadata": { "properties": { "time": { "type": "date" } } } } }""",
-            "idx_flat_date",
-            """
-                { "properties": { "metadata": { "type": "flattened" } } }"""
-        );
-        if (indexExists("idx_date") && countDocs("idx_date") == 0) {
-            for (int i = 0; i < 5; i++) {
-                indexDoc("idx_date", Integer.toString(i), Strings.format("""
-                    {"metadata": {"time": "2024-01-0%dT00:00:00.000Z"}}""", i + 1));
-            }
-            for (int i = 0; i < 5; i++) {
-                indexDoc("idx_flat_date", Integer.toString(i), Strings.format("""
-                    {"metadata": {"time": "2024-02-0%dT00:00:00.000Z"}}""", i + 1));
-            }
-            refresh("idx_date");
-            refresh("idx_flat_date");
+        testDateVsFlattened(nodeNames.get(0), nodeNames.get(1));
+    }
+
+    /** Same as {@link #testDateVsFlattened()} but both indices on the same node. */
+    public void testDateVsFlattenedSameNode() throws Exception {
+        testDateVsFlattened(nodeNames.get(0), nodeNames.get(0));
+    }
+
+    /**
+     * {@code features.topic_id} is {@code integer} (element type INT) in one
+     * index and a sub-key of a {@code flattened} field in another.
+     * With an explicit {@code ::long} cast the coordinator resolves the union
+     * but the converter must be applied on both the integer and flattened shards.
+     */
+    public void testIntegerVsFlattenedWithCast() throws Exception {
+        testIntegerVsFlattenedWithCast(nodeNames.get(0), nodeNames.get(1));
+    }
+
+    /** Same as {@link #testIntegerVsFlattenedWithCast()} but both indices on the same node. */
+    public void testIntegerVsFlattenedWithCastSameNode() throws Exception {
+        testIntegerVsFlattenedWithCast(nodeNames.get(0), nodeNames.get(0));
+    }
+
+    public void testDateVsFlattened(String node1, String node2) throws Exception {
+        createIndexPinned("idx_date", """
+            { "properties": { "metadata": { "properties": { "time": { "type": "date" } } } } }""", node1);
+        createIndexPinned("idx_flat_date", """
+            { "properties": { "metadata": { "type": "flattened" } } }""", node2);
+        ensureGreen("idx_date");
+        ensureGreen("idx_flat_date");
+        for (int i = 0; i < 5; i++) {
+            indexDoc("idx_date", Integer.toString(i), Strings.format("""
+                {"metadata": {"time": "2024-01-0%dT00:00:00.000Z"}}""", i + 1));
         }
+        for (int i = 0; i < 5; i++) {
+            indexDoc("idx_flat_date", Integer.toString(i), Strings.format("""
+                {"metadata": {"time": "2024-02-0%dT00:00:00.000Z"}}""", i + 1));
+        }
+        refresh("idx_date");
+        refresh("idx_flat_date");
 
         // The flattened sub-key is not in the real mapping so the data node treats it
         // as absent — only the 5 docs from the date index contribute.
@@ -112,53 +128,31 @@ public class FlattenedConflictsIT extends ESRestTestCase {
         assertThat(values.get(0).get(0), equalTo(5));
     }
 
-    /**
-     * {@code features.topic_id} is {@code integer} (element type INT) in one
-     * index and a sub-key of a {@code flattened} field in another.
-     * With an explicit {@code ::long} cast the coordinator resolves the union
-     * but the converter must be applied on both the integer and flattened
-     * shards.
-     */
-    public void testIntegerVsFlattenedWithCast() throws Exception {
-        createIndicesIfMissing(
-            "idx_obj_int",
-            """
-                { "properties": { "features": { "properties": { "topic_id": { "type": "integer" } } } } }""",
-            "idx_flat_int",
-            """
-                { "properties": { "features": { "type": "flattened" } } }"""
-        );
-        if (indexExists("idx_obj_int") && countDocs("idx_obj_int") == 0) {
-            for (int i = 0; i < 10; i++) {
-                indexDoc("idx_obj_int", Integer.toString(i), Strings.format("""
-                    {"features": {"topic_id": %d}}""", i + 1));
-            }
-            for (int i = 0; i < 5; i++) {
-                indexDoc("idx_flat_int", Integer.toString(i), Strings.format("""
-                    {"features": {"topic_id": %d}}""", (i + 1) * 10));
-            }
-            refresh("idx_obj_int");
-            refresh("idx_flat_int");
+    public void testIntegerVsFlattenedWithCast(String node1, String node2) throws Exception {
+        createIndexPinned("idx_obj_int", """
+            { "properties": { "features": { "properties": { "topic_id": { "type": "integer" } } } } }""", node1);
+        createIndexPinned("idx_flat_int", """
+            { "properties": { "features": { "type": "flattened" } } }""", node2);
+        ensureGreen("idx_obj_int");
+        ensureGreen("idx_flat_int");
+        for (int i = 0; i < 10; i++) {
+            indexDoc("idx_obj_int", Integer.toString(i), Strings.format("""
+                {"features": {"topic_id": %d}}""", i + 1));
         }
+        for (int i = 0; i < 5; i++) {
+            indexDoc("idx_flat_int", Integer.toString(i), Strings.format("""
+                {"features": {"topic_id": %d}}""", (i + 1) * 10));
+        }
+        refresh("idx_obj_int");
+        refresh("idx_flat_int");
 
-        // int sum: 1+2+...+10 = 55
+        // int sum: 1+2+...+10 = 55; flattened sub-key treated as absent.
         List<List<Object>> values = esql("""
             FROM idx_obj_int, idx_flat_int
             | STATS s = SUM(features.topic_id::long)
             """);
         assertThat(values.size(), equalTo(1));
         assertThat(values.get(0).get(0), equalTo(55));
-    }
-
-    // ---- helpers ----
-
-    private void createIndicesIfMissing(String idx1, String mapping1, String idx2, String mapping2) throws Exception {
-        if (indexExists(idx1)) {
-            return;
-        }
-        createIndexPinned(idx1, mapping1, nodeNames.get(0));
-        createIndexPinned(idx2, mapping2, nodeNames.get(1));
-        waitForShardPinning(idx1, nodeNames.get(0), idx2, nodeNames.get(1));
     }
 
     private void createIndexPinned(String name, String mapping, String node) throws IOException {
@@ -180,45 +174,6 @@ public class FlattenedConflictsIT extends ESRestTestCase {
         request.setJsonEntity(body);
         request.addParameter("refresh", "false");
         assertOK(client().performRequest(request));
-    }
-
-    private long countDocs(String index) throws IOException {
-        Request request = new Request("GET", "/" + index + "/_count");
-        Map<String, Object> result = entityAsMap(client().performRequest(request));
-        return ((Number) result.get("count")).longValue();
-    }
-
-    private void waitForShardPinning(String idx1, String node1, String idx2, String node2) throws Exception {
-        ensureGreen(idx1);
-        ensureGreen(idx2);
-        Request shardsRequest = new Request("GET", "/_cat/shards/" + idx1 + "," + idx2);
-        shardsRequest.addParameter("format", "json");
-        assertBusy(() -> {
-            List<Object> shards = entityAsList(client().performRequest(shardsRequest));
-            Map<String, List<Map<String, Object>>> shardByIndex = new HashMap<>();
-            for (Object entry : shards) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> shard = (Map<String, Object>) entry;
-                shardByIndex.computeIfAbsent((String) shard.get("index"), k -> new ArrayList<>()).add(shard);
-            }
-            String ctx = "nodes=" + nodeNames + " shards=" + shards;
-            assertShardOnNode(shardByIndex, idx1, node1, ctx);
-            assertShardOnNode(shardByIndex, idx2, node2, ctx);
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    private static void assertShardOnNode(
-        Map<String, List<Map<String, Object>>> shardByIndex,
-        String index,
-        String expectedNode,
-        String ctx
-    ) {
-        List<Map<String, Object>> shards = shardByIndex.get(index);
-        assertNotNull(index + " shards not found in: " + ctx, shards);
-        for (Map<String, Object> shard : shards) {
-            assertThat(ctx + " " + index + " must be STARTED", shard.get("state"), equalTo("STARTED"));
-            assertThat(ctx + " " + index + " on wrong node", shard.get("node"), equalTo(expectedNode));
-        }
     }
 
     private boolean isServerless() throws IOException {

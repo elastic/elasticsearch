@@ -605,7 +605,10 @@ public class LocalExecutionPlanner {
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
         var queryFunction = switch (stat) {
-            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplier(basic.filter(statsQuery.query()));
+            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplierForField(
+                basic.filter(statsQuery.query()),
+                basic.name()
+            );
             case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
         };
         final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());

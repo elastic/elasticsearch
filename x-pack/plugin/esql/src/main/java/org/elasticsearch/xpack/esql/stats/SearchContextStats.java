@@ -109,9 +109,7 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            // Don't use isFieldMapped here — it includes dynamically resolved sub-keys of flattened
-            // fields, which are not reported by field caps and would cause type mismatches at runtime.
-            if (context.getMappingLookup().getFullNameToFieldType().containsKey(field)) {
+            if (context.isExplicitlyMapped(field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -141,9 +139,7 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            // Don't use isFieldMapped here — it includes dynamically resolved sub-keys of flattened
-            // fields, which are not reported by field caps and would cause type mismatches at runtime.
-            if (context.getMappingLookup().getFullNameToFieldType().containsKey(field)) {
+            if (context.isExplicitlyMapped(field)) {
                 return true;
             }
         }
@@ -213,12 +209,31 @@ public class SearchContextStats implements SearchStats {
     public long count(FieldName field) {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.count == null) {
-            var count = new long[] { 0 };
-            boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field.string());
-                return true;
-            }, false);
-            stat.count = completed ? count[0] : -1;
+            long count = 0;
+            boolean completed = true;
+            outer: for (SearchExecutionContext context : contexts) {
+                // Skip shards where this field is a dynamic sub-key of a flattened field rather
+                // than an explicitly mapped field; those shards store the field's terms in Lucene
+                // even though it is absent from the mapping, so counting without this guard
+                // inflates the result.
+                if (context.isExplicitlyMapped(field.string()) == false) {
+                    continue;
+                }
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    LeafReader reader = leafContext.reader();
+                    if (reader.hasDeletions()) {
+                        completed = false;
+                        break outer;
+                    }
+                    long c = countEntries(reader, field.string());
+                    if (c < 0) {
+                        completed = false;
+                        break outer;
+                    }
+                    count += c;
+                }
+            }
+            stat.count = completed ? count : -1;
         }
         return stat.count;
     }

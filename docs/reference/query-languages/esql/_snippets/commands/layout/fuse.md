@@ -155,7 +155,7 @@ FROM books METADATA _id, _index, _score
 
 ### Minimum score cutoff
 
-While `FUSE` is generally used for merging result sets, it can also be used for applying minimum score cutoff, to filter out low-quality or irrelevant results.
+While `FUSE` is generally used for merging result sets, it can also be used to apply minimum score cutoffs, to filter out low-quality or irrelevant results.
 Using `FUSE` to first normalize the scores gives a consistent threshold for applying a minimum score cutoff.
 
 The following example uses `FUSE` to normalize the scores and apply a minimum score cutoff.

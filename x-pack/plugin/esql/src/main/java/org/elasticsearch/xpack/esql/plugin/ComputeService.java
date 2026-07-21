@@ -301,7 +301,7 @@ public class ComputeService {
         int[] resolvedFloor = new int[1];
         return plan.transformUp(ExternalSourceExec.class, exec -> {
             List<ExternalSplit> splits = exec.splits();
-            if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
+            if (SplitCoalescer.shouldCoalesce(splits.size()) == false) {
                 return exec;
             }
             if (resolvedFloor[0] == 0) {
@@ -432,15 +432,12 @@ public class ComputeService {
                 recordExternalWarmAggregates(execInfo, plan);
             } else {
                 PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
-                if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                if (SplitCoalescer.shouldCoalesce(splits.size())) {
+                    // coalesce always returns a list of its own, so replacing the contents of `splits` in place
+                    // cannot clear the list being copied from.
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
-                    // coalesce hands back the very list it was given when it declines to group. Clearing `splits`
-                    // in that case would empty the list being copied from and silently drop the whole scan, so the
-                    // identity check stays even though the size guard above currently makes it unreachable.
-                    if (coalesced != splits) {
-                        splits.clear();
-                        splits.addAll(coalesced);
-                    }
+                    splits.clear();
+                    splits.addAll(coalesced);
                 }
                 return new CollectedSplits(rewritten, splits);
             }

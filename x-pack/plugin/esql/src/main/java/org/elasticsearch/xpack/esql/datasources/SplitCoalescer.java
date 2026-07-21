@@ -15,10 +15,14 @@ import java.util.List;
 import java.util.PriorityQueue;
 
 /**
- * Groups many small {@link ExternalSplit}s into {@link CoalescedSplit}s to
- * reduce scheduling overhead. Uses greedy bin-packing by size when all splits
- * report a positive {@code estimatedSizeInBytes()}, and falls back to
- * count-based grouping otherwise.
+ * Groups many small {@link ExternalSplit}s into {@link CoalescedSplit}s to reduce scheduling overhead. Uses greedy
+ * bin-packing by size when every split reports a known (non-negative) {@code estimatedSizeInBytes()}, and falls back
+ * to count-based grouping otherwise. When either packing yields fewer groups than the caller's {@code minGroupCount}
+ * floor, the splits are re-binned to meet that floor so read parallelism is not collapsed onto one schedulable unit.
+ *
+ * <p>This class is the sole owner of the grouping policy: whether a scan is worth coalescing at all
+ * ({@link #shouldCoalesce}), how splits are packed, and how the floor is met. Callers supply budgets and the floor;
+ * they do not re-implement any part of the decision.
  */
 public final class SplitCoalescer {
 
@@ -27,6 +31,26 @@ public final class SplitCoalescer {
     public static final int COALESCING_THRESHOLD = 32;
 
     private SplitCoalescer() {}
+
+    /**
+     * Whether a scan holding {@code splitCount} splits is worth grouping at all. This is the single home of that
+     * rule — callers ask here rather than comparing against {@link #COALESCING_THRESHOLD} themselves, so the
+     * decision cannot drift between this class and the code that drives it.
+     */
+    public static boolean shouldCoalesce(int splitCount) {
+        return splitCount > COALESCING_THRESHOLD;
+    }
+
+    /**
+     * Whether a split already fills the size budget on its own and therefore stays a standalone group rather than
+     * being packed with others. Shared by {@link #packBySize} and {@link #floorGroups} so the two agree by
+     * construction: {@link #floorGroups} reserves one group per standalone split and spreads the rest across what
+     * is left, which only leaves room for the remainder because {@link #packBySize} gave those same splits their
+     * own bin. If the two predicates diverged, the floor could be asked for more groups than it has splits to fill.
+     */
+    private static boolean isStandalone(ExternalSplit split, long targetGroupSizeBytes) {
+        return split.estimatedSizeInBytes() >= targetGroupSizeBytes;
+    }
 
     /**
      * Coalesces with the default size and count budgets and no minimum group floor; equivalent to
@@ -78,8 +102,8 @@ public final class SplitCoalescer {
         if (minGroupCount < 1) {
             throw new IllegalArgumentException("minGroupCount must be positive, got: " + minGroupCount);
         }
-        if (splits.size() <= COALESCING_THRESHOLD) {
-            return splits;
+        if (shouldCoalesce(splits.size()) == false) {
+            return new ArrayList<>(splits);
         }
 
         boolean allHaveSize = true;
@@ -108,7 +132,7 @@ public final class SplitCoalescer {
 
         for (ExternalSplit split : sorted) {
             long size = split.estimatedSizeInBytes();
-            if (size >= targetGroupSizeBytes) {
+            if (isStandalone(split, targetGroupSizeBytes)) {
                 bins.add(new ArrayList<>(List.of(split)));
                 binSizes.add(size);
                 continue;
@@ -165,7 +189,7 @@ public final class SplitCoalescer {
         List<ExternalSplit> small = new ArrayList<>(splits.size());
         if (allHaveSize) {
             for (ExternalSplit split : splits) {
-                if (split.estimatedSizeInBytes() >= targetGroupSizeBytes) {
+                if (isStandalone(split, targetGroupSizeBytes)) {
                     groups.add(new ArrayList<>(List.of(split)));
                 } else {
                     small.add(split);
@@ -191,8 +215,11 @@ public final class SplitCoalescer {
      * When {@code bySize} is false the leaves have no known size, so the budget and byte tie-break do not apply and
      * leaves are spread purely by count.
      *
-     * <p>Precondition: {@code 1 <= groupCount <= leaves.size()}. Violating this will throw
-     * {@link IndexOutOfBoundsException} during the seed phase.
+     * <p>Precondition: {@code 1 <= groupCount <= leaves.size()}, guaranteed by {@link #floorGroups} because
+     * {@link #isStandalone} splits off exactly the groups {@link #packBySize} had already given their own bin.
+     * Violating it throws: {@code groupCount > leaves.size()} runs the seed phase off the end of the list
+     * ({@link IndexOutOfBoundsException}), and {@code groupCount < 1} with leaves left to place is rejected by the
+     * priority queue's capacity ({@link IllegalArgumentException}).
      */
     private static List<List<ExternalSplit>> spreadLeastLoaded(
         List<ExternalSplit> leaves,

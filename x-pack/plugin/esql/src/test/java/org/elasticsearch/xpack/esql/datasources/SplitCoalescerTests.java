@@ -34,12 +34,29 @@ public class SplitCoalescerTests extends ESTestCase {
 
     public void testBelowThresholdReturnsUnchanged() {
         List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD - 1);
-        assertSame(splits, SplitCoalescer.coalesce(splits));
+        assertEquals(splits, SplitCoalescer.coalesce(splits));
     }
 
     public void testExactlyAtThresholdReturnsUnchanged() {
         List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD);
-        assertSame(splits, SplitCoalescer.coalesce(splits));
+        assertEquals(splits, SplitCoalescer.coalesce(splits));
+    }
+
+    public void testCoalesceNeverReturnsTheCallersList() {
+        // Callers replace the contents of the list they passed in. Handing back that same list would make them
+        // clear the list they are copying from, silently emptying the scan, so declining to group must still
+        // produce a list of our own.
+        List<ExternalSplit> belowThreshold = makeSplits(COALESCING_THRESHOLD - 1);
+        assertNotSame(belowThreshold, SplitCoalescer.coalesce(belowThreshold));
+        List<ExternalSplit> aboveThreshold = makeSplits(COALESCING_THRESHOLD + 1);
+        assertNotSame(aboveThreshold, SplitCoalescer.coalesce(aboveThreshold));
+    }
+
+    public void testShouldCoalesceOwnsTheThresholdRule() {
+        assertFalse(SplitCoalescer.shouldCoalesce(0));
+        assertFalse(SplitCoalescer.shouldCoalesce(COALESCING_THRESHOLD - 1));
+        assertFalse(SplitCoalescer.shouldCoalesce(COALESCING_THRESHOLD));
+        assertTrue(SplitCoalescer.shouldCoalesce(COALESCING_THRESHOLD + 1));
     }
 
     public void testSizeBasedGrouping() {
@@ -333,7 +350,7 @@ public class SplitCoalescerTests extends ESTestCase {
 
     public void testBelowThresholdIgnoresMinGroups() {
         List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD - 1);
-        assertSame(splits, SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 14));
+        assertEquals(splits, SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 14));
     }
 
     public void testInvalidParamsThrowEvenBelowThreshold() {

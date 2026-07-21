@@ -35,12 +35,13 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         return new BytesRef(bytes);
     }
 
-    private static String readElem(EscfArrayColumn col, int row, int elemPos) {
-        return col.child().getBinaryValue(col.rowElemFrom(row) + elemPos).utf8ToString();
+    private static String readElem(EscfColumnData data, int row, int elemPos) {
+        int elemIdx = data.offsets()[row] + elemPos;
+        return EscfColumn.from(data.child()).getBinaryValue(elemIdx).utf8ToString();
     }
 
-    private static int elemCount(EscfArrayColumn col, int row) {
-        return col.rowElemTo(row) - col.rowElemFrom(row);
+    private static int elemCount(EscfColumnData data, int row) {
+        return data.offsets()[row + 1] - data.offsets()[row];
     }
 
     /** An empty builder (no elements) produces an all-absent array. */
@@ -50,9 +51,8 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         EscfColumnData data = builder.finish(3);
         assertEquals(EscfColumnKind.ARRAY, data.kind());
         assertEquals(3, data.docCount());
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(data);
         for (int r = 0; r < 3; r++) {
-            assertEquals("row " + r + " should be empty (absent)", 0, elemCount(col, r));
+            assertEquals("row " + r + " should be empty (absent)", 0, elemCount(data, r));
         }
     }
 
@@ -60,34 +60,31 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
     public void testSingleValueSingleDoc() {
         EscfColumnData data = buildArrayOfString(3, new int[] { 1 }, new String[] { "alpha" });
         assertEquals(EscfColumnKind.ARRAY, data.kind());
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(data);
-        assertEquals(0, elemCount(col, 0)); // absent
-        assertEquals(1, elemCount(col, 1));
-        assertEquals("alpha", readElem(col, 1, 0));
-        assertEquals(0, elemCount(col, 2)); // absent
+        assertEquals(0, elemCount(data, 0)); // absent
+        assertEquals(1, elemCount(data, 1));
+        assertEquals("alpha", readElem(data, 1, 0));
+        assertEquals(0, elemCount(data, 2)); // absent
     }
 
     /** All rows have exactly one element. */
     public void testDenseSingleValueAllDocs() {
         EscfColumnData data = buildArrayOfString(3, new int[] { 0, 1, 2 }, new String[] { "a", "b", "c" });
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(data);
-        assertEquals(1, elemCount(col, 0));
-        assertEquals("a", readElem(col, 0, 0));
-        assertEquals(1, elemCount(col, 1));
-        assertEquals("b", readElem(col, 1, 0));
-        assertEquals(1, elemCount(col, 2));
-        assertEquals("c", readElem(col, 2, 0));
+        assertEquals(1, elemCount(data, 0));
+        assertEquals("a", readElem(data, 0, 0));
+        assertEquals(1, elemCount(data, 1));
+        assertEquals("b", readElem(data, 1, 0));
+        assertEquals(1, elemCount(data, 2));
+        assertEquals("c", readElem(data, 2, 0));
     }
 
     /** Same row supplied twice → multi-value for that doc. */
     public void testMultiValueSingleDoc() {
         EscfColumnData data = buildArrayOfString(2, new int[] { 0, 0, 1 }, new String[] { "x", "y", "z" });
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(data);
-        assertEquals(2, elemCount(col, 0));
-        assertEquals("x", readElem(col, 0, 0));
-        assertEquals("y", readElem(col, 0, 1));
-        assertEquals(1, elemCount(col, 1));
-        assertEquals("z", readElem(col, 1, 0));
+        assertEquals(2, elemCount(data, 0));
+        assertEquals("x", readElem(data, 0, 0));
+        assertEquals("y", readElem(data, 0, 1));
+        assertEquals(1, elemCount(data, 1));
+        assertEquals("z", readElem(data, 1, 0));
     }
 
     /** Rows supplied out of order are tested to trigger the assertion. */
@@ -100,24 +97,22 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
     /** Trailing absent rows are filled correctly when the last row written is less than docCount - 1. */
     public void testTrailingAbsentRows() {
         EscfColumnData data = buildArrayOfString(5, new int[] { 0, 2 }, new String[] { "foo", "bar" });
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(data);
-        assertEquals(1, elemCount(col, 0));
-        assertEquals("foo", readElem(col, 0, 0));
-        assertEquals(0, elemCount(col, 1)); // absent
-        assertEquals(1, elemCount(col, 2));
-        assertEquals("bar", readElem(col, 2, 0));
-        assertEquals(0, elemCount(col, 3)); // absent
-        assertEquals(0, elemCount(col, 4)); // absent
+        assertEquals(1, elemCount(data, 0));
+        assertEquals("foo", readElem(data, 0, 0));
+        assertEquals(0, elemCount(data, 1)); // absent
+        assertEquals(1, elemCount(data, 2));
+        assertEquals("bar", readElem(data, 2, 0));
+        assertEquals(0, elemCount(data, 3)); // absent
+        assertEquals(0, elemCount(data, 4)); // absent
     }
 
     /** Leading absent rows (first element written to a non-zero doc). */
     public void testLeadingAbsentRows() {
         EscfColumnData data = buildArrayOfString(3, new int[] { 2 }, new String[] { "last" });
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(data);
-        assertEquals(0, elemCount(col, 0));
-        assertEquals(0, elemCount(col, 1));
-        assertEquals(1, elemCount(col, 2));
-        assertEquals("last", readElem(col, 2, 0));
+        assertEquals(0, elemCount(data, 0));
+        assertEquals(0, elemCount(data, 1));
+        assertEquals(1, elemCount(data, 2));
+        assertEquals("last", readElem(data, 2, 0));
     }
 
     /** docCount = 0 → empty array, no elements. */
@@ -139,14 +134,13 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         EscfColumnData rowData = buildArrayOfString(3, new int[] { 0, 1, 1, 2 }, new String[] { "a", "b", "c", "d" });
 
         // Verify element layout directly.
-        EscfArrayColumn col = (EscfArrayColumn) EscfColumn.from(rowData);
-        assertEquals(1, elemCount(col, 0));
-        assertEquals("a", readElem(col, 0, 0));
-        assertEquals(2, elemCount(col, 1));
-        assertEquals("b", readElem(col, 1, 0));
-        assertEquals("c", readElem(col, 1, 1));
-        assertEquals(1, elemCount(col, 2));
-        assertEquals("d", readElem(col, 2, 0));
+        assertEquals(1, elemCount(rowData, 0));
+        assertEquals("a", readElem(rowData, 0, 0));
+        assertEquals(2, elemCount(rowData, 1));
+        assertEquals("b", readElem(rowData, 1, 0));
+        assertEquals("c", readElem(rowData, 1, 1));
+        assertEquals(1, elemCount(rowData, 2));
+        assertEquals("d", readElem(rowData, 2, 0));
     }
 
     /** isEmpty() transitions from true to false when the first element is written. */

@@ -16,6 +16,7 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -341,7 +342,7 @@ public class EscfCursorsTests extends ESTestCase {
         // Row 0: [0x01], row 1: absent (same offsets), row 2: [0x02, 0x03]
         byte[] rawData = { 0x01, 0x02, 0x03 };
         int[] offs = { 0, 1, 1, 3 };
-        org.apache.lucene.util.FixedBitSet validity = new org.apache.lucene.util.FixedBitSet(3);
+        FixedBitSet validity = new FixedBitSet(3);
         validity.set(0); // row 0 present
         validity.set(2); // row 2 present; row 1 absent (bit clear)
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 3, validity, offs, new BytesArray(rawData));
@@ -464,9 +465,9 @@ public class EscfCursorsTests extends ESTestCase {
         return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
     }
 
-    /** Wraps an int array into an {@link org.apache.lucene.util.IntsRef} starting at offset 0. */
-    private static org.apache.lucene.util.IntsRef intsRef(int[] ints) {
-        return new org.apache.lucene.util.IntsRef(ints, 0, ints.length);
+    /** Wraps an int array into an {@link IntsRef} starting at offset 0. */
+    private static IntsRef intsRef(int[] ints) {
+        return new IntsRef(ints, 0, ints.length);
     }
 
     /** Builds a fixed-64 {@link EscfColumnData} for a long array (all dense, no absent). */
@@ -493,8 +494,8 @@ public class EscfCursorsTests extends ESTestCase {
         return new BytesArray(bytes);
     }
 
-    /** Builds a validity {@link org.apache.lucene.util.FixedBitSet} with no bits set, meaning all docs are absent. */
-    private static org.apache.lucene.util.FixedBitSet absentAll(int count) {
-        return new org.apache.lucene.util.FixedBitSet(count); // all bits clear = all absent in validity semantics
+    /** Builds a validity {@link FixedBitSet} with no bits set, meaning all docs are absent. */
+    private static FixedBitSet absentAll(int count) {
+        return new FixedBitSet(count); // all bits clear = all absent in validity semantics
     }
 }

@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 152552
-summary: Trip request breaker on big completion suggest size/shardSize
+summary: Trip request breaker on large completion suggest size/shardSize
 type: bug

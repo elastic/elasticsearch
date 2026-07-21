@@ -1175,8 +1175,10 @@ public final class IndexSettings {
         IndexMode indexMode = IndexSettings.MODE.get(settings);
         if (indexMode.isStrictColumnar()) {
             var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
-            // Only enable by default if the index version supports it
-            if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)) {
+            // BWC only: columnar indices created before the gate disabled sequence numbers for all columnar indices. From the gate this
+            // is done per index at creation, for data-stream backing indices only (see IndexMode.IndexModeSettingsProvider).
+            if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
+                && indexVersion.before(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)) {
                 return Boolean.TRUE.toString();
             }
         }

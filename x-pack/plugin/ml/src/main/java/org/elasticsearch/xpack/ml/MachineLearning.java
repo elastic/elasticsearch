@@ -843,7 +843,6 @@ public class MachineLearning extends Plugin
         true,
         Property.NodeScope
     );
-    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
 
     /**
      * Each model deployment results in one or more entries in the cluster state
@@ -891,7 +890,7 @@ public class MachineLearning extends Plugin
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         anomalyDetectionEnabled = ANOMALY_DETECTION_ENABLED.get(settings);
         dataFrameAnalyticsEnabled = DATA_FRAME_ANALYTICS_ENABLED.get(settings);
-        nlpEnabled = NLP_ENABLED.get(settings);
+        nlpEnabled = XPackSettings.NLP_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -938,7 +937,7 @@ public class MachineLearning extends Plugin
             SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
             ANOMALY_DETECTION_ENABLED,
             DATA_FRAME_ANALYTICS_ENABLED,
-            NLP_ENABLED,
+            XPackSettings.NLP_ENABLED,
             MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED
         );
     }

@@ -16,6 +16,8 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -156,6 +159,19 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postColumnarParse(BatchMappingContext context) {
-        // No-op this pass: see supportsColumnarParse.
+        final DeduplicatingStringColumnAccumulator acc = context.ignoredFieldsAccumulator();
+        if (acc == null || acc.isEmpty()) {
+            return;
+        }
+        // Strict columnar mode is always a modern index version, so only the doc-values shape of
+        // postParse applies. Guard on the same version to document that invariant.
+        assert context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+            : "columnar _ignored requires a modern index version";
+        // Drain the accumulator once, then back both Lucene fields the row path emits per ignored
+        // name (SortedSetDocValuesField + indexed StringField) with the same immutable column data:
+        // each arrayColumn call builds an independent read-only view, so sharing the data is safe.
+        final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        context.addColumn(LuceneBinaryColumn.arrayColumn(data, NAME, SortedSetDocValuesField.TYPE));
+        context.addColumn(LuceneBinaryColumn.arrayColumn(data, NAME, StringField.TYPE_NOT_STORED));
     }
 }

@@ -52,6 +52,8 @@ public final class BatchMappingContext {
     private boolean frozen;
     /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
     private DeduplicatingStringColumnAccumulator fieldNames;
+    /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
+    private DeduplicatingStringColumnAccumulator ignoredFields;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
@@ -193,6 +195,31 @@ public final class BatchMappingContext {
             fieldNames = new DeduplicatingStringColumnAccumulator(docCount);
         }
         fieldNames.record(doc, value);
+    }
+
+    /**
+     * Returns the {@code _ignored} accumulator, or {@code null} if no entry has been recorded yet.
+     * Called only by {@link IgnoredFieldMapper} during
+     * {@link IgnoredFieldMapper#postColumnarParse}.
+     */
+    DeduplicatingStringColumnAccumulator ignoredFieldsAccumulator() {
+        return ignoredFields;
+    }
+
+    /**
+     * Records that {@code field} was ignored for document {@code doc} (e.g. a keyword value that
+     * tripped {@code ignore_above}), to be emitted in {@code _ignored}. Unlike the row-major path —
+     * where {@link DocumentParserContext#addIgnoredField} is called once per value and de-duplicated
+     * through a {@link java.util.Set} — a columnar field mapper is invoked once per batch and records
+     * a single per-document decision, so each {@code (doc, field)} pair is unique. The accumulator is
+     * drained by {@link IgnoredFieldMapper#postColumnarParse}.
+     */
+    public void addIgnoredFieldColumnar(int doc, String field) {
+        assert frozen == false;
+        if (ignoredFields == null) {
+            ignoredFields = new DeduplicatingStringColumnAccumulator(docCount);
+        }
+        ignoredFields.record(doc, new BytesRef(field));
     }
 
     /** The number of documents in this chunk. */

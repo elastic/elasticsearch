@@ -132,7 +132,7 @@ If `null_value` is also defined on the field, it serves as a sentinel value for 
 
 The index-level setting `index.mapping.doc_values.nullability` will control the default for all fields in the index. It will default to `true` (null values allowed).
 
-## Multi-valued doc values note
+## Multi-valued doc values ordering
 
 Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates may be lost.
 This implementation detail of doc values is visible when features directly interact with doc values, which may be the case for example in ES|QL or aggregations in the search API. Note, that _source always returns arrays in the way that was provided at index time.

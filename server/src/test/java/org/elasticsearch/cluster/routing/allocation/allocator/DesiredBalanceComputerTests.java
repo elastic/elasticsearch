@@ -2061,6 +2061,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // sourceNodeId is null because no node in ClusterInfo holds this shard.
         DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
         verify(clusterInfoSimulator).simulateAlreadyStartedShard(relocationTuple.v1(), null);
+        // If we're relocating from any node other than the node shard 0 is on we also need to simulate the add index
+        if (shard0NodeId.equals(shard1SourceNodeId) == false) {
+            verify(clusterInfoSimulator).simulateAddIndexToNode(shard1SourceNodeId, indexRoutingTable.getIndex());
+        }
         verifyNoMoreInteractions(clusterInfoSimulator);
     }
 

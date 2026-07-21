@@ -1,6 +1,6 @@
 version: 9.3.8
-released: false
-generated: 2026-07-17T00:10:14.774763011Z
+released: true
+generated: 2026-07-21T13:36:16.468159628Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -54,7 +54,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 151968
-    summary: Upgrade OpenTelemetry in ms-graph-authz
+    summary: Upgrade opentelemetry in ms-graph-authz
     area: Authentication
     type: upgrade
     issues: []
@@ -64,12 +64,12 @@ changelogs:
     type: bug
     issues: []
   - pr: 152035
-    summary: Avoid dense run-length allocation in HyperLogLog
+    summary: Avoid dense run-len allocation in HLL
     area: ES|QL
     type: bug
     issues: []
   - pr: 152092
-    summary: "Update the commons-text library version to match commons.lang3"
+    summary: "[Inference API] Bumping commons-text library version to match commons.lang3"
     area: Inference
     type: upgrade
     issues: []
@@ -80,23 +80,23 @@ changelogs:
     issues:
       - 152066
   - pr: 152148
-    summary: Improve authorization for the simulate bulk action
+    summary: Improve simulate bulk action authz
     area: Authorization
     type: bug
     issues: []
   - pr: 152152
-    summary: Fix null pointer exception when aggregation parameter scripts return null
+    summary: Fix NPE when aggregation param scripts return null
     area: Aggregations
     type: bug
     issues:
       - 136639
   - pr: 152163
-    summary: Upgrade Jackson
+    summary: Upgrade jackson
     area: Infra/Core
     type: upgrade
     issues: []
   - pr: 152385
-    summary: Add defensive protections when parsing `query_string`
+    summary: Add more defensive protections when parsing `query_string`
     area: Search
     type: bug
     issues: []
@@ -117,7 +117,7 @@ changelogs:
     issues:
       - 97280
   - pr: 152552
-    summary: Trip request breaker on large completion suggest size/shardSize
+    summary: Trip request breaker on big completion suggest size/shardSize
     area: Search
     type: bug
     issues: []
@@ -127,7 +127,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 152773
-    summary: "Avoid out-of-memory errors by accounting for memory during the cardinality aggregation reduction phase"
+    summary: "Aggs: Avoid OOMs by accounting memory on cardinality agg reduction phase"
     area: Aggregations
     type: bug
     issues:
@@ -138,12 +138,12 @@ changelogs:
     type: bug
     issues: []
   - pr: 152851
-    summary: Implement watchdog timeout for `GROK`
+    summary: Implement watchdog timeout for GROK
     area: ES|QL
     type: enhancement
     issues: []
   - pr: 152932
-    summary: Include ingest metadata in self-reference checks
+    summary: Include ingest metadata in self reference checks
     area: Ingest Node
     type: bug
     issues: []
@@ -154,21 +154,21 @@ changelogs:
     issues:
       - 104187
   - pr: 153219
-    summary: Fix snapshot creation on CIFS shares when an access-denied exception occurs
+    summary: Fix snapshot creation on CIFS shares in case of access denied exception
     area: Snapshot/Restore
     type: bug
     issues:
       - 152053
   - pr: 153309
-    summary: "Prevent overriding `secret_parameters` in the Inference API"
+    summary: "[Inference API] Prevent overriding `secret_parameters`"
     area: Inference
     type: breaking
     issues: []
     breaking:
       area: REST API
-      title: "Prevent overriding `secret_parameters` in the Inference API"
-      details: "The Inference API incorrectly allowed users to override values within `secret_parameters` with the contents of `task_settings.parameters` during a POST request. This change prevents that behavior, ensuring that `secret_parameters` cannot be overridden."
-      impact: Users who relied on the previous behavior to override `secret_parameters` will need to create a new inference endpoint with the `secret_parameters` moved to `task_settings` or no longer rely on the ability to override the `secret_parameters` within a POST request.
+      title: "[Inference API] Prevent overriding `secret_parameters`"
+      details: "The Inference API incorrectly allowed users to override values within `secret_parameters` with the contents of `task_settings.parameters` during a POST request. This change prevents that behavior, ensuring that `secret_parameters` cannot be overridden.\""
+      impact: Users who relied on the previous behavior to override `secret_parameters` will need to create a new inference endpoint with the `secret_parameters` moved to `task_settings` or no longer rely on the ability to override the `secret_parameters` within a POST request."
       notable: false
       essSettingChange: false
   - pr: 153479
@@ -177,7 +177,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 153755
-    summary: Extend the anomaly detection results template for reindexed indices and generalize healing beyond `job_id` mapping
+    summary: Extend AD results template for reindexed indices and generalize heal beyond job_id mapping
     area: Machine Learning
     type: bug
     issues:

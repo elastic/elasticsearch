@@ -2180,17 +2180,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
     }
 
-    /**
-     * FLS analogue of the flattened-field COUNT bug (issue #154011): {@code value} is an
-     * explicitly mapped {@code double} in both {@code index} and {@code index-user1}, but
-     * FLS denies it on {@code index-user1}. The denied shard appears to have no {@code value}
-     * field, so COUNT must count only the 2 documents from {@code index}.
-     * <p>
-     * The count pushdown goes through an EXISTS Lucene query. {@code FieldSubsetReader}
-     * enforces FLS at the Lucene level so the test passes regardless of the fix in
-     * {@code EsPhysicalOperationProviders.querySupplierForField}; it is here to document the
-     * correct aggregate behavior under per-index FLS restrictions.
-     */
     public void testCountAcrossIndicesWithFlsDeniedField() throws Exception {
         Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS c = COUNT(value)");
         assertOK(resp);
@@ -2200,15 +2189,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(values.get(0).get(0), equalTo(2));
     }
 
-    /**
-     * FLS analogue of the flattened-field cast bug (issue #154484): {@code value} is FLS-denied
-     * on {@code index-user1}. With an explicit {@code ::long} cast, the blocked shard must
-     * contribute null (not its raw double values), so SUM must return 30 (10+20 from
-     * {@code index} only), not 73 (which would include the 12+31 from {@code index-user1}).
-     * <p>
-     * Like {@link #testCountAcrossIndicesWithFlsDeniedField}, {@code FieldSubsetReader}
-     * handles enforcement at the Lucene level; this test documents the expected result.
-     */
     public void testSumAcrossIndicesWithFlsDeniedFieldAndCast() throws Exception {
         Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS s = SUM(value::long)");
         assertOK(resp);

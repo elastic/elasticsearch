@@ -593,13 +593,19 @@ public class PartitionedHashAggregationOperator implements Operator {
         }
         int[] cursor = offsets.clone();
         int[] sortedPositions = new int[positions];
-        int[] sortedGroupIds = new int[positions];
         for (int i = 0; i < positions; i++) {
-            int p = partitionOf[i];
-            int groupId = partitions[p].blockHash.router().addRow(page, i, rawHash[i]);
-            int dest = cursor[p]++;
-            sortedPositions[dest] = i;
-            sortedGroupIds[dest] = groupId;
+            sortedPositions[cursor[partitionOf[i]]++] = i;
+        }
+
+        int[] sortedGroupIds = new int[positions];
+        for (int p = 0; p < partitionCount; p++) {
+            int start = offsets[p];
+            int end = offsets[p + 1];
+            BlockHash.Router router = partitions[p].blockHash.router();
+            for (int j = start; j < end; j++) {
+                int i = sortedPositions[j];
+                sortedGroupIds[j] = router.addRow(page, i, rawHash[i]);
+            }
         }
 
         BlockFactory blockFactory = driverContext.blockFactory();

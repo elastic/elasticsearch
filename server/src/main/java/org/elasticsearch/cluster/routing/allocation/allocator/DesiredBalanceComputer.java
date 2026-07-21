@@ -556,7 +556,7 @@ public class DesiredBalanceComputer {
         RoutingNodes routingNodes,
         ClusterInfoSimulator clusterInfoSimulator
     ) {
-        // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
+        // Find all shards that are started/relocating in RoutingNodes but have no data on corresponding node in ClusterInfo
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
             for (var shardRouting : routingNode) {

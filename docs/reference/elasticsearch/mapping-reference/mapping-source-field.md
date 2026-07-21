@@ -314,7 +314,7 @@ stack: preview
 serverless: preview
 ```
 
-The columnar index modes also support columnar source. By default this gets generated on the fly from doc values at query time.
+The columnar index modes use columnar source. By default this gets generated on the fly from doc values at query time.
 But this can also be stored on disk at index time by using `columnar_stored` source mode.
 The `columnar_stored` source mode can be useful for queries that fetch all or most of the fields in the index.
 

@@ -171,10 +171,12 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     /**
      * Decode the raw stored {@code _id} bytes into the user-visible id, dispatching on the field type so that callers
-     * holding only a {@link MappedFieldType} still decode with the right encoding.
+     * holding only a {@link MappedFieldType} still decode with the right encoding. The {@code _id} field type is always
+     * an {@link AbstractIdFieldType}.
      */
     public static String decodeStoredId(MappedFieldType fieldType, byte[] value) {
-        return fieldType instanceof AbstractIdFieldType idFieldType ? idFieldType.decodeStoredId(value) : Uid.decodeId(value);
+        assert fieldType instanceof AbstractIdFieldType : "expected the [" + NAME + "] field type but got [" + fieldType + "]";
+        return ((AbstractIdFieldType) fieldType).decodeStoredId(value);
     }
 
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {

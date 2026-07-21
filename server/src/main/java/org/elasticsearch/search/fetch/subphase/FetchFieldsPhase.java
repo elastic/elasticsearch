@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -61,6 +62,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         // We need to retain `_id` and `_source` here to correctly populate the `StoredFieldSpecs` created by the
         // `FieldFetcher` constructor.
         final SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
+        // A slice-enabled index stores the slice as the routing value; surface it to users as _slice instead of _routing.
+        final boolean sliceEnabled = searchExecutionContext.getIndexSettings().isSliceEnabled();
         final FieldFetcher fieldFetcher = (fetchFieldsContext == null
             || fetchFieldsContext.fields() == null
             || fetchFieldsContext.fields().isEmpty())
@@ -149,6 +152,13 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     ? fieldFetcher.fetch(hitContext.source(), hitContext.docId())
                     : Collections.emptyMap();
                 final Map<String, DocumentField> metadataFields = metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                if (sliceEnabled) {
+                    // Re-key the internal routing value as _slice so a slice-enabled index never exposes _routing.
+                    DocumentField routing = metadataFields.remove(RoutingFieldMapper.NAME);
+                    if (routing != null) {
+                        metadataFields.put(SliceIndexing.PARAM_NAME, new DocumentField(SliceIndexing.PARAM_NAME, routing.getValues()));
+                    }
+                }
                 hitContext.hit().addDocumentFields(fields, metadataFields);
             }
         };

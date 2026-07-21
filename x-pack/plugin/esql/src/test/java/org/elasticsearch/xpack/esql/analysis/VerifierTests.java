@@ -3561,7 +3561,7 @@ public class VerifierTests extends ESTestCase {
         sampleData().error(
             "from test | stats max(event_duration) by tbucket()",
             ParsingException.class,
-            equalTo("1:42: error building [tbucket]: expects one, two or three arguments")
+            equalTo("1:42: error building [tbucket]: expects between one and four arguments")
         );
         sampleData().error(
             "from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)",

@@ -552,6 +552,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             gcdInterval,
             null,
             null,
+            userBucket.options(),
             userBucket.configuration(),
             userBucket.offset(),
             userBucket.roundingConfiguration()

@@ -12,7 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator.DefaultValue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -116,6 +118,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -417,7 +420,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
-            if (pt.getRawType() == LinkedHashMap.class) {
+            if (pt.getRawType() == LinkedHashMap.class || pt.getRawType() == SequencedMap.class) {
                 return makeOrderedMap(toBuildClass, pt);
             }
             if (pt.getRawType() == Map.class) {
@@ -523,6 +526,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
+        } else if (argClass == DefaultValue.class) {
+            // DefaultValue is a record, cannot be mocked.
+            ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
+            Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
+            return new DefaultValue(type, value);
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();

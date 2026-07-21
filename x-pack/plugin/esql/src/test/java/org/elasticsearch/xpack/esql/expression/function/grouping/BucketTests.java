@@ -692,7 +692,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
+        return new Bucket(source, args.get(0), args.get(1), from, to, null, configuration);
     }
 
     /**

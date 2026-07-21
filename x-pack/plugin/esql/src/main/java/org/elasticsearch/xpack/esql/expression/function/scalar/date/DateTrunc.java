@@ -321,6 +321,6 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(source(), field(), interval(), null, null, configuration());
+        return new Bucket(source(), field(), interval(), null, null, null, configuration());
     }
 }

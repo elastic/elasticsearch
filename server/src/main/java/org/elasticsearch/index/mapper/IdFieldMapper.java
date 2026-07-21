@@ -139,7 +139,8 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     /**
      * The identity term to copy onto nested child documents so that a soft-delete of the root by uid removes the whole
-     * block. Returns {@code null} when the id is not yet known during parsing (e.g. TSDB derives it in {@link #postParse}).
+     * block. Returns {@code null} to leave nested propagation to the mapper's {@link #postParse}, as mappers that only
+     * derive the id there override this to do.
      */
     @Nullable
     BytesRef nestedIdentityTerm(DocumentParserContext context) {

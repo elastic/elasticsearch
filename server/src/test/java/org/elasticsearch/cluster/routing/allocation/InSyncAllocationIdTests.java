@@ -15,9 +15,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
+import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor.Task;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -45,12 +45,12 @@ import static org.hamcrest.Matchers.hasItem;
 public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
     private AllocationService allocation;
-    private ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor;
+    private ShardFailedTaskExecutor failedClusterStateTaskExecutor;
 
     @Before
     public void setupAllocationService() {
         allocation = createAllocationService();
-        failedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null);
+        failedClusterStateTaskExecutor = new ShardFailedTaskExecutor(allocation, null);
     }
 
     public void testInSyncAllocationIdsUpdated() {
@@ -166,14 +166,13 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("fail replica (for which there is no shard routing in the CS anymore)");
         assertNull(clusterState.getRoutingNodes().getByAllocationId(replicaShard.shardId(), replicaShard.allocationId().getId()));
-        ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor =
-            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null);
+        ShardFailedTaskExecutor failedClusterStateTaskExecutor = new ShardFailedTaskExecutor(allocation, null);
         long primaryTerm = clusterState.metadata().getProject().index("test").primaryTerm(0);
         clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             failedClusterStateTaskExecutor,
             List.of(
-                new FailedShardUpdateTask(
+                new Task(
                     new FailedShardEntry(
                         shardRoutingTable.shardId(),
                         replicaShard.allocationId().getId(),
@@ -206,15 +205,15 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         long primaryTerm = clusterState.metadata().getProject().index("test").primaryTerm(0);
 
-        List<FailedShardUpdateTask> failureEntries = new ArrayList<>();
+        List<Task> failureEntries = new ArrayList<>();
         failureEntries.add(
-            new FailedShardUpdateTask(
+            new Task(
                 new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
                 createTestListener()
             )
         );
         failureEntries.add(
-            new FailedShardUpdateTask(
+            new Task(
                 new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true),
                 createTestListener()
             )
@@ -374,7 +373,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState,
             failedClusterStateTaskExecutor,
             List.of(
-                new FailedShardUpdateTask(
+                new Task(
                     new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
                     createTestListener()
                 )

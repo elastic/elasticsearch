@@ -19,6 +19,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
 
 import java.util.List;
 import java.util.Map;
@@ -35,10 +36,9 @@ public class GcsStorageProviderTests extends ESTestCase {
 
     private final Storage mockStorage = mock(Storage.class);
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void resetWorkloadIdentityRegistry() throws Exception {
         WorkloadIdentityRegistry.reset();
-        super.tearDown();
     }
 
     public void testFederatedAuthFailsWhenWorkloadIdentityDisabled() {

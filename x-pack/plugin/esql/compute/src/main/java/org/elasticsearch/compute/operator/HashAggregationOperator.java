@@ -166,6 +166,9 @@ public class HashAggregationOperator implements Operator {
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
 
+    // TODO: Push down LIMIT only
+    public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
+
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
      * and {@link #aggregators(List)} are required. The other parameters default to reasonable values
@@ -180,6 +183,7 @@ public class HashAggregationOperator implements Operator {
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
+        private TopAggregation topAggregation;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
             this.groups = groups;
@@ -217,6 +221,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder topAggregation(TopAggregation topAggregation) {
+            this.topAggregation = topAggregation;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -231,6 +240,7 @@ public class HashAggregationOperator implements Operator {
         private final int maxPageSize;
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
+        private final TopAggregation topAggregation;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -241,6 +251,7 @@ public class HashAggregationOperator implements Operator {
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
+            this.topAggregation = builder.topAggregation;
         }
 
         @Override
@@ -262,6 +273,7 @@ public class HashAggregationOperator implements Operator {
                     Integer.MAX_VALUE, // disable partial emit for CATEGORIZE. it doesn't support it.
                     1.0,
                     Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
+                    topAggregation,
                     driverContext
                 );
             }
@@ -272,6 +284,7 @@ public class HashAggregationOperator implements Operator {
                 partialEmitKeysThreshold,
                 partialEmitUniquenessThreshold,
                 maxPageSize,
+                topAggregation,
                 driverContext
             );
         }
@@ -337,6 +350,8 @@ public class HashAggregationOperator implements Operator {
 
     protected long emitCount;
 
+    private final TopAggregation topAggregation;
+
     protected long rowsAddedInCurrentBatch;
 
     /**
@@ -351,6 +366,7 @@ public class HashAggregationOperator implements Operator {
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
         int maxPageSize,
+        TopAggregation topAggregation,
         DriverContext driverContext
     ) {
         if (partialEmitKeysThreshold <= 0) {
@@ -364,6 +380,7 @@ public class HashAggregationOperator implements Operator {
         this.aggregatorFactories = aggregatorFactories;
         this.blockHashSupplier = blockHashSupplier;
         this.aggregators = new ArrayList<>();
+        this.topAggregation = topAggregation;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.get();
@@ -852,7 +869,18 @@ public class HashAggregationOperator implements Operator {
             List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
             boolean success = false;
             try {
-                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
+                final IntVector keys;
+                if (aggregatorMode.isOutputPartial() == false && topAggregation != null) {
+                    // push down TopN by selecting a subset of keys
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = aggregators.get(topAggregation.aggregatorIndex())
+                            .aggregatorFunction()
+                            .selectTopN(allKeys, topAggregation.limit(), topAggregation.asc());
+                    }
+                } else {
+                    keys = blockHash.nonEmpty();
+                }
+                selected = new Selected(keys, new IntVector[count]);
                 for (int a = 0; a < count; a++) {
                     selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
                     preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));

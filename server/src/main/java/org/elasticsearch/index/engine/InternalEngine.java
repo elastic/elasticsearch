@@ -996,6 +996,7 @@ public class InternalEngine extends Engine {
                 if (get.isReadFromTranslog()) {
                     if (versionValue.getLocation() != null) {
                         try {
+                            // Translog.Location will contain a non-negative rowIndex when reading from a batch
                             final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                             if (operation != null) {
                                 return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
@@ -1631,15 +1632,21 @@ public class InternalEngine extends Engine {
                 }
 
                 if (plan.indexIntoLucene && isSuccess) {
-                    // Store a null translog location: the result's location points at a Translog.IndexBatch record,
-                    // which Translog.readOperation(Location) cannot read as a single operation (it throws on BATCH).
-                    // A null location forces realtime GET to fall back to a refresh + Lucene read for batched docs.
-                    // TODO: record a row index alongside the batch location to support realtime GET from the batch.
-                    // final Translog.Location translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
+                    final Translog.Location location = (trackTranslogLocation.get() && batchLocation != null)
+                        ? new Translog.Location(
+                            batchLocation.generation(),
+                            batchLocation.translogLocation(),
+                            batchLocation.size(),
+                            // same rowIndex recorded in Translog.IndexBatch.IndexOp for this document in the write loop above
+                            // because batch data retains every row
+                            i
+                        )
+                        : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
-                        new IndexVersionValue(null, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        new IndexVersionValue(location, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
                     );
+
                 }
                 // TODO: Batch Optimize the processed seqNo
                 localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
@@ -3352,7 +3359,7 @@ public class InternalEngine extends Engine {
             // to enable it.
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
-        iwc.setMergePolicy(mergePolicy);
+        iwc.setMergePolicy(wrapMergePolicy(mergePolicy));
         // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -3385,6 +3392,15 @@ public class InternalEngine extends Engine {
             iwc.setLeafSorter(engineConfig.getLeafSorter());
         }
         return iwc;
+    }
+
+    /**
+     * Allows subclasses to wrap the {@link MergePolicy} before it is installed on the writer. It is applied last, so the
+     * returned policy is the outermost one and the {@code OneMerge}s it produces are the instances the {@link IndexWriter}
+     * actually executes. The default implementation returns the policy unchanged.
+     */
+    protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
+        return mergePolicy;
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */

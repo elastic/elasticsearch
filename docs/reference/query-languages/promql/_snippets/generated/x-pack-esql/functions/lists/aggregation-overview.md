@@ -24,3 +24,6 @@
 * [`sum`](/reference/query-languages/promql/functions/aggregation.md#promql-fn-sum) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/sum.md
   :::
+* [`topk`](/reference/query-languages/promql/functions/aggregation.md#promql-fn-topk) {applies_to}`stack: ga 9.5`
+  :::{include} ../brief-summary/topk.md
+  :::

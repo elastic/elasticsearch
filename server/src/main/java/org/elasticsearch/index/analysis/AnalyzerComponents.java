@@ -28,7 +28,6 @@ public final class AnalyzerComponents {
     private final AnalysisMode analysisMode;
 
     public AnalyzerComponents(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
-
         this.tokenizerFactory = tokenizerFactory;
         this.charFilters = charFilters;
         this.tokenFilters = tokenFilters;

@@ -101,6 +101,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -261,6 +263,19 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
             return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
+        }
+    }
+
+    private static EscfBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            assert op.parsedDoc().getXContentType() == xContentType
+                : "batch ops must share one XContentType, got [" + xContentType + "] and [" + op.parsedDoc().getXContentType() + "]";
+            sources.add(op.source().originalBytes());
+        }
+        try (EscfBatch batch = EscfEncoder.encode(sources, xContentType)) {
+            return EscfBatch.parse(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
         }
     }
 
@@ -8438,6 +8453,125 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results.get(1).getSeqNo(), equalTo(checkpointBefore + 1));
         // processed checkpoint advances by exactly one (the one real op)
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
+    }
+
+    public void testBatchIndexRecordsRowIndex() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        try (
+            Engine.GetResult random = engine.get(
+                new Engine.Get(true, true, "1"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(random.exists());
+        }
+
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < 3; ++i) {
+            var doc = createParsedDoc(Integer.toString(i), null);
+            // i = 1 will result in failure since we already indexed it
+            ops.add(new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
+        }
+        final List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+        assertEquals(Engine.Result.Type.SUCCESS, results.get(0).getResultType());
+        assertEquals(Engine.Result.Type.FAILURE, results.get(1).getResultType());
+        assertThat(results.get(1).getFailure(), instanceOf(VersionConflictEngineException.class));
+        assertEquals(Engine.Result.Type.SUCCESS, results.get(2).getResultType());
+
+        final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
+        final Translog.Location loc0 = versionMap.get(ops.get(0).uid()).getLocation();
+        final Translog.Location loc2 = versionMap.get(ops.get(2).uid()).getLocation();
+
+        assertNotNull("0 must have a tracked batch-row location", loc0);
+        assertTrue(loc0.isBatchRow());
+        assertEquals(0, loc0.batchRowIndex());
+
+        assertNotNull("2 must have a tracked batch-row location", loc2);
+        assertTrue(loc2.isBatchRow());
+        assertEquals(2, loc2.batchRowIndex());   // crucially 2, not 1 — the failed row is not compacted
+
+        // Both point at the same physical batch record (same generation + offset), differing only by row.
+        assertEquals(loc0.generation(), loc2.generation());
+        assertEquals(loc0.translogLocation(), loc2.translogLocation());
+        assertNotEquals(loc0, loc2);
+    }
+
+    public void testSingleIndexRecordsNoBatchRow() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+        engine.index(indexForDoc(createParsedDoc("random", null)));
+        try (
+            Engine.GetResult res = engine.get(
+                new Engine.Get(true, true, "random"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(res.exists());
+        }
+
+        // A single-document index (engine.index, NOT a batch) records a whole-record location:
+        // batchRowIndex == -1, i.e. not a batch row
+        final Engine.Index op = indexForDoc(createParsedDoc("single", null));
+        engine.index(op);
+
+        final Translog.Location loc = engine.getVersionMap().get(op.uid()).getLocation();
+        assertNotNull("single-doc index must have a tracked translog location", loc);
+        assertFalse("single-doc location must not be a batch row", loc.isBatchRow());
+        assertEquals(-1, loc.batchRowIndex());
+    }
+
+    public void testRealtimeGetServesBatchedDoc() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+
+        engine.index(indexForDoc(createParsedDoc("random", null)));
+        try (
+            Engine.GetResult res = engine.get(
+                new Engine.Get(true, true, "random"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(res.exists());
+        }
+
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            ops.add(indexForDoc(createParsedDoc("doc-" + i, null)));
+        }
+        engine.indexBatch(ops, encodeAsEscfBatch(ops));
+
+        // A realtime GET on a batched doc is served straight from the translog batch row.
+        final long refreshedCheckpointBefore = engine.lastRefreshedCheckpoint();
+        final long translogGetsBefore = engine.translogGetCount.get();
+        try (
+            Engine.GetResult get = engine.get(
+                new Engine.Get(true, true, "doc-1"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue("doc-1 must be found", get.exists());
+            assertNotNull(get.docIdAndVersion());
+        }
+        assertEquals("served from the translog batch row", translogGetsBefore + 1, engine.translogGetCount.get());
+        assertEquals("no refresh should have been triggered", refreshedCheckpointBefore, engine.lastRefreshedCheckpoint());
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

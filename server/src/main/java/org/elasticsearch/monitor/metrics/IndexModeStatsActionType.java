@@ -175,7 +175,10 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-            return new NodeResponse(clusterService.localNode(), IndicesMetrics.getStatsWithoutCache(indicesService, IndexMode.availableModes()));
+            return new NodeResponse(
+                clusterService.localNode(),
+                IndicesMetrics.getStatsWithoutCache(indicesService, IndexMode.availableModes())
+            );
         }
     }
 }

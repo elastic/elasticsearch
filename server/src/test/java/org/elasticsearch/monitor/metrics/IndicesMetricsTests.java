@@ -43,9 +43,7 @@ public class IndicesMetricsTests extends ESTestCase {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.iterator()).thenAnswer(inv -> List.of(indexService).iterator());
 
-        final IndexMode[] subset = Arrays.stream(IndexMode.values())
-            .filter(m -> m != IndexMode.STANDARD)
-            .toArray(IndexMode[]::new);
+        final IndexMode[] subset = Arrays.stream(IndexMode.values()).filter(m -> m != IndexMode.STANDARD).toArray(IndexMode[]::new);
 
         final Map<IndexMode, IndexStats> result = IndicesMetrics.getStatsWithoutCache(indicesService, subset);
 

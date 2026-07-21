@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 153980
+pr: 154155
+summary: "[Inference API] Fix SSE parsing across network read boundaries"
+type: bug

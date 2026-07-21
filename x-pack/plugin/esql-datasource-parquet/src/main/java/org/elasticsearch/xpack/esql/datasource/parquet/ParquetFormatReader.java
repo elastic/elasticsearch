@@ -1732,10 +1732,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // metadata and emit row-count-only pages instead of building a column iterator over
             // the entire file schema. Skipped when any predicate path is active (record filter,
             // FilterPredicate, or {@link ParquetPushedExpressions}) so we keep the row-group
-            // pruning and YES-conjunct re-evaluation the column iterator performs - in those
-            // cases the leak is plugged at the consumer side by
-            // {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator} releasing
-            // any surplus blocks the legacy "empty projection -> full schema" fallback emits.
+            // pruning and YES-conjunct re-evaluation the column iterator performs - the legacy
+            // "empty projection -> full schema" fallback then over-projects. Those surplus blocks
+            // are not leaked: a virtual-column wrap that narrows the page releases them
+            // ({@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator}), and when
+            // no wrap is needed (a zero-output read such as a bare COUNT(*)) the page is forwarded
+            // whole, so every block stays owned by its page and is released downstream with it.
             if (projectedColumns != null
                 && projectedColumns.isEmpty()
                 && filterPredicate == null

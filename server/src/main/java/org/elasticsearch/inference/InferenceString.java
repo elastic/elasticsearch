@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -31,12 +32,22 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
+ * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64.
+ * <p>
+ * An instance always carries at least one of {@code value} or {@code description}. {@code value} may only be {@code null} when a
+ * {@code description} is present, in which case the description stands in for the (unretained) data. Descriptions may only be set for
+ * non-text inputs, so text inputs always have a non-null {@code value}.
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public record InferenceString(DataType dataType, DataFormat dataFormat, @Nullable String value, @Nullable String description)
+    implements
+        Writeable,
+        ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
     );
+    public static final TransportVersion INFERENCE_FIELD_METADATA_RETAIN_BINARY = TransportVersion.fromName(
+        "inference_field_metadata_retain_binary"
+    ); // TODO: Use separate transport version for this change
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
     static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
@@ -48,15 +59,17 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
     public static final String VALUE_FIELD = "value";
+    public static final String DESCRIPTION_FIELD = "description";
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
+        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2], (String) args[3])
     );
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
-        PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(VALUE_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(DESCRIPTION_FIELD));
     }
 
     /**
@@ -78,35 +91,51 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     /**
-     * Constructs an {@link InferenceString} with the given value, {@link DataType} and {@link DataFormat}
+     * Constructs an {@link InferenceString} with the given value, {@link DataType} and {@link DataFormat}, and no description
      *
      * @param dataType   the type of data that the String represents
      * @param dataFormat the format of the data. If {@code null}, the default data format for the given type is used
      * @param value      the String value
      */
     public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value) {
-        this.dataType = Objects.requireNonNull(dataType);
-        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
-        validateTypeAndFormat();
-        this.value = Objects.requireNonNull(value);
-        validateDataURIFormat();
+        this(dataType, dataFormat, value, null);
     }
 
-    private void validateTypeAndFormat() {
-        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
+    /**
+     * Constructs an {@link InferenceString} with the given value, {@link DataType}, {@link DataFormat} and description
+     *
+     * @param dataType    the type of data that the String represents
+     * @param dataFormat  the format of the data. If {@code null}, the default data format for the given type is used
+     * @param value       the String value. May only be {@code null} when a {@code description} is present
+     * @param description an optional human-readable description of the data. May only be set for non-text inputs
+     */
+    public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, @Nullable String value, @Nullable String description) {
+        this.dataType = Objects.requireNonNull(dataType);
+        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
+        validateTypeAndFormat(this.dataType, this.dataFormat);
+        this.value = value;
+        validateDataURIFormat();
+        this.description = description;
+        validateDescription();
+        validateValueAndDescription();
+    }
+
+    private void validateValueAndDescription() {
+        if (value == null && description == null) {
+            throw new IllegalArgumentException("An InferenceString must have a value or a description");
+        }
+    }
+
+    private void validateDescription() {
+        if (description != null && isText()) {
             throw new IllegalArgumentException(
-                Strings.format(
-                    "Data type [%s] does not support data format [%s], supported formats are %s",
-                    dataType,
-                    dataFormat,
-                    dataType.getSupportedFormats()
-                )
+                Strings.format("Data type [%s] does not support a description, descriptions may only be set for non-text inputs", dataType)
             );
         }
     }
 
     private void validateDataURIFormat() {
-        if (dataFormat == DataFormat.BASE64) {
+        if (dataFormat == DataFormat.BASE64 && value != null) {
             var endOfURIPart = value.indexOf(',');
             // Fast-fail on missing or oversized URI part before the regex.
             if (endOfURIPart < 0
@@ -120,7 +149,12 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     public InferenceString(StreamInput in) throws IOException {
-        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
+        this(
+            in.readEnum(DataType.class),
+            in.readEnum(DataFormat.class),
+            in.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) ? in.readOptionalString() : in.readString(),
+            in.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) ? in.readOptionalString() : null
+        );
     }
 
     public boolean isText() {
@@ -202,9 +236,24 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                 RestStatus.BAD_REQUEST
             );
         }
+        if (out.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY) == false && description != null) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with a description to an older node. "
+                    + "Please wait until all nodes are upgraded before using descriptions",
+                RestStatus.BAD_REQUEST
+            );
+        }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
-        out.writeString(value);
+        if (out.getTransportVersion().supports(INFERENCE_FIELD_METADATA_RETAIN_BINARY)) {
+            out.writeOptionalString(value);
+            out.writeOptionalString(description);
+        } else {
+            // A null value is only possible when a description is present, and the description guard above already threw in that case, so
+            // value is guaranteed non-null on this path.
+            assert value != null : "value must be non-null when serializing without description support";
+            out.writeString(value);
+        }
     }
 
     @Override
@@ -212,8 +261,62 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         builder.startObject();
         builder.field(TYPE_FIELD, dataType);
         builder.field(FORMAT_FIELD, dataFormat);
-        builder.field(VALUE_FIELD, value);
+        if (value != null) {
+            builder.field(VALUE_FIELD, value);
+        }
+        if (description != null) {
+            builder.field(DESCRIPTION_FIELD, description);
+        }
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Resolves the {@link DataFormat} of an {@link InferenceString} from its {@link Map} representation, inspecting only the fields
+     * strictly required to determine the format: {@link #TYPE_FIELD} (required) and {@link #FORMAT_FIELD} (optional).
+     * <p>
+     * This is a lightweight alternative to fully parsing the map into an {@link InferenceString} for callers that only need the format.
+     * Fields unrelated to the format (e.g. {@link #VALUE_FIELD} and {@link #DESCRIPTION_FIELD}) are neither read nor validated, so a map
+     * that yields a valid format here may still be rejected when fully parsed.
+     *
+     * @param map the map representation of an {@link InferenceString}
+     * @return the resolved {@link DataFormat}, defaulting to the type's default format when {@link #FORMAT_FIELD} is absent
+     * @throws IllegalArgumentException if the type/format fields are missing, of the wrong type, or represent an invalid combination
+     */
+    public static DataFormat parseFormat(Map<String, Object> map) {
+        Object typeValue = map.get(TYPE_FIELD);
+        if (typeValue == null) {
+            throw new IllegalArgumentException(Strings.format("Required field [%s] is missing", TYPE_FIELD));
+        }
+        if (typeValue instanceof String == false) {
+            throw new IllegalArgumentException(Strings.format("Field [%s] must be a String", TYPE_FIELD));
+        }
+        DataType dataType = DataType.fromString((String) typeValue);
+
+        DataFormat dataFormat;
+        Object formatValue = map.get(FORMAT_FIELD);
+        if (formatValue == null) {
+            dataFormat = dataType.getDefaultFormat();
+        } else if (formatValue instanceof String formatString) {
+            dataFormat = DataFormat.fromString(formatString);
+        } else {
+            throw new IllegalArgumentException(Strings.format("Field [%s] must be a String", FORMAT_FIELD));
+        }
+
+        validateTypeAndFormat(dataType, dataFormat);
+        return dataFormat;
+    }
+
+    private static void validateTypeAndFormat(DataType dataType, DataFormat dataFormat) {
+        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Data type [%s] does not support data format [%s], supported formats are %s",
+                    dataType,
+                    dataFormat,
+                    dataType.getSupportedFormats()
+                )
+            );
+        }
     }
 }

@@ -68,6 +68,13 @@ final class SemanticOriginalValueEncoder {
     }
 
     private static BytesRef encodeBinary(InferenceString value) {
+        if (value.value() == null) {
+            throw new UnsupportedOperationException(
+                "Cannot encode an InferenceString of type ["
+                    + value.dataType()
+                    + "] with no value; description-only InferenceStrings are not yet supported"
+            );
+        }
         // Data URI: data:<media-type>;base64,<data> (the header is split at the comma, as InferenceString validates it). The data type
         // is stored, the header is kept verbatim (it holds the media type), and the base64 data is stored decoded to keep it compact.
         final String dataUri = value.value();

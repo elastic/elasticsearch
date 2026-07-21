@@ -81,6 +81,7 @@ public record SemanticTextField(
     static final String CHUNKED_INPUT_INDEX_FIELD = "input_index";
     public static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+    public static final String RETAIN_BINARY_FIELD = "retain_binary";
 
     public record InferenceResult(
         String inferenceId,

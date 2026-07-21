@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.LambdaEvaluator;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 
 /**
  * Returns {@code true} if any element of a multi-value field satisfies the given lambda predicate.
- * This is a snapshot-only stub; the evaluator is not yet implemented.
+ * Snapshot-only while the lambda feature is under development.
  */
 public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "AnyMatch", AnyMatch::new);
@@ -123,7 +125,28 @@ public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        throw new UnsupportedOperationException("any_match evaluator not yet implemented");
+        EvaluatorMapper.LambdaBody lambdaBody = toEvaluator.lambdaBody(lambda());
+        return new AnyMatchEvaluator.Factory(toEvaluator.apply(field), lambdaBody.bodyFactory(), lambdaBody.outerChannels());
+    }
+
+    /**
+     * Combines the lambda's per-element results for one input position: {@code true} if any value
+     * the lambda produced for any element is {@code true}; null lambda results count as no match.
+     * Cf. the {@link LambdaEvaluator} contract for the meaning of {@code [start, end)}.
+     */
+    @LambdaEvaluator
+    static void process(BooleanBlock.Builder builder, BooleanBlock body, int start, int end) {
+        for (int i = start; i < end; i++) {
+            int first = body.getFirstValueIndex(i);
+            int end2 = first + body.getValueCount(i);
+            for (int v = first; v < end2; v++) {
+                if (body.getBoolean(v)) {
+                    builder.appendBoolean(true);
+                    return;
+                }
+            }
+        }
+        builder.appendBoolean(false);
     }
 
     @Override

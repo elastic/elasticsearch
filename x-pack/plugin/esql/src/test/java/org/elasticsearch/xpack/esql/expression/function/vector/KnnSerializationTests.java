@@ -24,8 +24,9 @@ public class KnnSerializationTests extends AbstractExpressionSerializationTests<
         Expression field = randomChild();
         Expression query = randomChild();
         Expression options = randomOptions();
+        Integer implicitK = randomIntBetween(10, 100);
         List<Expression> filterExpressions = randomList(0, 3, AbstractExpressionSerializationTests::randomChild);
-        return new Knn(source, field, query, options, null, null, filterExpressions);
+        return new Knn(source, field, query, options, implicitK, null, filterExpressions);
     }
 
     @Override
@@ -34,8 +35,9 @@ public class KnnSerializationTests extends AbstractExpressionSerializationTests<
         Expression field = instance.field();
         Expression query = instance.query();
         Expression options = instance.options();
+        Integer implicitK = instance.implicitK();
         List<Expression> filterExpressions = instance.filterExpressions();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> query = randomValueOtherThan(query, AbstractExpressionSerializationTests::randomChild);
             case 2 -> options = randomValueOtherThan(options, () -> randomBoolean() ? null : randomOptions());
@@ -43,8 +45,9 @@ public class KnnSerializationTests extends AbstractExpressionSerializationTests<
                 filterExpressions,
                 () -> randomList(0, 3, AbstractExpressionSerializationTests::randomChild)
             );
+            case 4 -> implicitK = randomValueOtherThan(instance.implicitK(), () -> randomIntBetween(10, 100));
         }
-        return new Knn(source, field, query, options, null, null, filterExpressions);
+        return new Knn(source, field, query, options, implicitK, null, filterExpressions);
     }
 
     private Expression randomOptions() {

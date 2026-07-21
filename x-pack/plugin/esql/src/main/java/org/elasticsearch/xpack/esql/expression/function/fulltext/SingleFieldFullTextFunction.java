@@ -59,9 +59,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         PostOptimizationPlanVerificationAware {
 
     protected final Expression field;
-
-    // Options for the function. They don't need to be serialized as the data nodes will retrieve them from the query builder
-    private final transient Expression options;
+    private final Expression options;
 
     protected SingleFieldFullTextFunction(
         Source source,

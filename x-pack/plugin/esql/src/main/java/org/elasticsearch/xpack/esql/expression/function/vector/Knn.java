@@ -68,8 +68,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternary(Knn::new).name("knn");
 
-    // Implicit k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
-    private final transient Integer implicitK;
+    private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
 
@@ -334,7 +333,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
             ? in.readOptionalNamedWriteable(Expression.class)
             : null;
-        return new Knn(source, field, query, options, null, queryBuilder, filterExpressions);
+        Integer implicitK = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS) ? in.readOptionalInt() : null;
+        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions);
     }
 
     @Override
@@ -347,6 +347,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
         if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
             out.writeOptionalNamedWriteable(options());
+            out.writeOptionalInt(implicitK());
         }
     }
 

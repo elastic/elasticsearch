@@ -167,7 +167,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
                 final long priorGen = lastUploadedGeneration(commitService, shardId);
                 indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
                 flush(indexName);
-                awaitSearchNodeCommit(indexName, priorGen);
+                awaitSearchNodeCommit(indexName, priorGen + 1);
             }
 
             final var capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
@@ -367,13 +367,13 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     private void refreshAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) {
         final long priorGen = lastUploadedGeneration(commitService, shardId);
         refresh(indexName);
-        awaitSearchNodeCommit(indexName, priorGen);
+        awaitSearchNodeCommit(indexName, priorGen + 1);
     }
 
     private void flushAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) {
         final long priorGen = lastUploadedGeneration(commitService, shardId);
         flush(indexName);
-        awaitSearchNodeCommit(indexName, priorGen);
+        awaitSearchNodeCommit(indexName, priorGen + 1);
     }
 
     private static long lastUploadedGeneration(final StatelessCommitService commitService, final ShardId shardId) {
@@ -385,7 +385,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         final var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
         final var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         final var listener = new SubscribableListener<Long>();
-        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, gen + 1, listener);
+        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, gen, listener);
         safeAwait(listener);
     }
 

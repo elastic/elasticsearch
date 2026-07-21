@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -119,11 +120,21 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     af -> transformAggregateFunction(af, expToAttribute, evals, counter, aggsChanged)
                 );
                 // replace any evaluatable grouping functions with their references pointing to the added synthetic eval
-                replaced = replaced.transformDown(GroupingFunction.EvaluatableGroupingFunction.class, gf -> {
-                    aggsChanged.set(true);
-                    // should never return null, as it's verified.
-                    // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
-                    return groupingAttributes.get(gf);
+                replaced = replaced.transformDownSkipBranch((expr, skipBranch) -> {
+                    // TODO: Remove `WindowFilter` because it's a workaround for supporting windows narrower than bucket;
+                    // not meant to be replaced by `Eval`.
+                    if (expr instanceof WindowFilter) {
+                        skipBranch.set(true);
+                        return expr;
+                    }
+                    if (expr instanceof GroupingFunction.EvaluatableGroupingFunction gf) {
+                        aggsChanged.set(true);
+                        // should never return null, as it's verified.
+                        // but even if broken, the transform will fail safely;
+                        // otoh, returning `gf` will fail later due to incorrect plan.
+                        return groupingAttributes.get(gf);
+                    }
+                    return expr;
                 });
 
                 return as.replaceChild(replaced);

@@ -1295,19 +1295,23 @@ required_capability: subquery_with_row
 // Analog of `subqueryInFrom` — replaces the FROM-sample_data subquery with a
 // ROW that synthesises a single (emp_no, languages) tuple. The main filter
 // keeps three rows from employees plus the ROW row.
+// tag::row_subquery[]
 FROM
     employees,
     (ROW emp_no = 99999, languages = 99)
 | WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
 | SORT emp_no
 | KEEP emp_no, languages
+// end::row_subquery[]
 ;
 
+// tag::row_subquery-result[]
 emp_no:integer | languages:integer
 10091          | 3
 10092          | 1
 10093          | 3
 99999          | 99
+// end::row_subquery-result[]
 ;
 
 
@@ -1354,18 +1358,22 @@ required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 
 // Three ROW subqueries with no main index pattern.
+// tag::row_subquery_only[]
 FROM
     (ROW emp_no = 1, languages = 5),
     (ROW emp_no = 2, languages = 10),
     (ROW emp_no = 3, languages = 15)
 | SORT emp_no
 | KEEP emp_no, languages
+// end::row_subquery_only[]
 ;
 
+// tag::row_subquery_only-result[]
 emp_no:integer | languages:integer
 1              | 5
 2              | 10
 3              | 15
+// end::row_subquery_only-result[]
 ;
 
 

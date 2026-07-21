@@ -236,6 +236,10 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     String[] ignoredIndexSettings() {
         ArrayList<String> ignoredSettings = new ArrayList<>();
         ignoredSettings.add(LifecycleSettings.LIFECYCLE_NAME);
+        // Prevent the force-merge clone marker from propagating to the mounted searchable snapshot index.
+        // A mounted index that carries this marker could otherwise be deleted by IlmForceMergeCloneCleanupService
+        // if the action is interrupted after mounting but before the marker-bearing source is cleaned up.
+        ignoredSettings.add(LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID);
         // if we are mounting a searchable snapshot in the hot phase, then we should not change the total_shards_per_node setting
         // if total_shards_per_node setting is specifically set for the frozen phase and not propagated from previous phase,
         // then it should not be ignored

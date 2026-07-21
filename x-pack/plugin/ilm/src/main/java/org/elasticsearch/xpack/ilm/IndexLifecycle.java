@@ -99,6 +99,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<IlmForceMergeCloneCleanupService> forceMergeCloneCleanupService = new SetOnce<>();
     private final SetOnce<ReservedLifecycleAction> reservedLifecycleAction = new SetOnce<>();
     private final SetOnce<TimeSeriesEligibleWriteWindowLocatorWithIlm> timeSeriesEligibleWriteWindowLocator = new SetOnce<>();
     private final Settings settings;
@@ -126,7 +127,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
-            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING,
+            IlmForceMergeCloneCleanupService.POLL_INTERVAL_SETTING,
+            LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID_SETTING
         );
     }
 
@@ -200,6 +203,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         );
         timeSeriesEligibleWriteWindowLocator.set(new TimeSeriesEligibleWriteWindowLocatorWithIlm());
         components.add(timeSeriesEligibleWriteWindowLocator.get());
+
+        var cleanupService = new IlmForceMergeCloneCleanupService(
+            services.clusterService(),
+            new OriginSettingClient(services.client(), INDEX_LIFECYCLE_ORIGIN)
+        );
+        cleanupService.init();
+        forceMergeCloneCleanupService.set(cleanupService);
 
         return components;
     }
@@ -312,7 +322,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     @Override
     public void close() {
         try {
-            IOUtils.close(indexLifecycleInitialisationService.get(), ilmHistoryStore.get());
+            IOUtils.close(indexLifecycleInitialisationService.get(), ilmHistoryStore.get(), forceMergeCloneCleanupService.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close index lifecycle services", e);
         }

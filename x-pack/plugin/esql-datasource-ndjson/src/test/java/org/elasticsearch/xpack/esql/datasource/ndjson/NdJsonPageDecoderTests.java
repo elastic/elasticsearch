@@ -1205,9 +1205,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * Decodes one page of a single {@code type} column under {@code policy} and returns how many reservations
      * were page-scale. One counting breaker serves both the block factory and {@link BigArrays} so that
-     * fixed-width backing arrays and {@code BytesRefArray} byte storage land in the same tally. The floor is the
-     * batch size itself — the smallest reservation a page-sized builder can make, since the narrowest element
-     * type still costs a byte per position — so per-value churn cannot be miscounted as a page-scale allocation.
+     * fixed-width backing arrays and {@code BytesRefArray} byte storage land in the same tally. The floor is one
+     * {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES BigArrays page}: a builder holding a whole batch always reaches
+     * it (the narrowest declarable type, boolean, charges a byte per position, and the string types' offset
+     * arrays are charged in page units), while a builder holding one record never comes close. Do not raise this
+     * to the batch size in bytes — the string types' page-scale reservations land below that, and the sweep would
+     * silently compare zero against zero for keyword, text and ip.
      */
     private int pageScaleReservations(DataType type, String ndjson, ErrorPolicy policy) throws IOException {
         CountingBreaker breaker = new CountingBreaker();
@@ -1234,7 +1237,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertFalse("declared [" + type + "] produced a null cell", block.isNull(0));
         }
         assertEquals("every reservation for [" + type + "] released once decoder and page are closed", 0L, breaker.used());
-        return breaker.reservationsOfAtLeast(LENIENT_BATCH_SIZE);
+        return breaker.reservationsOfAtLeast(PageCacheRecycler.PAGE_SIZE_IN_BYTES);
     }
 
     /**

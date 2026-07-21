@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.xpack.core.security.audit.data;
+package org.elasticsearch.datatree;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -12,11 +14,10 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
- * Converts a generic Java "JSON tree", the shape produced by
- * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToMap}, into the type-safe {@link DataValue}
- * model.
+ * Converts a generic Java "JSON tree", the shape produced by parsing JSON into nested maps and lists, into the
+ * type-safe {@link DataValue} model.
  * <p>
- * The supported inputs are exactly the value types that XContent map parsing yields: {@code null}, {@link CharSequence},
+ * The supported inputs are exactly the value types that such map parsing yields: {@code null}, {@link CharSequence},
  * {@link Boolean}, the standard {@link Number} types, {@link Map} (object), and {@link Iterable}/{@code Object[]}
  * (array). Any other type is rejected with an {@link IllegalArgumentException} rather than being silently coerced, which
  * preserves the model's guarantee that it never holds arbitrary {@code Object} values. Rejecting unknown types also

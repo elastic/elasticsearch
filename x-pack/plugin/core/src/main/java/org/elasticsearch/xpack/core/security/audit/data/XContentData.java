@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.core.security.audit.data;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.datatree.DataObject;
+import org.elasticsearch.datatree.DataValue;
+import org.elasticsearch.datatree.DataValues;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

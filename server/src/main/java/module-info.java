@@ -33,6 +33,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
+    // Hosts the shared data-tree model in the boot layer so it resolves to a single class across plugins and modules.
+    requires org.elasticsearch.datatree;
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.entitlement;
 

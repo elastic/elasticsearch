@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import org.elasticsearch.datatree.DataArray;
+import org.elasticsearch.datatree.DataDecimal;
+import org.elasticsearch.datatree.DataDouble;
+import org.elasticsearch.datatree.DataInteger;
+import org.elasticsearch.datatree.DataNull;
+import org.elasticsearch.datatree.DataObject;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.audit.data.DataArray;
-import org.elasticsearch.xpack.core.security.audit.data.DataDecimal;
-import org.elasticsearch.xpack.core.security.audit.data.DataDouble;
-import org.elasticsearch.xpack.core.security.audit.data.DataInteger;
-import org.elasticsearch.xpack.core.security.audit.data.DataNull;
-import org.elasticsearch.xpack.core.security.audit.data.DataObject;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

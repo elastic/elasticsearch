@@ -29,6 +29,7 @@ module org.elasticsearch.xcore {
     requires com.ibm.icu;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.logging;
+    requires transitive org.elasticsearch.datatree;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

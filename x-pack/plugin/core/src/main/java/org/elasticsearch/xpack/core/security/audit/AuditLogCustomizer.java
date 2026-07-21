@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.audit;
 
-import org.elasticsearch.xpack.core.security.audit.data.DataObject;
+import org.elasticsearch.datatree.DataObject;
 
 /**
  * Extension point for customizing how {@code LoggingAuditTrail} processes events.

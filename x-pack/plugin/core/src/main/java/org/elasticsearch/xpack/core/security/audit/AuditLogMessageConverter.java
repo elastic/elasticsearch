@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.audit;
 
 import org.apache.logging.log4j.message.Message;
-import org.elasticsearch.xpack.core.security.audit.data.DataObject;
+import org.elasticsearch.datatree.DataObject;
 
 /**
  * Strategy for rendering a fully-built and enriched audit {@link DataObject} into the log4j {@link Message} that

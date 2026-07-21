@@ -6,6 +6,12 @@
  */
 package org.elasticsearch.xpack.core.security.audit.data;
 
+import org.elasticsearch.datatree.DataArray;
+import org.elasticsearch.datatree.DataBoolean;
+import org.elasticsearch.datatree.DataDouble;
+import org.elasticsearch.datatree.DataInteger;
+import org.elasticsearch.datatree.DataLong;
+import org.elasticsearch.datatree.DataObject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;

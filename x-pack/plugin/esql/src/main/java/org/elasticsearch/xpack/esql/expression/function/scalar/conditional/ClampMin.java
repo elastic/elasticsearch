@@ -47,6 +47,7 @@ public class ClampMin extends EsqlScalarFunction {
         .binaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, ClampMin::new)
         .description("Clamps the sample values of all elements to have a lower limit of min.")
         .example("clamp_min(http_requests_total, 0)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("clamp_min");
 
     private DataType resolvedType;
@@ -56,6 +57,7 @@ public class ClampMin extends EsqlScalarFunction {
         briefSummary = "Clamps input values to a lower bound, raising any value below min to min.",
         description = "Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMin(

@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -56,9 +58,12 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         .acrossSeries(Count::new)
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
         briefSummary = "Returns the total number of input values.",
         description = "Returns the total number (count) of input values.",
@@ -112,6 +117,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "exponential_histogram",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
                 "geo_point",
@@ -184,10 +190,10 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, histogram, or date_range"
+            "any type except counter types or histogram"
         );
     }
 

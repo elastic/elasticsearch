@@ -29,9 +29,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
@@ -41,7 +40,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
@@ -61,9 +59,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpIVFKnnFloatSlicedVectorQuery() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
         // only one slice so it behaves as a normal index
         this.numSlices = 1;
@@ -72,12 +68,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     @Override
     float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < dim; i++) {
-            vector[i] = randomFloat();
-        }
-        VectorUtil.l2normalize(vector);
-        return vector;
+        return VectorTestUtils.randomNormalizedFloatVector(dim);
     }
 
     @Override
@@ -104,37 +95,6 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             Query filter = new TermQuery(new Term("id", "text"));
             query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10, filter);
             assertEquals("IVFKnnFloatSlicedVectorQuery:field[0.0,...][10][" + SLICE_FIELD + "=[0]][id:text]", query.toString("ignored"));
-        }
-    }
-
-    /**
-     * Unlike {@link AbstractIVFKnnVectorQueryTestCase#testBitSetQuery()}, sliced search intersects the
-     * filter iterator with the slice doc-id range before materializing accept bits, so it never calls
-     * {@link org.apache.lucene.util.BitSetIterator#getBitSet()} and supports filters that do not allow
-     * bitset reuse.
-     */
-    @Override
-    public void testBitSetQuery() throws IOException {
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        decorateIWC(iwc);
-        try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, iwc)) {
-            final int numDocs = 100;
-            final int dim = 30;
-            for (int i = 0; i < numDocs; ++i) {
-                Document d = getDocumentToIndex();
-                d.add(getKnnVectorField("vector", randomVector(dim)));
-                w.addDocument(d);
-            }
-            w.commit();
-
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                // Same fixture as AbstractIVFKnnVectorQueryTestCase#testBitSetQuery(): an empty FixedBitSet
-                // (all bits clear) behind a BitSetIterator; non-sliced search fails fatally in getBitSet().
-                Query filter = new ThrowingBitSetQuery(new FixedBitSet(numDocs));
-                TopDocs topDocs = searcher.search(getKnnVectorQuery("vector", randomVector(dim), 10, filter), numDocs);
-                assertEquals(0, topDocs.scoreDocs.length);
-            }
         }
     }
 

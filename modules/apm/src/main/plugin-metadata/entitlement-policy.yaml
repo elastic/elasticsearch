@@ -5,6 +5,15 @@ org.elasticsearch.telemetry.apm:
       - relative_path: "telemetry-buffer"
         relative_to: data
         mode: read
+      - path_setting: telemetry.logs.ssl.certificate_authorities
+        basedir_if_relative: config
+        mode: read
+      - path_setting: telemetry.logs.ssl.certificate
+        basedir_if_relative: config
+        mode: read
+      - path_setting: telemetry.logs.ssl.key
+        basedir_if_relative: config
+        mode: read
   # required by the legacy APM agent; can be removed once it is fully deprecated
   - create_class_loader
   - write_system_properties:
@@ -90,6 +99,19 @@ org.elasticsearch.telemetry.apm:
         - elastic.apm.application_packages
         - elastic.apm.stack_trace_limit
         - elastic.apm.span_stack_trace_min_duration
+# PemTrustConfig/PemKeyConfig perform the actual cert/key file reads in the sslconfig module, so the
+# file-read entitlement must be granted here as well as to the apm module that resolves the settings.
+org.elasticsearch.sslconfig:
+  - files:
+      - path_setting: telemetry.logs.ssl.certificate_authorities
+        basedir_if_relative: config
+        mode: read
+      - path_setting: telemetry.logs.ssl.certificate
+        basedir_if_relative: config
+        mode: read
+      - path_setting: telemetry.logs.ssl.key
+        basedir_if_relative: config
+        mode: read
 opentelemetry.disk.buffering:
   - files:
       - relative_path: "telemetry-buffer"
@@ -104,9 +126,6 @@ io.opentelemetry.sdk.trace:
 
 io.opentelemetry.sdk.logs:
   - manage_threads
-
-io.opentelemetry.exporter.sender.jdk.internal:
-  - outbound_network
 
 io.opentelemetry.exporter.sender.okhttp.internal:
   - manage_threads

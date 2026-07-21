@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 152932
+summary: Include ingest metadata in self-reference checks
+type: bug

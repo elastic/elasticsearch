@@ -22,10 +22,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -113,6 +116,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     private final Configuration configuration;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
         briefSummary = "Converts a value to a string.",
         description = "Converts an input value into a string.",
@@ -168,6 +172,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     }
 
     @Override
+    public String functionName() {
+        return "TO_STRING";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
             Map<DataType, BuildFactory> evaluators = new HashMap<>(STATIC_EVALUATORS);
@@ -178,7 +187,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDatetimeEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -186,7 +195,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateNanosEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -194,7 +203,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateRangeEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     )
                 )

@@ -8,30 +8,23 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,8 +32,11 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end integration for subqueries in the FROM clause whose source is a registered dataset
@@ -50,53 +46,16 @@ import static org.hamcrest.Matchers.hasSize;
  * {@code UnresolvedExternalRelation} composes correctly with the {@code UnionAll} the subquery-in-FROM machinery emits.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
+public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
     private Path csvFixtureSalaryInt;
     private Path csvFixtureSalaryLong;
 
-    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
-        @Override
-        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-            return Map.of("test", new TestValidator());
-        }
-    }
-
-    private static final class TestValidator implements DataSourceValidator {
-        @Override
-        public String type() {
-            return "test";
-        }
-
-        @Override
-        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
-            Map<String, DataSourceSetting> out = new HashMap<>();
-            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
-                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
-            }
-            return out;
-        }
-
-        @Override
-        public Map<String, Object> validateDataset(
-            Map<String, DataSourceSetting> datasourceSettings,
-            String resource,
-            Map<String, Object> datasetSettings
-        ) {
-            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(TestDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -159,29 +118,25 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /**
-     * Names every dataset {@code testXxx} bodies PUT. New tests must register their dataset name here so the SUITE-scoped cluster
-     * doesn't carry state across methods.
-     */
-    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "salaries_int", "salaries_long");
+    /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
+    private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view");
 
+    /**
+     * Datasets and the {@code local_ds} data source are registered through the base
+     * {@link AbstractExternalDataSourceIT#registerDataset}/{@link AbstractExternalDataSourceIT#registerDataSource}
+     * helpers, so the base {@code cleanupRegistry()} tears them down. Only views need bespoke teardown here.
+     */
     @After
-    public void cleanupRegistry() {
-        for (String ds : CREATED_DATASETS) {
-            try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).actionGet(TIMEOUT);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
-            }
-        }
+    public void cleanupViews() {
         try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(TIMEOUT);
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TIMEOUT, TIMEOUT, CREATED_VIEWS.toArray(String[]::new))
+            ).actionGet(TIMEOUT);
         } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
+            // none created by this test
         } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
+            logger.warn("view cleanup failed", e);
         }
     }
 
@@ -348,12 +303,51 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         assertThat(((Number) rows.get(3).get(2)).longValue(), equalTo(75000L));
     }
 
-    public void testMixedTargetsInSubqueryRejected() {
+    /**
+     * A subquery that mixes a real index with a dataset is allowed — {@code DatasetRewriter} builds a
+     * {@code UnionAll} for the inner {@code FROM real_employees, employees} instead of rejecting it.
+     * The outer query sees a single subquery result; real_employees rows carry nulls for the dataset-only columns.
+     */
+    public void testMixedTargetsInSubqueryAllowed() {
         createRealEmployees();
         registerEmployees();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM (FROM real_employees, employees)"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM real_employees, employees) | SORT emp_no, first_name"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(5));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(8)); // 5 from real_employees + 3 from employees
+
+            int empNoIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("emp_no");
+            int firstNameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("first_name");
+            int lastNameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("last_name");
+
+            // emp_no=1: dataset row (Alice) sorts before index row (Alice-real)
+            assertThat(rows.get(0).get(empNoIdx), equalTo(1));
+            assertThat(rows.get(0).get(firstNameIdx).toString(), equalTo("Alice"));
+            assertThat(rows.get(0).get(lastNameIdx).toString(), equalTo("Anderson"));
+            assertThat(rows.get(1).get(empNoIdx), equalTo(1));
+            assertThat(rows.get(1).get(firstNameIdx).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(lastNameIdx)); // real_employees has no last_name
+
+            // emp_no=2: dataset only
+            assertThat(rows.get(2).get(empNoIdx), equalTo(2));
+            assertThat(rows.get(2).get(firstNameIdx).toString(), equalTo("Bob"));
+
+            // emp_no=3: dataset row (Carol) then index row (Carol-real)
+            assertThat(rows.get(3).get(empNoIdx), equalTo(3));
+            assertThat(rows.get(3).get(firstNameIdx).toString(), equalTo("Carol"));
+            assertThat(rows.get(4).get(empNoIdx), equalTo(3));
+            assertThat(rows.get(4).get(firstNameIdx).toString(), equalTo("Carol-real"));
+            assertNull(rows.get(4).get(lastNameIdx));
+
+            // emp_no >= 99: real_employees only, null-padded
+            assertThat(rows.get(5).get(empNoIdx), equalTo(99));
+            assertNull(rows.get(5).get(lastNameIdx));
+            assertThat(rows.get(6).get(empNoIdx), equalTo(100));
+            assertThat(rows.get(7).get(empNoIdx), equalTo(101));
+        }
     }
 
     public void testIndexInMainMultipleDatasetInSubqueryRejected() {
@@ -549,15 +543,78 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMetadataOnDatasetInSubqueryRejected() {
+    public void testMetadataOnDatasetInSubquery() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index | KEEP _index) | LIMIT 1"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "METADATA fields are not supported on datasets");
-        assertCauseMessageContains(ex, "employees");
+        // Standard metadata binds on a dataset inside a subquery, consistent with how it binds on a
+        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). _index
+        // resolves to the dataset name. This used to be rejected only because dataset metadata was
+        // unsupported anywhere; it is supported now. KEEP is irrelevant to metadata presence on the
+        // FROM path: METADATA _index surfaces _index with no explicit KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index) | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without an explicit KEEP, got " + names, names, hasItem("_index"));
+
+            int idx = names.indexOf("_index");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+        }
+    }
+
+    public void testFileMetadataOnDatasetInSubquery() {
+        registerEmployees();
+
+        // KEEP is irrelevant to metadata presence on the FROM path: METADATA _file.path must surface
+        // _file.path in the output with NO explicit KEEP, inside a subquery too.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _file.path) | LIMIT 1"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            List<String> names = columns.stream().map(ColumnInfo::name).toList();
+            assertThat("_file.path must surface without an explicit KEEP, got " + names, names, hasItem("_file.path"));
+
+            int idx = names.indexOf("_file.path");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idx), notNullValue());
+            assertThat(rows.get(0).get(idx).toString(), containsString(".csv"));
+        }
+    }
+
+    public void testMetadataSurvivesDeepSubqueryNesting() {
+        registerEmployees();
+
+        // Surfacing is independent of subquery depth: METADATA named two levels down still reaches the
+        // top-level output with no KEEP at any level. Mixes standard (_index) and file (_file.path)
+        // metadata in one clause to prove both families ride the same no-KEEP path.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM (FROM employees METADATA _index, _file.path)) | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface through nested subqueries without KEEP, got " + names, names, hasItem("_index"));
+            assertThat("_file.path must surface through nested subqueries without KEEP, got " + names, names, hasItem("_file.path"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+            assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
+        }
+    }
+
+    public void testMetadataSurfacesThroughViewOverDataset() {
+        registerEmployees();
+        createView("emp_meta_view", "FROM employees METADATA _index, _file.path");
+
+        // A view is a saved query; FROM <view> expands to it, so metadata named in the view's body
+        // surfaces at the call site with no KEEP — directly and inside a subquery, matching the FROM
+        // contract. The view body carries the METADATA clause; the caller adds nothing.
+        for (String query : List.of("FROM emp_meta_view | LIMIT 1", "FROM (FROM emp_meta_view) | LIMIT 1")) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " must surface _index without KEEP, got " + names, names, hasItem("_index"));
+                assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
+
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+                assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
+            }
+        }
     }
 
     // More processing pipelines inside the subquery
@@ -832,26 +889,52 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    // Full-text functions against external data sources
-
-    public void testMatchOnDatasetFieldRejected() {
+    public void testMatchAfterSubquery() {
         registerEmployees();
+        registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees METADATA _index), (FROM employees_alt METADATA _index)
+            | WHERE MATCH(first_name, "Alice")
+            | KEEP first_name, last_name, _index
+            | SORT _index
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name", "_index"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson", "employees")));
+        }
     }
 
-    public void testMatchPhraseOnDatasetFieldRejected() {
+    // Full-text functions against external data sources
+    public void testMatchOnDatasetField() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | WHERE MATCH(first_name, "Alice"))
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
+    }
+
+    public void testMatchPhraseOnDatasetField() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        String query = "FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))";
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            try (var response = run(syncEsqlQueryRequest(query + " | KEEP first_name, last_name"), TIMEOUT)) {
+                assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+                assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+            }
+        } else {
+            Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT));
+            assertCauseMessageContains(
+                ex,
+                "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            );
+        }
     }
 
     public void testKQLOnDatasetRejected() {
@@ -861,7 +944,11 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[KQL] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[KQL] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
     public void testQSTROnDatasetRejected() {
@@ -871,17 +958,33 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE QSTR(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[QSTR] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[QSTR] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
-    public void testMatchAfterSubqueryRejected() {
+    public void testMatchPhraseAfterSubquery() {
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
-            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH(first_name, "Alice")
-            """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        String query = """
+            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
+            """;
+        if (MatchPhrase.runtimeSearchEnabled()) {
+            try (var response = run(syncEsqlQueryRequest(query + " | KEEP first_name, last_name"), TIMEOUT)) {
+                assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+                assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+            }
+        } else {
+            Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT));
+            assertCauseMessageContains(
+                ex,
+                "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            );
+        }
     }
 
     // Mixed data types across subquery branches
@@ -1325,44 +1428,30 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     private void registerEmployees() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+    }
+
+    private void createView(String name, String query) {
         assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
+            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query))).actionGet(TIMEOUT)
         );
     }
 
     private void registerEmployeesAlt() {
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
     }
 
     /** Registers {@code salaries_int} whose {@code salary} column is typed {@code integer}. */
     private void registerSalariesInt() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("salaries_int", "local_ds", csvFixtureSalaryInt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("salaries_int", "local_ds", csvFixtureSalaryInt.toUri().toString(), Map.of("format", "csv"));
     }
 
     /** Registers {@code salaries_long} whose {@code salary} column is typed {@code long}. */
     private void registerSalariesLong() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("salaries_long", "local_ds", csvFixtureSalaryLong.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("salaries_long", "local_ds", csvFixtureSalaryLong.toUri().toString(), Map.of("format", "csv"));
     }
 
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
@@ -1371,26 +1460,5 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             cause = cause.getCause();
         }
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
-    }
-
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
-    }
-
-    private static PutDatasetAction.Request putDatasetRequest(
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings
-    ) {
-        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
-    }
-
-    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
-    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

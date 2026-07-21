@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -35,11 +38,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -57,9 +59,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RoundTo.class).unaryVariadic(RoundTo::new).name("round_to");
+    public static final TransportVersion ESQL_ROUND_TO_CONVENTION = TransportVersion.fromName("esql_round_to_convention");
 
     private final Expression field;
     private final List<Expression> points;
+    private final Rounding.RoundingConvention convention;
 
     private DataType resultType;
 
@@ -69,6 +73,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         description = """
             Rounds down to one of a list of fixed points.""",
         examples = @Example(file = "math", tag = "round_to"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.1.0") }
     )
     public RoundTo(
@@ -81,19 +86,26 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         @Param(
             name = "points",
             type = { "double", "integer", "long", "date", "date_nanos" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Remaining rounding points. Must be constants."
         ) List<Expression> points
     ) {
+        this(source, field, points, null);
+    }
+
+    public RoundTo(Source source, Expression field, List<Expression> points, Rounding.RoundingConvention convention) {
         super(source, Iterators.toList(Iterators.concat(Iterators.single(field), points.iterator())));
         this.field = field;
         this.points = points;
+        this.convention = (convention != null) ? convention : DOWN;
     }
 
     private RoundTo(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.getTransportVersion().supports(ESQL_ROUND_TO_CONVENTION) ? in.readEnum(Rounding.RoundingConvention.class) : null
         );
     }
 
@@ -102,6 +114,16 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteableCollection(points);
+        TransportVersion transportVersion = out.getTransportVersion();
+        if (transportVersion.supports(ESQL_ROUND_TO_CONVENTION)) {
+            out.writeEnum(convention);
+        } else if (convention != DOWN) {
+            throw new EsqlIllegalArgumentException(
+                "rounding convention is not supported in peer node version [{}]. Upgrade to version [{}] or newer.",
+                transportVersion,
+                ESQL_ROUND_TO_CONVENTION
+            );
+        }
     }
 
     @Override
@@ -127,7 +149,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         }
 
         DataType dataType = dataType();
-        if (dataType == null || SIGNATURES.containsKey(dataType) == false) {
+        if ((dataType == LONG || dataType == DATETIME || dataType == DATE_NANOS || dataType == INTEGER || dataType == DOUBLE) == false) {
             return new TypeResolution(format(null, "all arguments must be numeric, date, or data_nanos"));
         }
 
@@ -166,12 +188,12 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new RoundTo(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+        return new RoundTo(source(), newChildren.getFirst(), newChildren.subList(1, newChildren.size()), convention);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, RoundTo::new, field(), points());
+        return NodeInfo.create(this, RoundTo::new, field(), points(), convention);
     }
 
     public Expression field() {
@@ -182,54 +204,49 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         return points;
     }
 
+    public Rounding.RoundingConvention roundingConvention() {
+        return convention;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType dataType = dataType();
-        Build build = SIGNATURES.get(dataType);
-        if (build == null) {
-            throw new IllegalStateException("unsupported type");
+        ExpressionEvaluator.Factory fieldEval = Cast.cast(source(), field().dataType(), dataType, toEvaluator.apply(field()));
+        if (dataType == LONG || dataType == DATETIME || dataType == DATE_NANOS) {
+            long[] cc = new long[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
+                if (p == null) {
+                    throw new IllegalStateException("unexpected null for rounding point");
+                }
+                cc[i] = DataTypeConverter.safeToLong(p);
+            }
+            Arrays.sort(cc);
+            return RoundToLong.BUILD.build(source(), fieldEval, cc, convention);
+        } else if (dataType == INTEGER) {
+            int[] cc = new int[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
+                if (p == null) {
+                    throw new IllegalStateException("unexpected null for rounding point");
+                }
+                cc[i] = p.intValue();
+            }
+            Arrays.sort(cc);
+            return RoundToInt.BUILD.build(source(), fieldEval, cc, convention);
+        } else if (dataType == DOUBLE) {
+            double[] cc = new double[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
+                if (p == null) {
+                    throw new IllegalStateException("unexpected null for rounding point");
+                }
+                cc[i] = p.doubleValue();
+            }
+            Arrays.sort(cc);
+            return RoundToDouble.BUILD.build(source(), fieldEval, cc, convention);
         }
-
-        ExpressionEvaluator.Factory field = toEvaluator.apply(field());
-        field = Cast.cast(source(), field().dataType(), dataType, field);
-        List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
-        List<Number> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
-        return build.build(source(), field, sortedPoints);
-    }
-
-    interface Build {
-        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, List<Number> points);
-    }
-
-    private static final Map<DataType, Build> SIGNATURES = Map.ofEntries(
-        Map.entry(DATETIME, RoundToLong.BUILD),
-        Map.entry(DATE_NANOS, RoundToLong.BUILD),
-        Map.entry(INTEGER, RoundToInt.BUILD),
-        Map.entry(LONG, RoundToLong.BUILD),
-        Map.entry(DOUBLE, RoundToDouble.BUILD)
-    );
-
-    public static List<Number> sortedRoundingPoints(List<Object> points, DataType dataType) {
-        List<Number> pointsTobeSorted = points.stream().filter(Objects::nonNull).map(p -> (Number) p).toList();
-
-        return switch (dataType) {
-            case INTEGER -> pointsTobeSorted.stream()
-                .mapToInt(Number::intValue)
-                .sorted()
-                .boxed()
-                .collect(java.util.stream.Collectors.toList());
-            case DOUBLE -> pointsTobeSorted.stream()
-                .mapToDouble(Number::doubleValue)
-                .sorted()
-                .boxed()
-                .collect(java.util.stream.Collectors.toList());
-            case LONG, DATETIME, DATE_NANOS -> pointsTobeSorted.stream()
-                .mapToLong(DataTypeConverter::safeToLong)
-                .sorted()
-                .boxed()
-                .collect(java.util.stream.Collectors.toList());
-            default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
-        };
+        throw new IllegalStateException("unsupported type: " + dataType);
     }
 
     @Override
@@ -237,34 +254,27 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         if (ROUND_TO_BLOCK_LOADER.isEnabled() == false) {
             return null;
         }
+        if (convention != DOWN) {
+            // Block-loader pushdown does not pass the rounding convention, so UP rounds
+            // would silently use DOWN semantics. Disable pushdown for non-default conventions.
+            return null;
+        }
         if (field instanceof FieldAttribute f) {
             DataType dt = dataType();
             if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
                 return null;
             }
-            long[] sortedPoints = sortedLongPoints();
-            if (sortedPoints == null) {
-                return null;
+            long[] pts = new long[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                if (points.get(i) instanceof Literal lit) {
+                    pts[i] = DataTypeConverter.safeToLong((Number) lit.value());
+                } else {
+                    return null;
+                }
             }
-            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints));
+            Arrays.sort(pts);
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(pts));
         }
         return null;
-    }
-
-    private long[] sortedLongPoints() {
-        List<Object> values = new ArrayList<>(points.size());
-        for (Expression p : points) {
-            if (p instanceof Literal lit) {
-                values.add(lit.value());
-            } else {
-                return null;
-            }
-        }
-        List<Number> sorted = sortedRoundingPoints(values, dataType());
-        long[] result = new long[sorted.size()];
-        for (int i = 0; i < sorted.size(); i++) {
-            result[i] = sorted.get(i).longValue();
-        }
-        return result;
     }
 }

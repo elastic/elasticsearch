@@ -116,6 +116,24 @@
       "params" : [
         {
           "name" : "superset",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values."
+        },
+        {
+          "name" : "subset",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "superset",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression that can be null, a single value, or multiple values."
@@ -370,6 +388,6 @@
     "ROW setA = [\"a\",\"c\"], setB = [\"a\", \"b\", \"c\"]\n| EVAL a_subset_of_b = mv_contains(setB, setA)\n| EVAL b_subset_of_a = mv_contains(setA, setB)",
     "FROM airports\n| WHERE mv_contains(type, [\"major\",\"military\"]) AND scalerank == 9\n| KEEP scalerank, name, country"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

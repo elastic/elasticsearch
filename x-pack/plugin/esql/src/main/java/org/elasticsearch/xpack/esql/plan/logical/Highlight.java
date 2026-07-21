@@ -7,21 +7,43 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Highlight extends UnaryPlan implements TelemetryAware {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
+public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -36,13 +58,17 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
+    public static final String ANALYZER = "analyzer";
+    public static final String NO_MATCH_SIZE = "no_match_size";
     public static final String BOUNDARY_SCANNER = "boundary_scanner";
     public static final String BOUNDARY_SCANNER_LOCALE = "boundary_scanner_locale";
+    public static final String ORDER = "order";
+    public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
+
+    // Accepted for Query DSL parity but only used by the FastVectorHighlighter, so they are no-ops for the unified
+    // highlighter that HIGHLIGHT always uses.
     public static final String BOUNDARY_CHARS = "boundary_chars";
     public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
-    public static final String ORDER = "order";
-    public static final String NO_MATCH_SIZE = "no_match_size";
-    public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
     public static final String PHRASE_LIMIT = "phrase_limit";
 
     private static final List<String> VALID_OPTION_NAMES = List.of(
@@ -51,6 +77,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         NUMBER_OF_FRAGMENTS,
         FRAGMENT_SIZE,
         ENCODER,
+        ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
         BOUNDARY_CHARS,
@@ -63,15 +90,30 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
 
     private final String prefix;
     private final Expression query;
-    private final List<Expression> fields;
+    private final List<NamedExpression> fields;
     private final MapExpression options;
+    /**
+     * The generated attributes for the highlighted fields.
+     * These are appended to the child's output in the same order as the ON fields,
+     * so the operator's appended blocks line up with these layout channels.
+     */
+    private final List<Attribute> generatedFields;
 
-    public Highlight(Source source, LogicalPlan child, String prefix, Expression query, List<Expression> fields, MapExpression options) {
+    public Highlight(
+        Source source,
+        LogicalPlan child,
+        String prefix,
+        Expression query,
+        List<NamedExpression> fields,
+        MapExpression options,
+        List<Attribute> generatedFields
+    ) {
         super(source, child);
         this.prefix = prefix;
         this.query = query;
         this.fields = fields;
         this.options = options;
+        this.generatedFields = generatedFields;
     }
 
     private Highlight(StreamInput in) throws IOException {
@@ -80,8 +122,10 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
-            in.readOptionalNamedWriteable(MapExpression.class)
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
+            (MapExpression) in.readOptionalNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
@@ -93,6 +137,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         out.writeOptionalNamedWriteable(query);
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
+        out.writeNamedWriteableCollection(generatedFields);
     }
 
     @Override
@@ -108,7 +153,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         return query;
     }
 
-    public List<Expression> fields() {
+    public List<NamedExpression> fields() {
         return fields;
     }
 
@@ -120,21 +165,59 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         return VALID_OPTION_NAMES;
     }
 
+    /**
+     * Builds nullable {@code <prefix><field>} keyword attributes for the given highlight fields.
+     * A generated name that collides with existing output shadows the earlier column.
+     */
+    public static List<Attribute> generatedAttributesFor(Source source, String prefix, List<NamedExpression> fields) {
+        return fields.stream()
+            .map(f -> (Attribute) new ReferenceAttribute(source, null, prefix + f.name(), DataType.KEYWORD, Nullability.TRUE, null, false))
+            .toList();
+    }
+
     public Highlight withOptions(MapExpression newOptions) {
         if (Objects.equals(options, newOptions)) {
             return this;
         }
-        return new Highlight(source(), child(), prefix, query, fields, newOptions);
+        return new Highlight(source(), child(), prefix, query, fields, newOptions, generatedFields);
     }
 
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
-        return new Highlight(source(), newChild, prefix, query, fields, options);
+        return new Highlight(source(), newChild, prefix, query, fields, options, generatedFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Highlight::new, child(), prefix, query, fields, options);
+        return NodeInfo.create(this, Highlight::new, child(), prefix, query, fields, options, generatedFields);
+    }
+
+    @Override
+    public List<Attribute> output() {
+        return mergeOutputAttributes(generatedFields, child().output());
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return generatedFields;
+    }
+
+    @Override
+    public Highlight withGeneratedNames(List<String> newNames) {
+        checkNumberOfNewNames(newNames);
+        List<Attribute> renamed = new ArrayList<>(generatedFields.size());
+        for (int i = 0; i < generatedFields.size(); i++) {
+            Attribute attr = generatedFields.get(i);
+            String newName = newNames.get(i);
+            renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
+        }
+        return new Highlight(source(), child(), prefix, query, fields, options, renamed);
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        // Only the ON fields are inputs; the generated <prefix><field> columns are outputs, not references.
+        return Expressions.references(fields);
     }
 
     @Override
@@ -142,7 +225,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         if (query != null && query.resolved() == false) {
             return false;
         }
-        for (Expression field : fields) {
+        for (NamedExpression field : fields) {
             if (field.resolved() == false) {
                 return false;
             }
@@ -150,9 +233,105 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         return options == null || options.resolved();
     }
 
-    // TODO: once we add execution, output() must add `<prefix><field>` columns (or replace
-    // the original columns when prefix is the empty string)
-    // For now keep pass-through so downstream KEEP / EXPLAIN sees the same schema as without HIGHLIGHT.
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        verifyFieldTypes(failures);
+        if (options == null) {
+            return;
+        }
+        verifyEnum(failures, HighlightOptions.ENCODER_OPTION);
+        verifyEnum(failures, HighlightOptions.BOUNDARY_SCANNER_OPTION);
+        verifyEnum(failures, HighlightOptions.ORDER_OPTION);
+        for (String name : VALID_OPTION_NAMES) {
+            verifyValue(failures, name);
+        }
+    }
+
+    @Override
+    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+        postAnalysisVerification(failures);
+        Analyzer analyzer;
+        try {
+            analyzer = resolveAnalyzer(analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            // The analyzer name is a valid string but doesn't resolve.
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        } catch (IllegalArgumentException e) {
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue.
+            verifyQuery(null, failures);
+            return;
+        }
+        verifyQuery(analyzer, failures);
+    }
+
+    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        if (value == null) {
+            return null;
+        }
+        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+    }
+
+    private void verifyQuery(Analyzer analyzer, Failures failures) {
+        if (query == null || query.resolved() == false) {
+            return;
+        }
+        List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
+        try {
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer);
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+        }
+    }
+
+    private void verifyFieldTypes(Failures failures) {
+        for (NamedExpression field : fields) {
+            if (field.resolved() && DataType.isString(field.dataType()) == false) {
+                failures.add(
+                    fail(
+                        field,
+                        "HIGHLIGHT ON field [{}] must be [text] or [keyword], found [{}]",
+                        field.name(),
+                        field.dataType().typeName()
+                    )
+                );
+            }
+        }
+    }
+
+    // Non-foldable values (WITH { ... } allows constants, nested maps and parameters) are skipped here and fail later at
+    // fold time.
+    private Expression foldableOption(String name) {
+        Expression value = options.get(name);
+        return value != null && value.foldable() ? value : null;
+    }
+
+    private void verifyEnum(Failures failures, HighlightOptions.EnumOption option) {
+        Expression value = foldableOption(option.name());
+        if (value == null) {
+            return;
+        }
+        String actual = BytesRefs.toString(value.fold(FoldContext.small()));
+        if (option.isValid(actual) == false) {
+            failures.add(
+                fail(this, "Invalid value [{}] for option [{}] in HIGHLIGHT, expected one of {}", actual, option.name(), option.allowed())
+            );
+        }
+    }
+
+    private void verifyValue(Failures failures, String name) {
+        Expression value = foldableOption(name);
+        if (value == null) {
+            return;
+        }
+        try {
+            HighlightOptions.validate(name, value, FoldContext.small());
+        } catch (RuntimeException e) {
+            failures.add(fail(this, "Invalid value for option [{}] in HIGHLIGHT: {}", name, e.getMessage()));
+        }
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -163,11 +342,12 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
             && Objects.equals(fields, other.fields)
-            && Objects.equals(options, other.options);
+            && Objects.equals(options, other.options)
+            && Objects.equals(generatedFields, other.generatedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prefix, query, fields, options);
+        return Objects.hash(super.hashCode(), prefix, query, fields, options, generatedFields);
     }
 }

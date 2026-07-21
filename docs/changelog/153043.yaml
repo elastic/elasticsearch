@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 153014
+pr: 153043
+summary: "Fix flattened field array-offset corruption with `preserve_leaf_arrays: exact`"
+type: bug

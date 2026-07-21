@@ -96,6 +96,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -130,6 +131,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -169,6 +171,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.AnalyzerMetrics;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.monitor.metrics.SystemMetrics;
@@ -897,7 +900,8 @@ class NodeConstruction {
             telemetryProvider.getMeterRegistry(),
             threadPool::relativeTimeInMillis
         );
-        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+        TokenCountingMetrics tokenCountingMetrics = new TokenCountingMetrics(telemetryProvider.getMeterRegistry());
+        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics, tokenCountingMetrics);
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
 
@@ -929,7 +933,8 @@ class NodeConstruction {
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
-            threadPool.generic(),
+            threadPool,
+            projectResolver,
             clusterService,
             recoverySchedulingListeners
         );
@@ -1049,6 +1054,11 @@ class NodeConstruction {
         final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
 
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+        final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator = pluginsService.loadSingletonServiceProvider(
+            TimeSeriesEligibleWriteWindowLocator.class,
+            TimeSeriesEligibleWriteWindowLocator::new
+        );
+        modules.bindToInstance(TimeSeriesEligibleWriteWindowLocator.class, timeSeriesEligibleWriteWindowLocator);
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -1119,7 +1129,8 @@ class NodeConstruction {
             indexingLimits,
             telemetryProvider.getMeterRegistry(),
             taskManager,
-            threadPool
+            threadPool,
+            clusterService.getClusterSettings()
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1313,6 +1324,7 @@ class NodeConstruction {
             clusterService,
             systemIndices
         );
+        final AnalyzerMetrics analyzerMetrics = new AnalyzerMetrics(telemetryProvider.getMeterRegistry(), analysisRegistry);
         boolean emitOTelMetrics = settings.getAsBoolean("telemetry.otel.metrics.enabled", false);
         final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry(), emitOTelMetrics);
 
@@ -1444,6 +1456,7 @@ class NodeConstruction {
             b.bind(TransportService.class).toInstance(transportService);
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
+            b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
             b.bind(SystemMetrics.class).toInstance(systemMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);

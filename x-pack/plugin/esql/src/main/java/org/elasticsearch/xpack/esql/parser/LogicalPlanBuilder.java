@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -69,7 +71,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -114,6 +115,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 
@@ -143,6 +145,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * Maximum number of commands allowed per query
      */
     public static final int MAX_QUERY_DEPTH = 500;
+
+    private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
 
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
@@ -470,22 +474,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
-        var source = source(ctx);
-        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
-            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
-                Source neSource = ne.source();
-                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
-            }
-        });
-        return input -> new Insist(
-            source,
-            input,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
-        );
-    }
-
-    @Override
     public PlanFactory visitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx) {
         Source source = source(ctx);
 
@@ -728,7 +716,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
-            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
+            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb());
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
 
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
@@ -895,7 +883,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+                child = child.transformDown(
+                    LookupJoin.class,
+                    lj -> new LookupJoin(
+                        lj.source(),
+                        lj.left(),
+                        lj.right(),
+                        lj.config(),
+                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                    )
+                );
             }
 
             return new Enrich(
@@ -991,7 +988,27 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, config);
+        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
+        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
+        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
+        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
+        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
+        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
+        // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
+        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
+        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
+        // columns through DROP / wildcard).
+        List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
+        for (String name : FileMetadataColumns.NAMES) {
+            // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the
+            // reader's row-position channel). The legacy EXTERNAL auto-attach is limited to the
+            // historical per-file constant _file.* columns, so it is deliberately excluded here.
+            if (FileMetadataColumns.RECORD_REF.equals(name)) {
+                continue;
+            }
+            metadataFields.add(new UnresolvedAttribute(source, name));
+        }
+        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
     }
 
     /**
@@ -1075,7 +1092,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
         }
-        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+        var rightPatternSplit = RemoteClusterAware.splitIndexName(rightPattern);
+        var mode = Objects.equals(rightPatternSplit.clusterAlias(), "_coordinator") ? ExecuteLocation.COORDINATOR : ExecuteLocation.ANY;
+        if (rightPatternSplit.clusterAlias() != null && mode != ExecuteLocation.COORDINATOR) {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
@@ -1092,7 +1111,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new IndexPattern(source(target.index), rightPattern),
+            new IndexPattern(source(target.index), rightPatternSplit.indexExpression()),
             false,
             emptyList(),
             IndexMode.LOOKUP,
@@ -1107,7 +1126,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             p,
             right,
             joinInfo.joinFields(),
-            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
+            mode
         );
     }
 
@@ -1431,12 +1451,38 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
         Source source = source(ctx);
-        // The prefix isn't user-configurable in v1; the plan node carries it as a field so a future
-        // grammar extension can override it without changing serialization.
-        String prefix = Highlight.DEFAULT_PREFIX;
-        Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
-        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
-        return p -> applyHighlightOptions(new Highlight(source, p, prefix, query, fields, null), ctx.commandNamedParameters());
+        // `prefix = "..."` renames generated highlight columns; default is "highlight_".
+        final String prefix = highlightPrefix(ctx);
+        // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
+        // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
+        Expression query = ctx.queryExpression == null ? null : expression(ctx.queryExpression);
+        // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
+        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
+            .stream()
+            .map(qn -> (NamedExpression) visitQualifiedName(qn))
+            .toList();
+        // Recompute generatedFields when fields can be derived after analysis.
+        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
+        return p -> applyHighlightOptions(
+            new Highlight(source, p, prefix, query, fields, null, generatedFields),
+            ctx.commandNamedParameters()
+        );
+    }
+
+    private String highlightPrefix(EsqlBaseParser.HighlightCommandContext ctx) {
+        if (ctx.prefix == null) {
+            return Highlight.DEFAULT_PREFIX;
+        }
+        String prefixKeyword = visitIdentifier(ctx.prefixKeyword);
+        if (HIGHLIGHT_PREFIX_KEYWORD.equalsIgnoreCase(prefixKeyword) == false) {
+            throw new ParsingException(
+                source(ctx.prefixKeyword),
+                "Invalid modifier [{}] in HIGHLIGHT, expected [{}]",
+                prefixKeyword,
+                HIGHLIGHT_PREFIX_KEYWORD
+            );
+        }
+        return BytesRefs.toString(visitString(ctx.prefix).fold(FoldContext.small()));
     }
 
     private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1832,17 +1878,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private String parseParamValueString(EsqlBaseParser.PromqlParamValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
         } else if (ctx.promqlIndexPattern().size() == 1) {
             EsqlBaseParser.PromqlIndexStringContext string = ctx.promqlIndexPattern().getFirst().promqlIndexString();
-            if (string.UNQUOTED_SOURCE() != null) {
-                return string.UNQUOTED_SOURCE().getText();
-            } else if (string.UNQUOTED_IDENTIFIER() != null) {
-                return string.UNQUOTED_IDENTIFIER().getText();
-            } else if (string.QUOTED_STRING() != null) {
-                return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+            if (string != null) {
+                if (string.UNQUOTED_SOURCE() != null) {
+                    return string.UNQUOTED_SOURCE().getText();
+                } else if (string.UNQUOTED_IDENTIFIER() != null) {
+                    return string.UNQUOTED_IDENTIFIER().getText();
+                } else if (string.QUOTED_STRING() != null) {
+                    return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+                }
             }
         }
         throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());

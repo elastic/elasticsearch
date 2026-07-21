@@ -71,9 +71,10 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -87,7 +88,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /** Test cases for AbstractIVFKnnVectorQuery objects. */
-abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
+public abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     // handle quantization noise
     static final float EPSILON = 0.001f;
 
@@ -97,15 +98,18 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     KnnVectorsFormat format;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpIVFKnnVectorQuery() throws Exception {
         format = new ES920DiskBBQVectorsFormat(128, 4);
+    }
+
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
 
     protected TestIvfQueryConfigResolver testResolver() {
-        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
+        return new TestIvfQueryConfigResolver(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
     }
 
     AbstractIVFKnnVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {

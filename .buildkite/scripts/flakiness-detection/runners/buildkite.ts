@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import { resolve } from "path";
 import { stringify } from "yaml";
 
-import type { AgentConfig, RunnableCommand } from "../domain.ts";
+import type { AgentConfig, RunnableCommand, TestKind } from "../domain.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
@@ -17,7 +17,7 @@ interface PipelineStep {
   parallelism?: number;
   env?: Record<string, string>;
   depends_on?: { step: string; allow_failure: boolean }[];
-  artifact_paths?: string;
+  artifact_paths?: string | string[];
   retry?: { automatic: boolean };
 }
 
@@ -39,7 +39,7 @@ const NO_AUTO_RETRY: PipelineStep["retry"] = { automatic: false };
 // outer Buildkite `timeout_in_minutes` (which the agent enforces by SIGKILLing
 // the whole step). The wrapper needs to win the race so it can annotate and
 // exit 0; if the BK agent fires first the step ends up in state "timed_out".
-const NEVER_FAIL_GRACE_MINUTES = 2;
+export const NEVER_FAIL_GRACE_MINUTES = 2;
 
 // Wraps a shell command so it always exits 0. If the wrapped command exits
 // non-zero, a Buildkite warning annotation is appended so the failure is still
@@ -57,7 +57,21 @@ const NEVER_FAIL_GRACE_MINUTES = 2;
 // mirrors step.state ("failed" / "timed_out") and ignores the soft_failed
 // flag, so a soft_fail step that exits non-zero or times out still surfaces
 // as a red check on the PR.
-function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: number): string {
+//
+// When `emitOutcome` is set (true for test-batch steps, omitted for the
+// lightweight analyze step) the wrapper additionally records a tiny per-job
+// status file (`flakiness-status/status-<jobId>.json`) carrying the wrapped
+// command's return code and wall-clock duration. The status files are uploaded
+// as artifacts; the analyze step downloads them, classifies each job from its
+// rc + JUnit XML, and uploads a single structured artifact. The wrapper
+// itself does no classification - it only captures rc + duration, which the
+// JUnit XML cannot provide. See entrypoints/analyze.ts and README "Observability".
+function wrapNeverFail(
+  command: string,
+  contextKey: string,
+  outerTimeoutMin: number,
+  emitOutcome?: { kind: TestKind }
+): string {
   const innerTimeoutMin = Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
   return [
     "set +e",
@@ -67,6 +81,12 @@ function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: num
     "cat > \"$$WRAPPED_CMD_FILE\" <<'__NEVER_FAIL_EOF__'",
     command,
     "__NEVER_FAIL_EOF__",
+    // Wall-clock start, captured just before the run so the self-report below
+    // can disambiguate a real timeout SIGKILL from a kernel OOM-kill by
+    // duration. `$(...)` survives Buildkite's upload-time interpolation
+    // (it only substitutes `$VAR`/`${VAR}`), same as `$(mktemp)` above. Only
+    // emitted when this step self-reports (the analyze step does not).
+    ...(emitOutcome ? ["_fd_start=$(date +%s)"] : []),
     // --foreground keeps the wrapped command in the parent's process group;
     // without it `timeout` setpgid()s its child, the gradle CLI loses the
     // controlling-TTY plumbing the develocity scan plugin relies on, and the
@@ -80,6 +100,28 @@ function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: num
     `elif [ "$$rc" -ne 0 ]; then`,
     `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$$BUILDKITE_LABEL] (job $$BUILDKITE_JOB_ID) exited with $$rc - see job log"`,
     "fi",
+    // Best-effort per-job status file for the analyze step to pick up. `|| true`
+    // and the trailing `exit 0` ensure observability can never fail a batch.
+    // `stepKey`/`kind` are build-time constants; `rc`/duration/oom are runtime, so
+    // they are `$$`-escaped to defer past Buildkite's pipeline-upload pass.
+    //
+    // OOM detection: every ES test JVM runs with `-XX:+HeapDumpOnOutOfMemoryError`
+    // and `-XX:HeapDumpPath=<buildDir>/heapdump` (ElasticsearchTestBasePlugin), so
+    // a `*/build/heapdump/*.hprof` file after the run means a JVM-heap
+    // OutOfMemoryError occurred - which exits via Gradle with rc=1, not the
+    // SIGKILL rc=137 the kernel OOM-killer produces. We detect it from the file
+    // (not the log) to avoid touching the wrapped command's stdout/`--foreground`
+    // plumbing; `-quit` stops at the first match. analyze.ts turns this into the
+    // `oom` infraSubtype.
+    ...(emitOutcome
+      ? [
+          "_fd_end=$(date +%s)",
+          "mkdir -p flakiness-status",
+          "_fd_oom=\"\"",
+          "if [ -n \"$(find . -type f -path '*/build/heapdump/*.hprof' -print -quit 2>/dev/null)\" ]; then _fd_oom=\"oom\"; fi",
+          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s"}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true`,
+        ]
+      : []),
     "exit 0",
   ].join("\n");
 }
@@ -87,9 +129,25 @@ function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: num
 // Each BK step runs on its own fresh agent — workspaces are not shared. To get
 // the JUnit XML written by the batch steps to the analyze step's agent, the
 // batch steps upload them as build artifacts and the analyze step downloads
-// them. Both ends use the same path so the existing walker in
-// `analyzer/analyze.ts` picks the files up at `*/build/test-results/...`.
+// them per job (via `--step <jobId>`) so it can attribute results to a job.
+// The walker in `analyzer/analyze.ts` picks the files up at `*/build/test-results/...`.
 const TEST_RESULTS_ARTIFACTS = "**/build/test-results/**/TEST-*.xml";
+
+// Per-job status files (rc + duration) written by the never-fail wrapper and
+// consumed by the analyze step. Glob is shallow so the upload is cheap.
+const FLAKINESS_STATUS_ARTIFACTS = "flakiness-status/*.json";
+
+// Single structured artifact the analyze step uploads: a JSON array of per-job
+// outcomes consumed by the external observability pipeline. Uploaded as an
+// artifact (not an annotation) to keep the developer-facing build view clean.
+// Keep this filename in sync with entrypoints/analyze.ts.
+const FLAKINESS_OUTCOMES_ARTIFACT = "flakiness-outcomes.json";
+
+// Written by the bootstrap step (entrypoints/pr.ts) listing tests that could not
+// be re-run (BWC projects). Downloaded by the analyze step, which folds them into
+// the outcomes artifact as `not_applicable`. Keep in sync with entrypoints/pr.ts
+// and the bootstrap step's `artifact_paths` in pipelines/pull-request/flakiness-detection.yml.
+const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
 
 interface PipelineGroup {
   group: string;
@@ -106,7 +164,11 @@ interface Pipeline {
  */
 export function toBuildkitePipeline(
   commands: RunnableCommand[],
-  cfg: AgentConfig
+  cfg: AgentConfig,
+  // When there are BWC (`not_applicable`) tests to report, the analyze step is
+  // emitted even with zero batch steps so those records still reach the outcomes
+  // artifact.
+  opts: { hasNotApplicable?: boolean } = {}
 ): Pipeline {
   const byKey = new Map<string, RunnableCommand[]>();
   for (const c of commands) {
@@ -121,17 +183,19 @@ export function toBuildkitePipeline(
     const step: PipelineStep = {
       label: head.label,
       key,
-      command: wrapNeverFail(head.command, key, cfg.timeoutInMinutes),
+      command: wrapNeverFail(head.command, key, cfg.timeoutInMinutes, { kind: head.kind }),
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
-      artifact_paths: TEST_RESULTS_ARTIFACTS,
+      artifact_paths: [TEST_RESULTS_ARTIFACTS, FLAKINESS_STATUS_ARTIFACTS],
       retry: NO_AUTO_RETRY,
     };
 
     if (batches.length > 1) {
       const env: Record<string, string> = {};
       for (let i = 0; i < batches.length; i++) {
-        env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes);
+        env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes, {
+          kind: batches[i].kind,
+        });
       }
       // Both `$$` escapes defer interpolation past Buildkite's pipeline-upload
       // pass: `$$BUILDKITE_PARALLEL_JOB` because the variable is set per-job at
@@ -145,18 +209,23 @@ export function toBuildkitePipeline(
     steps.push(step);
   }
 
-  if (steps.length > 0) {
+  if (steps.length > 0 || opts.hasNotApplicable) {
     const deps = steps.map((s) => ({ step: s.key, allow_failure: true }));
     steps.push({
       label: "flakiness report",
       key: "flakiness-detection:analyze",
-      // Download JUnit XML from every preceding batch step,
-      // then run the analyzer. The download preserves the upload paths so
-      // the analyzer finds files at the same `*/build/test-results/...`
-      // locations a local run would see.
+      // Download the per-job status files and the skipped-tests list, then run
+      // the analyzer. The analyzer reads each status file and downloads that
+      // job's JUnit XML per job (`--step <jobId>`) so it can attribute results
+      // to a job before classifying, and folds the skipped list in as
+      // `not_applicable`. It writes the structured per-job outcomes to
+      // FLAKINESS_OUTCOMES_ARTIFACT, which `artifact_paths` below uploads for the
+      // observability pipeline to read. `|| true` tolerates a build with no
+      // status/skipped artifacts.
       command: wrapNeverFail(
         [
-          `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
+          `buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`,
+          `buildkite-agent artifact download "${FLAKINESS_SKIPPED_ARTIFACT}" . || true`,
           "node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
         ].join("\n"),
         "flakiness-detection:analyze",
@@ -167,6 +236,7 @@ export function toBuildkitePipeline(
       // rendering and should not pin to the gradle-tuned `cfg.agents` image
       // (that image lacks npm). Letting BK pick the parent pipeline default
       // gives us an agent with the standard Node toolchain available.
+      artifact_paths: FLAKINESS_OUTCOMES_ARTIFACT,
       depends_on: deps,
       retry: NO_AUTO_RETRY,
     });
@@ -183,9 +253,10 @@ export function toBuildkitePipeline(
 export function uploadBuildkitePipeline(
   commands: RunnableCommand[],
   cfg: AgentConfig,
-  cwd: string = PROJECT_ROOT
+  opts: { hasNotApplicable?: boolean; cwd?: string } = {}
 ): void {
-  const yaml = stringify(toBuildkitePipeline(commands, cfg));
+  const cwd = opts.cwd ?? PROJECT_ROOT;
+  const yaml = stringify(toBuildkitePipeline(commands, cfg, { hasNotApplicable: opts.hasNotApplicable }));
   console.log("--- Generated pipeline");
   console.log(yaml);
 

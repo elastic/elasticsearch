@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -50,6 +51,7 @@ import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -59,6 +61,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -85,6 +88,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,6 +98,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
 /**
@@ -226,14 +231,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build the response.
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory);
+    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory, long bytesRead);
 
     /**
      * Helper to create a LookupResponse from pages and send it to the listener.
      * The response is released after sending via {@link ActionListener#respondAndRelease}.
      */
-    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages) {
-        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory));
+    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages, long bytesRead) {
+        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, bytesRead));
     }
 
     /**
@@ -344,10 +349,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 List<Page> nullResponse = mergePages
                     ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                     : List.of();
-                respondWithPages(listener, nullResponse);
+                respondWithPages(listener, nullResponse, 0L);
                 return;
             }
         }
+        final LongSupplier directoryBytesRead = directoryBytesReadSupplier(indicesService);
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
@@ -419,7 +425,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 new IndexedByShardIdFromSingleton<>(shardContext.context),
                 0,
                 shardContext.executionContext,
-                warnings
+                warnings,
+                directoryBytesRead
             );
             releasables.add(queryOperator);
 
@@ -430,7 +437,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     plannerSettings,
                     shardContext.context,
                     driverContext,
-                    request.extractFields
+                    request.extractFields,
+                    directoryBytesRead
                 );
                 releasables.add(extractFieldsOperator);
                 operators.add(extractFieldsOperator);
@@ -478,11 +486,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
+                    long driverBytesRead = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L).bytesRead();
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    respondWithPages(listener, out);
+                    respondWithPages(listener, out, driverBytesRead);
                 }
 
                 @Override
@@ -508,7 +517,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         PlannerSettings plannerSettings,
         EsPhysicalOperationProviders.ShardContext shardContext,
         DriverContext driverContext,
-        List<NamedExpression> extractFields
+        List<NamedExpression> extractFields,
+        LongSupplier directoryBytesRead
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
@@ -553,8 +563,19 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             0,
             PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
             PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-            () -> 0L
+            directoryBytesRead
         );
+    }
+
+    /**
+     * Returns a {@link LongSupplier} for the current thread's store directory bytes read counter.
+     * Returns {@code () -> 0L} when the {@code directory_metrics} feature flag is disabled.
+     */
+    protected static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            return indicesService::currentStoreBytesRead;
+        }
+        return () -> 0L;
     }
 
     public CircuitBreaker getBreaker() {
@@ -763,6 +784,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         protected abstract List<Page> takePages();
 
+        public abstract long bytesRead();
+
         /**
          * Returns the plan string for profile output, or null if not available.
          * Subclasses can override to provide a plan string when profiling is enabled.
@@ -834,14 +857,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
-            return new LookupShardContext(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    0,
-                    searchContext,
-                    searchContext.getSearchExecutionContext(),
-                    searchContext.request().getAliasFilter()
-                ),
+            EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(
                 searchContext.getSearchExecutionContext(),
+                QueryWarnings.NOOP
+            );
+            // Queries built via the wrapper charge its own accounting pool, which nothing else drains.
+            searchContext.addReleasable(esqlCtx::releaseQueryConstructionMemory);
+            return new LookupShardContext(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, searchContext, esqlCtx, searchContext.request().getAliasFilter()),
+                esqlCtx,
                 searchContext
             );
         }

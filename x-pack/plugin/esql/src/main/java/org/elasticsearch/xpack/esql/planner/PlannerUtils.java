@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -17,6 +19,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -25,6 +28,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -46,6 +50,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -74,6 +79,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -90,6 +96,37 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 
 public class PlannerUtils {
     private static final Logger LOGGER = LogManager.getLogger(PlannerUtils.class);
+
+    /**
+     * Resolves a named analyzer from the node-level {@link AnalysisRegistry}. Shared by the {@code analyzer} option of
+     * {@code HIGHLIGHT} ({@link org.elasticsearch.xpack.esql.plan.logical.Highlight}, {@link HighlightQueryBuilders}) and
+     * {@code TOP_SNIPPETS} ({@link org.elasticsearch.xpack.esql.evaluator.EvalMapper}).
+     *
+     * @return the resolved {@link Analyzer}, or {@code null} when {@code analyzerName} is {@code null} (no override requested)
+     * @throws InvalidArgumentException if the registry is unavailable, the analyzer fails to load, or no analyzer is
+     *                                  registered under {@code analyzerName}
+     */
+    // TODO: Move analyzer verification into a shared helper that HIGHLIGHT, TOP_SNIPPETS, MATCH, and MATCH_PHRASE can use.
+    // FullTextFunction may be the right place for it.
+    @Nullable
+    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+        if (analyzerName == null) {
+            return null;
+        }
+        if (analysisRegistry == null) {
+            throw new InvalidArgumentException("analyzer [{}] cannot be resolved without an analysis registry", analyzerName);
+        }
+        Analyzer analyzer;
+        try {
+            analyzer = analysisRegistry.getAnalyzer(analyzerName);
+        } catch (IOException e) {
+            throw new InvalidArgumentException(e, "failed to load analyzer [{}]: {}", analyzerName, e.getMessage());
+        }
+        if (analyzer == null) {
+            throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
+        }
+        return analyzer;
+    }
 
     /**
      * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
@@ -316,7 +353,7 @@ public class PlannerUtils {
     /**
      * Runs local logical/physical optimization with external splits injected before the physical optimizer.
      * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
-     * {@code PushAggregatesToExternalSource} can see per-split statistics.
+     * {@code PushStatsToExternalSource} can see per-split statistics.
      */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
@@ -345,7 +382,11 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
-        return esFilter == null ? plan : plan.transformUp(FragmentExec.class, f -> {
+        if (esFilter == null) {
+            return plan;
+        }
+        warnIfFilterIgnoredForExternalSources(plan);
+        return plan.transformUp(FragmentExec.class, f -> {
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene
@@ -354,6 +395,30 @@ public class PlannerUtils {
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
             return f.withFilter(filter);
         });
+    }
+
+    /**
+     * The DSL request filter is only ever composed into {@code EsSourceExec} during local planning
+     * (see {@link #localPlan}); it is never applied to {@code ExternalSourceExec} reads. Warn loudly so
+     * users relying on a non-empty request filter over an external/dataset source know it was silently
+     * ignored, rather than getting unfiltered results with no indication anything is wrong.
+     */
+    private static void warnIfFilterIgnoredForExternalSources(PhysicalPlan plan) {
+        List<String> datasets = plan.collect(FragmentExec.class::isInstance)
+            .stream()
+            .map(FragmentExec.class::cast)
+            .flatMap(f -> f.fragment().collect(ExternalRelation.class::isInstance).stream())
+            .map(ExternalRelation.class::cast)
+            .map(r -> r.datasetName() != null ? r.datasetName() : r.sourcePath())
+            .distinct()
+            .toList();
+        if (datasets.isEmpty() == false) {
+            HeaderWarning.addWarning(
+                "The filter in the ES|QL query request is not applied to external dataset(s) [{}]; "
+                    + "use a WHERE clause to filter rows from external datasets instead",
+                String.join(", ", datasets)
+            );
+        }
     }
 
     public static PhysicalPlan localPlan(

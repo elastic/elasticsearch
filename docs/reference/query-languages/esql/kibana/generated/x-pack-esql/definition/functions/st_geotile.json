@@ -16,7 +16,10 @@
           "name" : "precision",
           "type" : "integer",
           "optional" : false,
-          "description" : "Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels)."
+          "description" : "Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -34,13 +37,19 @@
           "name" : "precision",
           "type" : "integer",
           "optional" : false,
-          "description" : "Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels)."
+          "description" : "Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "bounds",
           "type" : "geo_shape",
           "optional" : true,
-          "description" : "Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use [`ST_ENVELOPE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope) if the `geo_shape` is of any other type."
+          "description" : "Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use [`ST_ENVELOPE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope) if the `geo_shape` is of any other type.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

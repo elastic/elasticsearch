@@ -277,7 +277,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             );
         }
         if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
+            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+            assumeTrue(
+                "Cluster does not have columnar index modes enabled",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
+            );
             assumeTrue(
                 "Cluster has nodes that do not support columnar index modes",
                 minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
@@ -303,7 +308,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
             createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode);
-            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME, indexMode);
             createEnrichPolicy(client(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
@@ -350,7 +355,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     public final void testFetchAllEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         // The ENRICH is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
         doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
@@ -444,7 +448,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
-            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
+            if (expectNonEnrichableFields == false && supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             expectedColumns = expectedColumns.entry(
@@ -481,7 +488,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
-            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
+            if (expectNonEnrichableFields == false && supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             expectedValues = expectedValues.entry(
@@ -663,12 +673,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return ("FROM " + indexPattern + " METADATA _index").replace("%mode%", indexMode.toString()) + restOfQuery;
     }
 
-    protected String fromAllQuery(String restOfQuery) {
+    protected String fromAllQuery(String restOfQuery) throws IOException {
         return fromAllQuery(allIndexPattern(), restOfQuery);
     }
 
-    protected String allIndexPattern() {
-        if (indexMode == IndexMode.LOGSDB) {
+    protected String allIndexPattern() throws IOException {
+        if (indexMode == IndexMode.LOGSDB && minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)) {
             // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup
             return "%mode%*,-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*";
         }
@@ -729,7 +739,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + ENRICH_POLICY_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
@@ -849,7 +858,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode);
-            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName);
+            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName, mode);
         }
     }
 
@@ -875,7 +884,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.startObject("settings");
             config.startObject("index");
             config.field("mode", mode);
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 config.field("routing_path", "f_keyword");
             }
             if (nodeId != null) {
@@ -895,6 +904,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
+                if (excludedInColumnar(type, mode)) {
+                    continue;
+                }
                 config.startObject(fieldName(type));
                 typeMapping(mode, config, type);
                 config.endObject();
@@ -906,6 +918,24 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
         client.performRequest(request);
+    }
+
+    private static boolean excludedInColumnar(DataType type, IndexMode mode) {
+        if (mode.isStrictColumnar() == false) {
+            return false;
+        }
+        // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
+        // during a rolling upgrade where an older node would reject them in a columnar index.
+        if ((type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false) {
+            return true;
+        }
+        // flattened fields use the document-order binary doc values format in columnar mode; an older node without the
+        // feature misreads the synthetic source doc values during a rolling upgrade.
+        if (type == DataType.FLATTENED && clusterHasFeature("mapper.flattened.columnar_document_order") == false) {
+            return true;
+        }
+        return false;
     }
 
     private static String fieldName(DataType type) {
@@ -923,7 +953,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> config.field("type", "keyword");
             case KEYWORD -> {
                 config.field("type", type.esType());
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     config.field("time_series_dimension", true);
                 }
             }
@@ -931,13 +961,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void createAllTypesDoc(RestClient client, TransportVersion minimumVersionAcrossAllNodes, String indexName)
-        throws IOException {
+    protected static void createAllTypesDoc(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        IndexMode mode
+    ) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, mode)) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -1042,7 +1079,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             policyConfig.field("match_field", LOOKUP_ID_FIELD);
             List<String> enrichFields = new ArrayList<>();
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false || supportedInEnrich(type) == false) {
+                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false
+                    || supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
                 enrichFields.add(fieldName(type));
@@ -1126,24 +1164,26 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case DATE_RANGE -> {
-                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    // Older nodes in snapshot-to-snapshot BWC
-                    // had a bug: they leaked the doc-value upper bound (last millisecond before
-                    // `to` in `from..to`)
-                    // into the output instead of `to` itself. Accept the buggy form too while the
-                    // feature is still under construction.
-                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
-                        yield anyOf(
-                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
-                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
-                        );
-                    }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
                     yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
+                }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // On previous versions where DATE_RANGE was still under construction, we don't know
+                    // which exact historical shape an old/mixed-version node will emit: the buggy
+                    // formatted string (inclusive upper bound, no +1 conversion), the correctly
+                    // formatted string, or the raw, unformatted {gte, lte} doc value map (older
+                    // release builds never ran the snapshot-only formatting logic at all). Accept any
+                    // of them rather than guessing which one a given old build should produce.
+                    yield anyOf(
+                        equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                        equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z"),
+                        matchesMap().entry("gte", "1989-01-01T00:00:00.000Z").entry("lte", "2024-12-31T23:59:59.999Z")
+                    );
                 }
                 yield nullValue();
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     MapMatcher values = matchesMap().entry("a.c", "bar")
                         .entry("b", "foo")
                         .entry("d", "baz")
@@ -1166,11 +1206,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     }
                     if (isSingleNodeSnapshot()) {
                         /*
-                         * Only assert that keys come back in sorted order because
-                         * this was added after the first release of flattened. We
-                         * *did* do this while it was under snapshot, so we should
-                         * be able to enable this if all versions have the flattened
-                         * field released. But we'll worry about that when we release it.
+                         * Only assert sorted key order on a single snapshot node. Sorted keys
+                         * were added after flattened first shipped, so a mixed cluster with an
+                         * older node may still return them unsorted; the FLATTENED_DATATYPE_SORTED_KEYS
+                         * capability (see flattenedSortedKeys) governs the cross-version case.
                          */
                         yield allOf(values, hasKeys("a.c", "b", "d", "e", "j"));
                     }
@@ -1244,13 +1283,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     /**
      * Is the type supported in enrich policies?
      */
-    private static boolean supportedInEnrich(DataType t) {
+    private static boolean supportedInEnrich(DataType t, TransportVersion minimumVersion) {
         return switch (t) {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
                 EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
+            // EnrichResultBuilderForLongRange was added with tech preview; old nodes throw on execution.
+            case DATE_RANGE -> DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false);
+            // EnrichResultBuilderForFloat was added to 9.x (PR #139774); DENSE_VECTOR maps to ElementType.FLOAT
+            // which old 8.x nodes can't handle. Use the production version check (ESQL_DENSE_VECTOR_CREATED_VERSION
+            // = 9183000) which correctly excludes 8.x nodes (max transport version 8841090).
+            case DENSE_VECTOR -> DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false);
             default -> true;
         };
     }
@@ -1303,7 +1348,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     ) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     yield equalTo(type.esType());
                 }
                 yield equalTo(type.esType().replace("counter_", ""));
@@ -1345,8 +1390,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("unsupported");
             }
             case DATE_RANGE -> {
-                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                // Same dance as for AGGREGATE_METRIC_DOUBLE/DENSE_VECTOR: the coordinator that actually resolves the field type
+                // may be any node in the cluster (e.g. during a rolling upgrade), and IndexResolver's snapshot/release gating
+                // reflects that coordinator's own build, not this test JVM's. We can't tell from here which node coordinated, so
+                // once the type is merely under-construction-supported (not yet release-supported), accept either outcome.
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
                     yield equalTo("date_range");
+                }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("date_range"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }
@@ -1358,10 +1410,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("histogram");
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
-                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                // Support for flattened was added later. Mirror IndexResolver's gating, which treats the type as supported
+                // once the minimum version reaches the under-construction created version on snapshot builds, but requires the
+                // release version on release builds. Hardcoding release semantics here would wrongly expect "unsupported" in a
+                // snapshot mixed cluster whose oldest node predates the release transport version.
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot()) == false) {
+                    yield equalTo("unsupported");
                 }
-                yield equalTo("unsupported");
+                yield equalTo("flattened");
             }
             default -> equalTo(type.esType());
         };
@@ -1477,13 +1533,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, TransportVersion.current()) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
 
             expected = expected.entry(fieldName(type), loadersFor(type));
         }
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode.isTsdb() ? matchesList().item("column_at_a_time:TsIdFieldReader")
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )
@@ -1515,14 +1574,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
             case GEO_SHAPE -> {
-                String last;
-                if (syntheticSourceByDefault()) {
-                    last = "row_stride:FallbackToSource[Geometry]";
-                } else if (extractPreference == MappedFieldType.FieldExtractPreference.STORED) {
-                    last = "row_stride:BlockSourceReader.Geometries";
-                } else {
-                    last = "row_stride:BlockSourceReader.Geometries";
+                // In columnar, geo_shape is native and reads its WKB value straight from its own doc value; other
+                // synthetic-source modes fall back to loading the value from source.
+                if (indexMode.isStrictColumnar()) {
+                    yield matchesList().item("column_at_a_time:GeometrySource");
                 }
+                String last = syntheticSourceByDefault()
+                    ? "row_stride:FallbackToSource[Geometry]"
+                    : "row_stride:BlockSourceReader.Geometries";
                 yield matchesList().item("column_at_a_time:null").item(last);
             }
             case HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes");
@@ -1533,7 +1592,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
-                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1544,9 +1603,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> indexMode.isStrictColumnar()
-                ? matchesList().item("column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount")
-                : syntheticSourceByDefault() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
+                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

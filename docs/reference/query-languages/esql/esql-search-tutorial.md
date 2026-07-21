@@ -15,6 +15,8 @@ In this scenario, we're implementing search for a cooking blog. The blog contain
 This tutorial uses a small dataset for learning purposes. The goal is to demonstrate search concepts and {{esql}} syntax.
 :::
 
+For performance guidance when adapting these examples to larger datasets, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md).
+
 ## Requirements
 
 You need a running {{es}} cluster, together with {{kib}} to use the Dev Tools API Console. Refer to [choose your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type) for deployment options.
@@ -264,6 +266,28 @@ FROM cooking_blog
 ```
 
 This query searches the title field to match at least 2 of the 3 terms: "fluffy", "pancakes", or "breakfast".
+
+### Search computed values
+
+```{applies_to}
+stack: preview 9.5
+serverless: preview
+```
+
+`MATCH` can search expressions that are not backed by an index. For example,
+you can search a column produced by `EVAL`:
+
+```esql
+FROM cooking_blog
+| EVAL summary = CONCAT(title, " by ", author)
+| WHERE MATCH(summary, "pancakes")
+| KEEP title, author
+| LIMIT 1000
+```
+
+Because `summary` is not an indexed field, `MATCH` evaluates by scanning
+values row by row. This is useful for searching computed data, but may be
+slower than searching an indexed field on large datasets.
 
 ### Search for exact phrases
 

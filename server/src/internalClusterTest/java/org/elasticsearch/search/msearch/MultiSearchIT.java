@@ -96,9 +96,12 @@ public class MultiSearchIT extends ESIntegTestCase {
      * the reservation when the combined {@link org.elasticsearch.action.search.MultiSearchResponse} is delivered.
      */
     public void testBreakerAccountingEndToEnd() throws Exception {
-        assumeFalse("noop breakers used, skipping test", noopBreakerUsed());
-
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        // The request breaker type is randomized per node (~10% noop). The coordinating-only node gets its own seed and may
+        // be noop even when the pre-existing nodes are not, so the check must target the coordinator that runs the msearch
+        // accounting rather than the pre-existing nodes; a noop breaker never reserves bytes and reports getUsed() == 0.
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
         String index = "msearch-breaker-it";
         int numDocs = scaledRandomIntBetween(20, 50);
         int numSearches = scaledRandomIntBetween(10, 25);
@@ -293,6 +296,34 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testMrtDefaultsToFalseInCps() throws IOException {
+        String body = """
+            {"index": "index-1" }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2" }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of());
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
+    public void testMrtParamIsIgnoredInCps() throws IOException {
+        String body = """
+            {"index": "index-1", "ccs_minimize_roundtrips": true }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2", "ccs_minimize_roundtrips": true }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of("ccs_minimize_roundtrips", "true"));
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
     public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
@@ -320,7 +351,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
     }
 
-    public void testSliceEnabledIndexRequiresSliceAndRejectsRoutingInExecution() throws Exception {
+    public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
         ensureGreen("slice-enabled");
@@ -337,11 +368,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
         assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(2));
-            assertTrue(response.getResponses()[0].isFailure());
-            assertThat(
-                response.getResponses()[0].getFailure().getMessage(),
-                containsString("[_slice] is required when [index.slice.enabled] is true")
-            );
+            assertFalse(response.getResponses()[0].isFailure());
             assertTrue(response.getResponses()[1].isFailure());
             assertThat(
                 response.getResponses()[1].getFailure().getMessage(),
@@ -422,8 +449,18 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
     }
 
-    private boolean noopBreakerUsed() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
+    private MultiSearchRequest parseCpsRequest(String body, Map<String, String> params) throws IOException {
+        return RestMultiSearchAction.parseRequest(
+            mkRequest(body, params),
+            true,
+            new UsageService().getSearchUsageHolder(),
+            (ignored) -> true,
+            Optional.of(true)
+        );
+    }
+
+    private boolean noopBreakerUsed(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
         for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
                 return true;

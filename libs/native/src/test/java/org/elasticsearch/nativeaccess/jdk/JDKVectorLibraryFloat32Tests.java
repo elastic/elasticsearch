@@ -298,25 +298,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
     }
 
-    public void testFloat32Bulk8() {
-        assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Heap segments required", supportsHeapSegments());
-        final int dims = size;
-        var values = new float[8][];
-        var segments = new MemorySegment[8];
-        for (int i = 0; i < 8; i++) {
-            values[i] = randomFloatArray(dims);
-            segments[i] = MemorySegment.ofArray(values[i]);
-        }
-        int queryOrd = randomInt(7);
-        float[] expectedScores = new float[8];
-        ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
-
-        float[] bulkScores = new float[8];
-        similarityBulk8(segments, MemorySegment.ofArray(values[queryOrd]), dims, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
-    }
-
     // Verifies that bulk sparse similarity rejects invalid arguments (undersized segments,
     // negative dims/count) with appropriate out-of-bounds exceptions.
     public void testBulkSparseIllegalArgs() {
@@ -384,10 +365,13 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3 * Float.BYTES);
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        int elemBytes = size * Float.BYTES;
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size) * Float.BYTES;
+        var bTail = randomIntBetween(0, size) * Float.BYTES;
+        similarity(segment.asSlice(0L, elemBytes + aTail), segment.asSlice(0L, elemBytes + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
@@ -395,23 +379,18 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     }
 
     float similarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.FLOAT32,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32(a, b, length);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32(a, b, length);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
+        };
     }
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32Bulk(a, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32Bulk(a, b, dims, count, result);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
@@ -424,35 +403,19 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.FLOAT32,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment query, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.FLOAT32,
-                VectorSimilarityFunctions.Operation.BULK_SPARSE
-            ).invokeExact(addresses, query, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32BulkSparse(addresses, query, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32BulkSparse(addresses, query, dims, count, result);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
-    void similarityBulk8(MemorySegment[] as, MemorySegment query, int dims, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.BULK8)
-                .invokeExact(as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7], query, dims, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
 }

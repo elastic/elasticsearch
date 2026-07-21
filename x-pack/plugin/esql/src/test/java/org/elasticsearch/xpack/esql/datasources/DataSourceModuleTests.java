@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -31,7 +33,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -39,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
@@ -53,6 +58,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * Integration tests for DataSourceModule verifying SPI discovery and registration.
  * These tests ensure all data sources work correctly via the plugin discovery mechanism.
@@ -63,11 +70,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class DataSourceModuleTests extends ESTestCase {
 
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
@@ -83,7 +91,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Set<FormatSpec> formatSpecs() {
-            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
+            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"), FormatSpec.of("ndjson", ".ndjson"));
         }
 
         @Override
@@ -93,7 +101,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("csv", (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")), "tsv", (s, bf) -> new MockTsvFormatReader());
+            return Map.of(
+                "csv",
+                (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")),
+                "tsv",
+                (s, bf) -> new MockTsvFormatReader(),
+                "ndjson",
+                (s, bf) -> new MockCsvFormatReader("ndjson", List.of(".ndjson"))
+            );
         }
     }
 
@@ -125,7 +140,7 @@ public class DataSourceModuleTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
         assertFalse("plugin must not be closed before module close", plugin.closed.get());
@@ -175,6 +190,10 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock CSV format reader for testing.
      */
     private static class MockCsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final String format;
         private final List<String> extensions;
@@ -212,6 +231,10 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock TSV format reader for testing.
      */
     private static class MockTsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -352,6 +375,10 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -421,7 +448,7 @@ public class DataSourceModuleTests extends ESTestCase {
             settings,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
     }
@@ -453,11 +480,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
-        // Verify file provider is registered
+        // Verify file provider is registered. file:// gets the same reactive retry/backoff wrapping as every
+        // other scheme (the retry layer is inert for file:// — local reads raise plain IOExceptions, not the
+        // throttling-typed exception it retries — but the wrapping is uniform), so the retrieved provider is
+        // the outer RetryableStorageProvider, not the raw MockFileStorageProvider.
         assertTrue("File storage provider should be registered", registry.hasProvider("file"));
         StorageProvider fileProvider = registry.provider(StoragePath.of("file:///tmp/test.csv"));
         assertNotNull("File storage provider should be retrievable", fileProvider);
-        assertTrue("File provider should be MockFileStorageProvider", fileProvider instanceof MockFileStorageProvider);
+        assertTrue("File provider should be wrapped with the retry layer", fileProvider instanceof RetryableStorageProvider);
     }
 
     /**
@@ -698,6 +728,87 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull(registry.byExtension("data.tsv.gz"));
     }
 
+    /**
+     * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
+     * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
+     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsRejectedOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // One disabled codec per text format, covering all four disabled codecs and all three formats.
+        Map<String, String> rejected = new HashMap<>();
+        rejected.put("data.csv.bz2", "bzip2");
+        rejected.put("data.tsv.snappy", "snappy");
+        rejected.put("data.ndjson.lz4", "lz4");
+        rejected.put("data.csv.br", "brotli");
+        for (Map.Entry<String, String> entry : rejected.entrySet()) {
+            String objectName = entry.getKey();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat(
+                "Expected rejection for " + objectName,
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd")
+            );
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
+        }
+
+        // The benchmarked codecs still resolve across the text formats.
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.zst"));
+        assertNotNull(registry.byExtension("data.ndjson.gz"));
+    }
+
+    /**
+     * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
+     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsAllowedOnSnapshotBuilds() {
+        assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressed = List.of(
+            "data.csv.gz",
+            "data.tsv.zst",
+            "data.ndjson.gz",
+            "data.csv.bz2",
+            "data.tsv.snappy",
+            "data.ndjson.lz4",
+            "data.csv.br"
+        );
+        for (String objectName : compressed) {
+            FormatReader reader = registry.byExtension(objectName);
+            assertNotNull("Expected " + objectName + " to resolve on snapshot builds", reader);
+            assertTrue(
+                objectName + " should resolve to a CompressionDelegatingFormatReader",
+                reader.getClass().getSimpleName().contains("CompressionDelegating")
+            );
+        }
+    }
+
     public void testFileSourceSplitProviderUsesRegistriesForNdjsonMacroSplits() {
         String fileUri = "file:///tmp/registry-backed.ndjson";
         byte[] payload = buildNdjsonPayload(8_000);
@@ -717,7 +828,7 @@ public class DataSourceModuleTests extends ESTestCase {
             List.of()
         );
 
-        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx);
+        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx).splits();
         assertTrue("Expected newline-aligned macro splits from registry-backed provider", splits.size() > 1);
 
         long totalLength = 0;
@@ -753,6 +864,132 @@ public class DataSourceModuleTests extends ESTestCase {
             "Reader should be CompressionDelegatingFormatReader",
             reader.getClass().getSimpleName().contains("CompressionDelegating")
         );
+    }
+
+    /**
+     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format}
+     * override composes with the resource's outer compression suffix instead of bypassing it.
+     * {@code FormatNameResolver.resolveReader} is the exact chokepoint {@code FileSourceFactory} and
+     * {@code FileSplitProvider} use for the real read path.
+     */
+    public void testExplicitFormatComposesWithCompressionSuffix() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // Mirrors the reported scenario: settings.format = "csv" over a resource that ends in .csv.gz.
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv.gz", registry);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "An explicit format over a compressed resource should still wrap in CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Same fix, via the {@code reader} alias override rather than {@code format}: {@code reader=java} maps
+     * to the {@code parquet} format name ({@link FormatNameResolver#READER_JAVA}), so a mock {@code parquet}
+     * format (unlike the real Parquet reader, this stand-in supports whole-file compression) is registered
+     * to exercise the alias branch of {@link FormatNameResolver#resolveReader} against a compressed object.
+     */
+    public void testExplicitReaderAliasComposesWithCompressionSuffix() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new MockParquetFormatPlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("reader", "java"), "hits_00.parquet.gz", registry);
+        assertEquals("parquet", reader.formatName());
+        assertTrue(
+            "reader=java over a compressed resource should still wrap in CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}/{@code reader=parquet-rs}
+     * resolve to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
+     * Parquet reader.
+     */
+    private static class MockParquetFormatPlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("parquet", ".parquet"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("parquet", (s, bf) -> new MockCsvFormatReader("parquet", List.of(".parquet")));
+        }
+    }
+
+    /**
+     * An explicit {@code format} override over an uncompressed resource (the common case) must be
+     * unaffected by the fix: no compression suffix means no wrapping, same reader instance as before.
+     */
+    public void testExplicitFormatWithNoCompressionSuffixIsUnchanged() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv", registry);
+        assertFalse("An uncompressed resource must not be wrapped", reader.getClass().getSimpleName().contains("CompressionDelegating"));
+        assertTrue(reader instanceof MockCsvFormatReader);
+    }
+
+    /**
+     * An explicit {@code format} naming a format that cannot be wrapped in a whole-file decompressor
+     * (e.g. Parquet/ORC) must be rejected up front — the same error {@link FormatReaderRegistry#byExtension}
+     * already raises for the equivalent extension-inferred case — rather than silently ignoring the
+     * resource's compression suffix and failing later with a confusing parse error.
+     */
+    public void testExplicitFormatRejectsWholeFileCompressionForIncompatibleFormats() {
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new NoWholeFileCompressionPlugin(),
+            new GzipDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("format", "parq"), "data.parq.gz", registry)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("does not support whole-file compression"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+    }
+
+    /**
+     * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
+     * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
+     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+     */
+    public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin(), new Bzip2DataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.bz2", registry)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd"));
+
+        // The benchmarked codec still resolves and still composes with the explicit format.
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.gz", registry);
+        assertTrue(reader.getClass().getSimpleName().contains("CompressionDelegating"));
     }
 
     /**

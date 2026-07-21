@@ -8,35 +8,14 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.generator.Column;
+
+import java.util.List;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures.
  */
 public class GenerativeRestTestTests extends ESTestCase {
-
-    public void testLimitByMvExpandBugMatchesDedup() {
-        String query = "ROW x = 1 | MV_EXPAND x | DEDUP";
-        String error = "illegal_state_exception: Found 1 problem\n"
-            + "line 1:27: Plan [LimitBy[1[INTEGER],[x{r}#3594],false]] optimized incorrectly due to missing references [x{r}#3594]";
-
-        assertTrue(GenerativeRestTest.isLimitByMvExpandBug(error, query));
-    }
-
-    public void testLimitByMvExpandBugMatchesLimitBy() {
-        String query = "ROW x = 1 | MV_EXPAND x | LIMIT 1 BY x";
-        String error = "illegal_state_exception: Found 1 problem\n"
-            + "line 1:40: Plan [LimitBy[1[INTEGER],[x{r}#3594],false]] optimized incorrectly due to missing references [x{r}#3594]";
-
-        assertTrue(GenerativeRestTest.isLimitByMvExpandBug(error, query));
-    }
-
-    public void testLimitByMvExpandBugRequiresMvExpand() {
-        String query = "ROW x = 1 | DEDUP";
-        String error = "illegal_state_exception: Found 1 problem\n"
-            + "line 1:17: Plan [LimitBy[1[INTEGER],[x{r}#3594],false]] optimized incorrectly due to missing references [x{r}#3594]";
-
-        assertFalse(GenerativeRestTest.isLimitByMvExpandBug(error, query));
-    }
 
     public void testFullTextAfterSubqueryMatchesLimitInsideSubquery() {
         String query = "FROM books, (FROM books | LIMIT 1) | WHERE match(title, \"quick\")";
@@ -58,6 +37,18 @@ public class GenerativeRestTestTests extends ESTestCase {
             + "| WHERE match_phrase(service_id, \"fox world\")";
         String error = "verification_exception: line 1:91: [MatchPhrase] function cannot be used after "
             + "(from message_types | keep type | drop type),no_mapping_sample_data,service_owners";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testFullTextAfterSubqueryMatchesTruncatedUnionAllSourceMessage() {
+        String query = "from (from all_types_short_as_long | enrich languages_policy on wildcard "
+            + "| dissect language_name \"%{a} %{b}\"),countries_bbox,(from dense_vector_arithmetic | keep id) "
+            + "| where match_phrase(registered_domain, \"test data\")";
+        // The UnionAll source text in the verifier message is truncated to Node.TO_STRING_MAX_WIDTH chars + "...",
+        // so it can be cut off mid-branch, before the comma separating the union branches.
+        String error = "verification_exception: line 1:1800: [MatchPhrase] function cannot be used after "
+            + "(from all_types_short_as_long | enrich languages_policy on wildcard | dissect language_name \"%{HkOuTBPphONE} %...";
 
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
@@ -89,6 +80,20 @@ public class GenerativeRestTestTests extends ESTestCase {
         String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
 
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testMatchOptionsOnNonIndexMappedFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchOptionsOnIndexMappedFieldIsNotAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), true));
+
+        assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
     }
 
 }

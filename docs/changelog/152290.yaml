@@ -1,0 +1,15 @@
+area: Security
+highlight:
+  body: |-
+    Elasticsearch provides encryption at rest for sensitive credentials stored in cluster state,
+    starting with credentials (for example, access key and secret key pairs) for ES|QL external
+    data sources. Credentials are encrypted using a project-scoped primary encryption key before
+    being written to cluster state, and are decrypted only when needed, such as during query
+    execution. The primary encryption key itself is generated automatically and is protected at
+    rest using a password configured through secure settings or the keystore.
+  notable: true
+  title: Encryption at rest for sensitive cluster state
+issues: []
+pr: 152290
+summary: "[Encryption] Remove PEK Feature Flag"
+type: enhancement

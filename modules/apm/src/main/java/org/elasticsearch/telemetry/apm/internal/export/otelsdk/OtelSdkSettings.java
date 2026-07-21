@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.sdk.common.export.RetryPolicy;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -28,88 +30,90 @@ public final class OtelSdkSettings {
 
     private OtelSdkSettings() {}
 
-    /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.flush_timeout",
-        TimeValue.timeValueSeconds(10),
-        NodeScope
-    );
+    /**
+     * Upper bound on the best-effort flush of buffered metrics and spans on shutdown, so an unreachable exporter cannot hang it.
+     * 1 minute is a reasonable default that protects from pathological cases without being too restrictive.
+     * */
+    public static final TimeValue OTEL_EXPORT_FLUSH_TIMEOUT = TimeValue.timeValueMinutes(1);
 
-    /** External OTel resource attributes attached to every metric and span exported by the SDK path.*/
-    public static final Setting.AffixSetting<String> TELEMETRY_OTEL_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
-        "telemetry.otel.resource.",
+    // --- Resource attributes (all signals)
+
+    /** External OTel resource attributes attached to every metric, span and log record exported by the SDK path. */
+    public static final Setting.AffixSetting<String> TELEMETRY_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
+        "telemetry.resource.",
         key -> Setting.simpleString(key, NodeScope)
     );
 
-    // --- General OTLP settings
+    // --- Shared OTLP export transport (metrics + traces)
 
-    /** Total attempts per export (initial + retries). {@code 1} disables retry. */
-    public static final Setting<Integer> TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS = Setting.intSetting(
-        "telemetry.otel.otlp.retry.max_attempts",
-        2,
-        1,
-        5,
-        NodeScope
-    );
+    /** URL ({@code http://host:port}, no path) where the SDK exports metrics and spans.
+     * Required when the SDK metrics or trace path is active. */
+    public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
 
-    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF = Setting.timeSetting(
-        "telemetry.otel.otlp.retry.initial_backoff",
-        TimeValue.timeValueSeconds(1),
-        NodeScope
-    );
-
-    public static final Setting<Double> TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER = Setting.doubleSetting(
-        "telemetry.otel.otlp.retry.backoff_multiplier",
-        1.5,
-        1.0,
+    /** When {@code false}, TLS certificate verification is disabled for the OTLP exporters. */
+    public static final Setting<Boolean> TELEMETRY_EXPORT_VERIFY_SERVER_CERT = Setting.boolSetting(
+        "telemetry.export.verify_server_cert",
+        true,
         NodeScope
     );
 
     /**
-     * Total deadline for one OTLP send() including retries; must stay below the collection interval so a slow export
-     * does not stretch into the next cycle.
-     */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_SEND_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.otlp.send_timeout",
+     * Initial backoff of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
+     * The default allows for fast retry and manageable total timeout.
+     * */
+    public static final TimeValue OTLP_RETRY_INITIAL_BACKOFF = TimeValue.timeValueMillis(100);
+
+    /**
+     * Backoff multiplier of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
+     * The default allows the second retry to come with a reasonable distance from the first.
+     * */
+    public static final double OTLP_RETRY_BACKOFF_MULTIPLIER = 5;
+
+    /** Retry policy shared by the metrics and traces OTLP exporters. */
+    public static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder()
+        .setMaxAttempts(3)
+        .setInitialBackoff(OTLP_RETRY_INITIAL_BACKOFF.toDuration())
+        .setBackoffMultiplier(OTLP_RETRY_BACKOFF_MULTIPLIER)
+        .build();
+
+    /**
+     * Total deadline for one OTLP send() including retries. Floored at {@link #OTLP_RETRY_INITIAL_BACKOFF} so a failing
+     * send can still complete a retry within budget, and kept below the export interval so a slow export does not
+     * stretch into the next cycle.
+     **/
+    public static final Setting<TimeValue> TELEMETRY_EXPORT_SEND_TIMEOUT = Setting.timeSetting(
+        "telemetry.export.send_timeout",
         TimeValue.timeValueSeconds(5),
-        TimeValue.timeValueMillis(1),
+        OTLP_RETRY_INITIAL_BACKOFF,
         TimeValue.timeValueSeconds(60),
-        new GreaterThanTimeValueValidator("telemetry.otel.otlp.send_timeout", TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF),
         NodeScope
     );
 
-    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.otlp.connect_timeout",
+    public static final Setting<TimeValue> TELEMETRY_EXPORT_CONNECT_TIMEOUT = Setting.timeSetting(
+        "telemetry.export.connect_timeout",
         TimeValue.timeValueSeconds(2),
         TimeValue.timeValueMillis(1),
         TimeValue.timeValueSeconds(10),
         NodeScope
     );
 
+    /**
+     * Export cadence: the {@code PeriodicMetricReader} interval and the {@code BatchSpanProcessor} schedule delay.
+     * Defaults to the legacy {@code telemetry.agent.metrics_interval} when set, otherwise 60s. Must be greater than
+     * {@link #TELEMETRY_EXPORT_SEND_TIMEOUT}.
+     */
+    public static final Setting<TimeValue> TELEMETRY_EXPORT_INTERVAL = Setting.timeSetting(
+        "telemetry.export.interval",
+        settings -> TimeValue.parseTimeValue(settings.get("telemetry.agent.metrics_interval", "60s"), "telemetry.export.interval"),
+        new GreaterThanTimeValueValidator("telemetry.export.interval", TELEMETRY_EXPORT_SEND_TIMEOUT),
+        NodeScope
+    );
+
     // --- Metrics
 
-    public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = Setting.simpleString(
-        "telemetry.otel.metrics.endpoint",
-        "",
-        NodeScope
-    );
-
-    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_INTERVAL = Setting.timeSetting(
-        "telemetry.otel.metrics.interval",
-        TimeValue.timeValueSeconds(10),
-        new GreaterThanTimeValueValidator("telemetry.otel.metrics.interval", TELEMETRY_OTEL_OTLP_SEND_TIMEOUT),
-        NodeScope
-    );
-
-    public static final Setting<Boolean> TELEMETRY_OTEL_METRICS_ENABLED = Setting.boolSetting(
-        "telemetry.otel.metrics.enabled",
-        false,
-        NodeScope
-    );
-
     /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
-    public static final Setting<ByteSizeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE = Setting.byteSizeSetting(
-        "telemetry.otel.metrics.disk_buffer_size",
+    public static final Setting<ByteSizeValue> TELEMETRY_METRICS_BUFFER_DISK_SIZE = Setting.byteSizeSetting(
+        "telemetry.metrics.buffer.disk_size",
         ByteSizeValue.ofMb(512),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
@@ -117,91 +121,69 @@ public final class OtelSdkSettings {
     );
 
     /** Buffered entries older than this are dropped. */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_BUFFER_TTL = Setting.timeSetting(
-        "telemetry.otel.metrics.buffer_ttl",
+    public static final Setting<TimeValue> TELEMETRY_METRICS_BUFFER_TTL = Setting.timeSetting(
+        "telemetry.metrics.buffer.ttl",
         TimeValue.timeValueHours(12),
         NodeScope
     );
 
     /**
-     * How long the current write file is kept open before rotating to a new one. Maps to
-     * {@code FileStorageConfiguration.maxFileAgeForWriteMillis}; must be strictly less than
-     * {@link #TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE} or the library rejects the config.
+     * Instrument name patterns whose metrics are dropped.
+     * Patterns may contain the wildcards {@code *} (any run of characters) and {@code ?} (a single character).
      */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW = Setting.timeSetting(
-        "telemetry.otel.metrics.disk_buffer_write_window",
-        TimeValue.timeValueSeconds(30),
+    public static final Setting<List<String>> TELEMETRY_METRICS_DISABLED = Setting.stringListSetting(
+        "telemetry.metrics.disabled",
         NodeScope
     );
 
     /**
-     * Minimum age before a buffered file is eligible for replay. Maps to
-     * {@code FileStorageConfiguration.minFileAgeForReadMillis}; must be strictly greater than
-     * {@link #TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW}.
+     * Whether the per-instrument collection-time histogram ({@code es.apm.metrics.instrument.collection_time.histogram}) is
+     * recorded. Off by default because it adds one series per observable instrument; enable it at runtime to attribute metric
+     * collection cost to a specific instrument, then disable it again.
      */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE = Setting.timeSetting(
-        "telemetry.otel.metrics.disk_buffer_read_min_age",
-        TimeValue.timeValueSeconds(33),
+    public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
+        "telemetry.metrics.instrument_timing.enabled",
+        false,
+        OperatorDynamic,
         NodeScope
     );
 
     // --- Traces
 
-    /** OTLP HTTP endpoint URL where the SDK exports buffered spans. Required when the SDK trace path is active. */
-    public static final Setting<String> TELEMETRY_OTEL_TRACES_ENDPOINT = Setting.simpleString(
-        "telemetry.otel.traces.endpoint",
-        "",
-        NodeScope
-    );
-
-    /** How often {@code BatchSpanProcessor} flushes buffered spans to the exporter. */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_INTERVAL = Setting.timeSetting(
-        "telemetry.otel.traces.interval",
-        // Matches the APM agent's api_request_time default; full batches (512 spans) flush immediately.
-        TimeValue.timeValueSeconds(10),
-        NodeScope
-    );
-
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.
      * Spans from an upstream {@code traceparent} are not counted. */
-    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH = Setting.intSetting(
-        "telemetry.otel.traces.max_trace_depth",
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_DEPTH = Setting.intSetting(
+        "telemetry.tracing.max_depth",
         0,
         0,
         OperatorDynamic,
         NodeScope
     );
 
-    /** Per-trace sample rate applied to locally-started traces.*/
-    public static final Setting<Double> TELEMETRY_OTEL_TRACES_SAMPLE_RATE = Setting.doubleSetting(
-        "telemetry.otel.traces.sample_rate",
-        0.001,
-        0.0,
-        1.0,
+    /** Per-trace sample rate applied to locally-started traces. Defaults to the legacy
+     * {@code telemetry.agent.transaction_sample_rate} when set, otherwise 0.001. */
+    public static final Setting<Double> TELEMETRY_TRACING_SAMPLE_RATE = new Setting<>(
+        "telemetry.tracing.sample_rate",
+        settings -> settings.get("telemetry.agent.transaction_sample_rate", "0.001"),
+        s -> Setting.parseDouble(s, 0.0, 1.0, "telemetry.tracing.sample_rate", false),
         NodeScope
     );
 
-    /** Maximum number of spans the {@code BatchSpanProcessor} buffers before dropping.*/
-    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE = Setting.intSetting(
-        "telemetry.otel.traces.batch.max_queue_size",
-        1024,
+    /** Maximum number of spans the {@code BatchSpanProcessor} buffers before dropping. Defaults to the legacy
+     * {@code telemetry.agent.max_queue_size} when set, otherwise 1024. */
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.tracing.max_queue_size",
+        settings -> settings.get("telemetry.agent.max_queue_size", "1024"),
         1,
+        Integer.MAX_VALUE,
         NodeScope
     );
 
     /** Maximum number of spans exported per OTLP batch. Must be {@code <= max_queue_size}. */
-    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE = Setting.intSetting(
-        "telemetry.otel.traces.batch.max_export_batch_size",
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_BATCH_SIZE = Setting.intSetting(
+        "telemetry.tracing.max_batch_size",
         512,
         1,
-        NodeScope
-    );
-
-    /** Per-batch deadline the {@code BatchSpanProcessor} gives the exporter before timing out. */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.traces.batch.export_timeout",
-        TimeValue.timeValueSeconds(5),
-        TimeValue.timeValueMillis(1),
         NodeScope
     );
 
@@ -209,8 +191,8 @@ public final class OtelSdkSettings {
      * When {@code true}, exceptions recorded fully on a span are attached via {@link io.opentelemetry.api.trace.Span#recordException}.
      * When {@code false}, only {@code exception.type} and {@code exception.message} are emitted as an {@code exception} span event.
      */
-    public static final Setting<Boolean> TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS = Setting.boolSetting(
-        "telemetry.otel.traces.record_exception_stacks",
+    public static final Setting<Boolean> TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS = Setting.boolSetting(
+        "telemetry.tracing.record_exception_stacks",
         false,
         OperatorDynamic,
         NodeScope
@@ -218,12 +200,12 @@ public final class OtelSdkSettings {
 
     // --- Logs
 
-    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_OTEL_LOGS_ENABLED} is true. */
-    public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString("telemetry.otel.logs.endpoint", "", NodeScope);
+    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
+    public static final Setting<String> TELEMETRY_LOGS_ENDPOINT = Setting.simpleString("telemetry.logs.endpoint", "", NodeScope);
 
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
-    public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting(
-        "telemetry.otel.logs.enabled",
+    public static final Setting<Boolean> TELEMETRY_LOGS_AUDIT_ENABLED = Setting.boolSetting(
+        "telemetry.logs.audit.enabled",
         false,
         new Setting.Validator<>() {
             @Override
@@ -231,16 +213,104 @@ public final class OtelSdkSettings {
 
             @Override
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                if (value && ((String) settings.get(TELEMETRY_OTEL_LOGS_ENDPOINT)).isEmpty()) {
+                if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
-                        TELEMETRY_OTEL_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.otel.logs.enabled=true"
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
                     );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(TELEMETRY_OTEL_LOGS_ENDPOINT).iterator();
+                return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    /**
+     * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
+     * Sized for ~30 MB of in-flight records at ~3 KB/record average.
+     */
+    public static final Setting<Integer> TELEMETRY_LOGS_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.logs.max_queue_size",
+        10_000,
+        1,
+        NodeScope
+    );
+
+    /**
+     * PEM-encoded CA certificate(s) used to verify the otel-delivery-gateway's server certificate.
+     * Multiple files are concatenated in PEM order. Paths are resolved relative to the Elasticsearch
+     * config directory when not absolute. When empty, the OTel exporter's default TLS handling is used.
+     */
+    public static final Setting<List<String>> TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES = Setting.stringListSetting(
+        "telemetry.logs.ssl.certificate_authorities",
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded client certificate for mTLS authentication to the otel-delivery-gateway.
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_KEY}.
+     * Path is resolved relative to the Elasticsearch config directory when not absolute.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_CERTIFICATE = Setting.simpleString(
+        "telemetry.logs.ssl.certificate",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String key = (String) settings.get(TELEMETRY_LOGS_SSL_KEY);
+                if (value.isEmpty() != key.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_KEY).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded private key for the client certificate ({@link #TELEMETRY_LOGS_SSL_CERTIFICATE}).
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_CERTIFICATE}.
+     * Supports PKCS#8 ({@code BEGIN PRIVATE KEY}) and PKCS#1 RSA ({@code BEGIN RSA PRIVATE KEY}) formats.
+     * Encrypted keys are not supported.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString(
+        "telemetry.logs.ssl.key",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String cert = (String) settings.get(TELEMETRY_LOGS_SSL_CERTIFICATE);
+                if (value.isEmpty() != cert.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_CERTIFICATE).iterator();
             }
         },
         NodeScope

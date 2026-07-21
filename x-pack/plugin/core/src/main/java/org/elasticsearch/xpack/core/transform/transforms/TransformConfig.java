@@ -71,6 +71,18 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     public static final TransportVersion TRANSFORM_CLOUD_TOKEN = TransportVersion.fromName("transform_cloud_token");
 
+    /**
+     * Gates the {@code cloudCredential} field carried on {@code PutTransformAction.Request},
+     * {@code UpdateTransformAction.Request}, {@code StartTransformAction.Request},
+     * {@code PreviewTransformAction.Request}, {@code ResetTransformAction.Request}, and
+     * {@code UpgradeTransformsAction.Request}. Extracted on the coordinating node so it survives
+     * forwarding to the master node, where the {@code AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT}
+     * transient is no longer present.
+     */
+    public static final TransportVersion TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST = TransportVersion.fromName(
+        "transform_cloud_credential_on_request"
+    );
+
     /** Specifies all the possible transform functions. */
     public enum Function {
         PIVOT,
@@ -551,12 +563,14 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
                     builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
+            } else if (credentialId != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, credentialId);
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             if (transformVersion != null) {
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
@@ -600,7 +614,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             builder.field(retentionPolicyConfig.getWriteableName(), retentionPolicyConfig);
             builder.endObject();
         }
-        if (excludeGenerated == false && credentialId != null) {
+        if (forInternalStorage && credentialId != null) {
             builder.field(CREDENTIAL_ID.getPreferredName(), credentialId);
         }
         builder.endObject();

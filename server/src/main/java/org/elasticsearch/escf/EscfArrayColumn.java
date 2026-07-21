@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
@@ -22,10 +23,10 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 final class EscfArrayColumn extends EscfColumn {
 
     private final EscfColumn child;
-    private final int[] rowOffsets;
+    private final IntsRef rowOffsets;
 
-    EscfArrayColumn(int docCount, FixedBitSet absent, EscfColumn child, int[] rowOffsets) {
-        super(docCount, absent);
+    EscfArrayColumn(int docCount, FixedBitSet validity, EscfColumn child, IntsRef rowOffsets) {
+        super(docCount, validity);
         this.child = child;
         this.rowOffsets = rowOffsets;
     }
@@ -41,7 +42,25 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
-    ArrayReader getArrayValue(int d) {
-        return new ColumnarArrayReader(child, rowOffsets[d], rowOffsets[d + 1]);
+    ArrayReader getArrayValue(int row) {
+        int elemFrom = intAt(rowOffsets, row);
+        int elemTo = intAt(rowOffsets, row + 1);
+        return new ColumnarArrayReader(child, elemFrom, elemTo);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        // Child stays full/unsliced — ColumnarArrayReader uses absolute element indices.
+        return new EscfArrayColumn(count, windowValidity(validity, from, count), child, sliceOffsets(rowOffsets, from, count));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        int[] newRowOffsets = rebasedOffsets(rowOffsets, docCount);
+        int elemFrom = intAt(rowOffsets, 0);
+        int elemTo = intAt(rowOffsets, docCount);
+        // Slice the child to the element range referenced by this window, then materialize it.
+        EscfColumnData childData = child.sliceInternal(elemFrom, elemTo - elemFrom).toColumnData();
+        return EscfColumnData.ofArray(docCount, validity, newRowOffsets, childData);
     }
 }

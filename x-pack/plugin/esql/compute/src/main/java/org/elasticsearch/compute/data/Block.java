@@ -157,6 +157,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     /**
      * {@return the index of the first value for the given position}
      * See class javadoc for the usual way to iterate these positions.
+     * For a non-null position other than the last, the first value index of the next position is the exclusive end index.
      * <p>
      *     For densely packed data this will return its parameter unchanged.
      *     For fields with {@code null} values or multivalued fields, this

@@ -77,9 +77,9 @@ public record LibraryModel(
         "WINDOWS_X64"
     );
 
-    public static final String SYMBOL_SYMBOL_RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
-    public static final String DEFAULT_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
-    public static final String MH_SYMBOL_RESOLVER_INTERFACE_FQN = MethodHandleResolver.class.getName();
+    public static final String SYMBOL_RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
+    public static final String DEFAULT_SYMBOL_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
+    public static final String MH_RESOLVER_INTERFACE_FQN = MethodHandleResolver.class.getName();
     public static final String DEFAULT_MH_RESOLVER_FQN = DefaultMethodHandleResolver.class.getName();
     public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
     public static final String ARRAY_FIELD_FQN = org.elasticsearch.foreign.ArrayField.class.getName();
@@ -245,12 +245,12 @@ public record LibraryModel(
     private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         if (specMirror == null) {
-            return DEFAULT_RESOLVER_FQN;
+            return DEFAULT_SYMBOL_RESOLVER_FQN;
         }
 
         TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "symbolResolver");
         if (resolverTypeMirror == null) {
-            return DEFAULT_RESOLVER_FQN;
+            return DEFAULT_SYMBOL_RESOLVER_FQN;
         }
 
         TypeElement resolverElement = types.asElement(resolverTypeMirror) instanceof TypeElement te ? te : null;
@@ -263,15 +263,15 @@ public record LibraryModel(
         // dot-separated qualified name, since the generator emits this into bytecode.
         String resolverFqn = binaryName(resolverElement);
 
-        if (resolverFqn.equals(DEFAULT_RESOLVER_FQN)) {
-            return DEFAULT_RESOLVER_FQN;
+        if (resolverFqn.equals(DEFAULT_SYMBOL_RESOLVER_FQN)) {
+            return DEFAULT_SYMBOL_RESOLVER_FQN;
         }
 
-        TypeElement resolverInterface = findTypeElement(resolverElement, SYMBOL_SYMBOL_RESOLVER_INTERFACE_FQN);
+        TypeElement resolverInterface = findTypeElement(resolverElement, SYMBOL_RESOLVER_INTERFACE_FQN);
         if (resolverInterface == null) {
             messager.printMessage(
                 Kind.ERROR,
-                "symbolResolver class [" + resolverFqn + "] must implement [" + SYMBOL_SYMBOL_RESOLVER_INTERFACE_FQN + "]",
+                "symbolResolver class [" + resolverFqn + "] must implement [" + SYMBOL_RESOLVER_INTERFACE_FQN + "]",
                 element,
                 specMirror
             );
@@ -301,10 +301,6 @@ public record LibraryModel(
      */
     private static String resolveAndValidateMethodHandleResolver(TypeElement element, Messager messager, Types types) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
-        if (specMirror == null) {
-            return DEFAULT_MH_RESOLVER_FQN;
-        }
-
         TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "methodHandleResolver");
         if (resolverTypeMirror == null) {
             return DEFAULT_MH_RESOLVER_FQN;
@@ -324,11 +320,11 @@ public record LibraryModel(
             return DEFAULT_MH_RESOLVER_FQN;
         }
 
-        TypeElement resolverInterface = findTypeElement(resolverElement, MH_SYMBOL_RESOLVER_INTERFACE_FQN);
+        TypeElement resolverInterface = findTypeElement(resolverElement, MH_RESOLVER_INTERFACE_FQN);
         if (resolverInterface == null) {
             messager.printMessage(
                 Kind.ERROR,
-                "methodHandleResolver class [" + resolverFqn + "] must implement [" + MH_SYMBOL_RESOLVER_INTERFACE_FQN + "]",
+                "methodHandleResolver class [" + resolverFqn + "] must implement [" + MH_RESOLVER_INTERFACE_FQN + "]",
                 element,
                 specMirror
             );

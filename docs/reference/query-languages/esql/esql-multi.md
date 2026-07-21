@@ -14,7 +14,7 @@ data from multiple sources. Learn more in the following sections:
 * [Query across clusters](esql-cross-clusters.md)
 * [Query across {{serverless-short}} projects](esql-cross-serverless-projects.md) {applies_to}`serverless: preview`
 * [Combine result sets with subqueries](esql-subquery.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
-* [Define virtual indices using ES|QL views](esql-views.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: unavailable`
+* [Define virtual indices using ES|QL views](esql-views.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
 
 ::::{include} _snippets/common/query-performance-tip.md
 ::::

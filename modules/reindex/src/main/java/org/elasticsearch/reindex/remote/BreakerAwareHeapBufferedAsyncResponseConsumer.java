@@ -35,24 +35,22 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Heap-buffered async response consumer that charges the raw Apache HTTP response buffer to the
- * {@link CircuitBreaker#REQUEST} circuit breaker.
- *
- * <p>The low-level REST client buffers each async response in a {@link SimpleInputBuffer} before
- * invoking the application callback, so heap can be exhausted before the caller sees any bytes. This
- * consumer accounts the actual {@link ByteBuffer} allocations used by that Apache buffer, including
- * growth for responses without a {@code Content-Length} header. Responses with a known
- * {@code Content-Length} still fail fast above {@code knownContentLengthLimitBytes}; unknown-length
- * (chunked) responses are not subject to that fixed cap and instead grow under the control of the
- * circuit breaker, which is expected to trip before heap is exhausted, up to a hard {@code MAX_BUFFER_CAPACITY}
- * ceiling that only guards against overflowing the {@code int}-indexed buffer.
- *
- * <p>On a successful response, Apache calls {@link #releaseResources()} before the caller reads the
- * returned entity. For that reason the breaker reservation is attached to the response entity and
- * must be released after the entity content has been consumed. Failed or cancelled requests release
- * directly from {@link #releaseResources()}.
- */
+/// Heap-buffered async response consumer that charges the raw Apache HTTP response buffer to the
+/// [CircuitBreaker#REQUEST] circuit breaker.
+///
+/// The low-level REST client buffers each async response in a [SimpleInputBuffer] before
+/// invoking the application callback, so heap can be exhausted before the caller sees any bytes. This
+/// consumer accounts the actual [ByteBuffer] allocations used by that Apache buffer, including
+/// growth for responses without a `Content-Length` header. Responses with a known
+/// `Content-Length` still fail fast above `knownContentLengthLimitBytes`; unknown-length
+/// (chunked) responses are not subject to that fixed cap and instead grow under the control of the
+/// circuit breaker, which is expected to trip before heap is exhausted, up to a hard `MAX_BUFFER_CAPACITY`
+/// ceiling that only guards against overflowing the `int`-indexed buffer.
+///
+/// On a successful response, Apache calls [#releaseResources()] before the caller reads the
+/// returned entity. For that reason the breaker reservation is attached to the response entity and
+/// must be released after the entity content has been consumed. Failed or cancelled requests release
+/// directly from [#releaseResources()].
 final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseConsumer<HttpResponse> {
 
     static final String REMOTE_RESPONSE_BUFFER_BREAKER_LABEL = "reindex_remote_response_buffer";

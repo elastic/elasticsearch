@@ -1,0 +1,5 @@
+area: Infra/Logging
+issues: []
+pr: 154640
+summary: "[WIP] Prototype: Querylog -> OTel"
+type: enhancement

@@ -70,7 +70,8 @@ public class CrossProjectIndexResolutionValidator {
     private final Map<String, ResolvedIndexExpressions> remoteResolvedExpressions;
     private final Map<String, Exception> remoteExceptions;
 
-    private ResolutionFailure.NotFound notFoundFailure = null;
+    private List<ResolutionFailure.NotFound> localNotFoundFailures = null;
+    private Map<String, List<ResolutionFailure.NotFound>> remoteNotFoundFailures = null;
 
     /**
      * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided
@@ -190,7 +191,7 @@ public class CrossProjectIndexResolutionValidator {
     private void validateQualifiedExpression(String originalExpression, List<String> remoteExpressions, ResolutionFailure localFailure) {
         switch (localFailure) {
             case ResolutionFailure.Unauthorized unauthorized -> recordLocalAuthorizationFailure(unauthorized, originalExpression);
-            case ResolutionFailure.NotFound notFound -> recordNotFoundFailure(notFound);
+            case ResolutionFailure.NotFound notFound -> recordLocalNotFoundFailure(notFound);
             case null -> {
             }
         }
@@ -234,37 +235,21 @@ public class CrossProjectIndexResolutionValidator {
         // - Remote 404 (we should only encounter this if the local project is excluded from index resolution)
         if (localFailure instanceof ResolutionFailure.Unauthorized authorizationFailure) {
             recordLocalAuthorizationFailure(authorizationFailure, originalExpression);
-        } else if (remoteResult.authorizationFailure != null) {
-            recordRemoteFailure(remoteResult.authorizationFailure, remoteResult.expression, remoteResult.projectAlias);
+        } else if (remoteResult.failure instanceof ResolutionFailure.Unauthorized) {
+            recordRemoteFailure(remoteResult.failure, remoteResult.expression, remoteResult.projectAlias);
         } else if (localFailure != null) {
             assert localFailure instanceof ResolutionFailure.NotFound;
-            recordNotFoundFailure((ResolutionFailure.NotFound) localFailure);
-        } else {
+            recordLocalNotFoundFailure((ResolutionFailure.NotFound) localFailure);
+        } else if (remoteResult.failure instanceof ResolutionFailure.NotFound notFound) {
             assert false == remoteExpressions.isEmpty() : "expected remote expressions to be non-empty";
-            recordNotFoundFailure(new ResolutionFailure.NotFound(remoteExpressions.getFirst()));
+            recordRemoteNotFoundFailure(notFound, remoteResult.projectAlias);
         }
     }
 
     @Nullable
     private ElasticsearchException buildValidationException() {
-        if (localAuthorizationFailure == null && remoteAuthorizationFailures == null) {
-            // if we have an expression (simplest example: "*,-*") that resolves to no indices, and `allow_no_indices=false`, we need to
-            // return a 404
-            if (notFoundFailure == null && indicesOptions.allowNoIndices() == false) {
-                if (localResolvedExpressions.localIndicesEmptyOrMissing()
-                    && remoteResolvedExpressions.values().stream().allMatch(ResolvedIndexExpressions::localIndicesEmptyOrMissing)) {
-                    return new IndexNotFoundException(
-                        localResolvedExpressions.expressions()
-                            .stream()
-                            .map(ResolvedIndexExpression::original)
-                            .collect(Collectors.joining(","))
-                    );
-                }
-            }
-            // null when all resolved expressions are valid
-            return notFoundFailure != null ? new IndexNotFoundException(notFoundFailure.expression()) : null;
-        } else {
-            var firstException = localAuthorizationFailure != null
+        if (localAuthorizationFailure != null || remoteAuthorizationFailures != null) {
+            var primaryException = localAuthorizationFailure != null
                 ? formatAuthorizationException(localAuthorizationFailure.errorTemplate(), localUnauthorizedIndices)
                 : null;
 
@@ -274,17 +259,57 @@ public class CrossProjectIndexResolutionValidator {
                     assert unauthorizedIndices.isEmpty() == false;
 
                     var exception = formatAuthorizationException(e.getValue().errorTemplate(), unauthorizedIndices);
-                    if (firstException == null) {
-                        firstException = exception;
+                    if (primaryException == null) {
+                        primaryException = exception;
                     } else {
                         // if we have multiple authorization errors (i.e. from remotes), attach these as suppressed to the first
                         // authorization error
-                        firstException.addSuppressed(exception);
+                        primaryException.addSuppressed(exception);
                     }
                 }
             }
 
-            return firstException;
+            return primaryException;
+        } else {
+            if (localNotFoundFailures != null || remoteNotFoundFailures != null) {
+                IndexNotFoundException primaryException = null;
+
+                if (localNotFoundFailures != null) {
+                    for (var e : localNotFoundFailures) {
+                        if (primaryException == null) {
+                            primaryException = new IndexNotFoundException(e.expression);
+                        } else {
+                            primaryException.addSuppressed(new IndexNotFoundException(e.expression));
+                        }
+                    }
+                }
+
+                if (remoteNotFoundFailures != null) {
+                    for (var indexNotFoundExceptions : remoteNotFoundFailures.values()) {
+                        for (var e : indexNotFoundExceptions) {
+                            if (primaryException == null) {
+                                primaryException = new IndexNotFoundException(e.expression);
+                            } else {
+                                primaryException.addSuppressed(new IndexNotFoundException(e.expression));
+                            }
+                        }
+                    }
+                }
+
+                return primaryException;
+            }
+
+            // if we have an expression (simplest example: "*,-*") that resolves to no indices, and `allow_no_indices=false`, we need to
+            // return a 404
+            if (indicesOptions.allowNoIndices() == false
+                && localResolvedExpressions.localIndicesEmptyOrMissing()
+                && remoteResolvedExpressions.values().stream().allMatch(ResolvedIndexExpressions::localIndicesEmptyOrMissing)) {
+                return new IndexNotFoundException(
+                    localResolvedExpressions.expressions().stream().map(ResolvedIndexExpression::original).collect(Collectors.joining(","))
+                );
+            }
+
+            return null;
         }
     }
 
@@ -296,8 +321,10 @@ public class CrossProjectIndexResolutionValidator {
         localUnauthorizedIndices.add(originalExpression);
     }
 
-    private void recordNotFoundFailure(ResolutionFailure.NotFound failure) {
-        if (notFoundFailure == null) notFoundFailure = failure;
+    private void recordLocalNotFoundFailure(ResolutionFailure.NotFound failure) {
+        if (localNotFoundFailures == null) localNotFoundFailures = new ArrayList<>();
+
+        localNotFoundFailures.add(failure);
     }
 
     private void recordRemoteFailure(ResolutionFailure remoteFailure, String remoteExpression, String projectAlias) {
@@ -310,8 +337,14 @@ public class CrossProjectIndexResolutionValidator {
                 remoteAuthorizationFailures.putIfAbsent(projectAlias, authorizationFailure);
                 remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(remoteExpression);
             }
-            case ResolutionFailure.NotFound notFound -> recordNotFoundFailure(notFound);
+            case ResolutionFailure.NotFound notFound -> recordRemoteNotFoundFailure(notFound, projectAlias);
         }
+    }
+
+    private void recordRemoteNotFoundFailure(ResolutionFailure.NotFound failure, String projectAlias) {
+        if (remoteNotFoundFailures == null) remoteNotFoundFailures = new LinkedHashMap<>();
+
+        remoteNotFoundFailures.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(failure);
     }
 
     private static ElasticsearchSecurityException formatAuthorizationException(String template, List<String> unauthorizedIndices) {
@@ -434,7 +467,7 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     private record UnqualifiedRemoteExpressionResult(
-        @Nullable ResolutionFailure.Unauthorized authorizationFailure,
+        @Nullable ResolutionFailure failure,
         @Nullable String projectAlias,
         @Nullable String expression,
         boolean foundFlat
@@ -453,8 +486,10 @@ public class CrossProjectIndexResolutionValidator {
                 // found flat expression somewhere
                 return new UnqualifiedRemoteExpressionResult(null, null, null, true);
             }
-            if (result.authorizationFailure == null && remoteFailure instanceof ResolutionFailure.Unauthorized authorizationFailure) {
-                result = new UnqualifiedRemoteExpressionResult(authorizationFailure, projectAlias, remoteExpression, false);
+            if (result.failure == null) {
+                result = new UnqualifiedRemoteExpressionResult(remoteFailure, projectAlias, remoteExpression, false);
+            } else if (result.failure instanceof ResolutionFailure.NotFound && remoteFailure instanceof ResolutionFailure.Unauthorized) {
+                result = new UnqualifiedRemoteExpressionResult(remoteFailure, projectAlias, remoteExpression, false);
             }
         }
 

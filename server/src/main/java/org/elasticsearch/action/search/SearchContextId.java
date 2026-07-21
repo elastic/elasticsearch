@@ -120,7 +120,6 @@ public final class SearchContextId {
             }
             return new SearchContextId(shards, aliasFilters);
         } catch (IOException e) {
-            assert false : e;
             throw new IllegalArgumentException(e);
         }
     }

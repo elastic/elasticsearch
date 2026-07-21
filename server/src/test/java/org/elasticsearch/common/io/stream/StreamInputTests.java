@@ -12,6 +12,7 @@ package org.elasticsearch.common.io.stream;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -131,5 +132,18 @@ public class StreamInputTests extends ESTestCase {
         System.arraycopy("💩".getBytes(UTF_8), 0, bytes, 0, 4);
         assertThrows(IOException.class, () -> in.tryReadStringFromBytes(bytes, 0, bytes.length, 2));
         verify(in, never()).skip(anyLong());
+    }
+
+    public void testReadImmutableMapsRejectOversizedDeclaration() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(1_000_000_000);
+            var payload = out.bytes();
+            try (var in = payload.streamInput()) {
+                expectThrows(EOFException.class, () -> in.readImmutableMap(StreamInput::readString, StreamInput::readString));
+            }
+            try (var in = payload.streamInput()) {
+                expectThrows(EOFException.class, () -> in.readImmutableOpenMap(StreamInput::readString, StreamInput::readString));
+            }
+        }
     }
 }

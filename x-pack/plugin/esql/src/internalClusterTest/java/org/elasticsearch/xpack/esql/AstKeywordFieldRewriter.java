@@ -147,8 +147,6 @@ public final class AstKeywordFieldRewriter {
         MATCH_OPERATOR_LHS,
         /** Body of a {@code LOOKUP JOIN <index> ON <field>[, <field>]*} command. */
         LOOKUP_JOIN_ON,
-        /** Body of an {@code INSIST_🐔 <field>[, <field>]*} developer-only command. */
-        INSIST_BODY,
         /** Identifier inside an ES|QL qualified-name reference of the form {@code [<index>].[<field>]}. */
         QUALIFIED_NAME_BRACKETS
     }
@@ -522,10 +520,6 @@ public final class AstKeywordFieldRewriter {
             }
             if (node instanceof Fork fork) {
                 return processFork(fork, scope);
-            }
-            if (isInsist(node)) {
-                recordSkips(node.expressions(), scope, SkipSite.INSIST_BODY);
-                return scope;
             }
             // Source commands (FROM/TS/ROW), subquery sources and any other command: wrap whatever
             // own expressions the node exposes (a no-op for leaf sources) and preserve scope.
@@ -1040,10 +1034,6 @@ public final class AstKeywordFieldRewriter {
 
         private static Set<String> attributeNames(List<? extends NamedExpression> attributes) {
             return namedExpressionNames(attributes);
-        }
-
-        private static boolean isInsist(LogicalPlan node) {
-            return node.getClass().getSimpleName().toLowerCase(Locale.ROOT).startsWith("insist");
         }
     }
 }

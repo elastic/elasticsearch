@@ -140,7 +140,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Total time measurements", totalTime, hasSize(1));
         Measurement metric = totalTime.getFirst();
         assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
-        assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
+        assertThat("Primary attribute", metric.attributes().get("es_is_primary"), equalTo(true));
         assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
     }
 
@@ -238,7 +238,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Total time measurements", totalTime, hasSize(greaterThanOrEqualTo(1)));
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
-            assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(false));
+            assertThat("Primary attribute", metric.attributes().get("es_is_primary"), equalTo(false));
             assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
 
             List<Measurement> indexTime = targetTelemetry.getLongHistogramMeasurement(
@@ -352,7 +352,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Total time measurements", totalTime, hasSize(1));
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
-            assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
+            assertThat("Primary attribute", metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
 
             awaitRecoveryCountMetrics(node1, node1Telemetry, Map.of(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE, 0L));
@@ -463,11 +463,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             new CancelRecoveriesAction.Request(
                 0L,
                 List.of(
-                    new CancelRecoveriesAction.ShardRecoveryCancellation(
-                        indexShardRouting.get().shardId(),
-                        indexShardRouting.get().allocationId().getId(),
-                        false
-                    )
+                    new ShardRecoveryCancellation(indexShardRouting.get().shardId(), indexShardRouting.get().allocationId().getId(), false)
                 )
             )
         ).get();
@@ -560,7 +556,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(queuedStoreShardId, queuedStoreAllocationId, false))
+                List.of(new ShardRecoveryCancellation(queuedStoreShardId, queuedStoreAllocationId, false))
             )
         ).get();
 
@@ -583,7 +579,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(queuedPeerShardId, queuedPeerAllocationId, false))
+                List.of(new ShardRecoveryCancellation(queuedPeerShardId, queuedPeerAllocationId, false))
             )
         ).get();
 
@@ -608,7 +604,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(startedShardId, startedAllocationId, true))
+                List.of(new ShardRecoveryCancellation(startedShardId, startedAllocationId, true))
             )
         ).get();
         proceedWithBlockedRecovery.countDown();

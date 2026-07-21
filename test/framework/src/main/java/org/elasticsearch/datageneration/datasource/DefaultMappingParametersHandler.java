@@ -23,6 +23,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -344,13 +345,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
-        return switch (ESTestCase.randomInt(3)) {
-            case 0 -> true;
-            case 1 -> Map.of("multi_value", true);
-            case 2 -> Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore"));
-            case 3 -> Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore"));
-            default -> throw new IllegalStateException();
-        };
+        return ESTestCase.randomFrom(
+            List.of(
+                true,
+                Map.of("multi_value", true),
+                Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")),
+                Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")),
+                Map.of("nullability", false, "on_failure", "ignore")
+            )
+        );
     }
 
     @Override

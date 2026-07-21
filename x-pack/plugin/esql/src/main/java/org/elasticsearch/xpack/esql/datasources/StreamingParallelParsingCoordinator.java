@@ -363,6 +363,13 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /**
+         * The file's column names in file order, read from chunk 0 by {@link #captureFileHeaderColumns}.
+         * Written on the segmentator thread before any chunk is dispatched and read by parser threads;
+         * {@code volatile} for that publication. {@code null} whenever no chunk needs it.
+         */
+        @Nullable
+        private volatile List<String> fileHeaderColumns;
         /** Added to each chunk's decompressed start byte; see {@link #parallelRead}'s {@code baseFileOffset}. */
         private final long baseFileOffset;
         /**
@@ -848,6 +855,7 @@ public final class StreamingParallelParsingCoordinator {
          */
         private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
             if (readSchema != null && readSchema.isEmpty() == false) {
+                captureFileHeaderColumns(buffer, length);
                 return;
             }
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
@@ -866,6 +874,32 @@ public final class StreamingParallelParsingCoordinator {
                 throw new IllegalStateException(
                     "FormatReader#withSchema returned a non-SegmentableFormatReader: " + bound.getClass().getName()
                 );
+            }
+        }
+
+        /**
+         * Reads the file's column names from chunk 0 so chunks 1..N can bind a declared schema by name.
+         * <p>
+         * Only a header-bearing format whose declared schema binds by name needs this, and only when the
+         * planner bound a schema — otherwise the reader either has no names to match or reads its own header.
+         * Chunk 0 always reads its own header and ignores what is captured here.
+         * <p>
+         * Runs on the segmentator thread before any chunk is dispatched, so every parser sees a fully
+         * populated value. Failure is not fatal: chunks 1..N then find no names and fail loudly rather than
+         * binding by position, which would shift every column silently.
+         */
+        private void captureFileHeaderColumns(byte[] buffer, int length) {
+            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+                return;
+            }
+            try {
+                SourceMetadata metadata = reader.metadata(chunkStorageObject(0, buffer, 0, length));
+                List<Attribute> schema = metadata == null ? null : metadata.schema();
+                if (schema != null && schema.isEmpty() == false) {
+                    fileHeaderColumns = schema.stream().map(Attribute::name).toList();
+                }
+            } catch (IOException | RuntimeException e) {
+                logger.debug("could not read header names from the first chunk; later chunks will fail loudly", e);
             }
         }
 
@@ -965,6 +999,9 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    // Chunk 0 carries the file's header and reads it directly; later chunks cannot see it,
+                    // so hand them the names read from chunk 0 rather than leaving them to bind by position.
+                    .fileHeaderColumns(chunk.index == 0 ? null : fileHeaderColumns)
                     .splitStartByte(chunkFileGlobalStart)
                     .maxRecordBytes(maxRecordBytes)
                     .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())

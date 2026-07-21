@@ -107,7 +107,8 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
-    @Nullable Consumer<String> informationalWarningSink
+    @Nullable Consumer<String> informationalWarningSink,
+    @Nullable List<String> fileHeaderColumns
 ) {
 
     public FormatReadContext {
@@ -152,7 +153,8 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink
+            informationalWarningSink,
+            fileHeaderColumns
         );
     }
 
@@ -175,7 +177,8 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink
+            informationalWarningSink,
+            fileHeaderColumns
         );
     }
 
@@ -198,7 +201,8 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink
+            informationalWarningSink,
+            fileHeaderColumns
         );
     }
 
@@ -223,6 +227,8 @@ public record FormatReadContext(
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsBaseOffset = 0L;
         private long statsStripeSize = -1L;
+        @Nullable
+        private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         @Nullable
@@ -318,6 +324,19 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * The file's own column names, in file order, read from its leading bytes.
+         * <p>
+         * Only set for a read that does NOT own the file's start but still needs to know what its columns
+         * are called — a chunk after the first of a header-bearing file whose declared schema binds by name.
+         * Such a chunk cannot see the header itself, and binding by position instead would silently shift
+         * every column. The component that cut the file into chunks reads the header once and states it here.
+         */
+        public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
+            this.fileHeaderColumns = fileHeaderColumns;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -337,7 +356,8 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
-                informationalWarningSink
+                informationalWarningSink,
+                fileHeaderColumns
             );
         }
     }

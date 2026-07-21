@@ -150,9 +150,25 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
     }
 
     public void testMostRecentKnownTimestampPrefersNonNegativeOverUnknown() {
+        // A known timestamp always wins over UNKNOWN, regardless of argument order.
         assertThat(BlobFileRanges.mostRecentKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, 1000L), equalTo(1000L));
         assertThat(BlobFileRanges.mostRecentKnownTimestamp(2000L, SharedBlobCacheService.UNKNOWN_TIMESTAMP), equalTo(2000L));
+        // With two known timestamps the larger one wins irrespective of order: this is a max, not "the last one folded in".
         assertThat(BlobFileRanges.mostRecentKnownTimestamp(1000L, 3000L), equalTo(3000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(3000L, 1000L), equalTo(3000L));
+        // MINIMAL_CACHE_TIMESTAMP (0L) is a known value and must still beat UNKNOWN.
+        assertThat(
+            BlobFileRanges.mostRecentKnownTimestamp(
+                SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP,
+                SharedBlobCacheService.UNKNOWN_TIMESTAMP
+            ),
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
+        );
+        // Two UNKNOWNs fold to UNKNOWN (nothing known yet).
+        assertThat(
+            BlobFileRanges.mostRecentKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, SharedBlobCacheService.UNKNOWN_TIMESTAMP),
+            equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+        );
     }
 
     private static BlobLocation randomBlobLocation() {

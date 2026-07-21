@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154644
+summary: No `match_phrase` pushdown on unmapped fields
+type: bug

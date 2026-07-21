@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -288,6 +289,36 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
 
         List<TaggedPage> results = runOperator(builder, input);
         assertMatchesSumAndMaxOracle(results, sumOracle, maxOracle);
+    }
+
+    /**
+     * Regression test: COUNT aggregation in the promoted (partitioned) path calls
+     * {@code addGather} on {@link org.elasticsearch.compute.aggregation.CountGroupingAggregatorFunction},
+     * which previously threw {@link UnsupportedOperationException} because both anonymous
+     * {@code AddInput} inner classes were missing the override.
+     */
+    public void testCountAggregationInPromotedPath() {
+        Map<Long, Long> oracle = new HashMap<>();
+        // Single-column pages (key only): COUNT(*) needs no value column.
+        List<Page> input = randomCountInput(4_000, 200, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            // Empty channel list → countAll=true → exercises the countAll addGather path.
+            .aggregators(List.of(countAllFactory()))
+            .partitionCount(8)
+            .partitionConversionThreshold(30)  // low threshold forces conversion → addGather calls
+            .perPartitionEmit(Integer.MAX_VALUE, 1.0)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertTrue(
+            "expected conversion to partitioned mode for 200 distinct keys",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesCountOracle(results, oracle);
     }
 
     /**
@@ -701,5 +732,56 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         }
         assertThat(actualSum, equalTo(sumOracle));
         assertThat(actualMax, equalTo(maxOracle));
+    }
+
+    /** COUNT(*) aggregator spec (empty channels → countAll=true). */
+    private PartitionedHashAggregationOperator.AggregatorSpec countAllFactory() {
+        return new PartitionedHashAggregationOperator.AggregatorSpec(CountAggregatorFunction.supplier(), List.of());
+    }
+
+    /**
+     * Builds {@code rows} single-column (LONG key) pages over {@code cardinality} distinct keys,
+     * updating {@code countOracle} (key → expected occurrence count). Used for COUNT(*) tests
+     * where no value column is needed.
+     */
+    private List<Page> randomCountInput(int rows, int cardinality, Map<Long, Long> countOracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize)) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key = randomLongBetween(0, cardinality - 1);
+                    keyBuilder.appendLong(key);
+                    countOracle.merge(key, 1L, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    /**
+     * Folds COUNT(*) intermediate state rows across all tagged pages and compares against
+     * {@code oracle}. COUNT intermediate state: [key (LONG), count (LONG), seen (BOOLEAN)] = 3 blocks.
+     */
+    private void assertMatchesCountOracle(List<TaggedPage> results, Map<Long, Long> oracle) {
+        Map<Long, Long> actual = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(3)); // key + count + seen
+            LongBlock keys = page.getBlock(0);
+            LongBlock counts = page.getBlock(1);
+            BooleanBlock seenFlags = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                long key = keys.isNull(i) ? 0L : keys.getLong(i);
+                actual.merge(key, counts.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
     }
 }

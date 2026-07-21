@@ -79,12 +79,21 @@ public class PartitionedHashMergeOperator implements Operator {
      */
     public record AggregatorSpec(AggregatorFunctionSupplier supplier, List<Integer> channels) {}
 
+    /**
+     * Number of logical merge workers launched per operator instance when not otherwise configured.
+     * Workers are reactive tasks (not persistent threads): each holds one slot in the
+     * {@code esql_worker} pool only while it has pages to drain. Keeping this well below
+     * {@code partitionCount} (e.g. 8 vs 32) limits queue pressure on the thread pool.
+     */
+    public static final int DEFAULT_MERGE_WORKER_COUNT = 8;
+
     // ---- Builder / Factory ----
 
     public static class Builder {
         private List<BlockHash.GroupSpec> groupSpecs;
         private List<AggregatorSpec> aggregators;
         private int partitionCount = PartitionedHashAggregationOperator.DEFAULT_PARTITION_COUNT;
+        private int workerCount = DEFAULT_MERGE_WORKER_COUNT;
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private Executor executor;
@@ -101,6 +110,11 @@ public class PartitionedHashMergeOperator implements Operator {
 
         public Builder partitionCount(int partitionCount) {
             this.partitionCount = partitionCount;
+            return this;
+        }
+
+        public Builder workerCount(int workerCount) {
+            this.workerCount = workerCount;
             return this;
         }
 
@@ -133,6 +147,7 @@ public class PartitionedHashMergeOperator implements Operator {
         private final int[] combinedChannelStart;
         private final int internalPageWidth;
         private final int partitionCount;
+        private final int workerCount;
         private final int maxPageSize;
         private final int aggregationBatchSize;
         private final Executor executor;
@@ -200,6 +215,7 @@ public class PartitionedHashMergeOperator implements Operator {
             this.combinedChannelStart = combinedStart;
             this.internalPageWidth = nextChannel;
             this.partitionCount = builder.partitionCount;
+            this.workerCount = Math.min(builder.workerCount, builder.partitionCount);
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.executor = builder.executor;
@@ -216,6 +232,7 @@ public class PartitionedHashMergeOperator implements Operator {
                 combinedChannelStart,
                 internalPageWidth,
                 partitionCount,
+                workerCount,
                 maxPageSize,
                 aggregationBatchSize,
                 executor,
@@ -243,12 +260,20 @@ public class PartitionedHashMergeOperator implements Operator {
     private final int[] combinedChannelStart;
     private final int internalPageWidth;
     private final int partitionCount;
+    private final int workerCount;
     private final int maxPageSize;
     private final int aggregationBatchSize;
     private final DriverContext driverContext;
 
     private final Executor executor;
     private final ExchangeBuffer[] workerBuffers;
+    /**
+     * Guards against multiple concurrent tasks for the same logical worker. Each entry is
+     * {@code true} while a task is submitted or running; {@code false} while the worker is
+     * parked waiting for data. Set to {@code true} before submission, cleared to {@code false}
+     * inside doRun after all partition buffers have been drained and listeners registered.
+     */
+    private final AtomicBoolean[] workerSubmitted;
     private final FailureCollector failureCollector = new FailureCollector();
     private final SubscribableListener<Void> allWorkersDone = new SubscribableListener<>();
     private final PendingTasks pendingTasks;
@@ -277,6 +302,7 @@ public class PartitionedHashMergeOperator implements Operator {
         int[] combinedChannelStart,
         int internalPageWidth,
         int partitionCount,
+        int workerCount,
         int maxPageSize,
         int aggregationBatchSize,
         Executor executor,
@@ -290,6 +316,7 @@ public class PartitionedHashMergeOperator implements Operator {
         this.combinedChannelStart = combinedChannelStart;
         this.internalPageWidth = internalPageWidth;
         this.partitionCount = partitionCount;
+        this.workerCount = workerCount;
         this.maxPageSize = maxPageSize;
         this.aggregationBatchSize = aggregationBatchSize;
         this.executor = executor;
@@ -306,6 +333,10 @@ public class PartitionedHashMergeOperator implements Operator {
             for (int p = 0; p < partitionCount; p++) {
                 workerBuffers[p] = new ExchangeBuffer(2 * partitionCount);
             }
+            this.workerSubmitted = new AtomicBoolean[workerCount];
+            for (int w = 0; w < workerCount; w++) {
+                workerSubmitted[w] = new AtomicBoolean(true);
+            }
             this.pendingTasks = new PendingTasks(() -> {
                 allWorkersDone.onResponse(null);
                 if (closed) {
@@ -314,8 +345,9 @@ public class PartitionedHashMergeOperator implements Operator {
                 driverContext.removeAsyncAction();
             });
             driverContext.addAsyncAction();
-            for (int p = 0; p < partitionCount; p++) {
-                scheduleWorker(p);
+            for (int w = 0; w < workerCount; w++) {
+                pendingTasks.newTask();
+                scheduleWorker(w);
             }
             success = true;
         } finally {
@@ -443,35 +475,67 @@ public class PartitionedHashMergeOperator implements Operator {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[workers=" + partitionCount + ", partitionCount=" + partitionCount + "]";
+        return getClass().getSimpleName() + "[workers=" + workerCount + ", partitionCount=" + partitionCount + "]";
     }
 
     // ---- Worker scheduling ----
 
-    private void scheduleWorker(int partitionIndex) {
-        // Pre-increment before execute() so the task is tracked before emitFinal() calls
-        // finishTask(). Unlike ParallelTopNOperator (which defers newTask() to doRun() because
-        // finish() drains the shared buffer before finishTask()), this operator has N independent
-        // per-partition buffers; reconcileNoneToBuffers() fires waitForReading() listeners that
-        // submit new tasks, and those tasks may hold pages to merge — they must be visible to
-        // pendingTasks before emitFinal() decrements the driver's ref.
-        pendingTasks.newTask();
+    /**
+     * Submits a task for {@code workerIndex} unconditionally. Callers must have already set
+     * {@code workerSubmitted[workerIndex]} to {@code true} and called {@link PendingTasks#newTask()}
+     * before invoking this. Worker {@code w} is responsible for partitions
+     * {@code w, w+workerCount, w+2*workerCount, ...}.
+     *
+     * <p>Pre-incrementing {@code pendingTasks} before {@code executor.execute()} ensures that
+     * tasks spawned by {@code reconcileNoneToBuffers()} (which fires {@code waitForReading}
+     * listeners and may call {@link #maybeScheduleWorker} synchronously) are counted before
+     * {@code emitFinal()} decrements the driver's reference.
+     */
+    private void scheduleWorker(int workerIndex) {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 try {
-                    ExchangeBuffer buffer = workerBuffers[partitionIndex];
-                    Table table = workerTables[partitionIndex];
-                    Page page;
-                    while ((page = buffer.pollPage()) != null) {
-                        try {
-                            mergeIntermediateIntoTable(table, toInternalLayout(page));
-                        } finally {
-                            page.releaseBlocks();
+                    boolean anyUnfinished = false;
+                    for (int p = workerIndex; p < partitionCount; p += workerCount) {
+                        ExchangeBuffer buffer = workerBuffers[p];
+                        Table table = workerTables[p];
+                        Page page;
+                        while ((page = buffer.pollPage()) != null) {
+                            try {
+                                mergeIntermediateIntoTable(table, toInternalLayout(page));
+                            } finally {
+                                page.releaseBlocks();
+                            }
+                        }
+                        if (buffer.isFinished() == false) {
+                            anyUnfinished = true;
                         }
                     }
-                    if (buffer.isFinished() == false) {
-                        buffer.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(partitionIndex)));
+                    if (anyUnfinished) {
+                        // Register a wake-up listener on each unfinished partition buffer.
+                        // Each listener calls maybeScheduleWorker, which uses a CAS to ensure
+                        // at most one task is ever submitted for this worker at a time.
+                        for (int p = workerIndex; p < partitionCount; p += workerCount) {
+                            if (workerBuffers[p].isFinished() == false) {
+                                workerBuffers[p].waitForReading().listener().addListener(
+                                    ActionListener.running(() -> maybeScheduleWorker(workerIndex))
+                                );
+                            }
+                        }
+                    }
+                    // Clear the submitted flag AFTER registering listeners. Any listener that
+                    // fired while the flag was set had its maybeScheduleWorker CAS fail; re-check
+                    // each buffer so we don't miss data that arrived in that window.
+                    workerSubmitted[workerIndex].set(false);
+                    if (anyUnfinished) {
+                        for (int p = workerIndex; p < partitionCount; p += workerCount) {
+                            if (workerBuffers[p].isFinished() == false
+                                && workerBuffers[p].waitForReading() == NOT_BLOCKED) {
+                                maybeScheduleWorker(workerIndex);
+                                break;
+                            }
+                        }
                     }
                 } finally {
                     pendingTasks.finishTask();
@@ -481,15 +545,30 @@ public class PartitionedHashMergeOperator implements Operator {
             @Override
             public void onFailure(Exception e) {
                 failureCollector.unwrapAndCollect(e);
-                workerBuffers[partitionIndex].finish(true);
+                for (int p = workerIndex; p < partitionCount; p += workerCount) {
+                    workerBuffers[p].finish(true);
+                }
             }
 
             @Override
             public void onRejection(Exception e) {
-                // Balance the pre-increment; driver thread drains this buffer in buildOutput().
+                // Allow re-scheduling via listener; driver thread drains remaining pages in buildOutput().
+                workerSubmitted[workerIndex].set(false);
                 pendingTasks.finishTask();
             }
         });
+    }
+
+    /**
+     * Schedules a task for {@code workerIndex} if none is currently submitted or running.
+     * Uses a CAS on {@link #workerSubmitted} to prevent concurrent tasks for the same worker,
+     * which would race on its partition tables.
+     */
+    private void maybeScheduleWorker(int workerIndex) {
+        if (workerSubmitted[workerIndex].compareAndSet(false, true)) {
+            pendingTasks.newTask();
+            scheduleWorker(workerIndex);
+        }
     }
 
     // ---- finish() helpers ----

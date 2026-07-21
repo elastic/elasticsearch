@@ -287,6 +287,8 @@ public class CsvIT extends ESTestCase {
                         .put("xpack.license.self_generated.type", "trial")
                         .put("ingest.geoip.downloader.enabled", false)
                         .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
+                        .put(PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_COUNT.getKey(), 4)
+                        .put(PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.getKey(), 10)
                         .build();
                 }
 

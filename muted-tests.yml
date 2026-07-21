@@ -592,3 +592,39 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesPromqlIT
+  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
+  issue: https://github.com/elastic/elasticsearch/issues/154609
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst
+  issue: https://github.com/elastic/elasticsearch/issues/154462
+- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
+  method: testMountPartialCopyAndRecoversCorrectly
+  issue: https://github.com/elastic/elasticsearch/issues/154614
+- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
+  method: testBlobStoreCacheWithFullCopyInMixedVersions
+  issue: https://github.com/elastic/elasticsearch/issues/154615
+- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
+  method: testMountFullCopyAndRecoversCorrectly
+  issue: https://github.com/elastic/elasticsearch/issues/154616
+- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
+  method: testBlobStoreCacheWithPartialCopyInMixedVersions
+  issue: https://github.com/elastic/elasticsearch/issues/154617
+- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
+  method: testAccessTokensWorkInMixedCluster
+  issue: https://github.com/elastic/elasticsearch/issues/154618
+- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
+  method: testTokensStayInvalidatedInMixedCluster
+  issue: https://github.com/elastic/elasticsearch/issues/154619
+- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
+  method: testInvalidatingTokensInMixedCluster
+  issue: https://github.com/elastic/elasticsearch/issues/154620
+- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
+  method: testSemanticTextOperations {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/154621
+- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
+  method: testTokensStayInvalidatedInUpgradedCluster
+  issue: https://github.com/elastic/elasticsearch/issues/154627
+- class: org.elasticsearch.index.codec.vectors.HnswUtilsTests
+  method: testNeighborhoodGraphSearchFindsSelf
+  issue: https://github.com/elastic/elasticsearch/issues/154633

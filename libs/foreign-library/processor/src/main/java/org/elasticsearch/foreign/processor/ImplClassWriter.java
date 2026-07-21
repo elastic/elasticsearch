@@ -364,7 +364,8 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm, String fieldName) {
-        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+        int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), accessFlag, code -> {
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm, fieldName);
@@ -383,6 +384,20 @@ class ImplClassWriter {
         });
     }
 
+    /**
+     * Generates a method body that marshals {@code String} parameters to native memory before the call.
+     * Opens a confined {@code Arena} per call, allocates each {@code String} param via
+     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     *
+     * <p>Local variable layout (slots):
+     * <ul>
+     *   <li>0: {@code this}</li>
+     *   <li>1..paramEnd-1: original Java parameters</li>
+     *   <li>paramEnd: the {@code Arena}</li>
+     *   <li>paramEnd+1..: one {@code MemorySegment} per {@code STRING} parameter, in order</li>
+     *   <li>last slot (if non-void return): the return value from invokeExact</li>
+     * </ul>
+     */
     private static void emitNativeFunctionMethodWithStringParams(
         CodeBuilder code,
         ClassDesc generatedDesc,
@@ -426,6 +441,7 @@ class ImplClassWriter {
                 slot += (paramType == NativeType.LONG || paramType == NativeType.DOUBLE) ? 2 : 1;
             }
 
+            // Push method handle, then all params (String params → their marshaled MemorySegment slots)
             tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
             if (nm.capturesErrno()) {
                 tryBlock.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);

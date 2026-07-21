@@ -11,6 +11,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +23,10 @@ public class MlConfigSizeUtilsTests extends ESTestCase {
     public void testStringLength() {
         assertThat(MlConfigSizeUtils.stringLength(null), is(0L));
         assertThat(MlConfigSizeUtils.stringLength("abc"), is(3L));
+    }
+
+    public void testStringLengthShouldMeasureUtf8Bytes() {
+        assertThat(MlConfigSizeUtils.stringLength("é"), is((long) "é".getBytes(StandardCharsets.UTF_8).length));
     }
 
     public void testStringCollectionTotalLength() {
@@ -54,5 +59,27 @@ public class MlConfigSizeUtilsTests extends ESTestCase {
         };
         assertThat(MlConfigSizeUtils.toXContentApproxSizeBytes(object), greaterThan(0L));
         assertThat(MlConfigSizeUtils.toXContentApproxSizeBytes(null), is(0L));
+    }
+
+    public void testToXContentApproxSizeBytesShouldReturnFailureSentinelOnIOException() {
+        ToXContentObject object = new ToXContentObject() {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                throw new IOException("serialization failed");
+            }
+        };
+        assertThat(MlConfigSizeUtils.toXContentApproxSizeBytes(object), is(MlConfigSizeUtils.SIZE_MEASUREMENT_FAILURE));
+    }
+
+    public void testSumSizeBytesShouldPropagateFailure() {
+        assertThat(
+            MlConfigSizeUtils.sumSizeBytes(10L, MlConfigSizeUtils.SIZE_MEASUREMENT_FAILURE),
+            is(MlConfigSizeUtils.SIZE_MEASUREMENT_FAILURE)
+        );
+        assertThat(
+            MlConfigSizeUtils.sumSizeBytes(MlConfigSizeUtils.SIZE_MEASUREMENT_FAILURE, 10L),
+            is(MlConfigSizeUtils.SIZE_MEASUREMENT_FAILURE)
+        );
+        assertThat(MlConfigSizeUtils.sumSizeBytes(10L, 5L), is(15L));
     }
 }

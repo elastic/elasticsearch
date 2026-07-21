@@ -252,25 +252,27 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         // Step 2. Extract usage from datafeeds stats and configs, then request stats for data frame analytics
         GetDatafeedsAction.Request getDatafeedsRequest = new GetDatafeedsAction.Request(GetDatafeedsAction.ALL);
-        ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(response -> {
-            client.execute(GetDatafeedsAction.INSTANCE, getDatafeedsRequest, ActionListener.wrap(datafeedsResponse -> {
-                addDatafeedsUsage(response, datafeedsResponse.getResources().results(), datafeedsUsage);
-                continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
-            }, e -> {
-                logger.warn("Failed to get datafeed configs to include in ML usage", e);
-                addDatafeedsUsage(response, List.of(), datafeedsUsage);
-                continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
-            }));
-        }, e -> {
-            logger.warn("Failed to get datafeed stats to include in ML usage", e);
-            client.execute(GetDatafeedsAction.INSTANCE, getDatafeedsRequest, ActionListener.wrap(datafeedsResponse -> {
-                addDatafeedsUsage(null, datafeedsResponse.getResources().results(), datafeedsUsage);
-                continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
-            }, e2 -> {
-                logger.warn("Failed to get datafeed configs to include in ML usage", e2);
-                continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
-            }));
-        });
+        ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(
+            response -> fetchDatafeedConfigsAndContinue(
+                response,
+                getDatafeedsRequest,
+                datafeedsUsage,
+                dataframeAnalyticsStatsRequest,
+                dataframeAnalyticsStatsListener,
+                inferenceUsageListener
+            ),
+            e -> {
+                logger.warn("Failed to get datafeed stats to include in ML usage", e);
+                fetchDatafeedConfigsAndContinue(
+                    null,
+                    getDatafeedsRequest,
+                    datafeedsUsage,
+                    dataframeAnalyticsStatsRequest,
+                    dataframeAnalyticsStatsListener,
+                    inferenceUsageListener
+                );
+            }
+        );
 
         // Step 1. Extract usage from jobs stats and auxiliary AD configs, then request stats for all datafeeds
         GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(Metadata.ALL);
@@ -425,6 +427,24 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 createCountUsageEntry(datafeedCountByState.get(datafeedState).get())
             );
         }
+    }
+
+    private void fetchDatafeedConfigsAndContinue(
+        GetDatafeedsStatsAction.Response statsResponse,
+        GetDatafeedsAction.Request getDatafeedsRequest,
+        Map<String, Object> datafeedsUsage,
+        GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest,
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsStatsListener,
+        ActionListener<Map<String, Object>> inferenceUsageListener
+    ) {
+        client.execute(GetDatafeedsAction.INSTANCE, getDatafeedsRequest, ActionListener.wrap(datafeedsResponse -> {
+            addDatafeedsUsage(statsResponse, datafeedsResponse.getResources().results(), datafeedsUsage);
+            continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
+        }, e -> {
+            logger.warn("Failed to get datafeed configs to include in ML usage", e);
+            addDatafeedsUsage(statsResponse, List.of(), datafeedsUsage);
+            continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
+        }));
     }
 
     private void continueAfterDatafeedsUsage(

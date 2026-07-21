@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.stats;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SizeHistogramAccumulatorTests extends AbstractWireSerializingTestCase<SizeHistogramAccumulator> {
+public class SizeHistogramAccumulatorTests extends ESTestCase {
 
     public void testGivenNoValues() {
         SizeHistogramAccumulator accumulator = new SizeHistogramAccumulator();
@@ -21,6 +20,7 @@ public class SizeHistogramAccumulatorTests extends AbstractWireSerializingTestCa
         assertThat(map.get(SizeHistogramAccumulator.COUNT), equalTo(0L));
         assertThat(map.get(StatsAccumulator.Fields.MIN), equalTo(0.0));
         assertThat(map.get(StatsAccumulator.Fields.MAX), equalTo(0.0));
+        assertThat(map.get(SizeHistogramAccumulator.FAILURES), equalTo(0L));
         @SuppressWarnings("unchecked")
         Map<String, Long> buckets = (Map<String, Long>) map.get(SizeHistogramAccumulator.BUCKETS);
         buckets.values().forEach(count -> assertThat(count, equalTo(0L)));
@@ -55,6 +55,15 @@ public class SizeHistogramAccumulatorTests extends AbstractWireSerializingTestCa
         assertThat(buckets.get(SizeHistogramAccumulator.BUCKET_1K_4K), equalTo(1L));
     }
 
+    public void testNegativeValueShouldIncrementFailures() {
+        SizeHistogramAccumulator accumulator = new SizeHistogramAccumulator();
+        accumulator.add(-1);
+
+        Map<String, Object> map = accumulator.asMap();
+        assertThat(map.get(SizeHistogramAccumulator.COUNT), equalTo(0L));
+        assertThat(map.get(SizeHistogramAccumulator.FAILURES), equalTo(1L));
+    }
+
     public void testMerge() {
         SizeHistogramAccumulator left = new SizeHistogramAccumulator();
         left.add(100);
@@ -65,27 +74,5 @@ public class SizeHistogramAccumulatorTests extends AbstractWireSerializingTestCa
         assertThat(left.asMap().get(SizeHistogramAccumulator.COUNT), equalTo(2L));
         assertThat(left.asMap().get(StatsAccumulator.Fields.MIN), equalTo(100.0));
         assertThat(left.asMap().get(StatsAccumulator.Fields.MAX), equalTo(5000.0));
-    }
-
-    @Override
-    protected SizeHistogramAccumulator createTestInstance() {
-        SizeHistogramAccumulator accumulator = new SizeHistogramAccumulator();
-        for (int i = 0; i < randomInt(10); i++) {
-            accumulator.add(randomLongBetween(0, 100_000));
-        }
-        return accumulator;
-    }
-
-    @Override
-    protected SizeHistogramAccumulator mutateInstance(SizeHistogramAccumulator instance) {
-        SizeHistogramAccumulator mutated = new SizeHistogramAccumulator();
-        mutated.merge(instance);
-        mutated.add(randomLongBetween(0, 100_000));
-        return mutated;
-    }
-
-    @Override
-    protected Reader<SizeHistogramAccumulator> instanceReader() {
-        return SizeHistogramAccumulator::new;
     }
 }

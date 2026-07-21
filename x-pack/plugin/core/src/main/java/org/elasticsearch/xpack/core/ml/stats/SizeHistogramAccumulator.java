@@ -6,11 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.stats;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -18,10 +13,11 @@ import java.util.Objects;
 /**
  * Collects min, max, avg, total, count and fixed-size bucket counts for config field sizes.
  */
-public class SizeHistogramAccumulator implements Writeable {
+public class SizeHistogramAccumulator {
 
     public static final String BUCKETS = "buckets";
     public static final String COUNT = "count";
+    public static final String FAILURES = "failures";
 
     public static final String BUCKET_0_256 = "0-256";
     public static final String BUCKET_256_1K = "256-1K";
@@ -39,8 +35,9 @@ public class SizeHistogramAccumulator implements Writeable {
     private final Map<String, Long> buckets = new LinkedHashMap<>();
     private long count;
     private long total;
-    private Long min;
-    private Long max;
+    private long failures;
+    private long min = Long.MAX_VALUE;
+    private long max = Long.MIN_VALUE;
 
     public SizeHistogramAccumulator() {
         buckets.put(BUCKET_0_256, 0L);
@@ -51,25 +48,15 @@ public class SizeHistogramAccumulator implements Writeable {
         buckets.put(BUCKET_64K_PLUS, 0L);
     }
 
-    public SizeHistogramAccumulator(StreamInput in) throws IOException {
-        this();
-        count = in.readLong();
-        total = in.readLong();
-        min = in.readOptionalLong();
-        max = in.readOptionalLong();
-        for (String bucket : buckets.keySet()) {
-            buckets.put(bucket, in.readLong());
-        }
-    }
-
     public void add(long value) {
         if (value < 0) {
+            failures++;
             return;
         }
         count++;
         total += value;
-        min = min == null ? value : Math.min(min, value);
-        max = max == null ? value : Math.max(max, value);
+        min = Math.min(min, value);
+        max = Math.max(max, value);
         buckets.compute(bucketFor(value), (k, v) -> v + 1);
     }
 
@@ -93,11 +80,18 @@ public class SizeHistogramAccumulator implements Writeable {
     }
 
     public void merge(SizeHistogramAccumulator other) {
+        if (other.count > 0) {
+            if (count == 0) {
+                min = other.min;
+                max = other.max;
+            } else {
+                min = Math.min(min, other.min);
+                max = Math.max(max, other.max);
+            }
+        }
         count += other.count;
         total += other.total;
-        // note: not using Math.min/max as nullable Long min/max would autounbox and NPE when either side is null
-        min = min == null ? other.min : (other.min == null ? min : other.min < min ? other.min : min);
-        max = max == null ? other.max : (other.max == null ? max : other.max > max ? other.max : max);
+        failures += other.failures;
         for (Map.Entry<String, Long> entry : other.buckets.entrySet()) {
             buckets.merge(entry.getKey(), entry.getValue(), Long::sum);
         }
@@ -106,23 +100,13 @@ public class SizeHistogramAccumulator implements Writeable {
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(BUCKETS, new LinkedHashMap<>(buckets));
-        map.put(StatsAccumulator.Fields.MIN, min == null ? 0.0 : min.doubleValue());
-        map.put(StatsAccumulator.Fields.MAX, max == null ? 0.0 : max.doubleValue());
+        map.put(StatsAccumulator.Fields.MIN, count == 0 ? 0.0 : (double) min);
+        map.put(StatsAccumulator.Fields.MAX, count == 0 ? 0.0 : (double) max);
         map.put(StatsAccumulator.Fields.AVG, count == 0 ? 0.0 : (double) total / count);
         map.put(StatsAccumulator.Fields.TOTAL, (double) total);
         map.put(COUNT, count);
+        map.put(FAILURES, failures);
         return map;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(count);
-        out.writeLong(total);
-        out.writeOptionalLong(min);
-        out.writeOptionalLong(max);
-        for (Long bucketCount : buckets.values()) {
-            out.writeLong(bucketCount);
-        }
     }
 
     @Override
@@ -133,13 +117,14 @@ public class SizeHistogramAccumulator implements Writeable {
         SizeHistogramAccumulator other = (SizeHistogramAccumulator) obj;
         return count == other.count
             && total == other.total
-            && Objects.equals(min, other.min)
-            && Objects.equals(max, other.max)
+            && failures == other.failures
+            && min == other.min
+            && max == other.max
             && Objects.equals(buckets, other.buckets);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(count, total, min, max, buckets);
+        return Objects.hash(count, total, failures, min, max, buckets);
     }
 }

@@ -184,7 +184,10 @@ public final class MlConfigSizeUsage {
             if (rules.isEmpty() == false) {
                 long detectorRulesBytes = 0L;
                 for (DetectionRule rule : rules) {
-                    detectorRulesBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(rule);
+                    detectorRulesBytes = MlConfigSizeUtils.sumSizeBytes(
+                        detectorRulesBytes,
+                        MlConfigSizeUtils.toXContentApproxSizeBytes(rule)
+                    );
                 }
                 accumulators.get("detector_rules").add(detectorRulesBytes);
             }
@@ -222,7 +225,10 @@ public final class MlConfigSizeUsage {
         if (scriptFields.isEmpty() == false) {
             long scriptFieldBytes = 0L;
             for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
-                scriptFieldBytes += MlConfigSizeUtils.toXContentFragmentApproxSizeBytes(scriptField);
+                scriptFieldBytes = MlConfigSizeUtils.sumSizeBytes(
+                    scriptFieldBytes,
+                    MlConfigSizeUtils.toXContentFragmentApproxSizeBytes(scriptField)
+                );
             }
             accumulators.get("script_fields").add(scriptFieldBytes);
         }
@@ -268,7 +274,10 @@ public final class MlConfigSizeUsage {
         }
         long featureProcessorBytes = 0L;
         for (PreProcessor featureProcessor : featureProcessors) {
-            featureProcessorBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(featureProcessor);
+            featureProcessorBytes = MlConfigSizeUtils.sumSizeBytes(
+                featureProcessorBytes,
+                MlConfigSizeUtils.toXContentApproxSizeBytes(featureProcessor)
+            );
         }
         accumulators.get("feature_processors").add(featureProcessorBytes);
     }
@@ -296,9 +305,7 @@ public final class MlConfigSizeUsage {
             return;
         }
         long sourceQueryBytes = MlConfigSizeUtils.queryBuilderApproxSizeBytes(source.getParsedQuery());
-        if (sourceQueryBytes > 0L) {
-            accumulators.get("source_query").add(sourceQueryBytes);
-        }
+        accumulators.get("source_query").add(sourceQueryBytes);
         accumulators.get("source_runtime_mappings").add(MlConfigSizeUtils.mapApproxSizeBytes(source.getRuntimeMappings()));
     }
 
@@ -367,10 +374,16 @@ public final class MlConfigSizeUsage {
             if (vocabularyConfig != null || tokenization != null) {
                 long vocabularyBytes = 0L;
                 if (vocabularyConfig != null) {
-                    vocabularyBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(vocabularyConfig);
+                    vocabularyBytes = MlConfigSizeUtils.sumSizeBytes(
+                        vocabularyBytes,
+                        MlConfigSizeUtils.toXContentApproxSizeBytes(vocabularyConfig)
+                    );
                 }
                 if (tokenization != null) {
-                    vocabularyBytes += MlConfigSizeUtils.toXContentApproxSizeBytes(tokenization);
+                    vocabularyBytes = MlConfigSizeUtils.sumSizeBytes(
+                        vocabularyBytes,
+                        MlConfigSizeUtils.toXContentApproxSizeBytes(tokenization)
+                    );
                 }
                 accumulators.get("vocabulary").add(vocabularyBytes);
             }
@@ -379,10 +392,10 @@ public final class MlConfigSizeUsage {
 
     private static Map<String, SizeHistogramAccumulator> newInferenceEndpointConfigAccumulators() {
         Map<String, SizeHistogramAccumulator> accumulators = new LinkedHashMap<>();
-        accumulators.put("inference_id", new SizeHistogramAccumulator());
-        accumulators.put("service_settings", new SizeHistogramAccumulator());
-        accumulators.put("task_settings", new SizeHistogramAccumulator());
-        accumulators.put("chunking_settings", new SizeHistogramAccumulator());
+        accumulators.put(ModelConfigurations.INFERENCE_ID_FIELD_NAME, new SizeHistogramAccumulator());
+        accumulators.put(ModelConfigurations.SERVICE_SETTINGS, new SizeHistogramAccumulator());
+        accumulators.put(ModelConfigurations.TASK_SETTINGS, new SizeHistogramAccumulator());
+        accumulators.put(ModelConfigurations.CHUNKING_SETTINGS, new SizeHistogramAccumulator());
         return accumulators;
     }
 
@@ -390,18 +403,18 @@ public final class MlConfigSizeUsage {
         ModelConfigurations endpoint,
         Map<String, SizeHistogramAccumulator> accumulators
     ) {
-        accumulators.get("inference_id").add(MlConfigSizeUtils.stringLength(endpoint.getInferenceEntityId()));
+        accumulators.get(ModelConfigurations.INFERENCE_ID_FIELD_NAME).add(MlConfigSizeUtils.stringLength(endpoint.getInferenceEntityId()));
         ServiceSettings serviceSettings = endpoint.getServiceSettings();
         if (serviceSettings != null) {
-            accumulators.get("service_settings").add(MlConfigSizeUtils.toXContentApproxSizeBytes(serviceSettings));
+            accumulators.get(ModelConfigurations.SERVICE_SETTINGS).add(MlConfigSizeUtils.toXContentApproxSizeBytes(serviceSettings));
         }
         TaskSettings taskSettings = endpoint.getTaskSettings();
         if (taskSettings != null) {
-            accumulators.get("task_settings").add(MlConfigSizeUtils.toXContentApproxSizeBytes(taskSettings));
+            accumulators.get(ModelConfigurations.TASK_SETTINGS).add(MlConfigSizeUtils.toXContentApproxSizeBytes(taskSettings));
         }
         ChunkingSettings chunkingSettings = endpoint.getChunkingSettings();
         if (chunkingSettings != null) {
-            accumulators.get("chunking_settings").add(MlConfigSizeUtils.toXContentApproxSizeBytes(chunkingSettings));
+            accumulators.get(ModelConfigurations.CHUNKING_SETTINGS).add(MlConfigSizeUtils.toXContentApproxSizeBytes(chunkingSettings));
         }
     }
 

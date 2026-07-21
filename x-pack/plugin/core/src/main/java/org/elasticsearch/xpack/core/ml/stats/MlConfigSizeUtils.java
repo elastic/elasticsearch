@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,12 +30,14 @@ import java.util.Map;
  */
 public final class MlConfigSizeUtils {
 
+    public static final long SIZE_MEASUREMENT_FAILURE = -1L;
+
     private static final Logger logger = LogManager.getLogger(MlConfigSizeUtils.class);
 
     private MlConfigSizeUtils() {}
 
     public static long stringLength(@Nullable String value) {
-        return value == null ? 0L : value.length();
+        return value == null ? 0L : value.getBytes(StandardCharsets.UTF_8).length;
     }
 
     public static long collectionCount(@Nullable Collection<?> collection) {
@@ -72,7 +75,7 @@ public final class MlConfigSizeUtils {
             return BytesReference.bytes(builder).length();
         } catch (IOException e) {
             logger.debug("Failed to measure approximate map size for config size telemetry", e);
-            return 0L;
+            return SIZE_MEASUREMENT_FAILURE;
         }
     }
 
@@ -85,7 +88,7 @@ public final class MlConfigSizeUtils {
             return BytesReference.bytes(builder).length();
         } catch (IOException e) {
             logger.debug("Failed to measure approximate ToXContentObject size for config size telemetry", e);
-            return 0L;
+            return SIZE_MEASUREMENT_FAILURE;
         }
     }
 
@@ -98,7 +101,7 @@ public final class MlConfigSizeUtils {
             return BytesReference.bytes(builder).length();
         } catch (IOException e) {
             logger.debug("Failed to measure approximate ToXContentFragment size for config size telemetry", e);
-            return 0L;
+            return SIZE_MEASUREMENT_FAILURE;
         }
     }
 
@@ -110,8 +113,18 @@ public final class MlConfigSizeUtils {
             return mapApproxSizeBytes(XContentObjectTransformer.queryBuilderTransformer(NamedXContentRegistry.EMPTY).toMap(query));
         } catch (IOException e) {
             logger.debug("Failed to measure approximate QueryBuilder size for config size telemetry", e);
-            return 0L;
+            return SIZE_MEASUREMENT_FAILURE;
         }
+    }
+
+    public static long sumSizeBytes(long currentTotal, long nextSize) {
+        if (nextSize < 0L) {
+            return SIZE_MEASUREMENT_FAILURE;
+        }
+        if (currentTotal < 0L) {
+            return SIZE_MEASUREMENT_FAILURE;
+        }
+        return currentTotal + nextSize;
     }
 
     public static Map<String, Object> configSizesMap(Map<String, SizeHistogramAccumulator> accumulators) {

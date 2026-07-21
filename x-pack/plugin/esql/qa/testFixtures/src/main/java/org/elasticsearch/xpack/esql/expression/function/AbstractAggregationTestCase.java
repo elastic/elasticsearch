@@ -81,13 +81,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_BECOMES_NULL);
-    }
-
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_BECOMES_NULL);
     }

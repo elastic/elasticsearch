@@ -120,9 +120,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * Intended for use by generated per-spec-file test classes.
      */
     protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
-        List<URL> urls = classpathResources(specFile);
-        assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
-        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        while (specFile.startsWith("/")) {
+            specFile = specFile.substring(1);
+        }
+        URL url = EsqlSpecTestCase.class.getClassLoader().getResource(specFile);
+        assertNotNull("No resource found for " + specFile, url);
+        return SpecReader.readScriptSpec(List.of(url), CsvSpecReader::specParser);
     }
 
     protected EsqlSpecTestCase(

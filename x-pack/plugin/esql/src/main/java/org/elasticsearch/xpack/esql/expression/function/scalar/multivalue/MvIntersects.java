@@ -81,7 +81,8 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
             @Example(file = "mv_intersects", tag = "mv_intersects"),
             @Example(file = "mv_intersects", tag = "mv_intersects_bothsides"),
             @Example(file = "mv_intersects", tag = "mv_intersects_where"), },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }
     )
     public MvIntersects(
         Source source,

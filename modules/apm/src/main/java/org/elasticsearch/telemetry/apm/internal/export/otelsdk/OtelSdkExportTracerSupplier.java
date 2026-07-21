@@ -65,6 +65,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
+        OtelSdkExportMeterSupplier.configureTls(settings, builder::setSslContext);
         OtlpGrpcSpanExporter exporter = builder.build();
 
         BatchSpanProcessor processor = BatchSpanProcessor.builder(exporter)

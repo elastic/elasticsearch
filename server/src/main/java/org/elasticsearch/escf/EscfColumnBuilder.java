@@ -232,15 +232,39 @@ final class EscfColumnBuilder {
     private abstract static class BaseBuilder implements TypedBuilder {
 
         int count;
-        FixedBitSet absent;
+        FixedBitSet validity;
 
-        final void markAbsent() {
-            absent = absent == null ? new FixedBitSet(Math.max(64, count + 1)) : FixedBitSet.ensureCapacity(absent, count + 1);
-            absent.set(count);
+        /**
+         * Marks the current document (at {@code count}) as absent and advances {@code count}. On the first
+         * absence, the validity bitset is materialised and all prior documents are backfilled as present.
+         */
+        final void advanceAbsent() {
+            if (validity == null) {
+                // First absent: materialise and backfill all prior docs as present.
+                validity = new FixedBitSet(Math.max(64, count + 1));
+                validity.set(0, count); // [0, count) are present
+            } else {
+                validity = FixedBitSet.ensureCapacity(validity, count + 1);
+            }
+            // leave bit[count] clear — this document is absent
+            count++;
+        }
+
+        /**
+         * Marks the current document (at {@code count}) as present and advances {@code count}. A no-op on
+         * the validity bitset when the column is still dense (null), since all documents are implicitly
+         * present; once the bitset is materialised, the present bit is explicitly set.
+         */
+        final void advancePresent() {
+            if (validity != null) {
+                validity = FixedBitSet.ensureCapacity(validity, count + 1);
+                validity.set(count);
+            }
+            count++;
         }
 
         final boolean isAbsentAt(int d) {
-            return absent != null && absent.get(d);
+            return validity != null && validity.get(d) == false;
         }
 
         @Override
@@ -315,20 +339,19 @@ final class EscfColumnBuilder {
         @Override
         public void addLong(long value) {
             writeLongLE(data, value);
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addDouble(double value) {
             writeLongLE(data, Double.doubleToRawLongBits(value));
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
-            markAbsent();
             writeLongLE(data, 0L);
-            count++;
+            advanceAbsent();
         }
 
         @Override
@@ -341,13 +364,13 @@ final class EscfColumnBuilder {
                 offsets[i] = i * 8;
             }
             offsets[count] = count * 8;
-            return new UnionBuilder(data, typeVec, offsets, count * 8, count, absent);
+            return new UnionBuilder(data, typeVec, offsets, count * 8, count, validity);
         }
 
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return EscfColumnData.ofFixed64(kind, docCount, absent, data.moveToBytesReference());
+            return EscfColumnData.ofFixed64(kind, docCount, validity, data.moveToBytesReference());
         }
 
         @Override
@@ -372,13 +395,12 @@ final class EscfColumnBuilder {
                 values = values == null ? new FixedBitSet(Math.max(64, count + 1)) : FixedBitSet.ensureCapacity(values, count + 1);
                 values.set(count);
             }
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         @Override
@@ -391,13 +413,13 @@ final class EscfColumnBuilder {
                     typeVec[i] = (values != null && values.get(i)) ? SourceValueType.TRUE : SourceValueType.FALSE;
                 }
             }
-            return new UnionBuilder(newStream(recycler), typeVec, new int[count + 1], 0, count, absent);
+            return new UnionBuilder(newStream(recycler), typeVec, new int[count + 1], 0, count, validity);
         }
 
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return EscfColumnData.ofBool(docCount, absent, values);
+            return EscfColumnData.ofBool(docCount, validity, values);
         }
     }
 
@@ -432,14 +454,13 @@ final class EscfColumnBuilder {
             recordOffset();
             writeBytes(data, value.bytes(), value.offset(), value.length());
             dataLen += value.length();
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
             recordOffset();
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         private void recordOffset() {
@@ -456,7 +477,7 @@ final class EscfColumnBuilder {
             }
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            return new UnionBuilder(data, typeVec, offsets, dataLen, count, absent);
+            return new UnionBuilder(data, typeVec, offsets, dataLen, count, validity);
         }
 
         @Override
@@ -464,7 +485,7 @@ final class EscfColumnBuilder {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            return EscfColumnData.ofVarWidth(kind, docCount, absent, Arrays.copyOf(offsets, docCount + 1), data.moveToBytesReference());
+            return EscfColumnData.ofVarWidth(kind, docCount, validity, Arrays.copyOf(offsets, docCount + 1), data.moveToBytesReference());
         }
 
         @Override
@@ -502,14 +523,13 @@ final class EscfColumnBuilder {
         @Override
         public void addColumnarArray(byte[] packed) {
             rows.add(packed);
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
             rows.add(null);
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         @Override
@@ -592,7 +612,7 @@ final class EscfColumnBuilder {
             } catch (IOException e) {
                 throw new UncheckedIOException(e); // in-memory stream never performs IO
             }
-            return EscfColumnData.ofArray(docCount, absent, rowOffsets, child);
+            return EscfColumnData.ofArray(docCount, validity, rowOffsets, child);
         }
     }
 
@@ -607,13 +627,13 @@ final class EscfColumnBuilder {
             this.data = newStream(recycler);
         }
 
-        UnionBuilder(RecyclerBytesStreamOutput data, byte[] typeVec, int[] offsets, int dataLen, int count, FixedBitSet absent) {
+        UnionBuilder(RecyclerBytesStreamOutput data, byte[] typeVec, int[] offsets, int dataLen, int count, FixedBitSet validity) {
             this.data = data;
             this.typeVec = typeVec;
             this.offsets = offsets;
             this.dataLen = dataLen;
             this.count = count;
-            this.absent = absent;
+            this.validity = validity;
         }
 
         @Override
@@ -626,7 +646,7 @@ final class EscfColumnBuilder {
             prep(SourceValueType.LONG);
             writeLongLE(data, value);
             dataLen += 8;
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -634,13 +654,13 @@ final class EscfColumnBuilder {
             prep(SourceValueType.DOUBLE);
             writeLongLE(data, Double.doubleToRawLongBits(value));
             dataLen += 8;
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addBoolean(boolean value) {
             prep(value ? SourceValueType.TRUE : SourceValueType.FALSE);
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -648,7 +668,7 @@ final class EscfColumnBuilder {
             prep(SourceValueType.STRING);
             writeBytes(data, utf8.bytes(), utf8.offset(), utf8.length());
             dataLen += utf8.length();
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -656,7 +676,7 @@ final class EscfColumnBuilder {
             prep(SourceValueType.BINARY);
             writeBytes(data, bytes.bytes(), bytes.offset(), bytes.length());
             dataLen += bytes.length();
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -664,20 +684,19 @@ final class EscfColumnBuilder {
             prep(arrayType);
             writeBytes(data, packed, 0, packed.length);
             dataLen += packed.length;
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addNull() {
             prep(SourceValueType.NULL);
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
             prep(SourceValueType.ABSENT);
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         private void prep(byte type) {
@@ -699,8 +718,8 @@ final class EscfColumnBuilder {
             offsets[count] = dataLen;
             return EscfColumnData.ofUnion(
                 docCount,
-                absent,
-                Arrays.copyOf(typeVec, docCount),
+                validity,
+                new BytesRef(Arrays.copyOf(typeVec, docCount)),
                 Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()
             );

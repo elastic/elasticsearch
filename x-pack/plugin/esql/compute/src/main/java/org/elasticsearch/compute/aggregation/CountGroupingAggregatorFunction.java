@@ -81,6 +81,17 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                     }
 
                     @Override
+                    public void addGather(IntVector groupIds, IntVector positions) {
+                        for (int k = 0; k < groupIds.getPositionCount(); k++) {
+                            int valuesPosition = positions.getInt(k);
+                            if (valuesBlock.isNull(valuesPosition)) {
+                                continue;
+                            }
+                            accumulateCount(groupIds.getInt(k), getBlockValueCountAtPosition(valuesBlock, valuesPosition));
+                        }
+                    }
+
+                    @Override
                     public void close() {}
                 };
             }
@@ -99,6 +110,14 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             @Override
             public void add(int positionOffset, IntVector groupIds) {
                 addRawInput(groupIds);
+            }
+
+            @Override
+            public void addGather(IntVector groupIds, IntVector positions) {
+                // countAll or values are a non-null vector: every gathered position contributes 1.
+                for (int k = 0; k < groupIds.getPositionCount(); k++) {
+                    accumulateCount(groupIds.getInt(k), 1);
+                }
             }
 
             @Override

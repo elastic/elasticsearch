@@ -478,7 +478,7 @@ public class PartitionedHashAggregationOperator implements Operator {
     private void convertToPartitioned() {
         Table[] newPartitions = new Table[partitionCount];
         for (int p = 0; p < partitionCount; p++) {
-            newPartitions[p] = newTable(aggregationBatchSize);
+            newPartitions[p] = newPartitionTable(aggregationBatchSize);
         }
         if (newPartitions[0].blockHash.router() == null) {
             // SwissHash unavailable (or otherwise unsupported by this grouping shape): give up on
@@ -750,7 +750,7 @@ public class PartitionedHashAggregationOperator implements Operator {
             public void close() {
                 delegate.close();
                 partitions[partitionIndex].close();
-                partitions[partitionIndex] = newTable(aggregationBatchSize);
+                partitions[partitionIndex] = newPartitionTable(aggregationBatchSize);
             }
         };
     }
@@ -809,6 +809,35 @@ public class PartitionedHashAggregationOperator implements Operator {
         // Every page these tables ever see (raw or intermediate) is in this operator's internal
         // layout, which places grouping keys at channels 0..groupChannels.size()-1 - see toInternalLayout.
         BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), emitBatchSize, false);
+        boolean success = false;
+        try {
+            Table table = new Table(blockHash, buildAggregators());
+            success = true;
+            return table;
+        } finally {
+            if (success == false) {
+                blockHash.close();
+            }
+        }
+    }
+
+    /**
+     * Builds a partition table whose {@link BlockHash} exposes a non-null {@link BlockHash.Router}
+     * whenever possible. Type-specialized hashes (e.g. {@code LongIntAdaptiveBlockHash}) are
+     * preferred for aggregation speed but may lack a router; in that case this method falls back to
+     * {@code PackedValuesBlockHash}, which supports routing for any fixed-width key schema (LONG,
+     * INT, DOUBLE). For variable-width schemas (BYTES_REF) the router may still be null, which the
+     * caller handles by setting {@link #permanentlyUnpartitioned}.
+     */
+    private Table newPartitionTable(int emitBatchSize) {
+        BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), emitBatchSize, false);
+        if (blockHash.router() == null) {
+            // The specialized hash has no router. Try PackedValuesBlockHash, which supports routing
+            // for fixed-width schemas. Cap the batch size to avoid pre-allocating huge arrays.
+            blockHash.close();
+            int cappedBatchSize = Math.min(emitBatchSize, Operator.TARGET_PAGE_SIZE);
+            blockHash = BlockHash.buildPackedValuesBlockHash(internalGroupSpecs, driverContext.blockFactory(), cappedBatchSize);
+        }
         boolean success = false;
         try {
             Table table = new Table(blockHash, buildAggregators());

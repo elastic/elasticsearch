@@ -255,6 +255,10 @@ public class PartitionedHashMergeOperator implements Operator {
     private volatile boolean closed = false;
     private boolean anyTaggedSeen = false;
     private boolean finishCalled = false;
+    /** Set to {@code true} the first time {@link #getOutput()} calls {@link #buildOutput()}, so that
+     * {@link #isFinished()} does not return {@code true} before the driver has a chance to call
+     * {@link #getOutput()} and actually produce the final output pages. */
+    private boolean buildOutputCalled = false;
 
     /** Accumulates all untagged pages on the driver thread. INTERMEDIATE mode. */
     private Table noneTable;
@@ -384,7 +388,10 @@ public class PartitionedHashMergeOperator implements Operator {
         if (finishCalled == false || allWorkersDone.isDone() == false) {
             return null;
         }
-        buildOutput();
+        if (buildOutputCalled == false) {
+            buildOutputCalled = true;
+            buildOutput();
+        }
         if (output == null) {
             return null;
         }
@@ -393,7 +400,10 @@ public class PartitionedHashMergeOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finishCalled && allWorkersDone.isDone() && output == null;
+        // Must not return true before getOutput() has called buildOutput(): the driver checks
+        // isFinished() before calling getOutput(), so returning true here too early would prevent
+        // buildOutput() from ever running and the operator would produce no results.
+        return finishCalled && allWorkersDone.isDone() && buildOutputCalled && output == null;
     }
 
     @Override
@@ -405,7 +415,7 @@ public class PartitionedHashMergeOperator implements Operator {
             // Workers still running — output will arrive without further external input.
             return true;
         }
-        return output != null;
+        return buildOutputCalled == false || output != null;
     }
 
     @Override

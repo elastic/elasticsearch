@@ -1,0 +1,12 @@
+version: ${test.template.version}
+_meta:
+  description: Test component template one
+  managed: true
+template:
+  settings:
+    index:
+      number_of_replicas: 0
+  mappings:
+    properties:
+      field_one:
+        type: keyword

@@ -11,12 +11,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -30,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -41,12 +46,21 @@ import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedR
  */
 public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(YamlTemplateRegistry.class);
+    /**
+     * This map matches node features with predicates to detect when a template requires that feature.
+     * This allows the registry to install the template only after the cluster fully supports a feature.
+     */
+    private static final Map<NodeFeature, Predicate<Template>> NODE_FEATURE_FILTERS = Map.of();
+    // This flag short-circuits the node feature check, if all node features are supported.
+    private volatile boolean allFeaturesSupported = false;
     private final int version;
 
+    private final Map<NodeFeature, Predicate<Template>> nodeFeatureFilters;
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
     private final List<LifecyclePolicy> lifecyclePolicies;
+    private final FeatureService featureService;
     private volatile boolean enabled;
 
     public YamlTemplateRegistry(
@@ -54,11 +68,25 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, ignored -> true);
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, ignored -> true, featureService, NODE_FEATURE_FILTERS);
     }
 
+    public YamlTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        Predicate<String> templateFilter,
+        FeatureService featureService
+    ) {
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, templateFilter, featureService, NODE_FEATURE_FILTERS);
+    }
+
+    // Exposes nodeFeatureFilters for testing
     @SuppressWarnings({ "unchecked", "this-escape" })
     public YamlTemplateRegistry(
         Settings nodeSettings,
@@ -66,9 +94,12 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        Predicate<String> templateFilter
+        Predicate<String> templateFilter,
+        FeatureService featureService,
+        Map<NodeFeature, Predicate<Template>> nodeFeatureFilters
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        this.featureService = featureService;
         try {
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,
@@ -114,6 +145,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .filter(templateFilter)
                 .map(this::loadLifecyclePolicy)
                 .collect(Collectors.toList());
+            this.nodeFeatureFilters = nodeFeatureFilters;
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }
@@ -150,7 +182,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     @Override
     public Map<String, ComponentTemplate> getComponentTemplateConfigs() {
         if (enabled) {
-            return componentTemplates;
+            return filterBasedOnFeatures(componentTemplates, ComponentTemplate::template);
         } else {
             return Map.of();
         }
@@ -159,10 +191,38 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     @Override
     public Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (enabled) {
-            return composableIndexTemplates;
+            return filterBasedOnFeatures(composableIndexTemplates, ComposableIndexTemplate::template);
         } else {
             return Map.of();
         }
+    }
+
+    /**
+     * Returns only templates that are supported by all nodes. This is useful during rolling upgrades
+     * to protect the cluster from installing templates that have features that are not supported by
+     * the nodes that haven't been upgraded yet.
+     * Visible for testing
+     */
+    <T> Map<String, T> filterBasedOnFeatures(Map<String, T> templates, Function<T, Template> templateExtractor) {
+        // Considering that all features supported is the end state, we use this flag to short-circuit the check
+        // when the end state is reached.
+        if (allFeaturesSupported) {
+            return templates;
+        }
+        ClusterState clusterState = clusterService.state();
+        List<Predicate<Template>> unsupportedFeatures = nodeFeatureFilters.entrySet()
+            .stream()
+            .filter(entry -> featureService.clusterHasFeature(clusterState, entry.getKey()) == false)
+            .map(Map.Entry::getValue)
+            .toList();
+        if (unsupportedFeatures.isEmpty()) {
+            allFeaturesSupported = true;
+            return templates;
+        }
+        return templates.entrySet().stream().filter(entry -> {
+            Template template = templateExtractor.apply(entry.getValue());
+            return unsupportedFeatures.stream().noneMatch(p -> p.test(template));
+        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override
@@ -245,5 +305,10 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected boolean applyRolloverAfterTemplateV2Update() {
         return true;
+    }
+
+    // Visible for testing
+    protected boolean allFeaturesSupported() {
+        return allFeaturesSupported;
     }
 }

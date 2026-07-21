@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154409
+summary: "[ESQLDS] Fix COUNT(*) over a Hive-partitioned text dataset crashing on a zero-column projection"
+type: bug

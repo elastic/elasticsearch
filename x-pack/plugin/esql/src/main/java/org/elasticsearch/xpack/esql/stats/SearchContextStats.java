@@ -208,34 +208,33 @@ public class SearchContextStats implements SearchStats {
     @Override
     public long count(FieldName field) {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
-        if (stat.count == null) {
-            long count = 0;
-            boolean completed = true;
-            outer: for (SearchExecutionContext context : contexts) {
-                // Skip shards where this field is a dynamic sub-key of a flattened field rather
-                // than an explicitly mapped field; those shards store the field's terms in Lucene
-                // even though it is absent from the mapping, so counting without this guard
-                // inflates the result.
-                if (context.isExplicitlyMapped(field.string()) == false) {
-                    continue;
-                }
-                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                    LeafReader reader = leafContext.reader();
-                    if (reader.hasDeletions()) {
-                        completed = false;
-                        break outer;
-                    }
-                    long c = countEntries(reader, field.string());
-                    if (c < 0) {
-                        completed = false;
-                        break outer;
-                    }
-                    count += c;
-                }
-            }
-            stat.count = completed ? count : -1;
+        if (stat.count != null) {
+            return stat.count;
         }
-        return stat.count;
+        long count = 0;
+        for (SearchExecutionContext context : contexts) {
+            // Skip shards where this field is a dynamic sub-key of a flattened field rather
+            // than an explicitly mapped field; those shards store the field's terms in Lucene
+            // even though it is absent from the mapping, so counting without this guard
+            // inflates the result.
+            if (context.isExplicitlyMapped(field.string()) == false) {
+                continue;
+            }
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                LeafReader reader = leafContext.reader();
+                if (reader.hasDeletions()) {
+                    // Can't use the count
+                    return stat.count = -1L;
+                }
+                long c = countEntries(reader, field.string());
+                if (c < 0) {
+                    // Can't use the count
+                    return stat.count = -1L;
+                }
+                count += c;
+            }
+        }
+        return stat.count = count;
     }
 
     @Override
@@ -260,7 +259,7 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (context.isFieldMapped(field.string()) == false) {
+                    if (context.isExplicitlyMapped(field.string()) == false) {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());
@@ -291,7 +290,7 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (context.isFieldMapped(field.string()) == false) {
+                    if (context.isExplicitlyMapped(field.string()) == false) {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());

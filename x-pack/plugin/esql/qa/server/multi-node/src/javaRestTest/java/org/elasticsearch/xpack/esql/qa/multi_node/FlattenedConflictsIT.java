@@ -33,13 +33,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Cross-index type conflicts where a field is a concrete type in one index
  * and a sub-key of a {@code flattened} field in another.
  * <p>
- * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>
- * ({@code element_type [INT] NOT IN (NULL, LONG)}) and
- * <a href="https://github.com/elastic/elasticsearch/issues/154484">#154484</a>
- * ({@code element_type [BYTES_REF] NOT IN (NULL, LONG)}).
- * <p>
- * Each scenario has a {@code SameNode} sibling that pins both indices to the
- * same node.
+ *     Each scenario has a {@code SameNode} sibling that pins both indices to the
+ *     same node.
+ * </p>
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FlattenedConflictsIT extends ESRestTestCase {

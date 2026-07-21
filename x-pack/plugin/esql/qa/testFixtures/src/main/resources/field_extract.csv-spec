@@ -522,10 +522,11 @@ FROM flattened_otel_logs
 2020-01-01T11:38:54.751Z
 ;
 
-// != on a literal flat key pushes to a NotQuery wrapping a TermQuery against the keyed
-// sub-field, wrapped in SingleValueQuery so the result matches the per-row evaluator's
-// "multi-value compares to null" semantics. A doc only contributes to the count if its
-// host.name key is present, single-valued, and not equal to the literal.
+// != on a literal flat key pushes a candidate NotQuery wrapping a TermQuery against the keyed
+// sub-field. The comparison reports RECHECK, so the FilterOperator re-applies the predicate on the
+// extracted keyword column to match the per-row evaluator's "multi-value compares to null" semantics.
+// A doc only contributes to the count if its host.name key is present, single-valued, and not equal
+// to the literal.
 notEqualsPushedToKeyedSubfield
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -539,8 +540,8 @@ c:long
 9
 ;
 
-// IN on a literal flat key pushes to a TermsQuery against the keyed sub-field, again
-// wrapped in SingleValueQuery for ES|QL-consistent multi-value semantics.
+// IN on a literal flat key pushes a candidate TermsQuery against the keyed sub-field, again with a
+// RECHECK filter re-applying the predicate for ES|QL-consistent multi-value semantics.
 inListPushedToKeyedSubfield
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -559,9 +560,9 @@ FROM flattened_otel_logs
 
 // Scalar == against a multi-value extract emits the standard "single-value function
 // encountered multi-value" warning and treats the result as null, so the count is zero.
-// Both paths arrive at the same warning text: the pushdown path through the
-// SingleValueQuery wrapping the keyed sub-field, and the parse path through the per-row
-// Equals operator on the multi-value keyword block.
+// The pushdown path matches the doc as a candidate, then the RECHECK filter re-evaluates the
+// per-row Equals operator on the multi-value keyword block, arriving at the same warning text and
+// null result as the parse path.
 multiValuedSubkeyDoesNotMatchScalarEquality
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -577,6 +578,25 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 
 c:long
 0
+;
+
+// The paranoid NOT + RECHECK case: != against a multi-value extract must null out (not count) the
+// multi-valued documents, exactly like ==
+multiValuedSubkeyDoesNotMatchScalarInequality
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: field_extract_returns_multi_value
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.ip") != "10.224.0.170"
+| STATS c = count(*)
+;
+
+warning:Line 2:9: evaluation of [field_extract(resource.attributes, \"host.ip\") != \"10.224.0.170\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+2
 ;
 
 

@@ -368,23 +368,28 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return;
         }
         Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
-        long maxBound = tsBlockHash.maxTimestamp();
+        // The hash keys are in the time resolution of the timestamp field (nanoseconds for date_nanos), while the
+        // roundings operate on milliseconds. Iterate the buckets in the millisecond domain and convert the resulting
+        // labels back to the hash resolution when creating groups.
+        long maxBoundMillis = timeResolution.roundDownToMillis(tsBlockHash.maxTimestamp());
         if (outputTimeBucket != null) {
-            maxBound = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp()).round(maxBound);
+            maxBoundMillis = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp()).round(
+                maxBoundMillis
+            );
         }
         this.numGroupsBeforeExpanding = Math.toIntExact(numGroups);
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
             int tsid = tsBlockHash.tsidForGroup(groupId);
-            long startTimestamp = tsBlockHash.timestampForGroup(groupId);
-            long effectiveEnd = Math.min(startTimestamp + timeResolution.convert(windowMillis), maxBound + 1);
-            long bucket = optimizedTimeBucket.nextRoundingValue(startTimestamp);
+            long startMillis = timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
+            long effectiveEndMillis = Math.min(startMillis + windowMillis, maxBoundMillis + 1);
+            long bucketMillis = optimizedTimeBucket.nextRoundingValue(startMillis);
             // Fill the missing buckets between (timestamp - window, timestamp).
-            while (bucket < effectiveEnd) {
-                if (tsBlockHash.addExtraGroup(tsid, bucket) >= 0) {
+            while (bucketMillis < effectiveEndMillis) {
+                if (tsBlockHash.addExtraGroup(tsid, timeResolution.convert(bucketMillis)) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
-                bucket = optimizedTimeBucket.nextRoundingValue(bucket);
+                bucketMillis = optimizedTimeBucket.nextRoundingValue(bucketMillis);
             }
         }
     }
@@ -512,7 +517,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 var iterator = fastRounding.iterator(Math.max(rangeStartMillis, minMillis), rangeEndMillis);
                 while (iterator.next()) {
                     if (iterator.getRoundedFloor() >= rangeStartMillis) {
-                        long groupId = tsBlockHash.getGroupId(tsid, iterator.getRounded());
+                        // the hash keys are in the resolution of the timestamp field, the iterator yields milliseconds
+                        long groupId = tsBlockHash.getGroupId(tsid, timeResolution.convert(iterator.getRounded()));
                         if (groupId != -1 && groupId != startingGroupId) {
                             action.accept(Math.toIntExact(groupId));
                         }
@@ -549,7 +555,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     if (cacheIndex >= 0) {
                         nextBucketTs = nextTimestamps.indexGet(cacheIndex);
                     } else {
-                        nextBucketTs = fastRounding.nextRoundingValue(bucketTs);
+                        // both the map and the hash keys are in the resolution of the timestamp field, the rounding
+                        // operates on milliseconds
+                        nextBucketTs = timeResolution.convert(fastRounding.nextRoundingValue(timeResolution.roundDownToMillis(bucketTs)));
                         nextTimestamps.put(bucketTs, nextBucketTs);
                     }
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));

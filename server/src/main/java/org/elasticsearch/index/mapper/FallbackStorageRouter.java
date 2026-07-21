@@ -125,8 +125,7 @@ public final class FallbackStorageRouter {
          * Handles both {@link FieldMapper} and {@link ObjectMapper}.
          */
         public static FieldContext forArrayElements(DocumentParserContext ctx, Mapper mapper, String fullPath) {
-            boolean storesArraysNatively = mapper != null
-                && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
+            boolean storesArraysNatively = mapper != null && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean syntheticFallback = false;
             if (mapper instanceof ObjectMapper objectMapper) {

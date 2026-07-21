@@ -4,14 +4,14 @@ breaking:
   details: >-
     The Inference API incorrectly allowed users to override values within `secret_parameters` with the contents of
     `task_settings.parameters` during a POST request. This change prevents that behavior, ensuring that
-    `secret_parameters` cannot be overridden."
+    `secret_parameters` cannot be overridden.
   impact: >-
     Users who relied on the previous behavior to override `secret_parameters` will need to create a new inference
     endpoint with the `secret_parameters` moved to `task_settings` or no longer rely on the ability to override the
-    `secret_parameters` within a POST request."
+    `secret_parameters` within a POST request.
   notable: false
-  title: "[Inference API] Prevent overriding `secret_parameters`"
+  title: "Prevent overriding `secret_parameters` in the Inference API"
 issues: []
 pr: 153309
-summary: "[Inference API] Prevent overriding `secret_parameters`"
+summary: "Prevent overriding `secret_parameters` in the Inference API"
 type: breaking

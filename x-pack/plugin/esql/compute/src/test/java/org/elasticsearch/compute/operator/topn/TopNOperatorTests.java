@@ -1109,9 +1109,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 || e == COMPOSITE
                 || e == AGGREGATE_METRIC_DOUBLE
                 || e == EXPONENTIAL_HISTOGRAM
-                || e == TDIGEST
-                || e == LONG_RANGE
-                || e == DOUBLE_RANGE) {
+                || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -2471,9 +2469,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
-                    || t == TDIGEST
-                    || t == LONG_RANGE
-                    || t == DOUBLE_RANGE,
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
@@ -2603,9 +2599,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
-                    || t == TDIGEST
-                    || t == LONG_RANGE
-                    || t == DOUBLE_RANGE,
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

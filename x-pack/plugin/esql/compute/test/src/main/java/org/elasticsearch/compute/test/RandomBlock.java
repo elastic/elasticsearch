@@ -60,10 +60,6 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
-                // TODO: LONG_RANGE add support
-                || e == ElementType.LONG_RANGE
-                // TODO: DOUBLE_RANGE add support
-                || e == ElementType.DOUBLE_RANGE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );

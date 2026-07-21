@@ -252,8 +252,13 @@ public class BlockTestUtils {
                 switch (l.size()) {
                     case 0 -> b.appendNull();
                     case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
-                    // TODO: LONG_RANGE : multi values are supported, fix this branch
-                    default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendLongRange((LongRangeBlockBuilder.LongRange) o);
+                        }
+                        b.endPositionEntry();
+                    }
                 }
                 return;
             }
@@ -267,8 +272,13 @@ public class BlockTestUtils {
                 switch (l.size()) {
                     case 0 -> b.appendNull();
                     case 1 -> b.appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) l.get(0));
-                    // TODO: DOUBLE_RANGE : multi values are supported, fix this branch
-                    default -> throw new IllegalArgumentException("DOUBLE_RANGE does not support multi-valued positions");
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) o);
+                        }
+                        b.endPositionEntry();
+                    }
                 }
                 return;
             }

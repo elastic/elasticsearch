@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -1075,8 +1076,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
-            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, false);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
+            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.ANY);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.ANY);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };
@@ -8081,7 +8082,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Holder<Rate> holder = new Holder<>();
             plan.forEachExpressionDown(Rate.class, holder::set);
             assertNotNull(holder.get());
-            assertFalse(holder.get().hasWindow());
+            assertTrue(holder.get().hasWindow());
             assertTrue(holder.get().hasFilter());
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
             assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
@@ -8196,8 +8197,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachExpressionDown(Rate.class, rateHolder::set);
             assertNotNull(maxHolder.get());
             assertNotNull(rateHolder.get());
+            // rate() keeps its window (not cleared) alongside the filter, for the extrapolation range fix;
+            // max_over_time() doesn't extrapolate, so its window is still cleared once it has a filter.
             assertFalse(maxHolder.get().hasWindow());
-            assertFalse(rateHolder.get().hasWindow());
+            assertTrue(rateHolder.get().hasWindow());
             assertTrue(maxHolder.get().hasFilter());
             assertTrue(rateHolder.get().hasFilter());
             WindowFilter lotWindowFilter = (WindowFilter) maxHolder.get().filter();
@@ -8233,8 +8236,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 assertFalse(rateHolder.get().hasFilter());
                 assertThat(((Duration) rateHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
             } else {
-                // rate has window filter (window cleared); max_over_time no filter (still has window)
-                assertFalse(rateHolder.get().hasWindow());
+                // rate has window filter and keeps its window too; max_over_time no filter (still has window)
+                assertTrue(rateHolder.get().hasWindow());
                 assertTrue(rateHolder.get().hasFilter());
                 WindowFilter windowFilter = (WindowFilter) rateHolder.get().filter();
                 assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));

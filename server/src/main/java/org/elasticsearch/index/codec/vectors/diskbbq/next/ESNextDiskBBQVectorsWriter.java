@@ -556,12 +556,22 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 }
                 byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
                 postingsOutput.writeByte(encoding);
+
                 offHeapQuantizedVectors.reset(size, ord -> vectorCentroidIdx[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
                 // write vectors
-                bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
-                    // for vector i we write `bulk` size docs or the remaining docs
-                    idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-                });
+                if (sliceField != null && centroidSupplier.slices() == null) {
+                    // This is the case where we have small slices when merging so we better write all our vectors in one centroid.
+                    // We are not writing the docIds as we know they are writing in vector ord order.
+                    // we will use the delegated FloatVectorValue instance on read to do the translation for us.
+                    assert centroidSupplier.size() == 1;
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, null);
+                } else {
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
+                        // for vector i we write `bulk` size docs or the remaining docs
+                        idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+                    });
+                }
+
                 lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
 

@@ -853,10 +853,17 @@ public final class StreamingParallelParsingCoordinator {
          * an inferred {@code INTEGER} displaced a declared {@code LONG}.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
-            if (readSchema != null && readSchema.isEmpty() == false) {
-                captureFileHeaderColumns(buffer, length);
-            } else {
+            if (readSchema == null || readSchema.isEmpty()) {
                 bindInferredSchema(buffer, length);
+            } else if (reader.boundSchemaNeedsFileSchema(readSchema)) {
+                // The planner's schema stands, but this reader cannot decode from it alone — it needs to know
+                // about columns the query did not ask for. Infer the file's schema here, once, so every chunk
+                // decodes against the same answer; inferring per chunk would let two chunks of one file
+                // disagree. The reader merges this with the bound schema and the bound types still win, so
+                // this cannot retype a column (which is what made the inference harmful in the first place).
+                bindInferredSchema(buffer, length);
+            } else {
+                captureFileHeaderColumns(buffer, length);
             }
         }
 

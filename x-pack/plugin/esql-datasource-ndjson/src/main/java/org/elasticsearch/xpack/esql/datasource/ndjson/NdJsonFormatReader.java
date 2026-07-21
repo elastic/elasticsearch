@@ -201,6 +201,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
+    @Override
+    public boolean boundSchemaNeedsFileSchema(List<Attribute> readSchema) {
+        // A dotted leaf decodes as a flat key only when its prefix column is in the schema too, and a bound
+        // schema is a projection that routinely omits it. See needsFullSchemaSupplement.
+        return readSchema != null && readSchema.isEmpty() == false && needsFullSchemaSupplement(readSchema);
+    }
+
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
         throws IOException {
         if (attributes != null) {

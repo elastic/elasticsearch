@@ -62,7 +62,7 @@ class HardcodedEntitlements {
             FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
             FilesEntitlement.FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
             // exclusive settings file
-            FilesEntitlement.FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
+            FilesEntitlement.FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE),
             // OS release on Linux
             FilesEntitlement.FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
             FilesEntitlement.FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),

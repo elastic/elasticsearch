@@ -6521,6 +6521,30 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The names a later chunk binds against come from this reader's own metadata, read from the file's first
+     * chunk. They must be the file's columns in the file's order — not the declared schema's, and not
+     * reordered to match it.
+     * <p>
+     * Nothing else pins this. If metadata ever short-circuited to the configured schema — a plausible
+     * optimisation — every column of every multi-chunk declared headered file would bind to the wrong field,
+     * silently, and no other test would notice.
+     */
+    public void testMetadataReturnsFileOrderNamesForADeclaredConfiguredReader() throws Exception {
+        // File order deliberately differs from the declared order below.
+        StorageObject object = createStorageObject("first_name,emp_no,salary\nAlice,1,100\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true)
+            .withSchema(declared);
+
+        List<String> names = reader.metadata(object).schema().stream().map(Attribute::name).toList();
+        assertEquals("metadata must describe the file, not the declaration", List.of("first_name", "emp_no", "salary"), names);
+    }
+
+    /**
      * A chunk after the first cannot see the file's header, but it can still bind a declared schema by name
      * when the header columns are handed to it. Without this a declared headered file large enough to be read
      * in chunks fails every query.

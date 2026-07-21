@@ -91,6 +91,12 @@ import java.util.function.Consumer;
  *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
  *                         the one warning that does) — so the warning is relayed back and re-emitted on
  *                         the correct thread instead of being silently dropped.
+ * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
+ *                         {@code null} for every read that owns the file's start, and for formats that do
+ *                         not name their columns in a header. Set only for a read that cannot see the
+ *                         header but still has to know what the columns are called — a chunk after the
+ *                         first of a header-bearing file whose declared schema binds by name. Binding such
+ *                         a chunk by position instead would shift every column silently.
  */
 public record FormatReadContext(
     List<String> projectedColumns,

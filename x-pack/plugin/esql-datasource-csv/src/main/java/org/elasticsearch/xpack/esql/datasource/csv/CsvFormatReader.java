@@ -1920,6 +1920,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Binds a declared schema to a file's columns by name, given the header column names rather than the
+     * header line itself. Used by a read that cannot see the header — a chunk after the first — where the
+     * names were read once from the file's start and passed down. Identical binding to the first-chunk path,
+     * including duplicate-header rejection, so the two cannot drift apart.
+     */
+    private int[] bindDeclaredToHeaderNames(String[] headerNames, List<Attribute> readSchema, StorageObject object) {
+        rejectDuplicateHeaderNames(headerNames, object);
+        return declaredPathFieldIndexes(readSchema, headerNames, object);
+    }
+
+    /**
      * Width tripwire for an externally-supplied (declared) positional schema against the file's actual header.
      *
      * <p>A declared schema binds text columns <b>positionally</b>: the declared names replace the header's names in
@@ -1936,17 +1947,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *
      * @return the raw field index per {@code readSchema} position, or {@code null} for positional binding
      */
-    /**
-     * Binds a declared schema to a file's columns by name, given the header column names rather than the
-     * header line itself. Used by a read that cannot see the header — a chunk after the first — where the
-     * names were read once from the file's start and passed down. Identical binding to the first-chunk path,
-     * including duplicate-header rejection, so the two cannot drift apart.
-     */
-    private int[] bindDeclaredToHeaderNames(String[] headerNames, List<Attribute> readSchema, StorageObject object) {
-        rejectDuplicateHeaderNames(headerNames, object);
-        return declaredPathFieldIndexes(readSchema, headerNames, object);
-    }
-
     private int[] validateDeclaredHeaderBinding(String headerLine, List<Attribute> readSchema, StorageObject object) {
         if (headerLine == null) {
             return null; // empty file — nothing to validate, and nothing to read

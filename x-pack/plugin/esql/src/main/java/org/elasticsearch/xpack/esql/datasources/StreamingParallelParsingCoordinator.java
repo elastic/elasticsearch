@@ -907,7 +907,15 @@ public final class StreamingParallelParsingCoordinator {
                     fileHeaderColumns = schema.stream().map(Attribute::name).toList();
                 }
             } catch (IOException | RuntimeException e) {
-                logger.debug("could not read header names from the first chunk; later chunks will fail loudly", e);
+                // Every later chunk will now fail with "no header columns", which says nothing about why they
+                // are missing. Log the real cause at WARN so the two can be connected — this is the only place
+                // it is visible.
+                logger.warn(
+                    () -> "could not read header columns from the first chunk of ["
+                        + (storageObject == null ? "<stream>" : storageObject.path())
+                        + "]",
+                    e
+                );
             }
         }
 

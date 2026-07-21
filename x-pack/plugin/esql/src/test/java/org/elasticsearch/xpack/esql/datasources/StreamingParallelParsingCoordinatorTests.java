@@ -339,6 +339,31 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * the schema-bound reader. Without this, each chunk re-inferred the schema from 20K sample
      * lines — for a 100M-row file split into ~24K chunks, that wasted ~33% of total parsing CPU.
      */
+    public void testSchemaInferredOnceAndBoundReaderUsedByParsers() throws Exception {
+        int lineCount = 5000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            // Small chunkSize forces many chunks so per-chunk inference would be obvious.
+            LineFormatReader reader = new LineFormatReader(1024);
+            List<String> allLines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT)
+            );
+
+            assertEquals(lineCount, allLines.size());
+            assertEquals("metadata() should be called exactly once for the whole stream", 1, reader.metadataCalls.get());
+            assertTrue(
+                "expected many parser invocations against the bound reader, got " + reader.boundReadCalls.get(),
+                reader.boundReadCalls.get() > 1
+            );
+            assertEquals("no parser invocation should land on the unbound root reader", 0, reader.unboundReadCalls.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     /**
      * When the planner has already resolved this file's schema, the coordinator must not infer one from
      * the first chunk.
@@ -388,31 +413,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 "every chunk should be parsed against the reader the planner configured, got " + reader.unboundReadCalls.get(),
                 reader.unboundReadCalls.get() > 1
             );
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    public void testSchemaInferredOnceAndBoundReaderUsedByParsers() throws Exception {
-        int lineCount = 5000;
-        String content = buildContent(lineCount);
-        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-
-        ExecutorService executor = Executors.newFixedThreadPool(8);
-        try {
-            // Small chunkSize forces many chunks so per-chunk inference would be obvious.
-            LineFormatReader reader = new LineFormatReader(1024);
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT)
-            );
-
-            assertEquals(lineCount, allLines.size());
-            assertEquals("metadata() should be called exactly once for the whole stream", 1, reader.metadataCalls.get());
-            assertTrue(
-                "expected many parser invocations against the bound reader, got " + reader.boundReadCalls.get(),
-                reader.boundReadCalls.get() > 1
-            );
-            assertEquals("no parser invocation should land on the unbound root reader", 0, reader.unboundReadCalls.get());
         } finally {
             executor.shutdownNow();
         }

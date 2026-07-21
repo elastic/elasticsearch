@@ -1021,8 +1021,10 @@ public class FileSplitProvider implements SplitProvider {
      * such a split correctly during a rolling upgrade. Splits are built on the coordinator and sent to data nodes,
      * so an older coordinator emits no position keys at all.
      * <p>
-     * This is the ONLY place an absent position key is interpreted, and it is BWC-only: delete it once no
-     * supported coordinator predates the stamping. It recognises legacy shapes by ruling out every protocol that
+     * This is the only place an absent LAST-position key is interpreted, and it is BWC-only: delete it once no
+     * supported coordinator predates the stamping. (An absent FIRST key is read from {@code offset() == 0}
+     * permanently and by design — range splits carry no position keys at all and rely on it.) It recognises
+     * legacy shapes by ruling out every protocol that
      * implies a split covers part of a file, which is sound only because that list is closed over the producers
      * in this class as of the stamping change — <b>a new split shape must stamp its position keys</b> rather than
      * rely on being absent from this list.

@@ -2054,14 +2054,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     bufferedInformationalWarningSink(state.buffer)
                 );
                 if (pages == null) {
-                    boolean lastSplit = FileSplitProvider.isLastInFile(fileSplit);
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
-                        .lastSplit(lastSplit)
+                        .lastSplit(splitIsFileFinal)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                         .splitStartByte(fileSplit.offset())

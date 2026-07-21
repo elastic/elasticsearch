@@ -147,6 +147,7 @@ public class IndexEngine extends InternalEngine {
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
     private final AtomicBoolean mergeBacklogThrottlingActive = new AtomicBoolean(false);
+    private final Object mergeBacklogThrottleLock = new Object();
     private final int mergeBacklogThrottleFactor;
     private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
 
@@ -976,25 +977,27 @@ public class IndexEngine extends InternalEngine {
     }
 
     private void checkMergeBacklogThrottle(int maxConcurrentMerges) {
-        int activeMerges = queuedOrRunningMergesCount.get();
-        int threshold = mergeBacklogThrottleFactor * maxConcurrentMerges;
-        if (activeMerges > threshold) {
-            if (mergeBacklogThrottlingActive.compareAndSet(false, true)) {
-                logger.info(
-                    "now throttling indexing: {} active merges exceeds {}x merge thread count threshold",
-                    activeMerges,
-                    mergeBacklogThrottleFactor
-                );
-                activateThrottling();
-            }
-        } else {
-            if (mergeBacklogThrottlingActive.compareAndSet(true, false)) {
-                logger.info(
-                    "stop throttling indexing: {} active merges within {}x merge thread count threshold",
-                    activeMerges,
-                    mergeBacklogThrottleFactor
-                );
-                deactivateThrottling();
+        synchronized (mergeBacklogThrottleLock) {
+            int activeMerges = queuedOrRunningMergesCount.get();
+            int threshold = mergeBacklogThrottleFactor * maxConcurrentMerges;
+            if (activeMerges > threshold) {
+                if (mergeBacklogThrottlingActive.compareAndSet(false, true)) {
+                    logger.info(
+                        "now throttling indexing: {} active merges exceeds {}x merge thread count threshold",
+                        activeMerges,
+                        mergeBacklogThrottleFactor
+                    );
+                    activateThrottling();
+                }
+            } else {
+                if (mergeBacklogThrottlingActive.compareAndSet(true, false)) {
+                    logger.info(
+                        "stop throttling indexing: {} active merges within {}x merge thread count threshold",
+                        activeMerges,
+                        mergeBacklogThrottleFactor
+                    );
+                    deactivateThrottling();
+                }
             }
         }
     }

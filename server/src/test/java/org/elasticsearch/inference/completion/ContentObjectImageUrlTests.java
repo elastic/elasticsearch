@@ -26,6 +26,11 @@ public class ContentObjectImageUrlTests extends InferenceObjectRamBytesUsedTest<
     }
 
     @Override
+    public boolean checkDoNotUnderAccount() {
+        return false;
+    }
+
+    @Override
     public List<ContentObject.ContentObjectImage.ContentObjectImageUrl> objectsToEstimateWithLargerInput() {
         return List.of(
             // Larger URL

@@ -197,11 +197,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     @Override
     public long ramBytesUsed() {
-        var dataTypeSize = RamUsageEstimator.shallowSizeOf(dataType());
-        var dataFormatSize = RamUsageEstimator.shallowSizeOf(dataFormat());
-        var stringSize = RamUsageEstimator.sizeOf(value());
-
-        return SHALLOW_SIZE + dataTypeSize + dataFormatSize + stringSize;
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(value());
     }
 
     @Override

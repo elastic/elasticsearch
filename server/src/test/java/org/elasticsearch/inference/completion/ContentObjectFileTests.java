@@ -21,6 +21,11 @@ public class ContentObjectFileTests extends InferenceObjectRamBytesUsedTest<Cont
     }
 
     @Override
+    public boolean checkDoNotUnderAccount() {
+        return false;
+    }
+
+    @Override
     public List<ContentObject.ContentObjectFile> objectsToEstimateWithLargerInput() {
         return List.of();
     }

@@ -142,13 +142,8 @@ public record Message(
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE
-            + ramBytesUsed(content())
-            + RamUsageEstimator.sizeOf(role())
-            + RamUsageEstimator.sizeOf(toolCallId())
-            + listRamBytesUsed(toolCalls())
-            + RamUsageEstimator.sizeOf(reasoning())
-            + listRamBytesUsed(reasoningDetails());
+        return SHALLOW_SIZE + ramBytesUsed(content()) + RamUsageEstimator.sizeOf(role()) + RamUsageEstimator.sizeOf(toolCallId())
+            + listRamBytesUsed(toolCalls()) + RamUsageEstimator.sizeOf(reasoning()) + listRamBytesUsed(reasoningDetails());
     }
 
     private static long ramBytesUsed(@Nullable Accountable accountable) {
@@ -159,9 +154,7 @@ public record Message(
         if (list == null) {
             return 0L;
         }
-        return RamUsageEstimator.shallowSizeOf(list)
-            + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
-            + (long) list.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-            + list.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        return RamUsageEstimator.shallowSizeOf(list) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size()
+            * RamUsageEstimator.NUM_BYTES_OBJECT_REF + list.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

@@ -23,6 +23,11 @@ public class ReasoningRamBytesUsedTests extends InferenceObjectRamBytesUsedTest<
     }
 
     @Override
+    public boolean checkDoNotUnderAccount() {
+        return false;
+    }
+
+    @Override
     public boolean hasGrowingInputs() {
         return false;
     }

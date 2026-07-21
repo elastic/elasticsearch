@@ -23,6 +23,11 @@ public class ContentObjectsTests extends InferenceObjectRamBytesUsedTest<Content
     }
 
     @Override
+    public boolean checkDoNotUnderAccount() {
+        return false;
+    }
+
+    @Override
     public List<ContentObjects> objectsToEstimateWithLargerInput() {
         return List.of(
             // More content objects

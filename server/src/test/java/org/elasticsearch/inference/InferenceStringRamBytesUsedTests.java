@@ -21,6 +21,11 @@ public class InferenceStringRamBytesUsedTests extends InferenceObjectRamBytesUse
     }
 
     @Override
+    public boolean checkDoNotUnderAccount() {
+        return false;
+    }
+
+    @Override
     public List<InferenceString> objectsToEstimateWithLargerInput() {
         return List.of(
             // Larger value

@@ -62,8 +62,6 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         IMAGE_URL,
         FILE;
 
-        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectType.class);
-
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
@@ -169,8 +167,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
 
         @Override
         protected long childRamBytesUsed() {
-            var fileFieldsRamBytesUsed = fileFields.ramBytesUsed();
-            return SHALLOW_SIZE + fileFieldsRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
+            return SHALLOW_SIZE + fileFields.ramBytesUsed();
         }
 
         /**
@@ -311,8 +308,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
 
         @Override
         protected long childRamBytesUsed() {
-            var imageUrlRamBytesUsed = imageUrl().ramBytesUsed();
-            return SHALLOW_SIZE + imageUrlRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
+            return SHALLOW_SIZE + imageUrl().ramBytesUsed();
         }
 
         public record ContentObjectImageUrl(String url, @Nullable ImageUrlDetail detail)
@@ -353,10 +349,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
 
             @Override
             public long ramBytesUsed() {
-                var imageUrlRamBytesUsed = RamUsageEstimator.sizeOf(url());
-                var detailRamBytesUsed = RamUsageEstimator.shallowSizeOf(detail());
-
-                return SHALLOW_SIZE + imageUrlRamBytesUsed + detailRamBytesUsed;
+                return SHALLOW_SIZE + RamUsageEstimator.sizeOf(url());
             }
 
             public enum ImageUrlDetail {
@@ -444,8 +437,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
 
         @Override
         protected long childRamBytesUsed() {
-            var textRamBytesUsed = RamUsageEstimator.sizeOf(text);
-            return SHALLOW_SIZE + textRamBytesUsed + ContentObjectType.SHALLOW_SIZE;
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(text);
         }
     }
 }

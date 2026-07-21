@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 152385
-summary: Add more defensive protections when parsing `query_string`
+summary: Add defensive protections when parsing `query_string`
 type: bug

@@ -911,10 +911,21 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/f.ndjson"), payload.length, Instant.EPOCH);
+        // A dotted leaf with no prefix column — the shape whose reader cannot decode from the projection alone.
+        // Passing it for real is what pins the provider handing the file's schema to the reader's predicate.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "a.b", DataType.LONG))),
+                null,
+                null,
+                null
+            )
+        );
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson"),
-            Map.of(),
+            schemaMap,
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
@@ -939,7 +950,9 @@ public class FileSplitProviderTests extends ESTestCase {
 
         @Override
         public boolean boundSchemaNeedsFileSchema(List<Attribute> readSchema) {
-            return needsFileSchema;
+            // Keyed on the argument, not just the flag: the gate hangs on the provider passing the file's
+            // resolved schema here, and a stub that ignored it would stay green if the provider passed null.
+            return needsFileSchema && readSchema != null && readSchema.isEmpty() == false;
         }
 
         @Override

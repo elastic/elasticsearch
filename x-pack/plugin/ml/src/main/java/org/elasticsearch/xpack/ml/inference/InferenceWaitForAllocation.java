@@ -63,6 +63,11 @@ public class InferenceWaitForAllocation {
     private final BiConsumer<WaitingRequest, TrainedModelAssignment> queuedConsumer;
     private AtomicInteger pendingRequestCount = new AtomicInteger();
 
+    // Visible for testing the MAX_PENDING_REQUEST_COUNT back-pressure accounting.
+    int pendingRequestCount() {
+        return pendingRequestCount.get();
+    }
+
     /**
      * Create with consumer of the successful requests
      * @param assignmentService            Trained model assignment service
@@ -178,7 +183,7 @@ public class InferenceWaitForAllocation {
             pendingRequestCount.decrementAndGet();
 
             if (predicate.exception.get() != null) {
-                onFailure(predicate.exception.get());
+                request.listener().onFailure(predicate.exception.get());
                 return;
             }
 

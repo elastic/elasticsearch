@@ -2,12 +2,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
-  issue: https://github.com/elastic/elasticsearch/issues/118208
-- class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test51AutoConfigurationWithPasswordProtectedKeystore
-  issue: https://github.com/elastic/elasticsearch/issues/118212
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -257,9 +251,12 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
   method: testUserSearchWithBindUserOpenLDAP
   issue: https://github.com/elastic/elasticsearch/issues/152601
-- class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
-  method: testLinearRetrieverPartialSearchErrorsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/154370
+- class: org.elasticsearch.indices.ShardLimitValidatorTests
+  method: testOverShardLimit
+  issue: https://github.com/elastic/elasticsearch/issues/154511
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.filterSometimesMatches}
+  issue: https://github.com/elastic/elasticsearch/issues/154584
 
 # Examples:
 #

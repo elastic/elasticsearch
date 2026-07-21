@@ -26,23 +26,21 @@ import static org.hamcrest.Matchers.hasItem;
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportTracerSupplierTests extends ESTestCase {
 
-    public void testConstructorWithoutEndpointThrows() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new OtelSdkExportTracerSupplier(Settings.EMPTY, MeterProvider::noop)
-        );
-        assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
-        assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+    public void testGetWithoutEndpointThrows() {
+        try (var supplier = new OtelSdkExportTracerSupplier(Settings.EMPTY, MeterProvider::noop)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, supplier::get);
+            assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
+            assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+        }
     }
 
-    public void testConstructorWithEmptyEndpointThrows() {
+    public void testGetWithEmptyEndpointThrows() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "").build();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)
-        );
-        assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
-        assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, supplier::get);
+            assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
+            assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+        }
     }
 
     public void testConstructorWithNoopMeterProviderDoesNotThrow() {

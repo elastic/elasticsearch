@@ -186,7 +186,11 @@ public class SliceIdFieldMapper extends IdFieldMapper {
 
     /** Recover the plain, user-visible id from a compound (or search) term produced above. */
     public static String decodeCompoundId(BytesRef term) {
-        String compound = Uid.decodeId(term.bytes, term.offset, term.length);
+        return stripSlice(Uid.decodeId(term.bytes, term.offset, term.length));
+    }
+
+    /** Strip the slice suffix from an already-decoded compound id string ({@code id#slice} to {@code id}). */
+    static String stripSlice(String compound) {
         return compound.substring(0, compound.lastIndexOf('#'));
     }
 

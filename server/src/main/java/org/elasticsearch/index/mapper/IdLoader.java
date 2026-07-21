@@ -585,7 +585,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         @Override
         public String getId(int subDocId) {
             String compound = loader.id();
-            return compound == null ? null : compound.substring(0, compound.lastIndexOf('#'));
+            return compound == null ? null : SliceIdFieldMapper.stripSlice(compound);
         }
     }
 

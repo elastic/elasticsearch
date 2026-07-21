@@ -1771,6 +1771,21 @@ set_union:double | step:datetime            | cluster:keyword
 7403.0           | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// Same union query on a date_nanos @timestamp index (datenanos-k8s loads the same k8s.csv). The step column must
+// still be exposed as datetime (epoch-millis), matching the plain-date variant above.
+set_operator_union_combines_series_date_nanos
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_date_nanos_step
+PROMQL index=datenanos-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
 // Left precedence: prod appears in both operands with the same grouping, so the left (max) value wins
 // over the right (sum) value.
 set_operator_union_left_precedence
@@ -1842,4 +1857,98 @@ set_union:double | step:datetime            | cluster:keyword
 10277.0          | 2024-05-10T01:00:00.000Z | prod
 10797.0          | 2024-05-10T01:00:00.000Z | qa
 19227.0          | 2024-05-10T01:00:00.000Z | staging
+;
+
+// ------------------------------------------------
+// ORDER STATISTICS
+// ------------------------------------------------
+
+// topk keeps the k series with the highest values, unlike sum/max/etc. it does not reduce them to one value -
+// the winning series keep their full label identity (see the `set_operator_union_heterogeneous_groupings` test
+// above for the same three cluster=prod pods' individual values via `max by (pod)`).
+topk_bare
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
+// k larger than the number of available series: every series is returned, still ranked.
+topk_k_exceeds_series_count
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// topk is evaluated independently at every step of a range query, so the winning series can change from
+// one step to the next as the underlying series values change - here `three` wins the first step and `two`
+// wins the second.
+topk_multi_step
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(topk(1, network.total_bytes_in{cluster="prod"}))
+| SORT step, result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+// k=0: Prometheus returns an empty result.
+topk_k_zero
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+;
+
+// k far larger than any reasonable series count: still returns every series, still ranked. Note: k values near
+// Integer.MAX_VALUE trip ES|QL's circuit breaker (TopNBy's execution pre-sizes a buffer proportional to k, not
+// to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's differenceFromPrometheus.
+topk_k_very_large
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// `by (pod)` partitions the ranking by pod across ALL clusters (pod names repeat across prod/qa/staging), so each
+// pod-group can drop a different, independently-ranked loser - unlike `sum(...) by (pod)`, the winners keep their
+// full identity (cluster, region) rather than collapsing to just `pod`.
+topk_by_grouping
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
+
+result:double | step:datetime            | _timeseries:keyword
+10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;

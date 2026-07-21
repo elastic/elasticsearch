@@ -46,7 +46,7 @@ import java.util.concurrent.Executor;
 ///
 /// When the desired balance changes and an initializing shard is no longer assigned to its current node, this service
 /// sends a [CancelRecoveriesAction] transport request to the data node so that the recovery is cancelled as soon as
-/// possible rather than waiting it for it to complete before the next allocation round can move the shard.
+/// possible rather than waiting for it to complete before the next allocation round can move the shard.
 ///
 /// Every operation in this service is fire-and-forget. Errors are all handled by logging a warning or silently ignoring
 /// the result. In all failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed
@@ -192,10 +192,10 @@ public class RecoveryDirectCancellationService {
     }
 
     /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
-    /// shards on that node that are no longer heading to a desired location according to the provided `desiredBalance`
-    /// and whose recovery should be cancelled (possible). Each cancellation ([ShardRecoveryCancellation]) carries a
-    /// `cancelIfStarted` flag, determined by recovery type and allocation decider result, indicating whether the
-    /// recovery should be interrupted even after it has started running.
+    /// shards on that node that are no longer heading to a desired location according to `desiredBalance` and for
+    /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
+    /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
+    /// interrupted even after it has started work.
     // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
     // before the previous cancellations have had time to take effect.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeDirectCancellationCandidates(

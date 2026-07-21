@@ -5474,7 +5474,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAnyMatchLambdaParamShadowsUpstreamColumn() {
         assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
-        // lambda param "salary" shadows the upstream salary column; the param type is INTEGER (from first_name field)
+        // lambda param "salary" shadows the upstream salary column; the param type is INTEGER (from the salary field)
         var plan = basic().query("FROM test | EVAL r = any_match(salary, salary -> salary > 1000)");
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -5486,6 +5486,41 @@ public class AnalyzerTests extends ESTestCase {
         var param = as(lambda.parameters().get(0), ReferenceAttribute.class);
         assertThat(param.name(), equalTo("salary"));
         assertThat(param.dataType(), equalTo(INTEGER));
+    }
+
+    public void testAnyMatchLambdaParamShadowsUpstreamAliasIncompatibleType() {
+        // the param "s" shadows an upstream EVAL alias of a different type (keyword). Pass 1 binds the
+        // param slot to the upstream ReferenceAttribute; lambda resolution must overwrite that binding
+        // with a fresh INTEGER param from the salary field.
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL s = to_string(emp_no) | EVAL r = any_match(salary, s -> s > 1000)");
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var anyMatch = as(as(eval.fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue("any_match should be resolved", anyMatch.resolved());
+        var param = as(anyMatch.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.name(), equalTo("s"));
+        assertThat(param.dataType(), equalTo(INTEGER));
+    }
+
+    public void testAnyMatchLambdaParamShadowsUpstreamAliasCompatibleType() {
+        // same as above but the upstream alias type is compatible with the body expression, so a
+        // wrong binding would resolve silently with wrong semantics: the body's "s" must reference
+        // the lambda param (same id), not the upstream alias.
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL s = emp_no + 1 | EVAL r = any_match(salary, s -> s > 1000)");
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var upstreamAlias = as(as(eval.child(), Eval.class).fields().get(0), Alias.class);
+        var anyMatch = as(as(eval.fields().get(0), Alias.class).child(), AnyMatch.class);
+        assertTrue("any_match should be resolved", anyMatch.resolved());
+        var lambda = anyMatch.lambda();
+        var param = as(lambda.parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(INTEGER));
+        assertThat("param must not be bound to the upstream alias", param.id(), not(equalTo(upstreamAlias.id())));
+        var body = as(lambda.body(), GreaterThan.class);
+        var bodyRef = as(body.left(), ReferenceAttribute.class);
+        assertThat("body must reference the lambda param, not the upstream alias", bodyRef.id(), equalTo(param.id()));
     }
 
     public void testAnyMatchLambdaBodyNotBoolean() {

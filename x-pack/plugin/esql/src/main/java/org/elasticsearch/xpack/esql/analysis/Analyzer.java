@@ -1107,6 +1107,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
+            // TODO lambdas: some dedicated resolvers below (Completion, Fork, Enrich, MvExpand, Fuse,
+            // Lookup/LookupJoin) do not call resolveAllLambdas; a lambda-accepting function there
+            // would surface as "Unknown column" instead of resolving. Revisit when lambda-accepting
+            // functions become usable in those contexts.
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
@@ -2102,13 +2106,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Pass 1: resolve upstream attribute references
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
                 // Pass 2: resolve lambda parameters for lambda-accepting functions
-                Alias withLambdas = (Alias) result.transformDown(
-                    org.elasticsearch.xpack.esql.core.expression.function.Function.class,
-                    f -> f instanceof LambdaAccepting la ? resolveLambdas(la, f, allResolvedInputs) : f
-                );
-                if (withLambdas != result) {
-                    result = withLambdas;
-                }
+                result = (Alias) resolveAllLambdas(result, allResolvedInputs);
 
                 changed |= result != field;
                 newFields.add(result);
@@ -2136,6 +2134,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private LogicalPlan resolveAllLambdas(LogicalPlan plan, List<Attribute> upstream) {
             return plan.transformExpressionsOnly(
+                org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                f -> f instanceof LambdaAccepting la ? resolveLambdas(la, f, upstream) : f
+            );
+        }
+
+        /**
+         * Expression-level variant of {@link #resolveAllLambdas(LogicalPlan, List)}, for callers
+         * that resolve individual expressions (e.g. Eval/Row fields) rather than a whole plan node.
+         */
+        private Expression resolveAllLambdas(Expression expression, List<Attribute> upstream) {
+            return expression.transformDown(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 f -> f instanceof LambdaAccepting la ? resolveLambdas(la, f, upstream) : f
             );
@@ -2172,16 +2181,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * creating new attribute instances with different ids on every iteration.
          */
         private Lambda resolveLambda(LambdaAccepting la, Lambda lambda, List<Attribute> upstream) {
+            // A lambda is already resolved by us only if all params are ReferenceAttributes whose ids
+            // do NOT come from upstream. Pass 1 of resolveFields can mis-bind a param declaration slot
+            // to an upstream attribute of the same name (e.g. an EVAL alias, which is itself a
+            // ReferenceAttribute); such a binding must be overwritten, not treated as resolved.
             if (lambda.parameters().isEmpty() == false && lambda.parameters().stream().allMatch(p -> p instanceof ReferenceAttribute)) {
-                return lambda;
+                Set<NameId> upstreamIds = new HashSet<>(upstream.size());
+                for (Attribute a : upstream) {
+                    upstreamIds.add(a.id());
+                }
+                if (lambda.parameters().stream().noneMatch(p -> upstreamIds.contains(p.id()))) {
+                    return lambda;
+                }
             }
             List<Attribute> typedParams = la.resolveLambdaParams(lambda, upstream);
             if (typedParams.isEmpty()) {
                 return lambda;
             }
+            if (typedParams.size() != lambda.parameters().size()) {
+                throw new IllegalStateException(
+                    "resolveLambdaParams for ["
+                        + la.getClass().getSimpleName()
+                        + "] returned "
+                        + typedParams.size()
+                        + " params for a lambda with "
+                        + lambda.parameters().size()
+                );
+            }
+            // Params shadow upstream columns of the same name: exclude the shadowed upstream entries
+            // so name lookups in the scope are unambiguous.
+            Set<String> paramNames = new HashSet<>(typedParams.size());
+            for (Attribute p : typedParams) {
+                paramNames.add(p.name());
+            }
             List<Attribute> scope = new ArrayList<>(upstream.size() + typedParams.size());
             scope.addAll(typedParams);
-            scope.addAll(upstream);
+            for (Attribute a : upstream) {
+                if (paramNames.contains(a.name()) == false) {
+                    scope.add(a);
+                }
+            }
             Expression newBody = substituteInBody(lambda.body(), typedParams, scope);
             // Always rebuild the lambda with typed params — even if the body didn't change,
             // the params themselves need to be replaced with ReferenceAttributes (e.g. when

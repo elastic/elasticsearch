@@ -81,14 +81,9 @@ public class FlattenedConflictsIT extends ESRestTestCase {
      * and a sub-key of a {@code flattened} field in another.
      */
     public void testDateVsFlattened() throws Exception {
-        createIndicesIfMissing(
-            "idx_date",
-            """
-                { "properties": { "metadata": { "properties": { "time": { "type": "date" } } } } }""",
-            "idx_flat_date",
-            """
-                { "properties": { "metadata": { "type": "flattened" } } }"""
-        );
+        createIndicesIfMissing("idx_date", """
+            { "properties": { "metadata": { "properties": { "time": { "type": "date" } } } } }""", "idx_flat_date", """
+            { "properties": { "metadata": { "type": "flattened" } } }""");
         if (indexExists("idx_date") && countDocs("idx_date") == 0) {
             for (int i = 0; i < 5; i++) {
                 indexDoc("idx_date", Integer.toString(i), Strings.format("""
@@ -120,14 +115,9 @@ public class FlattenedConflictsIT extends ESRestTestCase {
      * shards.
      */
     public void testIntegerVsFlattenedWithCast() throws Exception {
-        createIndicesIfMissing(
-            "idx_obj_int",
-            """
-                { "properties": { "features": { "properties": { "topic_id": { "type": "integer" } } } } }""",
-            "idx_flat_int",
-            """
-                { "properties": { "features": { "type": "flattened" } } }"""
-        );
+        createIndicesIfMissing("idx_obj_int", """
+            { "properties": { "features": { "properties": { "topic_id": { "type": "integer" } } } } }""", "idx_flat_int", """
+            { "properties": { "features": { "type": "flattened" } } }""");
         if (indexExists("idx_obj_int") && countDocs("idx_obj_int") == 0) {
             for (int i = 0; i < 10; i++) {
                 indexDoc("idx_obj_int", Integer.toString(i), Strings.format("""

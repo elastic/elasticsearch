@@ -41,17 +41,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-/// Master-side service that proactively cancels shard recoveries that are no longer wanted
-/// according to the current [DesiredBalance].
+/// Master-side service that proactively cancels shard recoveries that are no longer wanted according to the current
+/// [DesiredBalance].
 ///
-/// When the desired balance changes and an initializing shard is no longer assigned to its current
-/// node, this service sends a [CancelRecoveriesAction] transport request to the data node so that
-/// the recovery is cancelled as soon as possible rather than waiting it for it to complete before the next allocation
-/// round can move the shard.
+/// When the desired balance changes and an initializing shard is no longer assigned to its current node, this service
+/// sends a [CancelRecoveriesAction] transport request to the data node so that the recovery is cancelled as soon as
+/// possible rather than waiting it for it to complete before the next allocation round can move the shard.
 ///
-/// Every operation in this service is fire-and-forget. Errors are all handled by logging a warning
-/// or silently ignoring the result. In all failure cases the affected shards are eventually
-/// reassigned through the normal reroute/shard-failed path.
+/// Every operation in this service is fire-and-forget. Errors are all handled by logging a warning or silently ignoring
+/// the result. In all failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed
+/// path.
 public class RecoveryDirectCancellationService {
 
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
@@ -91,9 +90,16 @@ public class RecoveryDirectCancellationService {
     }
 
     /// Asynchronously computes which initializing shards are no longer desired on their current nodes according to the given
-    /// [DesiredBalance], and sends batch cancellation requests to the affected data nodes. Queued recoveries are cancelled
-    /// immediately and reported back as shard failures. Started recoveries are flagged for cancellation and go through the
-    /// usual shardFailure notification to master path ([ShardStateAction]).
+    /// [DesiredBalance] and sends cancellation requests to the affected data nodes.
+    ///
+    /// Direct cancellation is a best-effort optimization. Reconciliation and desired balance computation run
+    /// concurrently and continuously, so `routingAllocation` may already be stale by the time cancellations are sent.
+    /// Stale cancellations are safe. The data node validates each request against its local recovery state and ignores
+    /// any that no longer apply.
+    ///
+    /// @param desiredBalance the desired balance used to determine which recoveries are no longer heading to a desired node
+    /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
+    /// which shards are currently initializing on an undesired node
     public void computeAndSubmitCancellations(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
         executor.execute(new AbstractRunnable() {
             @Override
@@ -119,8 +125,7 @@ public class RecoveryDirectCancellationService {
         });
     }
 
-    /// Sends a batch of direct recovery cancellations to the specified data nodes, lets each node decide
-    /// whether to honor each cancellation and fails any shard the data node cancelled straight out of its queue.
+    /// Given the `requests` map of [CancelRecoveriesAction] request per node, sends each request to its target node.
     private void sendCancellations(Map<DiscoveryNode, CancelRecoveriesAction.Request> requests) {
         if (enableDirectRecoveryCancellations == false) {
             logger.debug(
@@ -186,7 +191,11 @@ public class RecoveryDirectCancellationService {
         }
     }
 
-    // visible for testing
+    /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
+    /// shards on that node that are no longer heading to a desired location according to the provided `desiredBalance`
+    /// and whose recovery should be cancelled (possible). Each cancellation ([ShardRecoveryCancellation]) carries a
+    /// `cancelIfStarted` flag, determined by recovery type and allocation decider result, indicating whether the
+    /// recovery should be interrupted even after it has started running.
     // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
     // before the previous cancellations have had time to take effect.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeDirectCancellationCandidates(

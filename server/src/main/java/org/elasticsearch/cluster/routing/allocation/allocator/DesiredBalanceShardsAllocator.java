@@ -230,10 +230,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index
                     );
-                    // We prefer cancelling even on a partial (not-yet-converged) balance in order to avoid delaying freeing
-                    // recovery slots and waste ongoing work (especially for Decision.NO + cancelIfStarted cases).
-                    // This is consistent with reconciliation happening on a partially computed balance. However, this is
-                    // a tradeoff as it can also cause cancellation/allocation back and forth.
+                    // We cancel even on a partial (not-yet-converged) balance to avoid delaying freeing recovery slots
+                    // on data nodes. This is consistent with reconciling on the same partial balance below, but comes at
+                    // the cost of potential cancellation/allocation back and forth if the final balance reverses the
+                    // decision.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryDirectCancellationAction.apply(currentDesiredBalance, currentAllocation);

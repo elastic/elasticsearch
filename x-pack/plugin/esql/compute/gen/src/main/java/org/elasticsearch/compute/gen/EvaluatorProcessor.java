@@ -9,6 +9,7 @@ package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.LambdaEvaluator;
 import org.elasticsearch.compute.ann.MvEvaluator;
 
 import java.util.List;
@@ -39,7 +40,12 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Evaluator.class.getName(), MvEvaluator.class.getName(), ConvertEvaluator.class.getName());
+        return Set.of(
+            Evaluator.class.getName(),
+            MvEvaluator.class.getName(),
+            ConvertEvaluator.class.getName(),
+            LambdaEvaluator.class.getName()
+        );
     }
 
     @Override
@@ -106,6 +112,24 @@ public class EvaluatorProcessor implements Processor {
                                 mvEvaluatorAnn.single(),
                                 mvEvaluatorAnn.ascending(),
                                 warnExceptionsTypes
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
+                }
+                LambdaEvaluator lambdaEvaluatorAnn = evaluatorMethod.getAnnotation(LambdaEvaluator.class);
+                if (lambdaEvaluatorAnn != null) {
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new LambdaEvaluatorImplementer(
+                                env.getElementUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                lambdaEvaluatorAnn.extraName()
                             ).sourceFile(),
                             env
                         );

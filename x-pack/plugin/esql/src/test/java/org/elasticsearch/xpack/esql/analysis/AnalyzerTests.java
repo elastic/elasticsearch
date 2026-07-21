@@ -72,6 +72,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -5868,6 +5870,74 @@ public class AnalyzerTests extends ESTestCase {
             "SET unmapped_fields=\"nullify\"; FROM test | EVAL r = any_match(nonexistent_mv_field, x -> x == \"foo\")"
         );
         assertThat("lambda param x must not appear as an output column", Expressions.names(plan.output()), not(hasItem("x")));
+    }
+
+    // ---------- map / filter ----------
+    // The lambda resolution machinery is shared with any_match (covered above); these tests cover
+    // what's specific to map and filter: their type resolution and result type.
+
+    public void testMvMapResolutionAndDataType() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = map(salary, x -> x + 1)");
+        var mvMap = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), MvMap.class);
+        assertTrue("map should be resolved", mvMap.resolved());
+        var param = as(mvMap.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(INTEGER));
+        assertThat("map's type is the lambda body's type", mvMap.dataType(), equalTo(INTEGER));
+    }
+
+    public void testMvMapDataTypeFollowsBodyTypeChange() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = map(salary, x -> to_string(x))");
+        var mvMap = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), MvMap.class);
+        assertTrue(mvMap.resolved());
+        assertThat(as(mvMap.lambda().parameters().get(0), ReferenceAttribute.class).dataType(), equalTo(INTEGER));
+        assertThat(mvMap.dataType(), equalTo(KEYWORD));
+    }
+
+    public void testMvMapNullBody() {
+        // mapping everything to null is legal; the function's type is NULL
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = map(salary, x -> null)");
+        var mvMap = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), MvMap.class);
+        assertTrue(mvMap.resolved());
+        assertThat(mvMap.dataType(), equalTo(DataType.NULL));
+    }
+
+    public void testMvMapSecondArgNotLambda() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error("FROM test | EVAL r = map(salary, 1)", containsString("second argument of [map(salary, 1)] must be [lambda]"));
+    }
+
+    public void testMvMapLambdaZeroParams() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error("FROM test | EVAL r = map(salary, () -> 1)", containsString("must be a lambda with exactly one parameter, got 0"));
+    }
+
+    public void testMvFilterResolutionAndDataType() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        var plan = basic().query("FROM test | EVAL r = filter(first_name, x -> x == \"Alice\")");
+        var mvFilter = as(as(as(as(plan, Limit.class).child(), Eval.class).fields().get(0), Alias.class).child(), MvFilter.class);
+        assertTrue("filter should be resolved", mvFilter.resolved());
+        var param = as(mvFilter.lambda().parameters().get(0), ReferenceAttribute.class);
+        assertThat(param.dataType(), equalTo(KEYWORD));
+        assertThat("filter's type is the field's type", mvFilter.dataType(), equalTo(KEYWORD));
+    }
+
+    public void testMvFilterLambdaBodyNotBoolean() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = filter(salary, x -> x + 1)",
+            containsString("argument of [filter(salary, x -> x + 1)] must be [boolean]")
+        );
+    }
+
+    public void testMvFilterSecondArgNotLambda() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        basic().error(
+            "FROM test | EVAL r = filter(salary, \"foo\")",
+            containsString("second argument of [filter(salary, \"foo\")] must be [lambda]")
+        );
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {

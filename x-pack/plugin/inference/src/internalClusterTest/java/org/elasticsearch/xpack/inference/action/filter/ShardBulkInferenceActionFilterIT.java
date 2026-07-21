@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
@@ -60,7 +58,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.Utils.storeModel;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomInferenceString;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
@@ -378,101 +375,97 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     public void testRestart() throws Exception {
-        Model model1 = new TestSparseInferenceServiceExtension.TestSparseModel(
-            "another_inference_endpoint",
-            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
-        );
-        storeModel(modelRegistry, model1);
-        prepareCreate("index_restart").setMapping("""
+        registerModel(modelRegistry, "sparse_inference_endpoint_1", TaskType.SPARSE_EMBEDDING);
+        registerModel(modelRegistry, "semanatic_inference_endpoint_1", TaskType.EMBEDDING);
+
+        String commonFields = """
+                    "semantic_text_field_1": {
+                        "type": "semantic_text",
+                        "inference_id": "sparse_inference_endpoint_1"
+                    },
+                    "semantic_text_field_2": {
+                        "type": "semantic_text",
+                        "inference_id": "sparse_inference_endpoint_2"
+                    }
+            """;
+        String semanticFields = useLegacyFormat ? "" : """
+                    ,
+                    "semantic_field_1": {
+                        "type": "semantic",
+                        "inference_id": "semanatic_inference_endpoint_1"
+                    },
+                    "semantic_field_2": {
+                        "type": "semantic",
+                        "inference_id": "semanatic_inference_endpoint_2"
+                    }
+            """;
+
+        String mapping = """
             {
                 "properties": {
-                    "sparse_field": {
-                        "type": "semantic_text",
-                        "inference_id": "new_inference_endpoint"
-                    },
-                    "other_field": {
-                        "type": "semantic_text",
-                        "inference_id": "another_inference_endpoint"
-                    }
+            """ + commonFields + semanticFields + """
                 }
             }
-            """).get();
-        Model model2 = new TestSparseInferenceServiceExtension.TestSparseModel(
-            "new_inference_endpoint",
-            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
-        );
-        storeModel(modelRegistry, model2);
-
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
-
-        assertRandomBulkOperations("index_restart", isIndexRequest -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
-            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
-            return map;
-        });
-
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
-
-        assertRandomBulkOperations("index_restart", isIndexRequest -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
-            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
-            return map;
-        });
-    }
-
-    public void testRestartSemantic() throws Exception {
-        assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
-
-        String indexName = "index_restart_semantic";
-        registerModel(modelRegistry, "another_semanatic_inference_endpoint", TaskType.EMBEDDING);
-        prepareCreate(indexName).setMapping("""
-            {
-                "properties": {
-                    "semantic_field": {
-                        "type": "semantic",
-                        "inference_id": "another_semanatic_inference_endpoint"
-                    },
-                    "other_field": {
-                        "type": "semantic",
-                        "inference_id": "new_semantic_inference_endpoint"
-                    }
-                }
-            }
-            """).get();
+            """;
+        prepareCreate("index_restart").setMapping(mapping).get();
 
         assertItemFailures(
-            indexName,
-            () -> Map.of("semantic_field", randomSemanticInput(true), "other_field", randomSemanticInput(true)),
+            "index_restart",
+            () -> Map.of("semantic_text_field_1", randomSemanticTextInput(), "semantic_text_field_2", randomSemanticTextInput()),
             r -> assertThat(
                 rootCause(r.getFailure().getCause()).getMessage(),
-                containsString("Inference id [new_semantic_inference_endpoint] not found for field [other_field]")
+                containsString("Inference id [sparse_inference_endpoint_2] not found for field [semantic_text_field_2]")
             )
         );
+        if (useLegacyFormat == false) {
+            assertItemFailures(
+                "index_restart",
+                () -> Map.of("semantic_field_1", randomSemanticInput(true), "semantic_field_2", randomSemanticInput(true)),
+                r -> assertThat(
+                    rootCause(r.getFailure().getCause()).getMessage(),
+                    containsString("Inference id [semanatic_inference_endpoint_2] not found for field [semantic_field_2]")
+                )
+            );
+        }
 
-        registerModel(modelRegistry, "new_semantic_inference_endpoint", TaskType.EMBEDDING);
+        registerModel(modelRegistry, "sparse_inference_endpoint_2", TaskType.SPARSE_EMBEDDING);
+        registerModel(modelRegistry, "semanatic_inference_endpoint_2", TaskType.EMBEDDING);
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, indexName, InferenceSecretsIndex.INDEX_NAME);
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
 
-        assertRandomBulkOperations(indexName, isIndexRequest -> {
+        assertRandomBulkOperations("index_restart", isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();
-            map.put("semantic_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
-            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+            map.put("semantic_text_field_1", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            map.put("semantic_text_field_2", isIndexRequest && rarely() ? null : randomSemanticTextInput());
             return map;
         });
 
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, indexName, InferenceSecretsIndex.INDEX_NAME);
+        if (useLegacyFormat == false) {
+            assertRandomBulkOperations("index_restart", isIndexRequest -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("semantic_field_1", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+                map.put("semantic_field_2", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+                return map;
+            });
+        }
 
-        assertRandomBulkOperations(indexName, isIndexRequest -> {
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
+
+        assertRandomBulkOperations("index_restart", isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();
-            map.put("semantic_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
-            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+            map.put("semantic_text_field_1", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            map.put("semantic_text_field_2", isIndexRequest && rarely() ? null : randomSemanticTextInput());
             return map;
         });
+        if (useLegacyFormat == false) {
+            assertRandomBulkOperations("index_restart", isIndexRequest -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("semantic_field_1", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+                map.put("semantic_field_2", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+                return map;
+            });
+        }
     }
 
     private void assertRandomBulkOperations(String indexName, Function<Boolean, Map<String, Object>> sourceSupplier) throws Exception {

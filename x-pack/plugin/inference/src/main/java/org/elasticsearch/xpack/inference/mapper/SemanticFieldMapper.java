@@ -111,6 +111,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     public static final String CONTENT_TYPE = "semantic";
 
     public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
+    public static final NodeFeature SEMANTIC_FIELD_RETAIN_BINARY = new NodeFeature("semantic_field.retain_binary");
 
     static final String INDEX_OPTIONS_FIELD = "index_options";
 

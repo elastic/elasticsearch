@@ -27,18 +27,18 @@ abstract class AbstractVarColumn extends EscfColumn {
     final BytesReference data;
     final IntsRef offsets;
 
-    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
-        super(docCount, absent);
+    AbstractVarColumn(int docCount, FixedBitSet validity, BytesReference data, IntsRef offsets) {
+        super(docCount, validity);
         this.data = data;
         this.offsets = offsets;
         assert offsets.length == docCount + 1;
     }
 
-    abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceAbsent, BytesReference sliceData, IntsRef sliceOffsets);
+    abstract AbstractVarColumn newSlice(int count, FixedBitSet sliceValidity, BytesReference sliceData, IntsRef sliceOffsets);
 
     /**
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
-     * row of this column's window. Absent rows (tracked by the {@link #absent} bitset) are skipped;
+     * row of this column's window. Absent rows (clear bits in the {@link #validity} bitset) are skipped;
      * present rows are yielded in ascending order. The returned {@link BytesRef} is valid only until
      * the next {@link ObjectTupleCursor#nextDoc()} call.
      */
@@ -49,12 +49,12 @@ abstract class AbstractVarColumn extends EscfColumn {
 
     /**
      * Returns a dense {@link BytesRefValuesCursor} positioned before the first row of this column's
-     * window. The column must be fully present ({@link #absent} {@code == null}); call this only on
+     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
      * dense columns. The returned {@link BytesRef} per {@link BytesRefValuesCursor#nextValue()} is
      * valid only until the next call to {@code nextValue()}.
      */
     final BytesRefValuesCursor bytesRefValuesCursor() {
-        assert absent == null : "values cursor is only valid for dense (fully-present) columns";
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseBytesRefValuesCursor(docCount, this);
     }
 
@@ -67,14 +67,14 @@ abstract class AbstractVarColumn extends EscfColumn {
     @Override
     final EscfColumn sliceInternal(int from, int count) {
         // data is kept full/shared; the slice is expressed by adjusting dataOffsets.offset.
-        return newSlice(count, windowBitSet(absent, from, count), data, sliceOffsets(offsets, from, count));
+        return newSlice(count, windowValidity(validity, from, count), data, sliceOffsets(offsets, from, count));
     }
 
     @Override
     final EscfColumnData toColumnData() {
         BytesReference newData = sliceData(offsets, data, docCount);
         int[] newOffsets = rebasedOffsets(offsets, docCount);
-        return EscfColumnData.ofVarWidth(kind(), docCount, absent, newOffsets, newData);
+        return EscfColumnData.ofVarWidth(kind(), docCount, validity, newOffsets, newData);
     }
 
     private static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {

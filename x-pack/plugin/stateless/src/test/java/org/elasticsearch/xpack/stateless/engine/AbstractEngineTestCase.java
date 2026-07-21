@@ -568,7 +568,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .retentionLeasesSupplier(() -> {
                 throw new AssertionError();
             })
-            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .primaryTermSupplier(primaryTermSupplier)
             .engineResetLock(new EngineResetLock())
             .mergeMetrics(MergeMetrics.NOOP)

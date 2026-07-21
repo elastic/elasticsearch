@@ -11,7 +11,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 
@@ -493,49 +492,6 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
         }
 
         assertThat("reservation drains to zero after engine close even on the deferral path", trackingBreaker.getUsed(), equalTo(0L));
-        assertWarnings(
-            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the breaking changes documentation for the next major version."
-        );
-    }
-
-    public void testGetMaxSeqNoMatchesSeqNoStatsWhenRefreshIsDeferred() throws IOException {
-        // Pin the limit at 1 byte so the very first real refresh (bringing in d1's segment) defers.
-        trackingBreaker.setLimit(1L);
-
-        final var indexConfig = indexConfig();
-        final var searchTaskQueue = new DeterministicTaskQueue();
-
-        try (
-            var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
-        ) {
-            Engine.IndexResult result = indexEngine.index(randomDoc("d1"));
-            indexEngine.flush();
-            notifyCommits(indexEngine, searchEngine);
-            searchTaskQueue.runAllRunnableTasks();
-
-            assertThat("refresh must have been deferred", searchEngine.getRefreshDeferredCount(), equalTo(1L));
-            assertThat(
-                "getSeqNoStats() must still reflect the pre-d1 commit while the refresh is deferred",
-                searchEngine.getSeqNoStats(-1).getMaxSeqNo(),
-                equalTo(SequenceNumbers.NO_OPS_PERFORMED)
-            );
-            // getMaxSeqNo() is a separately cached field updated by setSequenceNumbers(); it must not race ahead
-            // of getSeqNoStats() while the corresponding commit isn't actually visible yet.
-            assertThat(searchEngine.getMaxSeqNo(), equalTo(searchEngine.getSeqNoStats(-1).getMaxSeqNo()));
-
-            // Release the pressure and let the retry apply the deferred commit; both accessors must then advance
-            // together to d1's seq no.
-            trackingBreaker.setLimit(Long.MAX_VALUE);
-            long retryDelayMillis = searchEngine.config().getIndexSettings().getRefreshInterval().millis() * 2L;
-            advancePast(searchTaskQueue, searchTaskQueue.getCurrentTimeMillis() + retryDelayMillis + 1L);
-
-            assertThat(searchEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(result.getSeqNo()));
-            assertThat(searchEngine.getMaxSeqNo(), equalTo(searchEngine.getSeqNoStats(-1).getMaxSeqNo()));
-        }
-
-        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."

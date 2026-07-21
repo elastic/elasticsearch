@@ -11,10 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -28,6 +26,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 /**
  * Chat Completions Streaming Processor for Anthropic provider
@@ -127,13 +126,13 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 logger.debug("Skipping event type [{}] for line [{}].", event.type(), event.data());
                 return Stream.empty();
             case MESSAGE_START_EVENT_TYPE:
-                return parseMessageStart(parserConfig, event.data());
+                return parseObjects(parserConfig, event.data(), AnthropicChatCompletionStreamingProcessor::parseMessageStart);
             case CONTENT_BLOCK_START_EVENT_TYPE:
-                return parseContentBlockStart(parserConfig, event.data());
+                return parseObjects(parserConfig, event.data(), AnthropicChatCompletionStreamingProcessor::parseContentBlockStart);
             case CONTENT_BLOCK_DELTA_EVENT_TYPE:
-                return parseContentBlockDelta(parserConfig, event.data());
+                return parseObjects(parserConfig, event.data(), AnthropicChatCompletionStreamingProcessor::parseContentBlockDelta);
             case MESSAGE_DELTA_EVENT_TYPE:
-                return parseMessageDelta(parserConfig, event.data());
+                return parseObjects(parserConfig, event.data(), AnthropicChatCompletionStreamingProcessor::parseMessageDelta);
             case MESSAGE_STOP_EVENT_TYPE:
                 return Stream.empty();
             case null, default:
@@ -164,33 +163,28 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     }
      * }
      * </code></pre>
-     * @param parserConfig the parser configuration
-     * @param data the event data
+     * @param parser the parser positioned at the root {@code START_OBJECT}
      * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
      * @throws IOException if parsing fails
      */
-    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var messageMap = extractInnerStringObjectMap(jsonParser.map(), MESSAGE_FIELD);
-            var model = extractMandatoryString(messageMap, MODEL_FIELD);
-            var id = extractMandatoryString(messageMap, ID_FIELD);
-            var role = extractMandatoryString(messageMap, ROLE_FIELD);
-            var finishReason = extractOptionalString(messageMap, STOP_REASON_FIELD);
-            var usageMap = extractInnerStringObjectMap(messageMap, USAGE_FIELD);
-            var promptTokens = extractMandatoryInteger(usageMap, INPUT_TOKENS_FIELD);
-            var completionTokens = extractMandatoryInteger(usageMap, OUTPUT_TOKENS_FIELD);
-            var totalTokens = completionTokens + promptTokens;
+    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(XContentParser parser)
+        throws IOException {
+        var messageMap = extractInnerStringObjectMap(parser.map(), MESSAGE_FIELD);
+        var model = extractMandatoryString(messageMap, MODEL_FIELD);
+        var id = extractMandatoryString(messageMap, ID_FIELD);
+        var role = extractMandatoryString(messageMap, ROLE_FIELD);
+        var finishReason = extractOptionalString(messageMap, STOP_REASON_FIELD);
+        var usageMap = extractInnerStringObjectMap(messageMap, USAGE_FIELD);
+        var promptTokens = extractMandatoryInteger(usageMap, INPUT_TOKENS_FIELD);
+        var completionTokens = extractMandatoryInteger(usageMap, OUTPUT_TOKENS_FIELD);
+        var totalTokens = completionTokens + promptTokens;
 
-            var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(completionTokens, promptTokens, totalTokens);
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null);
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, finishReason, 0);
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(id, List.of(choice), model, null, usage);
+        var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(completionTokens, promptTokens, totalTokens);
+        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null);
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, finishReason, 0);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(id, List.of(choice), model, null, usage);
 
-            return Stream.of(chunk);
-        }
+        return Stream.of(chunk);
     }
 
     /**
@@ -218,42 +212,37 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     }
      * }
      * </code></pre>
-     * @param parserConfig the parser configuration
-     * @param data the event data
+     * @param parser the parser positioned at the root {@code START_OBJECT}
      * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
      * @throws IOException if parsing fails
      */
-    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockStart(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var outerMap = jsonParser.map();
-            var index = extractMandatoryInteger(outerMap, INDEX_FIELD);
-            var contentBlockMap = extractInnerStringObjectMap(outerMap, CONTENT_BLOCK_FIELD);
-            var type = extractMandatoryString(contentBlockMap, TYPE_FIELD);
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
-            if (type.equals(TEXT_TYPE)) {
-                var text = extractMandatoryString(contentBlockMap, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
-            } else if (type.equals(TOOL_USE_TYPE)) {
-                var id = extractMandatoryString(contentBlockMap, ID_FIELD);
-                var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
-                var input = extractOptionalField(contentBlockMap, INPUT_FIELD, Object.class);
-                var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                    input != null ? input.toString() : null,
-                    name
-                );
-                var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
-            } else {
-                logger.debug("Unknown content block start type [{}] for line [{}].", type, data);
-                return Stream.empty();
-            }
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
-            return Stream.of(chunk);
+    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockStart(XContentParser parser)
+        throws IOException {
+        var outerMap = parser.map();
+        var index = extractMandatoryInteger(outerMap, INDEX_FIELD);
+        var contentBlockMap = extractInnerStringObjectMap(outerMap, CONTENT_BLOCK_FIELD);
+        var type = extractMandatoryString(contentBlockMap, TYPE_FIELD);
+        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
+        if (type.equals(TEXT_TYPE)) {
+            var text = extractMandatoryString(contentBlockMap, TEXT_FIELD);
+            delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
+        } else if (type.equals(TOOL_USE_TYPE)) {
+            var id = extractMandatoryString(contentBlockMap, ID_FIELD);
+            var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
+            var input = extractOptionalField(contentBlockMap, INPUT_FIELD, Object.class);
+            var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
+                input != null ? input.toString() : null,
+                name
+            );
+            var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
+            delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
+        } else {
+            logger.debug("Unknown content block start type [{}] for line [{}].", type, outerMap);
+            return Stream.empty();
         }
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
+        return Stream.of(chunk);
     }
 
     /**
@@ -279,49 +268,41 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     }
      * }
      * </code></pre>
-     * @param parserConfig the parser configuration
-     * @param data the event data
+     * @param parser the parser positioned at the root {@code START_OBJECT}
      * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
      * @throws IOException if parsing fails
      */
-    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockDelta(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var outerMap = jsonParser.map();
-            var index = extractMandatoryInteger(outerMap, INDEX_FIELD);
-            var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
-            var type = extractMandatoryString(deltaMap, TYPE_FIELD);
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
-            if (type.equals(TEXT_DELTA_TYPE)) {
-                var text = extractMandatoryString(deltaMap, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
-            } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
-                var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
-                var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                    partialJson,
-                    null
-                );
-                var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, null, function, null);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(toolCall),
-                    null,
-                    null
-                );
-            } else {
-                logger.debug("Unknown content block delta type [{}] for line [{}].", type, data);
-                return Stream.empty();
-            }
-
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
-
-            return Stream.of(chunk);
+    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockDelta(XContentParser parser)
+        throws IOException {
+        var outerMap = parser.map();
+        var index = extractMandatoryInteger(outerMap, INDEX_FIELD);
+        var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
+        var type = extractMandatoryString(deltaMap, TYPE_FIELD);
+        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
+        if (type.equals(TEXT_DELTA_TYPE)) {
+            var text = extractMandatoryString(deltaMap, TEXT_FIELD);
+            delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
+        } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
+            var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
+            var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(partialJson, null);
+            var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, null, function, null);
+            delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                null,
+                null,
+                null,
+                List.of(toolCall),
+                null,
+                null
+            );
+        } else {
+            logger.debug("Unknown content block delta type [{}] for line [{}].", type, outerMap);
+            return Stream.empty();
         }
+
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
+
+        return Stream.of(chunk);
     }
 
     /**
@@ -351,26 +332,21 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     }
      * }
      * </code></pre>
-     * @param parserConfig the parser configuration
-     * @param data the event data
+     * @param parser the parser positioned at the root {@code START_OBJECT}
      * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
      * @throws IOException if parsing fails
      */
-    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var outerMap = jsonParser.map();
-            var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
-            var finishReason = extractOptionalString(deltaMap, STOP_REASON_FIELD);
-            var usageMap = extractInnerStringObjectMap(outerMap, USAGE_FIELD);
-            var totalTokens = extractMandatoryInteger(usageMap, OUTPUT_TOKENS_FIELD);
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(XContentParser parser)
+        throws IOException {
+        var outerMap = parser.map();
+        var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
+        var finishReason = extractOptionalString(deltaMap, STOP_REASON_FIELD);
+        var usageMap = extractInnerStringObjectMap(outerMap, USAGE_FIELD);
+        var totalTokens = extractMandatoryInteger(usageMap, OUTPUT_TOKENS_FIELD);
 
-            var chunk = buildChatCompletionChunk(totalTokens, finishReason);
+        var chunk = buildChatCompletionChunk(totalTokens, finishReason);
 
-            return Stream.of(chunk);
-        }
+        return Stream.of(chunk);
     }
 
     private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk buildChatCompletionChunk(

@@ -167,6 +167,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                             public TokenStream create(TokenStream tokenStream) {
                                 return new LowerCaseFilter(tokenStream);
                             }
+
+                            @Override
+                            public Object sharingKey() {
+                                return this;
+                            }
                         } }
                     )
                 )

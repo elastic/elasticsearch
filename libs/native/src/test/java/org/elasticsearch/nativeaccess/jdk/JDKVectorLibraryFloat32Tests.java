@@ -365,10 +365,13 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3 * Float.BYTES);
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        int elemBytes = size * Float.BYTES;
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size) * Float.BYTES;
+        var bTail = randomIntBetween(0, size) * Float.BYTES;
+        similarity(segment.asSlice(0L, elemBytes + aTail), segment.asSlice(0L, elemBytes + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));

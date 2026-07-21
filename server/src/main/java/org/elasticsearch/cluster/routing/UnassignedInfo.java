@@ -89,6 +89,9 @@ public record UnassignedInfo(
     );
 
     private static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = TransportVersion.fromName("unassignedinfo_reshard_added");
+    private static final TransportVersion UNASSIGNEDINFO_RECOVERY_CANCELLED = TransportVersion.fromName(
+        "unassignedinfo_recovery_cancelled"
+    );
 
     /**
      * Reason why the shard is in unassigned state.
@@ -180,7 +183,11 @@ public record UnassignedInfo(
         /**
          * New shard added as part of index re-sharding operation
          */
-        RESHARD_ADDED(true);
+        RESHARD_ADDED(true),
+        /**
+         * The master node deliberately direct cancelled an in-progress recovery (via `TransportCancelRecoveriesAction`).
+         */
+        RECOVERY_CANCELLED(true);
 
         private final boolean isExpectedTransient;
 
@@ -307,7 +314,8 @@ public record UnassignedInfo(
         Objects.requireNonNull(reason);
         Objects.requireNonNull(lastAllocationStatus);
         failedNodeIds = Set.copyOf(failedNodeIds);
-        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
+        // RECOVERY_CANCELLED preserves the existing failedAllocations without incrementing it.
+        assert reason == Reason.RECOVERY_CANCELLED || (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
             : "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
         assert (delayed && reason != Reason.NODE_LEFT && reason != Reason.NODE_RESTARTING) == false
@@ -352,9 +360,16 @@ public record UnassignedInfo(
             // We should have protection to ensure we do not reshard in mixed clusters
             assert false;
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        } else if (reason.equals(Reason.RECOVERY_CANCELLED)
+            && out.getTransportVersion().supports(UNASSIGNEDINFO_RECOVERY_CANCELLED) == false) {
+                // TODO: edit/remove this comment once #153670 merges.
+                // Direct cancellation will be gated by a min cluster-wide transport version > UNASSIGNEDINFO_RECOVERY_CANCELLED
+                assert false;
+                final Reason fallbackReason = failedAllocations > 0 ? Reason.ALLOCATION_FAILED : Reason.MANUAL_ALLOCATION;
+                out.writeByte((byte) fallbackReason.ordinal());
+            } else {
+                out.writeByte((byte) reason.ordinal());
+            }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

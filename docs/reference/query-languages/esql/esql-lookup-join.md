@@ -72,13 +72,14 @@ Remote lookup joins are supported in [cross-cluster queries](/reference/query-la
 FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
-### Coordinator mode
+### Run `LOOKUP JOIN` on coordinating node of local cluster [coordinator-mode]
 
 ```{applies_to}
 stack: ga 9.6+
+serverless: unavailable
 ```
 
-When running a cross-cluster query, you can use the `_coordinator:` prefix to execute a `LOOKUP JOIN` on the coordinating node of the local cluster:
+When running a cross-cluster query, you can use the `_coordinator:` prefix to execute a `LOOKUP JOIN` on the [coordinating node](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role) of the local cluster:
 
 ```esql
 FROM *:data | LOOKUP JOIN _coordinator:lookup-index ON field
@@ -260,4 +261,4 @@ The following are the current limitations with `LOOKUP JOIN`:
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.
-* Cross-custer `LOOKUP JOIN` (without the `_coordinator:` prefix) can not be used after aggregations `STATS`, `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands. Use the `_coordinator:` prefix to lift this restriction. {applies_to}`stack: ga 9.6+`
+* Cross-cluster `LOOKUP JOIN` (without the `_coordinator:` prefix) can not be used after aggregations `STATS`, `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands. Use the [`_coordinator:` prefix](#coordinator-mode) to lift this restriction. {applies_to}`stack: ga 9.6+`

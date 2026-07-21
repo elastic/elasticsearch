@@ -1281,6 +1281,148 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("sample_data", castSampleRelation.indexPattern());
     }
 
+    // Regression tests for the bug where a TS relation nested inside a FROM subquery caused the outer
+    // STATS to pick TimeSeriesAggregate, which then injected _tsid into every EsRelation — including
+    // standard ones — crashing with "optimized incorrectly due to missing references [_tsid, _timeseries]".
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*)]]      <-- plain Aggregate, NOT TimeSeriesAggregate
+     *   \_UnionAll[...]
+     *     |_... Subquery → EsRelation[k8s][TIME_SERIES]
+     *     \_... Subquery → EsRelation[sample_data][STANDARD]
+     */
+    public void testTsSubqueryMixedWithStandardSubqueryCreatesPlainAggregate() {
+        // FROM (TS k8s), (FROM sample_data) — both branches are explicit subqueries.
+        // The TS branch must NOT use TimeSeriesAggregate at the outer STATS level.
+        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s), (FROM sample_data)
+            | STATS count(*)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertFalse(
+            "outer STATS over mixed TS and standard FROM subqueries must produce plain Aggregate, not TimeSeriesAggregate",
+            aggregate instanceof TimeSeriesAggregate
+        );
+
+        UnionAll unionAll = as(aggregate.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // k8s branch: EsRelation retains TIME_SERIES mode even though planning is standard
+        List<EsRelation> tsRelations = new ArrayList<>();
+        unionAll.children().get(0).forEachDown(EsRelation.class, tsRelations::add);
+        assertEquals(1, tsRelations.size());
+        assertEquals("k8s", tsRelations.get(0).indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelations.get(0).indexMode());
+
+        // sample_data branch: EsRelation is STANDARD
+        List<EsRelation> stdRelations = new ArrayList<>();
+        unionAll.children().get(1).forEachDown(EsRelation.class, stdRelations::add);
+        assertEquals(1, stdRelations.size());
+        assertEquals("sample_data", stdRelations.get(0).indexPattern());
+        assertEquals(IndexMode.STANDARD, stdRelations.get(0).indexMode());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*)]]      <-- plain Aggregate, NOT TimeSeriesAggregate
+     *   \_UnionAll[...]
+     *     |_... Subquery → EsRelation[k8s][TIME_SERIES]
+     *     \_... Subquery → EsRelation[k8s][TIME_SERIES]
+     */
+    public void testTwoTsSubqueriesInFromCreatesPlainAggregate() {
+        // FROM (TS k8s), (TS k8s) — both branches are TS subqueries inside a FROM command.
+        // Neither triggers TimeSeriesAggregate at the outer STATS level.
+        LogicalPlan plan = analyzer().addK8sDownsampled().query("""
+            FROM (TS k8s), (TS k8s)
+            | STATS count(*)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertFalse(
+            "outer STATS over two TS FROM subqueries must produce plain Aggregate, not TimeSeriesAggregate",
+            aggregate instanceof TimeSeriesAggregate
+        );
+
+        // All EsRelations inside the aggregate child must still be k8s TIME_SERIES
+        List<EsRelation> relations = new ArrayList<>();
+        aggregate.child().forEachDown(EsRelation.class, relations::add);
+        assertFalse("expected at least one k8s EsRelation", relations.isEmpty());
+        for (EsRelation rel : relations) {
+            assertEquals("k8s", rel.indexPattern());
+            assertEquals(IndexMode.TIME_SERIES, rel.indexMode());
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*)]]      <-- plain Aggregate, NOT TimeSeriesAggregate
+     *   \_UnionAll[...]
+     *     |_EsRelation[sample_data][STANDARD]   <- direct index pattern (not in Subquery)
+     *     \_... Subquery → EsRelation[k8s][TIME_SERIES]
+     */
+    public void testTsSubqueryMixedWithDirectIndexCreatesPlainAggregate() {
+        // FROM (TS k8s), sample_data — TS is in a subquery, standard index is a bare pattern.
+        // The Subquery boundary around k8s must prevent TimeSeriesAggregate at the outer STATS.
+        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s), sample_data
+            | STATS count(*)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertFalse(
+            "outer STATS over a TS subquery mixed with a direct standard index must produce plain Aggregate, not TimeSeriesAggregate",
+            aggregate instanceof TimeSeriesAggregate
+        );
+
+        // k8s must still be indexed as TIME_SERIES
+        List<EsRelation> tsRelations = new ArrayList<>();
+        aggregate.child().forEachDown(EsRelation.class, tsRelations::add);
+        assertTrue(tsRelations.stream().anyMatch(r -> "k8s".equals(r.indexPattern()) && IndexMode.TIME_SERIES == r.indexMode()));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*)]]      <-- plain Aggregate, NOT TimeSeriesAggregate
+     *   \_UnionAll[...]
+     *     |_... (view body: Aggregate → EsRelation[sample_data][STANDARD])
+     *     \_... Subquery → EsRelation[k8s][TIME_SERIES]
+     */
+    public void testTsSubqueryMixedWithViewCreatesPlainAggregate() {
+        LogicalPlan plan = analyzer().addK8sDownsampled()
+            .addSampleData()
+            .addView("my_view", "FROM sample_data | STATS total = COUNT() BY message")
+            .query("""
+                FROM (TS k8s), my_view
+                | STATS count(*)
+                """);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertFalse(
+            "outer STATS over a TS subquery mixed with a view must produce plain Aggregate, not TimeSeriesAggregate",
+            aggregate instanceof TimeSeriesAggregate
+        );
+
+        // Collect every EsRelation reachable from the aggregate's child (crosses Subquery/UnionAll/Aggregate boundaries)
+        List<EsRelation> relations = new ArrayList<>();
+        aggregate.child().forEachDown(EsRelation.class, relations::add);
+
+        // k8s must still carry TIME_SERIES (only planning changed, not the index mode)
+        assertTrue(
+            "expected a k8s TIME_SERIES EsRelation from the TS subquery branch",
+            relations.stream().anyMatch(r -> "k8s".equals(r.indexPattern()) && IndexMode.TIME_SERIES == r.indexMode())
+        );
+        // sample_data (from the expanded view body) must be STANDARD
+        assertTrue(
+            "expected a sample_data STANDARD EsRelation from the expanded view body",
+            relations.stream().anyMatch(r -> "sample_data".equals(r.indexPattern()) && IndexMode.STANDARD == r.indexMode())
+        );
+    }
+
     /*
      * Project[[x{r}#?]]
      * \_Limit[1000[INTEGER],false,false]

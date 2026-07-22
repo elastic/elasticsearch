@@ -450,7 +450,10 @@ public class CsvIT extends ESTestCase {
                 @Override
                 protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
                     switch (action) {
-                        case EsqlQueryAction.NAME -> { loadViews(); loadAliases(); }
+                        case EsqlQueryAction.NAME -> {
+                            loadViews();
+                            loadAliases();
+                        }
                         case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
                         case GetInferenceModelAction.NAME -> loadInference((GetInferenceModelAction.Request) request);
                     }

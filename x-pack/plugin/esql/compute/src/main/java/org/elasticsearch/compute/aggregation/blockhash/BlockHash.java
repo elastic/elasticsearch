@@ -147,17 +147,35 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         int addRow(Page page, int position, int hash);
 
         /**
-         * Compute partition IDs for rows {@code 0..count-1} in {@code page} (caller guarantees no
-         * nulls in the key columns), writing {@code Math.floorMod(hash, partitionCount)} to
+         * Compute partition IDs for all {@code count} rows in {@code page}, writing results to
          * {@code partitionOf[i]} and incrementing {@code counts[partitionOf[i]]} for each row.
          *
+         * <p>Rows where any of the {@code keyCount} leading key columns (channels 0..keyCount-1)
+         * is null are assigned {@code nullPartition}. All other rows get
+         * {@code Math.floorMod(hash, partitionCount)}.
+         *
          * <p>Implementations may override this to hoist per-page block lookups (e.g.
-         * {@link Page#getBlock}) out of the inner loop, avoiding {@code count} redundant calls.
-         * The default delegates per-row to {@link #partitionHashOfRow}.
+         * {@link Page#getBlock}) out of the inner loop. The default checks nulls then
+         * delegates per-row to {@link #partitionHashOfRow}.
          */
-        default void fillPartitions(Page page, int count, int partitionCount, int[] partitionOf, int[] counts) {
+        default void fillPartitions(
+            Page page,
+            int count,
+            int keyCount,
+            int partitionCount,
+            int nullPartition,
+            int[] partitionOf,
+            int[] counts
+        ) {
             for (int i = 0; i < count; i++) {
-                int part = Math.floorMod(partitionHashOfRow(page, i), partitionCount);
+                boolean anyNull = false;
+                for (int k = 0; k < keyCount; k++) {
+                    if (page.getBlock(k).isNull(i)) {
+                        anyNull = true;
+                        break;
+                    }
+                }
+                int part = anyNull ? nullPartition : Math.floorMod(partitionHashOfRow(page, i), partitionCount);
                 partitionOf[i] = part;
                 counts[part]++;
             }

@@ -199,6 +199,29 @@ final class DoubleBlockHash extends BlockHash {
                     long key = Double.doubleToRawLongBits(keyBlock.getDouble(position));
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    DoubleBlock block = (DoubleBlock) page.getBlock(channel);
+                    DoubleVector vec = block.asVector();
+                    if (vec == null) {
+                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
+                        return;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        int part = Math.floorMod(LongSwissHash.hash(Double.doubleToRawLongBits(vec.getDouble(i))), partitionCount);
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
             };
         }
         return null;

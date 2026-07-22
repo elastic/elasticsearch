@@ -88,11 +88,21 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             }
 
             @Override
-            public void fillPartitions(Page page, int count, int partitionCount, int[] partitionOf, int[] counts) {
+            public void fillPartitions(
+                Page page,
+                int count,
+                int keyCount,
+                int partitionCount,
+                int nullPartition,
+                int[] partitionOf,
+                int[] counts
+            ) {
+                // asVector() returns non-null only for dense, null-free blocks; when either key
+                // block has nulls or is multi-valued, fall back to the default which handles nulls.
                 LongVector longVec = ((LongBlock) page.getBlock(longChannel)).asVector();
                 IntVector intVec = ((IntBlock) page.getBlock(intChannel)).asVector();
                 if (longVec == null || intVec == null) {
-                    Router.super.fillPartitions(page, count, partitionCount, partitionOf, counts);
+                    Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
                     return;
                 }
                 for (int i = 0; i < count; i++) {

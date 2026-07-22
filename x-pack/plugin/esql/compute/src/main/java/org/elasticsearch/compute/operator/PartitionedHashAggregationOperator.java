@@ -529,17 +529,7 @@ public class PartitionedHashAggregationOperator implements Operator {
         BlockHash.Router probeRouter = probeHash.router();
         int[] partitionOf = new int[positions];
         int[] counts = new int[targets.length];
-        for (int i = 0; i < positions; i++) {
-            boolean anyNull = false;
-            for (int k = 0; k < keyCount; k++) {
-                if (intermediatePage.getBlock(k).isNull(i)) {
-                    anyNull = true;
-                    break;
-                }
-            }
-            partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(intermediatePage, i), targets.length);
-            counts[partitionOf[i]]++;
-        }
+        probeRouter.fillPartitions(intermediatePage, positions, keyCount, targets.length, NULL_PARTITION, partitionOf, counts);
         int[] offsets = new int[targets.length + 1];
         for (int p = 0; p < targets.length; p++) {
             offsets[p + 1] = offsets[p] + counts[p];
@@ -608,31 +598,7 @@ public class PartitionedHashAggregationOperator implements Operator {
         BlockHash.Router probeRouter = probeHash.router();
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        // Hoist block lookups out of the tight per-row loop.
-        Block[] keyBlocks = new Block[keyCount];
-        boolean anyBlockHasNulls = false;
-        for (int k = 0; k < keyCount; k++) {
-            keyBlocks[k] = page.getBlock(k);
-            if (keyBlocks[k].asVector() == null) {
-                anyBlockHasNulls = true;
-            }
-        }
-        if (anyBlockHasNulls) {
-            for (int i = 0; i < positions; i++) {
-                boolean anyNull = false;
-                for (int k = 0; k < keyCount; k++) {
-                    if (keyBlocks[k].isNull(i)) {
-                        anyNull = true;
-                        break;
-                    }
-                }
-                partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(page, i), partitionCount);
-                counts[partitionOf[i]]++;
-            }
-        } else {
-            // No nulls: use the bulk method so implementations can hoist per-page block gets.
-            probeRouter.fillPartitions(page, positions, partitionCount, partitionOf, counts);
-        }
+        probeRouter.fillPartitions(page, positions, keyCount, partitionCount, NULL_PARTITION, partitionOf, counts);
         int[] offsets = new int[partitionCount + 1];
         for (int p = 0; p < partitionCount; p++) {
             offsets[p + 1] = offsets[p] + counts[p];

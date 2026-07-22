@@ -381,6 +381,29 @@ $if(long)$
                     long key = keyBlock.getLong(position);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    $Type$Block block = ($Type$Block) page.getBlock(channel);
+                    $Type$Vector vec = block.asVector();
+                    if (vec == null) {
+                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
+                        return;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        int part = Math.floorMod(LongSwissHash.hash(vec.getLong(i)), partitionCount);
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
             };
         }
         return null;
@@ -407,6 +430,29 @@ $if(int)$
                     long key = (long) keyBlock.getInt(position);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    IntBlock block = (IntBlock) page.getBlock(channel);
+                    IntVector vec = block.asVector();
+                    if (vec == null) {
+                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
+                        return;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        int part = Math.floorMod(LongSwissHash.hash((long) vec.getInt(i)), partitionCount);
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
             };
         }
         return null;
@@ -432,6 +478,29 @@ $if(double)$
                     }
                     long key = Double.doubleToRawLongBits(keyBlock.getDouble(position));
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    DoubleBlock block = (DoubleBlock) page.getBlock(channel);
+                    DoubleVector vec = block.asVector();
+                    if (vec == null) {
+                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
+                        return;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        int part = Math.floorMod(LongSwissHash.hash(Double.doubleToRawLongBits(vec.getDouble(i))), partitionCount);
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
                 }
             };
         }
@@ -460,6 +529,29 @@ $if(BytesRef)$
                     }
                     BytesRef key = keyBlock.getBytesRef(position, scratch);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
+                }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    BytesRefBlock block = (BytesRefBlock) page.getBlock(channel);
+                    for (int i = 0; i < count; i++) {
+                        int part;
+                        if (block.isNull(i)) {
+                            part = nullPartition;
+                        } else {
+                            part = Math.floorMod((int) BytesRefSwissHash.hash64(block.getBytesRef(i, scratch)), partitionCount);
+                        }
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
                 }
             };
         }

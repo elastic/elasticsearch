@@ -308,6 +308,29 @@ final class BytesRefBlockHash extends BlockHash {
                     BytesRef key = keyBlock.getBytesRef(position, scratch);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
                 }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    BytesRefBlock block = (BytesRefBlock) page.getBlock(channel);
+                    for (int i = 0; i < count; i++) {
+                        int part;
+                        if (block.isNull(i)) {
+                            part = nullPartition;
+                        } else {
+                            part = Math.floorMod((int) BytesRefSwissHash.hash64(block.getBytesRef(i, scratch)), partitionCount);
+                        }
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
             };
         }
         return null;

@@ -562,6 +562,50 @@ final class PackedValuesBlockHash extends BlockHash {
                     long hash64 = BytesRefSwissHash.hash64(scratch, 0, fw.keyLength);
                     return Math.toIntExact(hashOrdToGroup(fw.swiss.addWithHash(scratchRef, hash64)));
                 }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    Block[] blocks = new Block[fw.specs.size()];
+                    for (int g = 0; g < fw.specs.size(); g++) {
+                        blocks[g] = page.getBlock(fw.specs.get(g).channel());
+                    }
+                    for (int i = 0; i < count; i++) {
+                        boolean anyNull = false;
+                        for (int g = 0; g < fw.specs.size(); g++) {
+                            if (blocks[g].isNull(i)) {
+                                anyNull = true;
+                                break;
+                            }
+                        }
+                        int part;
+                        if (anyNull) {
+                            part = nullPartition;
+                        } else {
+                            Arrays.fill(scratch, 0, fw.keyLength, (byte) 0);
+                            for (int g = 0; g < fw.specs.size(); g++) {
+                                int offset = fw.offsets[g];
+                                switch (fw.specs.get(g).elementType()) {
+                                    case LONG -> LONG_HANDLE.set(scratch, offset, ((LongBlock) blocks[g]).getLong(i));
+                                    case INT -> INT_HANDLE.set(scratch, offset, ((IntBlock) blocks[g]).getInt(i));
+                                    case DOUBLE -> DOUBLE_HANDLE.set(scratch, offset, ((DoubleBlock) blocks[g]).getDouble(i));
+                                    case BOOLEAN -> scratch[offset] = ((BooleanBlock) blocks[g]).getBoolean(i) ? (byte) 1 : (byte) 0;
+                                    default -> throw new IllegalStateException("unsupported type: " + fw.specs.get(g).elementType());
+                                }
+                            }
+                            part = Math.floorMod((int) BytesRefSwissHash.hash64(scratch, 0, fw.keyLength), partitionCount);
+                        }
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
             };
         }
         return null;

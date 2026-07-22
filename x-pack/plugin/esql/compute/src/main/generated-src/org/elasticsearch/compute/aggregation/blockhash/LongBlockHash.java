@@ -226,6 +226,29 @@ final class LongBlockHash extends BlockHash {
                     long key = keyBlock.getLong(position);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    LongBlock block = (LongBlock) page.getBlock(channel);
+                    LongVector vec = block.asVector();
+                    if (vec == null) {
+                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
+                        return;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        int part = Math.floorMod(LongSwissHash.hash(vec.getLong(i)), partitionCount);
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
             };
         }
         return null;

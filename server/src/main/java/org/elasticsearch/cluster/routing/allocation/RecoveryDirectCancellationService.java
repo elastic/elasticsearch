@@ -155,6 +155,9 @@ public class RecoveryDirectCancellationService {
             return;
         }
         final var deduplicatedRequests = deduplicateAndUpdateCache(requests);
+        if (deduplicatedRequests.isEmpty()) {
+            return;
+        }
         logger.debug("sending direct cancellation requests {}", deduplicatedRequests);
         for (var nodeRequest : deduplicatedRequests.entrySet()) {
             sendDirectCancelRecoveriesRequest(nodeRequest.getKey(), nodeRequest.getValue());
@@ -165,10 +168,10 @@ public class RecoveryDirectCancellationService {
     private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateAndUpdateCache(
         Map<DiscoveryNode, CancelRecoveriesAction.Request> requests
     ) {
-        final var deduped = new HashMap<DiscoveryNode, CancelRecoveriesAction.Request>();
+        final Map<DiscoveryNode, CancelRecoveriesAction.Request> deduped = new HashMap<>();
         for (var nodeRequest : requests.entrySet()) {
             final CancelRecoveriesAction.Request request = nodeRequest.getValue();
-            final var dedupedCancellations = new ArrayList<ShardRecoveryCancellation>();
+            final List<ShardRecoveryCancellation> dedupedCancellations = new ArrayList<>();
             for (ShardRecoveryCancellation cancellation : request.cancellations()) {
                 final SentCancellation cached = sentCancellations.get(cancellation.allocationId());
                 if (cached == null) {

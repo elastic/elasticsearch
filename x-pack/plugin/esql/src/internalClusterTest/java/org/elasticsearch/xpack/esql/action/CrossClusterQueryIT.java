@@ -1442,8 +1442,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         var BAD_PATTERNS = List.of(
             "\"cluster-a:cluster-a:logs-*\"",
             "\"remote-b:cluster-a:logs\"",
-            "logs-*,\"cluster-b:cluster-b\":logs",
-            "cluster-b:\"cluster-a:logs\",logs-*",
+            "logs-*,\"remote-b:remote-b\":logs",
+            "remote-b:\"cluster-a:logs\",logs-*",
             "cluster-a:remote-b:logs",
             "\"*:cluster-a:logs-*\""
         );

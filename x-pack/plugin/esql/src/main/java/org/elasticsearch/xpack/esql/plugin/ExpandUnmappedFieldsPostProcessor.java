@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * Coordinator-side post-processor for {@code SET unmapped_fields="LOAD_ALL_EXPAND"}.
+ * Coordinator-side post-processor for {@code SET unmapped_fields="LOAD_ALL"}.
  *
  * <p>After all data-node pages are collected, scans the {@code _unmapped_fields} column
  * (a JSON-object keyword column) to discover the full set of unique field names across

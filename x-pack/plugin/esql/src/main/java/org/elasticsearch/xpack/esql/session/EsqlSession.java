@@ -472,7 +472,7 @@ public class EsqlSession {
                                     r,
                                     columnMetadata.get(),
                                     minimumVersion,
-                                    unmappedResolution == UnmappedResolution.LOAD_ALL_EXPAND
+                                    unmappedResolution == UnmappedResolution.LOAD_ALL
                                 )
                             )
                         )

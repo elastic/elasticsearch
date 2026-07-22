@@ -2215,12 +2215,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * When {@code SET unmapped_fields="LOAD_ALL"} or {@code "LOAD_ALL_EXPAND"} is in effect, annotates
+     * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
      * each non-LOOKUP {@link EsRelation} with an {@link UnmappedFieldsAttribute} carrying the
      * {@link UnmappedFieldsPattern} that describes which additional (currently unmapped) source fields
-     * would survive to the query output. Whether to expand the column into per-field output columns is
-     * a coordinator-level decision stored in {@link org.elasticsearch.xpack.esql.session.Configuration}
-     * and does not affect data-node execution.
+     * would survive to the query output. Expanding the {@code _unmapped_fields} column into per-field
+     * output columns is a coordinator-level post-processing step and does not affect data-node execution.
      *
      * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
      * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
@@ -2230,7 +2229,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             UnmappedResolution resolution = context.unmappedResolution();
-            if (resolution != UnmappedResolution.LOAD_ALL && resolution != UnmappedResolution.LOAD_ALL_EXPAND) {
+            if (resolution != UnmappedResolution.LOAD_ALL) {
                 return plan;
             }
             UnmappedFieldsPattern pattern;

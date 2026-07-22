@@ -1,14 +1,36 @@
 ############################
-# LOAD_ALL mode — loads all unmapped source fields into the synthetic _unmapped_fields column
+# LOAD_ALL mode — loads all unmapped source fields and expands each into its own keyword column.
+# The _unmapped_fields column itself is suppressed; one dedicated column per unique field name is
+# appended at the end of the schema in alphabetical order.
 ############################
 
 ############################
-# Command coverage tests
+# Baseline: all unmapped fields expanded
 ############################
 
-// KEEP * — all mapped columns are kept; _unmapped_fields is always appended at the end.
-// Content is identical to the bare-FROM test.
-keepStar
+// Bare FROM with no projection: all mapped columns appear, followed by one keyword column per
+// unique unmapped source field, in alphabetical order. No _unmapped_fields JSON column is emitted.
+fromNoProjectionExpand
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// KEEP * — identical result to fromNoProjectionExpand: KEEP * retains all mapped columns and
+// all expanded unmapped field columns.
+keepStarExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -17,44 +39,21 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// KEEP unmapped* — include pattern narrows to unmapped*; language_code is excluded.
-// The output column is only _unmapped_fields (no mapped columns match unmapped*).
-// (gap): "No matches found for pattern [unmapped*]"
-keepUnmappedStar
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| KEEP unmapped*
-;
-ignoreOrder:true
-
-_unmapped_fields:keyword
-"{""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
-"{""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-"{""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-"{""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-"{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-"{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-"{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-;
-
-// EVAL shadows an unmapped field — the field must not appear in _unmapped_fields JSON.
-// unmapped_message is resolved on demand from _source (demand loading) and cast to uppercase by
-// EVAL. Because unmapped_message is now in the named output, DetermineUnmappedFieldsToKeep
-// excludes it from the block loader pattern. The _unmapped_fields column is placed before the
-// EVAL-introduced unmapped_message (mergeOutputAttributes appends new names after child output).
-evalShadowsUnmappedField
+// EVAL shadows an unmapped field: unmapped_message is demand-loaded by EVAL and uppercased.
+// DetermineUnmappedFieldsToKeep excludes unmapped_message from the block loader pattern.
+// After expansion the remaining 3 unmapped fields are emitted as columns; the EVAL-produced
+// unmapped_message column (keyword, uppercased) appears before the expanded columns.
+evalShadowsUnmappedFieldExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -63,20 +62,21 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword                                                                                    | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234""}"               | DISCONNECTED FROM 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890""}"               | DISCONNECTED FROM 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383""}"               | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449""}"                | DISCONNECTION ERROR
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154""}"               | DISCONNECTION ERROR
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756""}"               | DISCONNECTION ERROR
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468""}"               | DISCONNECTED FROM 10.1.0.1
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3      | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | DISCONNECTED FROM 10.1.0.2      | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                              | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | DISCONNECTION ERROR             | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | DISCONNECTION ERROR             | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | DISCONNECTION ERROR             | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | DISCONNECTED FROM 10.1.0.1      | 1                     | a                       | 1756468
 ;
 
-// An unmapped field referenced explicitly by name in KEEP does not appear in _unmapped_fields.
-// The block loader sees the field name in both includes and excludes (esr.output() contains it
-// after demand loading), so the net result is exclusion: _unmapped_fields = "{}".
-keepUnmappedFieldByName
+// KEEP @timestamp, unmapped_message: demand-loads unmapped_message; the block loader pattern
+// excludes it. The expansion of the remaining unmapped fields yields nothing because all other
+// unmapped fields are also excluded by the narrow KEEP. Since every row's _unmapped_fields is
+// "{}", expansion produces no extra columns.
+keepUnmappedFieldByNameExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -85,43 +85,22 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | unmapped_message:keyword           | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3         | "{}"
-2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2         | "{}"
-2024-10-23T13:33:34.937Z | 43                                  | "{}"
-2024-10-23T13:51:54.732Z | Disconnection error                 | "{}"
-2024-10-23T13:52:55.015Z | Disconnection error                 | "{}"
-2024-10-23T13:53:55.832Z | Disconnection error                 | "{}"
-2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1         | "{}"
-;
-
-// FROM with no field selection: all mapped columns appear, plus _unmapped_fields carrying
-// a JSON object of every source field not present in the mapping.
-fromNoProjection
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| SORT @timestamp
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+@timestamp:datetime      | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 43
+2024-10-23T13:51:54.732Z | Disconnection error
+2024-10-23T13:52:55.015Z | Disconnection error
+2024-10-23T13:53:55.832Z | Disconnection error
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
 ;
 
 ############################
 # More command coverage
 ############################
 
-// DROP a mapped column: the _unmapped_fields content is unchanged because mapped fields were
-// never candidates for the synthetic column. The dropped column simply disappears from output.
-dropMappedColumn
+// DROP a mapped column: unmapped field set unchanged; the dropped column disappears.
+dropMappedColumnExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -130,19 +109,18 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+@timestamp:datetime      | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// WHERE reduces the document set: the block loader runs on fewer documents, but _unmapped_fields
-// content is identical to a bare-FROM result for the rows that pass the filter.
-whereReducesDocumentSet
+// WHERE reduces the document set; unmapped field content identical for the matching rows.
+whereReducesDocumentSetExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -151,17 +129,15 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword   | _unmapped_fields:keyword
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error? | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error? | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error? | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error? | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error? | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error? | 2                     | b                       | 5033756                         | Disconnection error
 ;
 
-// WHERE on an unmapped column: the predicate causes ResolveUnmapped to demand-load unmapped_message
-// into EsRelation output. DetermineUnmappedFieldsToKeep.annotate() then sees unmapped_message in
-// esr.output() and adds it to the exclude list, so _unmapped_fields no longer contains it. The
-// demand-loaded column appears explicitly between message and _unmapped_fields.
-whereOnUnmappedField
+// WHERE on an unmapped field: unmapped_message is demand-loaded and excluded from the block loader
+// pattern; the remaining 3 unmapped fields are expanded into columns.
+whereOnUnmappedFieldExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -170,16 +146,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword   | unmapped_message:keyword | _unmapped_fields:keyword
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error? | Disconnection error      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error? | Disconnection error      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error? | Disconnection error      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword   | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error? | Disconnection error      | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error? | Disconnection error      | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error? | Disconnection error      | 2                     | b                       | 5033756
 ;
 
-// RENAME a mapped column: the renamed attribute (msg) replaces message in the output; since
-// message is a mapping-level field, it was always excluded from _unmapped_fields regardless of
-// the rename. The _unmapped_fields content is unchanged.
-renameMappedField
+// RENAME a mapped column: the renamed attribute (msg) replaces message; unmapped field set unchanged.
+renameMappedFieldExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -188,21 +162,19 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | msg:keyword            | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | msg:keyword            | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// RENAME a mapped column to a name that conflicts with an unmapped source field: patternForRename
-// adds the target name "language_code" to the exclude list, so the unmapped source field
-// language_code does not appear in _unmapped_fields. The renamed column carries the mapped
-// message values.
-renameMappedFieldConflictsWithUnmapped
+// RENAME message AS language_code conflicts with the unmapped source field language_code:
+// patternForRename adds "language_code" to the exclude list. Only 3 unmapped fields are expanded.
+renameMappedFieldConflictsWithUnmappedExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -211,19 +183,19 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | language_code:keyword  | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | language_code:keyword  | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// FROM-based STATS drops _unmapped_fields: the aggregation collapses all rows and the per-document
-// synthetic column is gone from the output. No error is raised.
-fromStatsDropsUnmappedFields
+// STATS drops the per-document synthetic column entirely: no _unmapped_fields column is present
+// in the schema, so ExpandUnmappedFieldsPostProcessor is a no-op.
+fromStatsDropsUnmappedFieldsExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -235,10 +207,9 @@ cnt:long | max_dur:long
 7        | 8268152
 ;
 
-// INLINE STATS creates a column whose name conflicts with an unmapped source field.
-// The INLINE STATS output column "language_code" shadows the unmapped source field, so
-// language_code does not appear in _unmapped_fields.
-inlineStatsConflictsWithUnmapped
+// INLINE STATS creates language_code:long column, shadowing the unmapped source field.
+// language_code is excluded from the block loader; 3 unmapped fields remain and are expanded.
+inlineStatsConflictsWithUnmappedExpand
 required_capability: optional_fields_load_all
 required_capability: inline_stats
 
@@ -249,17 +220,15 @@ FROM partial_mapping_sample_data
 | LIMIT 4
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | _unmapped_fields:keyword                                                                                                                                       | language_code:long | message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | "{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                                   | 1                  | Connected to 10.1.0.3!
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | "{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                                   | 1                  | Connected to 10.1.0.2!
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | "{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                                           | 1                  | 42
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | "{""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"                                           | 3                  | Connection error?
+@timestamp:datetime      | client_ip:ip | event_duration:long | language_code:long | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | 1                  | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | 1                  | Connected to 10.1.0.2! | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 1                  | 42                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | 3                  | Connection error?      | d                       | 725449                          | Disconnection error
 ;
 
-// Complex pipeline combining EVAL, DROP, and RENAME on mapped columns: none of these operations
-// touch the unmapped source fields, so _unmapped_fields carries the same content it would in a
-// bare-FROM query for the same rows.
-complexDropRenameEval
+// Complex pipeline: EVAL + DROP mapped cols + RENAME. Unmapped field set is unchanged.
+complexDropRenameEvalExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -271,86 +240,19 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | msg:keyword            | duration_ms:long | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450             | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764             | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 42                     | 1232             | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-;
-
-// Complex pipeline with EVAL that conflicts with an unmapped source field and a wildcard DROP:
-// EVAL adds "language_code" to the excludes via Eval.unmappedFieldsToKeep(), so the source
-// field language_code does not appear in _unmapped_fields. DROP *duration* propagates
-// the glob pattern into the _unmapped_fields exclude list, removing unmapped_event_duration.
-complexEvalDropWildcard
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| EVAL language_code = event_duration / 1000
-| DROP *duration*, client_ip
-| SORT @timestamp
-| LIMIT 3
-;
-
-@timestamp:datetime      | message:keyword        | language_code:long | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450               | "{""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764               | "{""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 42                     | 1232               | "{""unmapped.nested"":""e"",""unmapped_message"":""43""}"
-;
-
-// DROP an unmapped field by name: the user explicitly drops unmapped_message; patternForDrop
-// adds the exact name to the exclude list, so the block loader omits it from _unmapped_fields.
-dropUnmappedField
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| DROP unmapped_message
-| SORT @timestamp
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468""}"
-;
-
-// DROP unmapped fields by wildcard: DROP *messag* matches both the mapped column message
-// and the unmapped source field unmapped_message. Both are removed from the output and
-// unmapped_message is removed from _unmapped_fields because the glob exclude pattern
-// "*messag*" is matched against source field names using Regex.simpleMatch.
-dropUnmappedFieldWildcard
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| DROP *messag*
-| SORT @timestamp
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468""}"
+@timestamp:datetime      | msg:keyword            | duration_ms:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450             | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764             | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 42                     | 1232             | 2                     | e                       | 1232383                         | 43
 ;
 
 ############################
 # Distributed / join coverage
 ############################
 
-// LOOKUP JOIN: the annotate() traversal unconditionally skips every IndexMode.LOOKUP EsRelation,
-// so the LOOKUP index never gains an _unmapped_fields attribute. _unmapped_fields reflects only
-// the main index's unmapped source fields. Column order: main-index columns + _unmapped_fields
-// (from the left/main output), then the lookup's non-key column (message_type).
-lookupJoinDoesNotContributeToUnmappedFields
+// LOOKUP JOIN: the LOOKUP index does not contribute to the expanded columns.
+// message_type (from lookup) appears before the expanded unmapped field columns.
+lookupJoinDoesNotContributeToUnmappedFieldsExpand
 required_capability: optional_fields_load_all
 required_capability: join_lookup_v12
 
@@ -360,47 +262,22 @@ FROM partial_mapping_sample_data
 | SORT @timestamp DESC
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword                                                                                                                                      | message_type:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"           | connection
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"                 | error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"                 | error
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"                  | error
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                  | numeric
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"           | connection
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"           | connection
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | message_type:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | connection           | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | error                | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | error                | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | error                | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | numeric              | 2                     | e                       | 1232383                         | 43
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | connection           | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | connection           | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
 ;
 
-// LOOKUP JOIN shadowing (gap): when the lookup provides a column (language_code) whose name
-// matches an unmapped source field in the main index, language_code should appear only as the
-// proper output column (with the lookup value) and NOT inside _unmapped_fields. Currently the
-// production code does not add LOOKUP non-key column names to the exclusion pattern for the
-// main EsRelation, so language_code still leaks into _unmapped_fields. This test documents the
-// correct intended behaviour; it will fail until the production gap is fixed.
-lookupJoinColumnShadowsUnmappedField
-required_capability: optional_fields_load_all
-required_capability: join_lookup_v12
+############################
+# TS coverage
+############################
 
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| LOOKUP JOIN message_language_code_lookup ON message
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword                                                                                                            | language_code:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"       | en
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"             | de
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"             | de
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"              | de
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                              | fr
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"       | es
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"       | pt
-;
-
-// TS (time-series) query with LOAD_ALL: the TIME_SERIES EsRelation is annotated with
-// _unmapped_fields (not skipped like LOOKUP), but STATS drops the per-document column
-// before it reaches the output. Since all fields in ts_window are mapped, _unmapped_fields
-// would be "{}" per row anyway; after aggregation only the STATS output columns appear.
-tsStatsDropsUnmappedFields
+// TS STATS: aggregation drops the per-document expanded columns entirely.
+tsStatsDropsUnmappedFieldsExpand
 required_capability: optional_fields_load_all
 required_capability: ts_command_v0
 
@@ -415,8 +292,10 @@ total_val:long | dim:keyword
 300            | b
 ;
 
-// TS query without STATS on a fully-mapped index: _unmapped_fields = "{}" for every row.
-tsWithoutStatsAllMappedFields
+// TS without STATS on a fully-mapped index: every row has no unmapped fields.
+// The expansion finds zero unique field names, so no extra columns are added.
+// The result schema is simply the KEEP columns (no synthetic column of any kind).
+tsWithoutStatsAllMappedFieldsExpand
 required_capability: optional_fields_load_all
 required_capability: ts_command_v0
 
@@ -427,181 +306,43 @@ TS ts_window
 | LIMIT 4
 ;
 
-@timestamp:datetime      | dim:keyword | val:long | _unmapped_fields:keyword
-2024-01-01T00:00:00.000Z | a           | 1        | {}
-2024-01-01T00:00:00.000Z | b           | 10       | {}
-2024-01-01T00:01:00.000Z | a           | 2        | {}
-2024-01-01T00:01:00.000Z | b           | 20       | {}
-;
-
-// TS query without STATS on an index with an unmapped source field (gap): TSDB with
-// dynamic:false does not surface unmapped fields via _source to UnmappedFieldsBlockLoader,
-// regardless of source mode (synthetic or stored). The dynamic:false field extra_label is not
-// stored in a way that UnmappedFieldsBlockLoader.read() can retrieve it: with synthetic source,
-// ignored_source entries are not surfaced through the LeafStoredFieldLoader used by ES|QL; with
-// stored source mode, DocumentParser.parseDynamicValue() returns early before adding the field
-// and the raw stored bytes are not read. This test documents the correct intended behaviour;
-// it will fail until the production gap is fixed.
-tsWithoutStatsHasUnmappedFields
-required_capability: optional_fields_load_all
-required_capability: ts_command_v0
-
-SET unmapped_fields="LOAD_ALL"\;
-TS ts_window_partial_mapping
-| SORT @timestamp, dim
-| KEEP @timestamp, dim, val
-| LIMIT 4
-;
-
-@timestamp:datetime      | dim:keyword | val:long | _unmapped_fields:keyword
-2024-01-01T00:00:00.000Z | a           | 1        | "{""extra_label"":""label_a""}"
-2024-01-01T00:00:00.000Z | b           | 10       | "{""extra_label"":""label_b""}"
-2024-01-01T00:01:00.000Z | a           | 2        | "{""extra_label"":""label_a""}"
-2024-01-01T00:01:00.000Z | b           | 20       | "{""extra_label"":""label_b""}"
+@timestamp:datetime      | dim:keyword | val:long
+2024-01-01T00:00:00.000Z | a           | 1
+2024-01-01T00:00:00.000Z | b           | 10
+2024-01-01T00:01:00.000Z | a           | 2
+2024-01-01T00:01:00.000Z | b           | 20
 ;
 
 ############################
-# Subquery coverage
+# Gap coverage: user-reported issues
 ############################
 
-// FROM with an inline subquery (gap): DetermineUnmappedFieldsToKeep annotates EsRelation nodes
-// reached during traversal of the main plan, but the inner EsRelation wrapped by a Subquery plan
-// node may not receive the annotation, or the _unmapped_fields attribute may not propagate
-// through the Subquery boundary into the outer query's output. This test documents the correct
-// intended behaviour; it will fail until the production gap is fixed.
-fromSubquery
-required_capability: optional_fields_load_all
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM partial_mapping_sample_data)
-| SORT @timestamp
-| KEEP @timestamp, _unmapped_fields
-;
-
-@timestamp:datetime      | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
-;
-
-// FROM with two inline subqueries (gap): the union of two subqueries is a BinaryPlan, whose
-// unmappedFieldsToKeep() throws UnsupportedOperationException and falls back to ALL. The
-// annotate() traversal must recurse into both Subquery branches and annotate each inner
-// EsRelation correctly. For rows from partial_mapping_sample_data _unmapped_fields carries the
-// four unmapped source fields; for rows from sample_data (fully mapped) _unmapped_fields = "{}".
-// This test documents the correct intended output for the top-4 most-recent rows (all from
-// partial_mapping_sample_data since its 2024 timestamps sort above sample_data's 2023).
-fromMultipleSubqueries
-required_capability: optional_fields_load_all
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM partial_mapping_sample_data), (FROM sample_data)
-| SORT @timestamp DESC
-| LIMIT 4
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-;
-
-############################
-# Source mode coverage
-############################
-
-// Synthetic source, regular (non-TS) index: with index.mapping.source.mode=synthetic and
-// dynamic:false, DocumentParser.parseDynamicValue calls addIgnoredField(), which stores each
-// unmapped field in the _ignored_source stored field. SyntheticSourceLoader merges _ignored_source
-// into the reconstructed _source. Note: synthetic source reconstructs dot-notation fields as
-// nested objects, so "unmapped.nested" appears as {"unmapped":{"nested":...}} rather than the
-// flat key used by stored source.
-fromSyntheticSource
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM synthetic_source_partial_mapping
-| SORT @timestamp
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped"":{""nested"":""g""},""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped"":{""nested"":""f""},""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped"":{""nested"":""e""},""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped"":{""nested"":""d""},""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped"":{""nested"":""c""},""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped"":{""nested"":""b""},""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped"":{""nested"":""a""},""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
-;
-
-############################
-# Mapping diversity tests
-############################
-
-// All fields unmapped: the index mapping is empty (dynamic:false), so every source field
-// lands in _unmapped_fields. The output has only the synthetic column.
-// (gap): "optimized incorrectly due to missing references [<no-fields>{r$}#"
-allFieldsUnmapped
+// (gap): LOAD_ALL on an index with no mapping at all crashes with an internal plan
+// error: "optimized incorrectly due to missing references [<no-fields>{r$}#...]". With no
+// mapped fields, the EsRelation output is empty, leaving a phantom attribute unresolved.
+// Intended: all source fields are expanded into keyword columns. This test documents the
+// correct intended behaviour; it will fail until the production gap is fixed.
+allFieldsUnmappedExpand
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM no_mapping_sample_data
-;
-ignoreOrder:true
-
-_unmapped_fields:keyword
-"{""@timestamp"":""2024-10-23T12:15:03.360Z"",""client_ip"":""173.21.2.162"",""event_duration"":3450232,""language_code"":""4"",""message"":""Connected to 10.1.0.3!"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-"{""@timestamp"":""2024-10-23T12:27:28.948Z"",""client_ip"":""173.21.2.113"",""event_duration"":2764888,""language_code"":""3"",""message"":""Connected to 10.1.0.2!"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-"{""@timestamp"":""2024-10-23T13:33:34.937Z"",""client_ip"":""173.21.0.5"",""event_duration"":1232381,""language_code"":""2"",""message"":""42"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-"{""@timestamp"":""2024-10-23T13:51:54.732Z"",""client_ip"":""173.21.3.15"",""event_duration"":725447,""language_code"":""1"",""message"":""Connection error?"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-"{""@timestamp"":""2024-10-23T13:52:55.015Z"",""client_ip"":""173.21.3.15"",""event_duration"":8268152,""language_code"":""3"",""message"":""Connection error?"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-"{""@timestamp"":""2024-10-23T13:53:55.832Z"",""client_ip"":""173.21.3.15"",""event_duration"":5033754,""language_code"":""2"",""message"":""Connection error?"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-"{""@timestamp"":""2024-10-23T13:55:01.543Z"",""client_ip"":""173.21.3.15"",""event_duration"":1756466,""language_code"":""1"",""message"":""Connected to 10.1.0.1!"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+| SORT @timestamp
+| LIMIT 1
 ;
 
-// Multi-index: rows from a fully-mapped index produce _unmapped_fields = "{}" because all
-// their source keys are excluded (they are mapped columns). Rows from the partially-mapped
-// index carry their unmapped source fields.
-multiIndexFullyMappedHasEmptyUnmappedFields
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, sample_data METADATA _index
-| SORT @timestamp DESC
+@timestamp:keyword        | client_ip:keyword | event_duration:keyword | language_code:keyword | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z  | 173.21.2.162      | 3450232                | 4                     | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _index:keyword                  | _unmapped_fields:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | partial_mapping_sample_data     | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | partial_mapping_sample_data     | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | partial_mapping_sample_data     | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | partial_mapping_sample_data     | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | partial_mapping_sample_data     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | partial_mapping_sample_data     | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | partial_mapping_sample_data     | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data                     | "{}"
-2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error       | sample_data                     | "{}"
-2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error       | sample_data                     | "{}"
-2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error       | sample_data                     | "{}"
-2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected           | sample_data                     | "{}"
-2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data                     | "{}"
-2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data                     | "{}"
-;
-
-############################
-# Arrays and objects in source
-############################
-
-// Unmapped source fields containing JSON arrays are preserved verbatim in _unmapped_fields.
-// The CsvTestsDataLoader collapses single-element CSV arrays to scalar source values, so
-// only true multi-element arrays survive as JSON arrays in the source document.
-arraysInUnmappedFields
+// (gap): LOAD_ALL does not handle multi-value JSON arrays stored in unmapped source
+// fields. ExpandUnmappedFieldsPostProcessor encounters a Java List and falls through to
+// String.valueOf(), producing the List.toString() representation "[web, api]" (with space)
+// instead of a multi-value ES|QL keyword block. Note: single-element CSV arrays ([web]) are
+// collapsed to scalar source values by the data loader, so only multi-element arrays trigger
+// this bug. This test documents the correct intended behaviour; it will fail until the
+// production gap is fixed.
+arraysExpandGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -609,14 +350,18 @@ FROM unmapped_array_data
 | SORT id
 ;
 
-id:keyword | _unmapped_fields:keyword
-1          | "{""tags"":[""web"",""api""]}"
-2          | "{""tags"":""web""}"
-3          | "{""tags"":""web""}"
+id:keyword | tags:keyword
+1          | [web,api]
+2          | web
+3          | web
 ;
 
-// Unmapped source fields containing JSON objects are preserved verbatim in _unmapped_fields.
-objectsInUnmappedFields
+// (gap): LOAD_ALL does not handle JSON object values stored in unmapped source
+// fields. ExpandUnmappedFieldsPostProcessor encounters a Java Map and falls through to
+// String.valueOf(), producing the Map.toString() representation "{baz=world}" (with = not :,
+// no quoting) instead of a valid JSON string. This test documents the correct intended
+// behaviour; it will fail until the production gap is fixed.
+objectsExpandGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -624,22 +369,18 @@ FROM unmapped_object_data
 | SORT id
 ;
 
-id:keyword | _unmapped_fields:keyword
-1          | "{""extra"":""hello""}"
-2          | "{""extra"":{""baz"":""world""}}"
+id:keyword | extra:keyword
+1          | hello
+2          | "{""baz"":""world""}"
 ;
 
-############################
-# Cross-index mapping
-############################
-
-// (gap): when a field is mapped in at least one shard, DetermineUnmappedFieldsToKeep adds
-// it to the global exclude list for all shards. On shards where the field exists only in
-// _source (not mapped locally), the value is silently discarded: the field is excluded from
-// _unmapped_fields (because it appears in esr.output()) but returns null in the regular
-// column (not indexed locally). This test documents the correct intended behaviour; it will
+// (gap): same cross-index source-value loss as crossMappingLosesSourceValues (LOAD_ALL),
+// but in LOAD_ALL mode there is no _unmapped_fields column to fall back to. Fields
+// that are mapped on at least one shard appear as regular columns; shards where the field is
+// not indexed return null for that column, and the source value is silently discarded with no
+// representation in the output. This test documents the correct intended behaviour; it will
 // fail until the production gap is fixed.
-crossMappingLosesSourceValues
+crossMappingExpandGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -647,7 +388,7 @@ FROM cross_mapping_a, cross_mapping_b METADATA _index
 | SORT foo NULLS LAST, bar NULLS LAST
 ;
 
-bar:keyword | foo:keyword | _index:keyword  | _unmapped_fields:keyword
-null        | a1          | cross_mapping_a | "{""bar"":""b1""}"
-b2          | null        | cross_mapping_b | "{""foo"":""a2""}"
+bar:keyword | foo:keyword | _index:keyword
+b1          | a1          | cross_mapping_a
+b2          | a2          | cross_mapping_b
 ;

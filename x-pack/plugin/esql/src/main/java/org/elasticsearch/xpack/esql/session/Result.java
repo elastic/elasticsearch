@@ -32,7 +32,7 @@ import java.util.Map;
  * @param executionInfo     Metadata about the execution of this query. Used for cross cluster queries.
  * @param toExpand          Whether the coordinator should expand the {@code _unmapped_fields} column
  *                          into per-field columns before returning the response. Set when
- *                          {@code SET unmapped_fields="LOAD_ALL_EXPAND"} is in effect.
+ *                          {@code SET unmapped_fields="LOAD_ALL"} is in effect.
  */
 public record Result(
     List<Attribute> schema,

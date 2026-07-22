@@ -58,22 +58,11 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
  * Measures ES|QL analysis and logical optimization performance as a function of
  * the number of fields in the index mapping.
  *
- * <p>Motivation: a production CCS query with {@code | DROP lost.*} against a merged
- * field-caps schema of ~705 000 fields (OTel attribute explosion across 7 606 indices)
- * caused the coordinator's {@code analysis} phase to take 13 423 s (~3.73 h).
- * Root cause: {@code Analyzer.dropResolver} calls
- * {@code resolvedProjections.removeIf(resolved::contains)} where {@code resolved} is
- * a plain {@link java.util.ArrayList} of ~n matched attributes, making each
- * {@code contains()} O(n) and the overall drop resolution O(n²).
- *
- * <p>The {@code plan=keep} variant is the baseline (no wildcard DROP); {@code plan=drop}
- * adds {@code | DROP otel.*} to expose the quadratic scaling.
- *
- * <p>Run with:
- * <pre>
- *   ./gradlew :benchmarks:run \
- *     --args='AnalysisBenchmark -p fieldCount=1000,10000,100000 -p plan=keep,drop'
- * </pre>
+ * <p>
+ *     We've had some "exciting" bugs in the planner, mostly around stuff that's O(n²)
+ *     with the number of attributes. Our overview cluster once spent four hours hot
+ *     on a single core running {@code | DROP lost.*} against 705,000 fields.
+ * </p>
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
@@ -82,7 +71,6 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 public class AnalysisBenchmark {
-
     static {
         Utils.configureBenchmarkLogging();
     }
@@ -91,58 +79,53 @@ public class AnalysisBenchmark {
      * Number of dummy OTel-style fields in the schema. The 1 000 / 10 000 / 100 000
      * progression exposes how the cost scales; 700 000 reproduces the production case.
      */
-    @Param({ "1000", "10000", "100000", "700000" })
+    @Param({ "1000", "10000", "100000", "1000000" })
     public int fieldCount;
 
     /**
      * Which query shape to benchmark.
-     * <ul>
-     *   <li>{@code keep} — simple filter + LIMIT, no wildcard expansion; baseline cost.</li>
-     *   <li>{@code drop} — adds {@code | DROP otel.*} which resolves the wildcard against
-     *       all ~n dummy fields and then calls {@code resolvedProjections.removeIf(resolved::contains)}.
-     *       {@code resolved} is a plain {@link java.util.ArrayList}, so each {@code contains()}
-     *       is O(n), making the overall drop resolution O(n²). This reproduces the production
-     *       case where {@code | DROP lost.*} against a 700 000-field CCS schema caused the
-     *       {@code analysis} profile phase to take 13 423 s (~3.73 h).</li>
-     * </ul>
      */
-    @Param({ "keep", "drop" })
-    public String plan;
+    @Param({ "from", "sort", "drop_sort" })
+    public String query;
 
-    private static final String KEEP_QUERY = """
-        FROM test
-        | WHERE service_name IN (
-            "motel-ingest-collector",
-            "motel-aggregation-collector",
-            "motel-index-collector",
-            "motel-provisioner",
-            "hosted-otel-controller"
-          )
-          AND dropped_data_points IS NOT NULL
-        | SORT @timestamp ASC
-        | LIMIT 1
-        """;
+    private static final Map<String, String> QUERIES = Map.ofEntries(
+        // comment to make the formatter kinder
+        Map.entry("from", "FROM test"),
+        Map.entry("sort", """
+                FROM test
+                | WHERE service_name IN (
+                    "motel-ingest-collector",
+                    "motel-aggregation-collector",
+                    "motel-index-collector",
+                    "motel-provisioner",
+                    "hosted-otel-controller"
+                  )
+                  AND dropped_data_points IS NOT NULL
+                | SORT @timestamp ASC
+                | LIMIT 1
+            """),
+        Map.entry("drop_sort", """
+             FROM test
+            | WHERE service_name IN (
+                "motel-ingest-collector",
+                "motel-aggregation-collector",
+                "motel-index-collector",
+                "motel-provisioner",
+                "hosted-otel-controller"
+              )
+              AND dropped_data_points IS NOT NULL
+            | DROP otel.*
+            | SORT @timestamp ASC
+            | LIMIT 1""")
+    );
 
-    private static final String DROP_QUERY = """
-        FROM test
-        | WHERE service_name IN (
-            "motel-ingest-collector",
-            "motel-aggregation-collector",
-            "motel-index-collector",
-            "motel-provisioner",
-            "hosted-otel-controller"
-          )
-          AND dropped_data_points IS NOT NULL
-        | DROP otel.*
-        | SORT @timestamp ASC
-        | LIMIT 1
-        """;
-
+    private String queryText;
     private Analyzer analyzer;
     private LogicalPlanOptimizer optimizer;
     private EsqlParser parser;
-    private String query;
-    /** Pre-analyzed plan used by the optimization-only benchmark. */
+    /**
+     * Pre-analyzed plan used by the optimization-only benchmark.
+     */
     private LogicalPlan analyzedPlan;
 
     @Setup
@@ -150,7 +133,10 @@ public class AnalysisBenchmark {
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         TransportVersion minimumVersion = TransportVersion.current();
 
-        query = plan.equals("drop") ? DROP_QUERY : KEEP_QUERY;
+        queryText = QUERIES.get(query);
+        if (queryText == null) {
+            throw new IllegalArgumentException("can't find [" + query + "]");
+        }
 
         EsIndex index = buildIndex(fieldCount);
 
@@ -175,16 +161,16 @@ public class AnalysisBenchmark {
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
 
         // Pre-analyze once so the optimization benchmark starts from a clean analyzed plan.
-        analyzedPlan = analyzer.analyze(parser.parseQuery(query));
+        analyzedPlan = analyzer.analyze(parser.parseQuery(queryText));
     }
 
-    /** Measures parse + analysis only. */
+    /** Measures parse + analysis. */
     @Benchmark
     public void analysis(Blackhole bh) {
-        bh.consume(analyzer.analyze(parser.parseQuery(query)));
+        bh.consume(analyzer.analyze(parser.parseQuery(queryText)));
     }
 
-    /** Measures logical optimization only (analysis is done in {@link #setup}). */
+    /** Measures logical optimization (analysis is done in {@link #setup}). */
     @Benchmark
     public void logicalOptimization(Blackhole bh) {
         bh.consume(optimizer.optimize(analyzedPlan));
@@ -193,14 +179,13 @@ public class AnalysisBenchmark {
     /** Measures the full parse → analyze → optimize pipeline. */
     @Benchmark
     public void fullPipeline(Blackhole bh) {
-        LogicalPlan analyzed = analyzer.analyze(parser.parseQuery(query));
+        LogicalPlan analyzed = analyzer.analyze(parser.parseQuery(queryText));
         bh.consume(optimizer.optimize(analyzed));
     }
 
     private static EsIndex buildIndex(int dummyFieldCount) {
         Map<String, EsField> mapping = new HashMap<>(dummyFieldCount + 8);
 
-        // The four fields actually referenced by the query.
         mapping.put("@timestamp", new EsField("@timestamp", DataType.DATETIME, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         mapping.put("service_name", new EsField("service_name", DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         mapping.put(
@@ -209,7 +194,7 @@ public class AnalysisBenchmark {
         );
         mapping.put("message", new EsField("message", DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
 
-        // Dummy fields simulating the OTel attribute explosion from CCS across many clusters.
+        // Huge set of dummy field
         for (int i = 0; i < dummyFieldCount; i++) {
             String name = "otel.attr." + i;
             mapping.put(name, new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));

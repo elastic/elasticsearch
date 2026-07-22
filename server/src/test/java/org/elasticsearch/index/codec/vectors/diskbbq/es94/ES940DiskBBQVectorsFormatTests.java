@@ -581,4 +581,5 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
         writer.addDocument(doc);
     }
+
 }

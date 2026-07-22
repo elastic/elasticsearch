@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
@@ -45,6 +44,7 @@ public class FlatCentroidIndex {
     private final int bulkSize;
     private final byte[] quantized;
     private final OptimizedScalarQuantizer.QuantizationResult queryParams;
+    private final boolean byteBacked;
 
     public FlatCentroidIndex(
         FieldInfo fieldInfo,
@@ -54,14 +54,30 @@ public class FlatCentroidIndex {
         float[] targetQuery,
         AcceptDocs acceptDocs,
         float approximateCost,
-        FloatVectorValues values,
+        KnnVectorValues values,
         float visitRatio
+    ) throws IOException {
+        this(fieldInfo, fieldEntry, numCentroids, centroids, targetQuery, acceptDocs, approximateCost, values, visitRatio, false);
+    }
+
+    public FlatCentroidIndex(
+        FieldInfo fieldInfo,
+        IVFVectorsReader.FieldEntry fieldEntry,
+        int numCentroids,
+        IndexInput centroids,
+        float[] targetQuery,
+        AcceptDocs acceptDocs,
+        float approximateCost,
+        KnnVectorValues values,
+        float visitRatio,
+        boolean byteBacked
     ) throws IOException {
         this.fieldInfo = fieldInfo;
         this.fieldEntry = fieldEntry;
         this.numCentroids = numCentroids;
         this.centroids = centroids;
         this.visitRatio = visitRatio;
+        this.byteBacked = byteBacked;
 
         // build optimization filters if possible
         acceptCentroids = getCentroidFilter(centroids, numCentroids, values, acceptDocs, approximateCost);
@@ -88,7 +104,7 @@ public class FlatCentroidIndex {
     private static FixedBitSet getCentroidFilter(
         IndexInput centroids,
         int numCentroids,
-        FloatVectorValues values,
+        KnnVectorValues values,
         AcceptDocs acceptDocs,
         float approximateCost
     ) throws IOException {
@@ -177,7 +193,8 @@ public class FlatCentroidIndex {
                 visitRatio * centroidOversampling,
                 acceptParents,
                 acceptCentroids,
-                bulkSize
+                bulkSize,
+                byteBacked
             );
         } else {
             if (acceptCentroids != null && acceptParents != null) {
@@ -258,9 +275,12 @@ public class FlatCentroidIndex {
         float centroidRatio,
         FixedBitSet acceptParents,
         FixedBitSet acceptCentroids,
-        int bulkSize
+        int bulkSize,
+        boolean byteBacked
     ) throws IOException {
         // build the three queues we are going to use
+        // Raw parent centroids are always stored as floats, even when leaf centroids are byte-backed.
+        // The byteBacked flag only affects the raw leaf centroids at the end of the centroid data.
         final long rawParentSize = (long) fieldInfo.getVectorDimension() * Float.BYTES;
         final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
         final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);

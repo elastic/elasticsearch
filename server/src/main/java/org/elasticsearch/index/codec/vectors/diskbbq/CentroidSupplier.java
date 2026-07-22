@@ -12,7 +12,9 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * An interface for accessing centroids
@@ -30,17 +32,15 @@ public interface CentroidSupplier {
     float[] centroid(int centroidOrdinal) throws IOException;
 
     /**
-<<<<<<< HEAD
      * Returns the byte centroid for the given ordinal, or null if centroids are not byte-backed.
      */
     default byte[] byteCentroid(int centroidOrdinal) throws IOException {
         return null;
     }
 
-=======
+    /**
      * Any indexing information that may be available
      */
->>>>>>> upstream/main
     CentroidIndex centroidIndex();
 
     /**
@@ -59,6 +59,13 @@ public interface CentroidSupplier {
         return fromArray(new float[0][dims], CentroidIndex.NO_INDEX, dims);
     }
 
+    /**
+     * Creates a float-backed centroid supplier.
+     *
+     * @param centroids     the float centroid arrays
+     * @param centroidIndex the centroid index structure
+     * @param dims          the vector dimension
+     */
     static CentroidSupplier fromArray(float[][] centroids, CentroidIndex centroidIndex, int dims) {
         return new CentroidSupplier() {
             @Override
@@ -83,6 +90,15 @@ public interface CentroidSupplier {
         };
     }
 
+    /**
+     * Creates a byte-backed centroid supplier. The {@link #centroid(int)} method widens byte
+     * centroids to float on demand using a reusable scratch buffer. The {@link #byteCentroid(int)}
+     * method returns the raw byte centroid.
+     *
+     * @param byteCentroids the byte centroid arrays
+     * @param centroidIndex   the centroid index structure
+     * @param dims          the vector dimension
+     */
     static CentroidSupplier fromByteArray(byte[][] byteCentroids, CentroidIndex centroidIndex, int dims) {
         return new CentroidSupplier() {
             // Single reusable scratch buffer for on-demand byte→float widening.
@@ -115,7 +131,15 @@ public interface CentroidSupplier {
 
             @Override
             public KMeansFloatVectorValues asKmeansFloatVectorValues() {
-                return KMeansFloatVectorValues.buildFromBytes(Arrays.asList(byteCentroids), null, dims, false);
+                List<float[]> floatCentroids = new ArrayList<>(byteCentroids.length);
+                for (byte[] bc : byteCentroids) {
+                    float[] fc = new float[dims];
+                    for (int d = 0; d < dims; d++) {
+                        fc[d] = bc[d];
+                    }
+                    floatCentroids.add(fc);
+                }
+                return KMeansFloatVectorValues.build(floatCentroids, null, dims);
             }
         };
     }

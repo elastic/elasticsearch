@@ -62,6 +62,9 @@ public interface ESVectorUtilSupport {
     /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
     float squareDistance(byte[] a, byte[] b, int offset, int length);
 
+    /** Returns the sum of squared differences between a byte vector and a float vector. */
+    float squareDistance(byte[] a, float[] b);
+
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);

@@ -68,35 +68,33 @@ public class PreconditionerTests extends ESTestCase {
         Preconditioner.read(new ByteBuffersIndexInput(byteBuffersDataOutput.toDataInput(), "test"));
     }
 
-    /**
-     * Verifies that the byte applyTransform path produces identical results to manually
-     * widening bytes to float and calling the float applyTransform path.
-     * Exercises both single-block (matrixVectorMultiplyBytes) and multi-block (applyMultiBlock
-     * with lambda) paths via randomized blockDim.
-     */
-    public void testByteFloatEquivalency() {
+    public void testApplyTransformToBytes() {
         int dim = random().nextInt(128, 1024);
         int blockDim = random().nextInt(8, dim);
-
         Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
 
+        // Generate a random byte vector
         byte[] byteVector = new byte[dim];
         random().nextBytes(byteVector);
 
-        // Path A: byte applyTransform (uses matrixVectorMultiplyBytes or applyMultiBlock with byte lambda)
-        float[] byteOut = new float[dim];
-        preconditioner.applyTransform(byteVector, byteOut);
+        // Apply the byte→byte transform
+        byte[] byteOut = new byte[dim];
+        float[] scratch = new float[dim];
+        preconditioner.applyTransformToBytes(byteVector, byteOut, scratch);
 
-        // Path B: manually widen bytes to float, then float applyTransform
-        float[] floatVector = new float[dim];
-        for (int i = 0; i < dim; i++) {
-            floatVector[i] = byteVector[i];
-        }
+        // Apply the byte→float transform for comparison
         float[] floatOut = new float[dim];
-        preconditioner.applyTransform(floatVector, floatOut);
+        preconditioner.applyTransform(byteVector, floatOut);
 
-        // Both paths must produce identical output — the arithmetic is the same,
-        // only the source element access differs.
-        assertArrayEquals(floatOut, byteOut, 0f);
+        // The byte output should be the clamped/rounded version of the float output
+        for (int i = 0; i < dim; i++) {
+            byte expected = (byte) Math.clamp(Math.round(floatOut[i]), -128, 127);
+            assertEquals("Mismatch at dimension " + i, expected, byteOut[i]);
+        }
+
+        // Verify the float scratch buffer was populated (same as applyTransform output)
+        for (int i = 0; i < dim; i++) {
+            assertEquals("Scratch mismatch at dimension " + i, floatOut[i], scratch[i], 1e-6f);
+        }
     }
 }

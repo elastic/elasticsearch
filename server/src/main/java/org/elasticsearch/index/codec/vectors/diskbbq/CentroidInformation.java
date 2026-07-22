@@ -10,52 +10,23 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 /**
-<<<<<<< HEAD
- * Holds the result of centroid calculation: centroids and their assignments.
- *
- * @param <V> the array type for centroids ({@code float[]} or {@code byte[]})
- */
-public record CentroidInformation<V>(V[] centroids, CentroidAssignments centroidAssignments) {
-=======
  * Holds the centroids and centroid assignments for a field.
  * <p>
  * The centroids are held separately so they can be pushed to off-heap whilst keeping the centroid assignments in memory.
+ * <p>
+ * The type parameter {@code V} is the centroid vector type: {@code float[]} for float fields,
+ * {@code byte[]} for byte fields with native byte clustering.
+ * The global centroid is always {@code float[]} regardless of {@code V} because it is the
+ * arithmetic mean of centroids, which is not representable as {@code byte[]}.
+ *
  * @param centroids Centroids.
  * @param centroidAssignments Centroid assignments.
  */
-public record CentroidInformation(float[][] centroids, CentroidAssignments centroidAssignments) {
->>>>>>> upstream/main
-
-    @SuppressWarnings("unchecked")
-    public CentroidInformation(int dims, float[][] centroids, int[] assignments, OverspillAssignments overspillAssignments) {
-        this(
-            (V[]) centroids,
-            new CentroidAssignments(centroids.length, assignments, overspillAssignments, computeGlobalCentroidFromFloats(dims, centroids))
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    public CentroidInformation(
-        int dims,
-        float[][] centroids,
-        int[] assignments,
-        OverspillAssignments overspillAssignments,
-        CentroidSlices centroidSlices
-    ) {
-        this(
-            (V[]) centroids,
-            new CentroidAssignments(
-                centroids.length,
-                assignments,
-                overspillAssignments,
-                computeGlobalCentroidFromFloats(dims, centroids),
-                centroidSlices
-            )
-        );
-    }
+public record CentroidInformation<V>(V[] centroids, CentroidAssignments centroidAssignments) {
 
     /**
-     * Creates a CentroidInformation for byte-backed centroids.
+     * Creates a {@code CentroidInformation<byte[]>} from byte centroids.
+     * The global centroid is computed as the float mean of the byte centroids.
      */
     public static CentroidInformation<byte[]> ofBytes(
         int dims,
@@ -70,11 +41,26 @@ public record CentroidInformation(float[][] centroids, CentroidAssignments centr
     }
 
     /**
-     * Creates a CentroidInformation for byte-backed centroids with slice information.
+     * Creates a {@code CentroidInformation<float[]>} from float centroids.
      */
-    public static CentroidInformation<byte[]> ofBytes(
+    public static CentroidInformation<float[]> ofFloat(
         int dims,
-        byte[][] centroids,
+        float[][] centroids,
+        int[] assignments,
+        OverspillAssignments overspillAssignments
+    ) {
+        return new CentroidInformation<>(
+            centroids,
+            new CentroidAssignments(centroids.length, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids))
+        );
+    }
+
+    /**
+     * Creates a {@code CentroidInformation<float[]>} from float centroids with centroid slices.
+     */
+    public static CentroidInformation<float[]> ofFloat(
+        int dims,
+        float[][] centroids,
         int[] assignments,
         OverspillAssignments overspillAssignments,
         CentroidSlices centroidSlices
@@ -85,7 +71,7 @@ public record CentroidInformation(float[][] centroids, CentroidAssignments centr
                 centroids.length,
                 assignments,
                 overspillAssignments,
-                computeGlobalCentroidFromBytes(dims, centroids),
+                computeGlobalCentroid(dims, centroids),
                 centroidSlices
             )
         );
@@ -107,12 +93,9 @@ public record CentroidInformation(float[][] centroids, CentroidAssignments centr
         return centroidAssignments.overspillAssignments();
     }
 
-    public CentroidSlices centroidSlices() {
-        return centroidAssignments.centroidSlices();
-    }
-
-    private static float[] computeGlobalCentroidFromFloats(int dims, float[][] centroids) {
+    private static float[] computeGlobalCentroid(int dims, float[][] centroids) {
         final float[] globalCentroid = new float[dims];
+        // TODO: push this logic into vector util?
         for (float[] centroid : centroids) {
             assert centroid.length == dims;
             for (int j = 0; j < centroid.length; j++) {
@@ -129,11 +112,11 @@ public record CentroidInformation(float[][] centroids, CentroidAssignments centr
         final float[] globalCentroid = new float[dims];
         for (byte[] centroid : centroids) {
             assert centroid.length == dims;
-            for (int j = 0; j < centroid.length; j++) {
+            for (int j = 0; j < dims; j++) {
                 globalCentroid[j] += centroid[j];
             }
         }
-        for (int j = 0; j < globalCentroid.length; j++) {
+        for (int j = 0; j < dims; j++) {
             globalCentroid[j] /= centroids.length;
         }
         return globalCentroid;

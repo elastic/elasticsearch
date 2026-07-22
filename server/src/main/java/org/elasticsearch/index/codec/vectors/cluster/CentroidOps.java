@@ -151,6 +151,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     void addScaled(float scale, V src, float[] dest);
 
     /**
+     * Accumulates all vectors from {@code values} into {@code accumulator} using unit weight.
+     * After calling, {@code accumulator[d]} contains the sum of all vector components at dimension {@code d}.
+     * Divide by {@code values.size()} to obtain the mean.
+     */
+    default void accumulateAll(ClusteringVectorValues<V> values, float[] accumulator) throws IOException {
+        for (int i = 0; i < values.size(); i++) {
+            addScaled(1.0f, values.vectorValue(i), accumulator);
+        }
+    }
+
+    /**
      * Applies a batch update to a centroid: {@code centroid[i] = scaleSrc * src[i] + scaleCentroid * centroid[i]}.
      * <p>
      * For float centroids, this operates directly on the centroid array.

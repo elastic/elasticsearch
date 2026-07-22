@@ -1717,6 +1717,7 @@ null
 statsNullifiedSpatialCentroid
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: st_centroid_agg_shapes
 
 SET unmapped_fields="nullify"\;
 FROM employees

@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <ol>
  *   <li>First line: {@code {"columns":[...]}}</li>
  *   <li>One line per page: {@code {"values":[[...],...]}}</li>
- *   <li>Last line: {@code {"took":N,"warnings":["..."]}}</li>
+ *   <li>Last line: {@code {"took":N,"is_partial":false,"warnings":["..."]}}</li>
  *   <li>On error: {@code {"error":{"type":"...","reason":"..."},"status":N}}</li>
  * </ol>
  */
@@ -344,7 +344,7 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
     }
 
     /**
-     * Writes the footer line: {@code {"took":N,"warnings":[...]}} followed by a newline.
+     * Writes the footer line: {@code {"took":N,"is_partial":false,"warnings":[...]}} followed by a newline.
      * This is the last body part.
      */
     private static class NdjsonFooterBodyPart implements ChunkedRestResponseBodyPart {
@@ -379,6 +379,7 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
                     builder.startObject();
                     if (footer != null) {
                         builder.field("took", footer.tookMillis());
+                        builder.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
                         if (footer.warnings().isEmpty() == false) {
                             builder.array("warnings", footer.warnings().toArray(String[]::new));
                         }

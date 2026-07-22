@@ -59,6 +59,10 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
             );
         }
         esqlRequest.dropNullColumns(request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false));
+        final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
+        if (partialResults != null) {
+            esqlRequest.allowPartialResults(partialResults);
+        }
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(EsqlStreamQueryAction.INSTANCE, esqlRequest, new EsqlStreamResponseListener(channel));

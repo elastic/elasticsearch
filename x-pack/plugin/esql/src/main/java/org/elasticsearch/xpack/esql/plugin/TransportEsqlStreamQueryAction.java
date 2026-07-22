@@ -234,7 +234,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
             ActionListener.wrap(versionedResult -> {
                 long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
                 List<String> warnings = extractWarnings();
-                publisher.completeWithFooter(tookMillis, warnings);
+                publisher.completeWithFooter(tookMillis, warnings, executionInfo.isPartial());
                 planExecutor.metrics().recordTook(tookMillis);
             }, ex -> {
                 if (responded.get() == false) {
@@ -246,7 +246,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         );
     }
 
-    private static List<ColumnInfoImpl> buildColumns(List<Attribute> output) {
+    static List<ColumnInfoImpl> buildColumns(List<Attribute> output) {
         return output.stream().map(c -> {
             List<String> originalTypes = null;
             if (c instanceof UnsupportedAttribute ua) {
@@ -263,7 +263,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
      * they are always kept. Derived columns ({@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute},
      * {@link org.elasticsearch.xpack.esql.core.expression.MetadataAttribute}) are not included.
      */
-    private static Set<String> collectIndexFieldNames(List<Attribute> output) {
+    static Set<String> collectIndexFieldNames(List<Attribute> output) {
         Set<String> fieldNames = new HashSet<>();
         for (Attribute attr : output) {
             if (attr instanceof FieldAttribute fa && (attr instanceof UnsupportedAttribute) == false) {
@@ -278,7 +278,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
      * case (direct {@link EsQueryExec}/{@link EsSourceExec} leaves) and the distributed case
      * (coordinator-side plan with {@link FragmentExec} nodes that contain logical {@link EsRelation}s).
      */
-    private static Set<String> collectIndexPatterns(PhysicalPlan plan) {
+    static Set<String> collectIndexPatterns(PhysicalPlan plan) {
         Set<String> patterns = new HashSet<>();
         plan.forEachDown(EsQueryExec.class, exec -> patterns.add(exec.indexPattern()));
         plan.forEachDown(EsSourceExec.class, exec -> patterns.add(exec.indexPattern()));
@@ -294,7 +294,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
      * appears in {@code emptyFieldNames}, {@code false} for derived/metadata columns and for
      * index fields that do have data.
      */
-    private static boolean[] classifyNullColumns(List<Attribute> output, Set<String> emptyFieldNames) {
+    static boolean[] classifyNullColumns(List<Attribute> output, Set<String> emptyFieldNames) {
         boolean[] nullColumns = new boolean[output.size()];
         for (int i = 0; i < output.size(); i++) {
             Attribute attr = output.get(i);

@@ -39,7 +39,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     /**
      * Footer data sent after all pages have been produced.
      */
-    public record StreamFooter(long tookMillis, List<String> warnings) {}
+    public record StreamFooter(long tookMillis, List<String> warnings, boolean isPartial) {}
 
     /**
      * Maximum rows per delivered chunk. Always {@code >= 1}.
@@ -178,8 +178,8 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
      * Called from the transport action's outer completion listener when compute succeeds.
      * Stores the footer and triggers completion if the subscriber already has demand.
      */
-    public void completeWithFooter(long tookMillis, List<String> warnings) {
-        this.footer = new StreamFooter(tookMillis, warnings);
+    public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
+        this.footer = new StreamFooter(tookMillis, warnings, isPartial);
         maybeComplete();
     }
 

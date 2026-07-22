@@ -27,6 +27,8 @@ import java.util.function.Function;
  */
 public class StreamingPageOperator extends SinkOperator {
 
+    private static final String NAME = "StreamingPageOperator";
+
     private final PageStreamPublisher stream;
     private final Function<Page, Page> alignment;
     private boolean finishCalled;
@@ -71,6 +73,11 @@ public class StreamingPageOperator extends SinkOperator {
     public void close() {}
 
     @Override
+    public String toString() {
+        return NAME;
+    }
+
+    @Override
     public Status status() {
         return new Status(pagesEmitted, rowsEmitted);
     }
@@ -87,7 +94,7 @@ public class StreamingPageOperator extends SinkOperator {
 
         @Override
         public String describe() {
-            return "StreamingPageOperator";
+            return NAME;
         }
     }
 

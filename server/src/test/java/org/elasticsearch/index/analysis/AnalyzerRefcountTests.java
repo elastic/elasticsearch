@@ -67,6 +67,7 @@ public class AnalyzerRefcountTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        assumeTrue("shared analyzers feature flag must be enabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(nodeSettings),
@@ -78,6 +79,10 @@ public class AnalyzerRefcountTests extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        if (registry == null) {
+            super.tearDown();
+            return;
+        }
         try {
             // Opt-in strict leak check: every test in this class must drain the cache before
             // teardown. Any IndexAnalyzers built without being closed shows up here, attributed

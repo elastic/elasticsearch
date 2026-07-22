@@ -55,6 +55,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class AnalysisRegistryTests extends ESTestCase {
+    private static final String SHARED_ANALYZERS_REQUIRED = "shared analyzers feature flag must be enabled";
+
     private AnalysisRegistry emptyRegistry;
     private AnalysisRegistry nonEmptyRegistry;
 
@@ -126,6 +128,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * analyzer into many indices with arbitrary names.
      */
     public void testCustomAnalyzerSharedAcrossDifferentLocalNames() throws IOException {
+        assumeTrue(SHARED_ANALYZERS_REQUIRED, AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings sA = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.analyzer.my_name_a.tokenizer", "standard")
@@ -151,6 +154,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * StopTokenFilterFactory overrides sharingKey to compare (stopWords, ignoreCase, removeTrailing).
      */
     public void testUserDefinedFilterSharesWhenSharingKeyMatches() throws IOException {
+        assumeTrue(SHARED_ANALYZERS_REQUIRED, AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings sA = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.my_stop.type", "stop")
@@ -218,6 +222,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * on a hot path.
      */
     public void testSharingKeyIsStableAcrossCalls() throws IOException {
+        assumeTrue(SHARED_ANALYZERS_REQUIRED, AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.analyzer.a.tokenizer", "standard")
@@ -242,6 +247,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * underlying. After Index A closes, Index B's analyzer must remain functional.
      */
     public void testIndexCloseDoesNotKillSharedAnalyzer() throws IOException {
+        assumeTrue(SHARED_ANALYZERS_REQUIRED, AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.analyzer.a.tokenizer", "standard")
@@ -270,6 +276,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * encode it in their own {@code sharingKey}, which {@code FactorySharingKeyTests} covers.
      */
     public void testVersionInvariantAnalyzersShareAcrossVersions() throws IOException {
+        assumeTrue(SHARED_ANALYZERS_REQUIRED, AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings sA = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         Settings sB = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.getPreviousVersion(IndexVersion.current()))

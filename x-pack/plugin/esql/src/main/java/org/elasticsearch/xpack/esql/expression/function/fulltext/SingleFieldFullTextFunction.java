@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -25,12 +29,14 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -153,6 +159,38 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      */
     protected FieldAttribute fieldAsFieldAttribute() {
         return fieldAsFieldAttribute(field);
+    }
+
+    /**
+     * Builds the runtime-search evaluator for a {@code text} field: the query string is analyzed once into its
+     * terms, and each row's value is then analyzed and matched by the {@link RuntimeSearch.TokenStreamMatcher} the
+     * given function builds from those terms. How the terms must match (any term, consecutive phrase, ...) is the
+     * only thing that differs between the full-text functions supporting runtime search.
+     */
+    protected ExpressionEvaluator.Factory runtimeTextEvaluator(
+        ToEvaluator toEvaluator,
+        Function<List<BytesRef>, RuntimeSearch.TokenStreamMatcher> matcherBuilder
+    ) {
+        // TODO: use the analyzer specified in the options, for now we use the standard analyzer.
+        Analyzer analyzer = new StandardAnalyzer();
+        List<BytesRef> queryTerms;
+        try {
+            queryTerms = RuntimeSearch.analyzeTerms(analyzer, queryAsObject().toString());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+        }
+        // TODO: use the `zero_terms_query` option, for now we use `none`.
+        if (queryTerms.isEmpty()) {
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+        }
+
+        return new RuntimeSearchTextEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            matcherBuilder.apply(queryTerms),
+            analyzer,
+            context -> new BytesRef()
+        );
     }
 
     @Override

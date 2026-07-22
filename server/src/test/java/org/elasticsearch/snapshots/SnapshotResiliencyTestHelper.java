@@ -1319,6 +1319,7 @@ public class SnapshotResiliencyTestHelper {
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                throttlingRecoveryService.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();

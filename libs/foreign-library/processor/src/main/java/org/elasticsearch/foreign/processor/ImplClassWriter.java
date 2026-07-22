@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.LinkerHelper;
+import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.foreign.processor.model.ArrayFieldModel;
 import org.elasticsearch.foreign.processor.model.BoundsCheckModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
@@ -79,9 +81,9 @@ class ImplClassWriter {
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_Linker = ClassDesc.of("java.lang.foreign.Linker");
     private static final ClassDesc CD_SymbolLookup = ClassDesc.of("java.lang.foreign.SymbolLookup");
-    private static final ClassDesc CD_LinkerHelper = ClassDesc.of("org.elasticsearch.foreign.LinkerHelper");
-    private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter");
-    private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.foreign.LoaderHelper");
+    private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
+    private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
+    private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
@@ -145,7 +147,7 @@ class ImplClassWriter {
         }
 
         ClassDesc generatedDesc = ClassDesc.of(model.implQualifiedName());
-        ClassDesc interfaceDesc = ClassDesc.of(model.qualifiedName());
+        ClassDesc superDesc = ClassDesc.of(model.qualifiedName());
         List<MethodModel> nativeMethods = model.methods();
 
         // Collect only non-struct-factory methods (methods with @Function)
@@ -154,8 +156,12 @@ class ImplClassWriter {
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.FINAL, AccessFlag.SUPER);
-            cb.withSuperclass(CD_Object);
-            cb.withInterfaceSymbols(interfaceDesc);
+            if (model.isAbstractClass()) {
+                cb.withSuperclass(superDesc);
+            } else {
+                cb.withSuperclass(CD_Object);
+                cb.withInterfaceSymbols(superDesc);
+            }
 
             // MethodHandle fields: one per @Function method
             for (var nm : functionMethods) {
@@ -188,7 +194,7 @@ class ImplClassWriter {
             // <init>: package-private no-arg constructor
             cb.withMethodBody("<init>", MethodTypeDesc.of(CD_void), 0, init -> {
                 init.aload(0);
-                init.invokespecial(CD_Object, "<init>", MethodTypeDesc.of(CD_void));
+                init.invokespecial(model.isAbstractClass() ? superDesc : CD_Object, "<init>", MethodTypeDesc.of(CD_void));
                 init.return_();
             });
 
@@ -251,6 +257,9 @@ class ImplClassWriter {
     private static void emitMhFieldInit(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String symbolResolverClassName) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
 
+        // For @Critical methods with a fallback adapter we need to call
+        // LinkerAdapter.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
+        // the leading lookup arg here, then build the raw handle on top.
         if (hasFallbackAdapter) {
             cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
         }
@@ -356,7 +365,8 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+        int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), accessFlag, code -> {
             emitBoundsChecks(code, generatedDesc, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
@@ -570,6 +580,20 @@ class ImplClassWriter {
      *   <li>last slot (if non-void return): the return value from invokeExact</li>
      * </ul>
      */
+    /**
+     * Generates a method body that marshals {@code String} parameters to native memory before the call.
+     * Opens a confined {@code Arena} per call, allocates each {@code String} param via
+     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     *
+     * <p>Local variable layout (slots):
+     * <ul>
+     *   <li>0: {@code this}</li>
+     *   <li>1..paramEnd-1: original Java parameters</li>
+     *   <li>paramEnd: the {@code Arena}</li>
+     *   <li>paramEnd+1..: one {@code MemorySegment} per {@code STRING} parameter, in order</li>
+     *   <li>last slot (if non-void return): the return value from invokeExact</li>
+     * </ul>
+     */
     private static void emitNativeFunctionMethodWithStringParams(CodeBuilder code, ClassDesc generatedDesc, MethodModel nm) {
         List<NativeType> paramTypes = nm.paramTypes();
         NativeType returnType = nm.returnType();
@@ -595,9 +619,17 @@ class ImplClassWriter {
             int marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
                 if (paramType == NativeType.STRING) {
+                    var notNull = tryBlock.newLabel();
+                    var end = tryBlock.newLabel();
+                    tryBlock.aload(slot);
+                    tryBlock.ifnonnull(notNull);
+                    tryBlock.getstatic(CD_MemorySegment, "NULL", CD_MemorySegment);
+                    tryBlock.goto_(end);
+                    tryBlock.labelBinding(notNull);
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
                     tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    tryBlock.labelBinding(end);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }
@@ -796,7 +828,7 @@ class ImplClassWriter {
         // Method descriptor: (ElementType[]) -> StructInterface
         MethodTypeDesc methodDesc = MethodTypeDesc.of(structInterfaceDesc, elementArrayDesc);
 
-        cb.withMethodBody(nm.methodName(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+        cb.withMethodBody(nm.methodName(), methodDesc, nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC, code -> {
             // slot 0 = this, slot 1 = elements (ElementType[])
             // result = new SockFProg$Impl()
             code.new_(structImplDesc);

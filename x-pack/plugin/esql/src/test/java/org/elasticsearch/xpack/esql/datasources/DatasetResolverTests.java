@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -55,16 +57,14 @@ public class DatasetResolverTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startThreadPool() {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopThreadPool() {
         ThreadPool.terminate(threadPool, 10, java.util.concurrent.TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     public void testLocalDatasetRewrittenWhenCrossProjectEnabled() {
@@ -126,6 +126,19 @@ public class DatasetResolverTests extends ESTestCase {
         LogicalPlan rewritten = replaceDatasets(resolver, relation, ProjectMetadata.builder(ProjectId.DEFAULT).build());
         assertSame(relation, rewritten);
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
+    }
+
+    public void testFederationDisabledReturnsPlanUnchanged() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
+
+        // The kill switch suppresses all dataset resolution: the plan is returned untouched and no
+        // EsqlResolveDatasetAction dispatch happens, even though datasets are registered in project state.
+        UnresolvedRelation relation = relationOf(DATASET_NAME);
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+        resolver.replaceDatasets(relation, project(), future, false);
+        assertSame(relation, future.actionGet());
+        assertEquals("federation disabled → no dispatch", 0, localCalls.get());
     }
 
     // --- harness ---

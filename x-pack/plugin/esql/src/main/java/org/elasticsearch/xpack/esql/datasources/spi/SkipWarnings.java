@@ -47,6 +47,19 @@ public class SkipWarnings {
     public static final int MAX_ADDED_WARNINGS = 20;
 
     /**
+     * The single "further warnings suppressed" line emitted once per collector when the per-event
+     * cap is exceeded. Exposed as the one source of truth for the overflow text so a central budget
+     * that caps the same channel (see {@code InformationalWarningBudget}) emits a byte-identical
+     * marker: identical text dedups against a per-collector overflow line by value, and clients that
+     * match on "further warnings suppressed" keep working regardless of which layer capped.
+     */
+    public static String overflowMessage() {
+        return OVERFLOW_MESSAGE;
+    }
+
+    private static final String OVERFLOW_MESSAGE = "... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)";
+
+    /**
      * Shared sink used when the current {@link ErrorPolicy} never triggers skip/null-fill behavior
      * (e.g. {@link ErrorPolicy#isStrict()}). All {@link #add(String)} calls are silently dropped.
      */
@@ -115,7 +128,7 @@ public class SkipWarnings {
             emit(detail);
             added++;
         } else if (overflowEmitted == false) {
-            emit("... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)");
+            emit(overflowMessage());
             overflowEmitted = true;
         }
     }

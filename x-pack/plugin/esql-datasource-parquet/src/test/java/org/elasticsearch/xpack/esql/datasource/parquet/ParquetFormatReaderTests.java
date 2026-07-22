@@ -65,11 +65,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
@@ -109,6 +111,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -121,9 +124,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
@@ -1468,6 +1470,37 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(100, ((IntBlock) page.getBlock(0)).getInt(0));
             assertEquals(200, ((IntBlock) page.getBlock(0)).getInt(1));
             assertEquals(300, ((IntBlock) page.getBlock(0)).getInt(2));
+        }
+    }
+
+    public void testReadNanosIncludesIteratorConsumption() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("count").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 500; i++) {
+                Group group = factory.newGroup();
+                group.add("count", i);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50)) {
+            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+            int pages = 0;
+            while (iterator.hasNext()) {
+                try (Page page = iterator.next()) {
+                    pages++;
+                }
+            }
+            assertThat(pages, greaterThan(0));
+            // read_nanos must grow as the iterator is consumed (row-group transitions + per-batch
+            // decode), not just cover the read()/readRange() setup phase measured before the loop.
+            assertThat(reader.statusSnapshot().readNanos(), greaterThan(readNanosAfterOpen));
         }
     }
 
@@ -3842,6 +3875,45 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A physical int64 column declared {@code datetime} defuses off the fused epoch-millis reinterpret when it carries
+     * a declared {@code format}: with {@code epoch_second} the value 1704067200 reads as epoch SECONDS
+     * (1704067200000 millis, routed through {@code castBlock}); with NO format the same value takes the fused reinterpret
+     * as epoch MILLIS (1704067200). This pins the reader-side routing driven by
+     * {@code fusedInDecode(LONG, DATETIME, hasDeclaredFormat)}.
+     */
+    public void testLongFileDeclaredDatetimeHonorsEpochSecondFormat() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("ts").named("test_schema");
+        long token = 1704067200L; // 2024-01-01T00:00:00Z, in seconds
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", token);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+
+        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            CloseableIterator<Page> it = withFormat.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            assertEquals("epoch_second format must parse the int64 as seconds", 1704067200000L, l.getLong(0));
+        }
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            assertEquals("no format must take the fused epoch-millis reinterpret", token, l.getLong(0));
+        }
+    }
+
     /** A physical DOUBLE column read as declared {@code double} preserves non-finite IEEE values (NaN/Infinity). */
     public void testDoubleFileNonFiniteValuesPassThroughDeclared() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("d").named("test_schema");
@@ -3994,6 +4066,68 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
+    /**
+     * Fixture of {@code count} rows in a single {@code ts} keyword column, every value a DISTINCT
+     * unparseable date token (namespaced by {@code offset} so tokens never repeat across fixtures).
+     * Declared as {@code datetime}, each value fails the fused string-&gt;datetime coercion and, under a
+     * non-strict policy, nulls its cell and emits a distinct per-value {@code Warning} detail.
+     */
+    private byte[] badDatetimeTokenFixture(int offset, int count) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        return createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                Group g = factory.newGroup();
+                g.add("ts", "not-a-date-" + (offset + i));
+                groups.add(g);
+            }
+            return groups;
+        });
+    }
+
+    public void testDeclaredCoercionWarningsRouteToSuppliedSink() throws Exception {
+        // A declared datetime over unparseable keyword tokens nulls each bad cell under a non-strict
+        // policy and records a per-value coercion Warning. When the caller supplies an
+        // informationalWarningSink, every such warning must be relayed to that sink, not emitted to
+        // this thread's HeaderWarning response context: an async read runs the decode loop on a
+        // background thread whose ThreadContext is never merged into the client response, so a warning
+        // emitted there is silently lost. Cover both columnar decode paths: the optimized
+        // PageColumnReader and the baseline row-at-a-time reader.
+        int distinctBad = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        byte[] data = badDatetimeTokenFixture(0, distinctBad);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (ParquetFormatReader reader : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
+            List<String> sink = new ArrayList<>();
+            StorageObject storageObject = createStorageObject(data);
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10_000, 0, data.length, plannerTypes, ErrorPolicy.PERMISSIVE, sink::add)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+            long coercionDetails = sink.stream().filter(w -> w.contains("cannot coerce value")).count();
+            assertThat("per-value coercion warnings must reach the supplied sink", coercionDetails, greaterThan(0L));
+            assertThat(
+                "each reader instance caps its per-value coercion details at MAX_ADDED_WARNINGS",
+                coercionDetails,
+                lessThanOrEqualTo((long) SkipWarnings.MAX_ADDED_WARNINGS)
+            );
+            List<String> leaked = drainWarnings();
+            assertTrue(
+                "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
+                leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+            );
+        }
+    }
+
     /** Fixture for the fused string->datetime tests: good ISO, bad token, good ISO. */
     private byte[] stringDatetimeFixture() throws IOException {
         MessageType schema = Types.buildMessage()
@@ -4063,6 +4197,58 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A LIST&lt;int64&gt; declared {@code datetime} with a declared {@code format} honors it per ELEMENT.
+     * {@code ParquetColumnDecoding.readListColumn} is its own routing site — it consults
+     * {@code fusedInDecode(fileElementType, declared, info.dateFormatter() != null)} independently of the scalar
+     * sites — so the element type must defuse off the fused epoch-millis reinterpret onto castBlock exactly as a
+     * scalar column does. Without this the list arm would silently read epoch SECONDS as epoch MILLIS.
+     */
+    public void testListLongDeclaredDatetimeHonorsEpochSecondFormat() throws Exception {
+        long token = 1704067200L; // 2024-01-01T00:00:00Z in seconds
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("vals");
+        MessageType schema = new MessageType("test_schema", listType);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("vals");
+            list.addGroup("list").append("element", token);
+            list.addGroup("list").append("element", token + 1);
+            return List.of(g);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("vals").withDeclaredDateFormats(
+            Map.of("vals", "epoch_second")
+        );
+        try (
+            CloseableIterator<Page> it = withFormat.readRange(
+                storageObject,
+                new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            int first = longs.getFirstValueIndex(0);
+            assertEquals("epoch_second must scale every list ELEMENT", 1704067200000L, longs.getLong(first));
+            assertEquals("epoch_second must scale every list ELEMENT", 1704067201000L, longs.getLong(first + 1));
+            page.releaseBlocks();
+        }
+
+        // no format: the fused epoch-millis reinterpret, unchanged
+        try (
+            CloseableIterator<Page> it = declaredReader("vals").readRange(
+                createStorageObject(parquetData),
+                new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertEquals("no format stays the fused reinterpret", token, longs.getLong(longs.getFirstValueIndex(0)));
+            page.releaseBlocks();
+        }
     }
 
     public void testListStringDeclaredDatetimeBadTokenNullsWholePosition() throws Exception {

@@ -43,7 +43,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * Mirrors {@code MlIndexTemplateRegistry#ML_INDEX_TEMPLATE_VERSION}; kept here because rolling-upgrade
      * tests cannot depend on the ML plugin module.
      */
-    private static final int ML_INDEX_TEMPLATE_VERSION = 10000002 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+    private static final int ML_INDEX_TEMPLATE_VERSION = 10000003 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
@@ -88,7 +88,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                         client(),
                         ".ml-anomalies-",
                         ML_INDEX_TEMPLATE_VERSION,
-                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*")
+                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
                     )
                 );
                 assertBusy(

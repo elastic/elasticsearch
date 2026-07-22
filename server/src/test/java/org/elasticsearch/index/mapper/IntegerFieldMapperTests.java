@@ -193,7 +193,8 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
     /**
      * Indexes the same random integer values into a points-based field and two index_terms
      * fields (one with doc values, one without), across a random number of segments, and asserts
-     * that term, terms and range queries match the exact same set of documents on all three.
+     * that term, terms, range, and bitmap queries match the exact same set of documents.
+     * Bitmap queries only support non-negative values.
      */
     public void testIndexTermsMatchesPointsRandomized() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
@@ -270,6 +271,7 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
                     expectedRangeDocs,
                     matchingDocIds(searcher, ft3.rangeQuery(lower, upper, includeLower, includeUpper, context))
                 );
+
             }
         });
     }

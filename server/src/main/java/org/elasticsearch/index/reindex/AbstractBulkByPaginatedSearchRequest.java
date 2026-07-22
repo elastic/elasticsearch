@@ -40,7 +40,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    public static final int DEFAULT_SCROLL_SIZE = 1000;
+    public static final int DEFAULT_PAGINATED_SEARCH_BATCH_SIZE = 1000;
 
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
@@ -167,7 +167,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
         if (setDefaults) {
             searchRequest.scroll(DEFAULT_SCROLL_TIMEOUT);
             searchRequest.source(new SearchSourceBuilder());
-            searchRequest.source().size(DEFAULT_SCROLL_SIZE);
+            searchRequest.source().size(DEFAULT_PAGINATED_SEARCH_BATCH_SIZE);
         }
     }
 

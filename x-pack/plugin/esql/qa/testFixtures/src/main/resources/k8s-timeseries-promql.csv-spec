@@ -746,6 +746,20 @@ result:double | step:datetime
 2024.0        | 2024-05-10T01:00:00.000Z
 ;
 
+timestamp_of_vector
+required_capability: promql_command_v0
+required_capability: promql_timestamp
+required_capability: promql_time
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(timestamp(vector(1)));
+
+result:double    | step:datetime
+1.7152992E9      | 2024-05-10T00:00:00.000Z
+1.7153028E9      | 2024-05-10T01:00:00.000Z
+;
+
 month_scalar
 required_capability: promql_command_v0
 required_capability: promql_time_functions

@@ -3147,6 +3147,11 @@ public class EsqlCapabilities {
         PROMQL_DAYS_IN_MONTH,
 
         /**
+         * Support for PromQL timestamp() function.
+         */
+        PROMQL_TIMESTAMP,
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */

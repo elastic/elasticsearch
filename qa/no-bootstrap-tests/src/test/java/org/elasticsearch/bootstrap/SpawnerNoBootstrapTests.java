@@ -27,8 +27,11 @@ import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -329,13 +332,21 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     }
 
     private void createControllerProgram(final Path outputFile) throws IOException {
-        final Path outputDir = outputFile.getParent();
-        Files.createDirectories(outputDir);
-        if (outputFile.getFileSystem().supportedFileAttributeViews().contains("posix")) {
-            // Create the controller already-executable before writing its contents, instead of writing it and then chmod-ing it.
-            Files.createFile(outputFile, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")));
+        /*
+         * Stage the program in a sibling file, force it to disk, then atomically rename it into place, mirroring how a real controller
+         * binary is installed. Writing straight to the exec path and running it moments later races the JDK posix_spawn launch path on busy
+         * hosts and fails with "posix_spawn failed, error: 13" (see https://github.com/elastic/elasticsearch/issues/154291).
+         */
+        Files.createDirectories(outputFile.getParent());
+        final Path staged = outputFile.resolveSibling(outputFile.getFileName().toString() + ".staged");
+        Files.writeString(staged, CONTROLLER_SOURCE);
+        if (staged.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            Files.setPosixFilePermissions(staged, PosixFilePermissions.fromString("rwxr-xr-x"));
         }
-        Files.writeString(outputFile, CONTROLLER_SOURCE);
+        try (FileChannel channel = FileChannel.open(staged, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            channel.force(true);
+        }
+        Files.move(staged, outputFile, StandardCopyOption.ATOMIC_MOVE);
     }
 
 }

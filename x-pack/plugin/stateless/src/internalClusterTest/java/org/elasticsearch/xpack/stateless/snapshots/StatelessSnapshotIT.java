@@ -1324,9 +1324,11 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         // Unblock the shard snapshot
         safeAwait(snapshotThreadBarrier);
 
-        // Stall the BCC upload a bit more to ensure the shard snapshot task wait for its completion and does not fail with
+        // Sometimes stall the BCC upload a bit more to ensure the shard snapshot task wait for its completion and does not fail with
         // NoSuchFileException for the not-yet-uploaded hollow commit.
-        safeSleep(50);
+        if (randomBoolean()) {
+            safeSleep(between(10, 50));
+        }
         blockBccUpload.countDown();
 
         final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();

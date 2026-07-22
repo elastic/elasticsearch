@@ -3480,6 +3480,11 @@ public class EsqlCapabilities {
          */
         PROMQL_TOPK,
 
+        /**
+         * Enable aggregate_metric_double in non-snapshot builds
+         */
+        FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

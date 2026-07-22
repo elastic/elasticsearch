@@ -712,7 +712,7 @@ to_aggregate_metric_double with multi_values:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
+          capabilities: [ aggregate_metric_double_v0, fix_unsigned_long_to_aggregate_metric_double ]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:

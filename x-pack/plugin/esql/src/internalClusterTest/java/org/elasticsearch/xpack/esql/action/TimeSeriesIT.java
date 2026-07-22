@@ -189,6 +189,59 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("hosts").get();
     }
 
+    /**
+     * End-to-end check that final-result chunking is transparent: driving the coordinator's final aggregation with a tiny
+     * {@code esql.time_series.target_chunk_rows} (so the final output is split into many pages) must produce the same
+     * result set as the default (single-page) run. The queries route the chunked final output through downstream
+     * operators — {@code SORT} (TopN) and a following {@code STATS ... BY <dimension>} — so this also covers downstream
+     * multi-page consumption. Results are compared as canonicalized multisets because chunking only changes pagination,
+     * not the rows produced (row ordering for tied sort keys is not guaranteed to match across two independent runs).
+     * Floating-point values are rounded before comparison: chunking changes the order in which partial sums are combined
+     * (e.g. {@code sum(rate(...))}), so results may differ in the last ULP, which is expected and not a correctness issue.
+     */
+    public void testFinalChunkingMatchesUnchunked() {
+        assumeTrue("query pragmas require a snapshot build", canUseQueryPragmas());
+        client().admin().indices().prepareRefresh("hosts").get();
+        List<String> queries = List.of(
+            "TS hosts | STATS load=avg(cpu) BY cluster, bucket(@timestamp, 1 minute) | SORT cluster, load",
+            "TS hosts | STATS r=sum(rate(request_count)) BY cluster, bucket(@timestamp, 1 minute) | SORT cluster, r",
+            "TS hosts | STATS load=avg(cpu) BY host, tbucket=bucket(@timestamp, 1 minute) | STATS peak=max(load) BY host | SORT host"
+        );
+        for (String query : queries) {
+            List<List<Object>> unchunked = runWithChunkRows(query, 100_000);
+            List<List<Object>> chunked = runWithChunkRows(query, 1);
+            assertThat(
+                "chunked final output must match unchunked for [" + query + "]",
+                canonicalize(chunked),
+                equalTo(canonicalize(unchunked))
+            );
+        }
+    }
+
+    private List<List<Object>> runWithChunkRows(String query, int targetChunkRows) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(query);
+        request.acceptedPragmaRisks(true);
+        request.pragmas(
+            new QueryPragmas(Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey(), targetChunkRows).build())
+        );
+        try (EsqlQueryResponse resp = run(request)) {
+            return EsqlTestUtils.getValuesList(resp);
+        }
+    }
+
+    /**
+     * Rounds floating-point cells (to absorb summation-order differences) and sorts rows into a stable order, so two runs
+     * are compared as multisets independent of tied-sort-key row ordering.
+     */
+    private static List<List<Object>> canonicalize(List<List<Object>> rows) {
+        return rows.stream().map(TimeSeriesIT::roundDoubles).sorted(Comparator.comparing(Objects::toString)).toList();
+    }
+
+    private static List<Object> roundDoubles(List<Object> row) {
+        return row.stream().map(v -> v instanceof Double d ? (Object) (Math.round(d * 1_000_000d) / 1_000_000d) : v).toList();
+    }
+
     public void testWithoutStats() {
         try (EsqlQueryResponse resp = run("TS hosts | SORT @timestamp DESC, host | KEEP @timestamp, host, cpu | LIMIT 5")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);

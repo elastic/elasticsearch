@@ -17,6 +17,10 @@ These feature-managed secrets differ from [secure settings](docs-content://deplo
 
 The first feature to use this mechanism is [{{esql}} data federation](/reference/query-languages/esql/esql-data-federation.md), which encrypts the credentials used to connect to external data sources. Other features may adopt it over time.
 
+:::{note}
+Cluster state encryption is distinct from [customer-managed encryption keys](docs-content://deploy-manage/security/encrypt-deployment-with-customer-managed-encryption-key.md). Customer-managed keys protect an {{ech}} deployment's files and snapshots at the infrastructure layer. Cluster state encryption protects feature-managed secrets before {{es}} stores or replicates them in cluster state. The two mechanisms are complementary.
+:::
+
 ## How the cluster state encryption key works [cluster-state-encryption-key-lifecycle]
 
 {{es}} generates the cluster state encryption key automatically and stores it in cluster state, where it's distributed to every node. It's excluded from cluster state REST responses and from snapshots.

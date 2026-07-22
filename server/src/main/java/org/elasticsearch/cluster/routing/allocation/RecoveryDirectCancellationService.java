@@ -63,8 +63,8 @@ public class RecoveryDirectCancellationService {
     /// The max cache size is then ~1.6MB which is less than 0.1% of a 2GB heap.
     private static final int MAX_CANCELLATIONS_CACHE_SIZE = 50_000;
 
-    /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures entries
-    /// are eventually evicted and further reduces cache size in clusters where the size bound is rarely reached.
+    /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures stale
+    /// entries are eventually evicted in clusters where the size bound is rarely reached.
     private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
 
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
@@ -189,20 +189,14 @@ public class RecoveryDirectCancellationService {
             final List<ShardRecoveryCancellation> dedupedCancellations = new ArrayList<>();
             for (ShardRecoveryCancellation cancellation : request.cancellations()) {
                 final SentCancellation cached = sentCancellations.get(cancellation.allocationId());
-                if (cached == null) {
+                if (cached == null
+                    || cached.term() != request.term()
+                    || (cached.cancelIfStarted() == false && cancellation.cancelIfStarted())) {
                     dedupedCancellations.add(cancellation);
                     sentCancellations.put(
                         cancellation.allocationId(),
                         new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
                     );
-                } else {
-                    if ((cached.cancelIfStarted() == false && cancellation.cancelIfStarted()) || cached.term() != request.term()) {
-                        dedupedCancellations.add(cancellation);
-                        sentCancellations.put(
-                            cancellation.allocationId(),
-                            new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
-                        );
-                    }
                 }
             }
             if (dedupedCancellations.isEmpty() == false) {

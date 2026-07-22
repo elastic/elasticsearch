@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -23,16 +25,21 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -64,6 +71,51 @@ abstract class AbstractInferenceFieldsIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
     }
+
+    protected void testExcludeInferenceFieldsFromSource(
+        CheckedSupplier<XContentBuilder, IOException> mappingFactory,
+        Collection<String> fieldsToValidate,
+        IndexVersion minIndexVersion,
+        IndexVersion maxIndexVersion,
+        int iterationCount
+    ) throws Exception {
+        final String indexName = randomIdentifier();
+
+        for (int i = 0; i < iterationCount; i++) {
+            final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion, maxIndexVersion);
+            final Settings indexSettings = generateIndexSettings(indexVersion);
+            XContentBuilder mappings = mappingFactory.get();
+            assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mappings));
+
+            final int docCount = randomIntBetween(10, 50);
+            fieldsToValidate.forEach(fieldName -> indexDocuments(indexName, fieldName, docCount));
+
+            for (String fieldName : fieldsToValidate) {
+                // For each field defined in the mapping, fetch all documents with that field and verify that
+                // response only contains the requested fieldName and no inference fields.
+                assertSearchResponse(
+                    indexName,
+                    new SemanticQueryBuilder(fieldName, randomAlphaOfLength(10)),
+                    indexSettings,
+                    docCount,
+                    request -> {
+                        request.source().fetchSource(generateRandomFetchSourceContext()).fetchField(fieldName);
+                    },
+                    response -> {
+                        for (SearchHit hit : response.getHits()) {
+                            Map<String, DocumentField> documentFields = hit.getDocumentFields();
+                            assertThat(documentFields.size(), is(1));
+                            assertThat(documentFields.containsKey(fieldName), is(true));
+                        }
+                    }
+                );
+            }
+
+            IntegrationTestUtils.deleteIndex(client(), indexName);
+        }
+    }
+
+    protected abstract void indexDocuments(String indexName, String field, int count);
 
     protected void assertSearchResponse(
         String indexName,

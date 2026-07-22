@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 154630
+summary: Retry commit registration in case of transport exception
+type: enhancement

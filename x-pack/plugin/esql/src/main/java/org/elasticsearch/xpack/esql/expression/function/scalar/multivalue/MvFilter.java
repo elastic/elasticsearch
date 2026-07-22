@@ -106,7 +106,7 @@ public class MvFilter extends EsqlScalarFunction implements LambdaAccepting {
             name = "predicate",
             type = { "lambda" },
             description = "A lambda predicate.",
-            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+            lambda = @Param.Lambda(paramTypes = { "field" }, returnType = "boolean")
         ) Expression lambda
     ) {
         super(source, List.of(field, lambda));

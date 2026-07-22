@@ -1918,6 +1918,34 @@ public abstract class DocsV3Support {
                         }
                         builder.endObject();
                     }
+                    if (arg instanceof EsqlFunctionRegistry.LambdaArgSignature lambdaArg) {
+                        builder.startObject("lambda");
+                        builder.startArray("params");
+                        for (String ref : lambdaArg.lambdaParamRefs()) {
+                            builder.startObject();
+                            // Resolve the referenced param's concrete type for this signature.
+                            String resolvedType = null;
+                            for (int j = 0; j < args.size(); j++) {
+                                if (args.get(j).name().equals(ref)) {
+                                    int sigIdx = j - firstParameterIndex;
+                                    if (sigIdx >= 0 && sigIdx < sig.argTypes().size()) {
+                                        resolvedType = sig.argTypes().get(sigIdx).dataType().esNameIfPossible();
+                                    }
+                                    break;
+                                }
+                            }
+                            if (resolvedType != null) {
+                                builder.field("type", resolvedType);
+                            }
+                            builder.endObject();
+                        }
+                        builder.endArray();
+                        String lambdaReturn = lambdaArg.lambdaFixedReturnType() != null
+                            ? lambdaArg.lambdaFixedReturnType()
+                            : sig.returnType().esNameIfPossible();
+                        builder.field("returnType", lambdaReturn);
+                        builder.endObject();
+                    }
                     builder.endObject();
                 }
                 builder.endArray();

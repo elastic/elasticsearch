@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -932,5 +933,30 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 "Unknown query parameter [p3], did you mean any of [p1, p2]?"
             );
         }
+    }
+
+    public void testLikeConstantExpressionParam() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A bare `?param` of the wrong type is still rejected at parse time (fast path).
+        expectError(
+            "row a = \"abc\" | where a like ?p",
+            List.of(paramAsConstant("p", 12)),
+            "Invalid pattern parameter type for like [?p]: expected string, found integer"
+        );
+
+        // A parenthesized `(?param)` is a primaryExpression, so it bypasses the parse-time parameter-type check
+        // and is deferred to the optimizer as an UnresolvedRegexExpression (the type error, if any, surfaces later).
+        LogicalPlan parenParam = query("row a = \"abc\" | where a like (?p)", new QueryParams(List.of(paramAsConstant("p", 12))));
+        Filter parenFilter = as(parenParam, Filter.class);
+        UnresolvedRegexExpression parenRegex = as(parenFilter.condition(), UnresolvedRegexExpression.class);
+        assertEquals(UnresolvedRegexExpression.Variant.LIKE, parenRegex.variant());
+
+        // A parameter nested inside a constant expression is likewise deferred.
+        LogicalPlan concatParam = query(
+            "row a = \"abc\" | where a like concat(?p, \"*\")",
+            new QueryParams(List.of(paramAsConstant("p", "Eber")))
+        );
+        Filter concatFilter = as(concatParam, Filter.class);
+        assertEquals(UnresolvedRegexExpression.class, concatFilter.condition().getClass());
     }
 }

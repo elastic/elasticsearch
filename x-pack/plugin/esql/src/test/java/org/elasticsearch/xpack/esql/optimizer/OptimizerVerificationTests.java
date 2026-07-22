@@ -41,6 +41,39 @@ import static org.hamcrest.Matchers.is;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
+    /**
+     * A cast to keyword (`::keyword`) produces a foldable string pattern. {@code 12::keyword} folds to the
+     * literal {@code "12"}, which has no wildcards, so {@code ReplaceRegexMatch} rewrites it to an {@code Equals}.
+     */
+    public void testLikeCastToKeywordFoldsToEquals() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name like 12::keyword"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals("12", BytesRefs.toString(as(equals.right(), Literal.class).value()));
+    }
+
+    /**
+     * A pattern that folds to an invalid regex must raise a clear pattern error, not an internal failure.
+     * {@code concat("(", ".*")} folds to {@code "(.*"} which is not a valid regex.
+     */
+    public void testRLikeInvalidRegexPatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = defaultAnalyzer().query("from test | where first_name rlike concat(\"(\", \".*\")");
+        var e = expectThrows(org.elasticsearch.xpack.esql.parser.ParsingException.class, () -> optimize(plan));
+        assertThat(e.getMessage(), containsString("Invalid regex pattern for RLIKE [(.*]"));
+    }
+
+    /**
+     * A cast of a field to keyword ({@code last_name::keyword}) is not foldable, so it is rejected at
+     * post-optimization verification the same way a bare field reference is.
+     */
+    public void testLikeNonFoldableCastReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like last_name::keyword"));
+        assertThat(err, containsString("[LIKE] pattern must be a constant"));
+    }
+
     private String error(LogicalPlan plan) {
         Throwable e = expectThrows(
             VerificationException.class,

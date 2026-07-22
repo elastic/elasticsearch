@@ -15,12 +15,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
 
 /**
  * A temporary placeholder for a {@code LIKE} or {@code RLIKE} predicate whose pattern is a
@@ -77,9 +80,15 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
         return Nullability.UNKNOWN;
     }
 
+    /**
+     * Validates the field (LHS) type at analysis time, mirroring {@link WildcardLike}/{@link RLike}
+     * (see {@code RegexMatch#resolveType}), so that a non-string field is rejected the same way for a
+     * constant-expression pattern as for a literal one. The pattern (RHS) type/foldability is not known
+     * until after optimizer folding and is checked in {@link #postOptimizationVerification}.
+     */
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolution.TYPE_RESOLVED;
+        return isStringAndExact(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
     }
 
     /**

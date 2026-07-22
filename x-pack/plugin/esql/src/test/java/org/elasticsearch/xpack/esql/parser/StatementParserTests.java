@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -1702,6 +1704,76 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(Filter.class, cmd.getClass());
         assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
         assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+    }
+
+    public void testLikeRLikeConstantExpressionComposition() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // The single-value LIKE/RLIKE grammar rule now takes a primaryExpression, which composes with the
+        // surrounding boolean operators exactly like the old stringOrParameter form.
+        Filter and = (Filter) processingCommand("where foo like concat(\"a\", \"*\") and bar > 2");
+        And andCond = as(and.condition(), And.class);
+        assertEquals(UnresolvedRegexExpression.class, andCond.left().getClass());
+        assertEquals(GreaterThan.class, andCond.right().getClass());
+
+        // A literal RHS still takes the parse-time fast path (WildcardLike), while a constant expression
+        // on the other side of the OR becomes an UnresolvedRegexExpression placeholder.
+        Filter or = (Filter) processingCommand("where foo like \"a*\" or bar rlike concat(\"b\", \".*\")");
+        Or orCond = as(or.condition(), Or.class);
+        assertEquals(WildcardLike.class, orCond.left().getClass());
+        assertEquals(UnresolvedRegexExpression.class, orCond.right().getClass());
+
+        Filter not = (Filter) processingCommand("where not (foo like concat(\"a\", \"*\"))");
+        Not notCond = as(not.condition(), Not.class);
+        assertEquals(UnresolvedRegexExpression.class, notCond.field().getClass());
+    }
+
+    public void testLikeRLikeConstantExpressionCast() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A cast expression (`::`) is a primaryExpression, so it is accepted and deferred to the optimizer as
+        // an UnresolvedRegexExpression. Whether it ultimately succeeds depends on the folded value/type, which
+        // is exercised in OptimizerVerificationTests.
+        for (String pattern : new String[] { "\"abc\"::keyword", "12::keyword", "last_name::keyword" }) {
+            Filter cmd = (Filter) processingCommand("where foo like " + pattern);
+            assertEquals(UnresolvedRegexExpression.class, cmd.condition().getClass());
+            assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) cmd.condition()).variant());
+        }
+    }
+
+    public void testLikeRLikeConstantExpressionParentheses() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // Behavior change: a single parenthesized string now binds to the single-value #likeExpression rule
+        // (which precedes #likeListExpression), so it produces a WildcardLike rather than a one-element list.
+        Filter single = (Filter) processingCommand("where foo like (\"a*\")");
+        WildcardLike like = as(single.condition(), WildcardLike.class);
+        assertEquals("a*", like.pattern().pattern());
+
+        // Two-or-more elements still match the list rule.
+        Filter list = (Filter) processingCommand("where foo like (\"a*\", \"b*\")");
+        assertEquals(WildcardLikeList.class, list.condition().getClass());
+
+        // A parenthesized non-literal expression is deferred to the optimizer.
+        Filter paren = (Filter) processingCommand("where foo like (concat(\"a\", \"*\"))");
+        assertEquals(UnresolvedRegexExpression.class, paren.condition().getClass());
+    }
+
+    public void testLikeRLikeConstantExpressionFieldReference() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A field reference on the RHS parses as an UnresolvedRegexExpression; it is rejected later as
+        // non-foldable (see OptimizerVerificationTests).
+        for (String pattern : new String[] { "last_name", "some.nested.field" }) {
+            Filter cmd = (Filter) processingCommand("where foo like " + pattern);
+            assertEquals(UnresolvedRegexExpression.class, cmd.condition().getClass());
+        }
+    }
+
+    public void testLikeRLikeConstantExpressionParseErrors() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // Binary operators are not part of primaryExpression, so they are not accepted on the RHS without parentheses.
+        expectError("from a | where foo like \"a\" + \"b\"", "mismatched input '+' expecting {<EOF>, '|', 'and', '::', 'or'}");
+        // Missing RHS.
+        expectError("from a | where foo like", "no viable alternative at input 'foo like'");
+        // A bare wildcard token is not a valid expression.
+        expectError("from a | where foo like *", "no viable alternative at input 'foo like *'");
     }
 
     public void testIdentifierPatternTooComplex() {

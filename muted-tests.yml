@@ -547,12 +547,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
   issue: https://github.com/elastic/elasticsearch/issues/154464
-- class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
-  method: testEnrichRemoteWithVendor
-  issue: https://github.com/elastic/elasticsearch/issues/154532
-- class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
-  method: testEnrichWithHostsPolicyAndDisconnectedRemotesWithSkipUnavailableFalse
-  issue: https://github.com/elastic/elasticsearch/issues/154533
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: "test {yaml=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/154537

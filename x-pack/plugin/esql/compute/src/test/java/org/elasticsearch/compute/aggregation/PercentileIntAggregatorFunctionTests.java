@@ -33,7 +33,7 @@ public class PercentileIntAggregatorFunctionTests extends AggregatorFunctionTest
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileIntAggregatorFunctionSupplier(percentile);
+        return new PercentileIntAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION);
     }
 
     @Override

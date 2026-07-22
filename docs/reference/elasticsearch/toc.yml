@@ -29,6 +29,7 @@ toc:
       - file: configuration-reference/remote-clusters.md
       - file: configuration-reference/search-settings.md
       - file: configuration-reference/security-settings.md
+      - file: cluster-state-encryption-key.md
       - file: configuration-reference/shard-request-cache-settings.md
       - file: configuration-reference/snapshot-restore-settings.md
         children:
@@ -44,7 +45,6 @@ toc:
   - file: jvm-settings.md
   - file: roles.md
   - file: security-privileges.md
-  - file: cluster-state-encryption-key.md
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md

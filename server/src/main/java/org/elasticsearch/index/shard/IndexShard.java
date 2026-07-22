@@ -3918,7 +3918,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // called by the current engine
         @Override
         public void onFailedEngine(String reason, @Nullable Exception failure) {
-            final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure);
+            final ShardFailure shardFailure = new ShardFailure(shardRouting, getPendingPrimaryTerm(), reason, failure);
             for (Consumer<ShardFailure> listener : delegates) {
                 try {
                     listener.accept(shardFailure);
@@ -4505,7 +4505,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
      */
-    public record ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {}
+    public record ShardFailure(ShardRouting routing, long primaryTerm, String reason, @Nullable Exception cause) {}
 
     EngineFactory getEngineFactory() {
         return engineFactory;

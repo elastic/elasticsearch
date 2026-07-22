@@ -83,9 +83,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
-  method: testQuantizedXY
-  issue: https://github.com/elastic/elasticsearch/issues/150782
 - class: org.elasticsearch.test.apmintegration.OtelAuditLogsIT
   method: testAuditEventArrivesAsOtlpLogRecord
   issue: https://github.com/elastic/elasticsearch/issues/154330
@@ -637,3 +634,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/10_basic/Create index with write aliases}
   issue: https://github.com/elastic/elasticsearch/issues/154659
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/154058

@@ -146,8 +146,6 @@ public class IndexEngine extends InternalEngine {
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
-    private final AtomicBoolean mergeBacklogThrottlingActive = new AtomicBoolean(false);
-    private final Object mergeBacklogThrottleLock = new Object();
     private final int mergeBacklogThrottleFactor;
     private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
 
@@ -962,44 +960,8 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
-    private void onMergeEnqueued(OnGoingMerge merge) {
-        var queuedOrRunningMerges = queuedOrRunningMergesCount.incrementAndGet();
-        assert queuedOrRunningMerges > 0;
-    }
-
-    private void onMergeExecutedOrAborted(OnGoingMerge merge) {
-        var remainingMerges = queuedOrRunningMergesCount.decrementAndGet();
-        assert remainingMerges >= 0;
-    }
-
     public boolean hasQueuedOrRunningMerges() {
         return queuedOrRunningMergesCount.get() > 0;
-    }
-
-    private void checkMergeBacklogThrottle(int maxConcurrentMerges) {
-        synchronized (mergeBacklogThrottleLock) {
-            int activeMerges = queuedOrRunningMergesCount.get();
-            int threshold = mergeBacklogThrottleFactor * maxConcurrentMerges;
-            if (activeMerges > threshold) {
-                if (mergeBacklogThrottlingActive.compareAndSet(false, true)) {
-                    logger.info(
-                        "now throttling indexing: {} active merges exceeds {}x merge thread count threshold",
-                        activeMerges,
-                        mergeBacklogThrottleFactor
-                    );
-                    activateThrottling();
-                }
-            } else {
-                if (mergeBacklogThrottlingActive.compareAndSet(true, false)) {
-                    logger.info(
-                        "stop throttling indexing: {} active merges within {}x merge thread count threshold",
-                        activeMerges,
-                        mergeBacklogThrottleFactor
-                    );
-                    deactivateThrottling();
-                }
-            }
-        }
     }
 
     // for testing
@@ -1086,14 +1048,36 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected void mergeQueued(OnGoingMerge merge) {
-            onMergeEnqueued(merge);
-            IndexEngine.this.checkMergeBacklogThrottle(getThreadPoolMergeExecutorService().getMaxConcurrentMerges());
+            var count = queuedOrRunningMergesCount.incrementAndGet();
+            assert count > 0;
         }
 
         @Override
         protected void mergeExecutedOrAborted(OnGoingMerge merge) {
-            onMergeExecutedOrAborted(merge);
-            IndexEngine.this.checkMergeBacklogThrottle(getThreadPoolMergeExecutorService().getMaxConcurrentMerges());
+            var count = queuedOrRunningMergesCount.decrementAndGet();
+            assert count >= 0;
+        }
+
+        @Override
+        protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            IndexEngine.this.activateThrottling();
+        }
+
+        @Override
+        protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            IndexEngine.this.deactivateThrottling();
         }
 
         @Override
@@ -1108,7 +1092,10 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected int getMaxMergeCount() {
-            return Integer.MAX_VALUE;
+            return (int) Math.min(
+                (long) mergeBacklogThrottleFactor * getThreadPoolMergeExecutorService().getMaxConcurrentMerges(),
+                Integer.MAX_VALUE
+            );
         }
 
         @Override

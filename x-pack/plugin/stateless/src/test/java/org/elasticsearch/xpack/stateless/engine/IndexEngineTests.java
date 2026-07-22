@@ -509,64 +509,29 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    /**
-     * Verifies that indexing throttling activates when the number of active (queued + running) merges exceeds
-     * {@code MERGE_BACKLOG_THROTTLE_FACTOR * maxConcurrentMerges}, and deactivates once the count falls back to or below
-     * that threshold.
+≈    /**
+     * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
+     * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
      */
-    public void testMergeBacklogThrottling() throws IOException {
-        // Force the thread-pool merge scheduler on: the backlog throttle is only wired up through
-        // StatelessThreadPoolMergeScheduler callbacks, so the test requires it to be active.
-        Settings forceScheduler = Settings.builder()
+    public void testStatelessMergeThrottleConfiguration() throws IOException {
+        int factor = randomIntBetween(1, 5);
+        Settings nodeSettings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), factor)
             .build();
-
-        // factor=1: throttle when activeMerges > maxConcurrentMerges
-        Settings nodeSettings = Settings.builder().put(forceScheduler).put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), 1).build();
         try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
             var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
-            int threshold = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
-            assertFalse("should not be throttled initially", engine.isThrottled());
 
-            for (int i = 0; i < threshold; i++) {
-                scheduler.mergeQueued(null);
-                assertFalse("active merges before threshold should not throttle", engine.isThrottled());
-            }
+            // threshold = factor × allocatedProcessors (= thread pool merge max)
+            int maxConcurrentMerges = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertThat(scheduler.getMaxMergeCount(), equalTo(factor * maxConcurrentMerges));
 
-            scheduler.mergeQueued(null); // now activeMerges = threshold + 1 → throttle ON
-            assertTrue("active merges exceeding threshold should throttle", engine.isThrottled());
-
-            scheduler.mergeExecutedOrAborted(null); // back to threshold → throttle OFF
-            assertFalse("returning to threshold should deactivate throttle", engine.isThrottled());
-
-            for (int i = 0; i < threshold; i++) {
-                scheduler.mergeExecutedOrAborted(null);
-                assertFalse(engine.isThrottled());
-            }
-        }
-
-        // factor=2: throttle when activeMerges > 2 * maxConcurrentMerges
-        nodeSettings = Settings.builder().put(forceScheduler).put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), 2).build();
-        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
-            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
-            int threshold = 2 * engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            // callbacks wire through to the engine's throttle state
             assertFalse(engine.isThrottled());
-
-            for (int i = 0; i < threshold; i++) {
-                scheduler.mergeQueued(null);
-                assertFalse("active merges before threshold should not throttle", engine.isThrottled());
-            }
-
-            scheduler.mergeQueued(null); // now activeMerges = threshold + 1 → throttle ON
-            assertTrue("active merges exceeding threshold should throttle", engine.isThrottled());
-
-            scheduler.mergeExecutedOrAborted(null); // back to threshold → throttle OFF
-            assertFalse("returning to threshold should deactivate throttle", engine.isThrottled());
-
-            for (int i = 0; i < threshold; i++) {
-                scheduler.mergeExecutedOrAborted(null);
-                assertFalse(engine.isThrottled());
-            }
+            scheduler.enableIndexingThrottling(0, 1, factor * maxConcurrentMerges);
+            assertTrue(engine.isThrottled());
+            scheduler.disableIndexingThrottling(0, 0, factor * maxConcurrentMerges);
+            assertFalse(engine.isThrottled());
         }
     }
 

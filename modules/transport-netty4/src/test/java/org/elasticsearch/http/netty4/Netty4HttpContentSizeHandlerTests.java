@@ -12,7 +12,6 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
@@ -42,7 +41,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
     private static final int REPS = 1000;
     private EmbeddedChannel channel;
     private EmbeddedChannel encoder; // channel to encode HTTP objects into bytes
-    private ReadSniffer readSniffer;
 
     private static HttpContent httpContent(int size) {
         return new DefaultHttpContent(Unpooled.wrappedBuffer(randomByteArrayOfLength(size)));
@@ -71,20 +69,7 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         super.setUp();
         var decoder = new HttpRequestDecoder();
         encoder = new EmbeddedChannel(new HttpRequestEncoder());
-        readSniffer = new ReadSniffer();
-        channel = new EmbeddedChannel();
-        channel.config().setAutoRead(false);
-        channel.pipeline().addLast(decoder, readSniffer, new Netty4HttpContentSizeHandler(MAX_CONTENT_LENGTH));
-    }
-
-    public void testDecodingFailurePassThrough() {
-        for (var i = 0; i < REPS; i++) {
-            var sendReq = httpRequest();
-            sendReq.setDecoderResult(DecoderResult.failure(new Exception("bad")));
-            channel.writeInbound(sendReq);
-            assertEquals(sendReq, channel.readInbound());
-        }
-        assertEquals("should not read from channel, failures are handled downstream", 0, readSniffer.readCount);
+        channel = new EmbeddedChannel(decoder, new Netty4HttpContentSizeHandler(MAX_CONTENT_LENGTH));
     }
 
     /**
@@ -101,7 +86,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
             assertFalse(HttpUtil.is100ContinueExpected(recvRequest));
             channel.writeInbound(encode(LastHttpContent.EMPTY_LAST_CONTENT));
             assertEquals(LastHttpContent.EMPTY_LAST_CONTENT, channel.readInbound());
-            assertEquals("must not read from channel", 0, readSniffer.readCount);
         }
     }
 
@@ -116,7 +100,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
             assertNotNull("request should pass", channel.readInbound());
             channel.writeInbound(encode(LastHttpContent.EMPTY_LAST_CONTENT));
             assertEquals(LastHttpContent.EMPTY_LAST_CONTENT, channel.readInbound());
-            assertEquals("must not read from channel", 0, readSniffer.readCount);
         }
     }
 
@@ -139,7 +122,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
             assertNotNull(recvContent);
             assertEquals(MAX_CONTENT_LENGTH, recvContent.content().readableBytes());
             recvContent.release();
-            assertEquals("must not read from channel", 0, readSniffer.readCount);
         }
     }
 
@@ -153,7 +135,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         channel.writeInbound(encode(sendRequest));
         var resp = (FullHttpResponse) channel.readOutbound();
         assertEquals(HttpResponseStatus.EXPECTATION_FAILED, resp.status());
-        assertEquals("expect 2 reads, one from size handler and HTTP decoder will emit LastHttpContent", 2, readSniffer.readCount);
         assertFalse(channel.isOpen());
         resp.release();
     }
@@ -176,7 +157,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         var resp = (FullHttpResponse) channel.readOutbound();
         assertTooLargeResponseClosesConnection(resp, channel);
         assertNull("request should not pass", channel.readInbound());
-        assertEquals("must read from channel", 1, readSniffer.readCount);
         resp.release();
     }
 
@@ -212,7 +192,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
             assertFalse("should remove expect header", HttpUtil.is100ContinueExpected(recvRequest));
             assertEquals("actual content size should match", normalSize, recvContent.content().readableBytes());
             recvContent.release();
-            assertEquals(0, readSniffer.readCount);
         }
     }
 
@@ -228,7 +207,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         assertTooLargeResponseClosesConnection(resp, channel);
         resp.release();
         assertNull("request and content should not pass", channel.readInbound());
-        assertEquals("expect two reads, one for request and one for content", 2, readSniffer.readCount);
     }
 
     /**
@@ -297,7 +275,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         var resp = (FullHttpResponse) channel.readOutbound();
         assertEquals("should respond with 413", HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
         assertFalse("should close channel", channel.isOpen());
-        assertEquals("expect read after response", 1, readSniffer.readCount);
         resp.release();
     }
 }

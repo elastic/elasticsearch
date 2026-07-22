@@ -387,30 +387,34 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A record spelling one dotted column both ways ({@code {"a":{"b":1},"a.b":2}}, either order, or a repeated
-     * key) must produce exactly one row: the first occurrence to commit a value wins and later spellings are
-     * dropped, keeping the column aligned with its siblings. ES ingest instead keeps both values as a multivalue;
-     * for this pathological same-record case the reader keeps a single value (first-non-null-wins).
+     * A record spelling one dotted column both ways ({@code {"a":{"b":1},"a.b":2}}, either order, a repeated
+     * nested key, or a repeated flat key) must produce exactly one row: the first occurrence to commit a value
+     * wins and later spellings are dropped, keeping the column aligned with its siblings. ES ingest instead keeps
+     * both values as a multivalue; for this pathological same-record case the reader keeps a single value
+     * (first-non-null-wins).
      */
     public void testSameRecordDuplicateSpellingsKeepFirstValue() throws IOException {
         String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n"
             + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":20}\n"
-            + "{\"a\":{\"b\":5},\"a\":{\"b\":6},\"id\":30}\n";
+            + "{\"a\":{\"b\":5},\"a\":{\"b\":6},\"id\":30}\n"
+            + "{\"a.b\":7,\"a.b\":8,\"id\":40}\n";
 
         try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
             assertNotNull(page);
-            assertEquals(3, page.getPositionCount());
+            assertEquals(4, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
             LongBlock id = page.getBlock(1);
-            for (int p = 0; p < 3; p++) {
+            for (int p = 0; p < 4; p++) {
                 assertEquals("exactly one value at row " + p, 1, ab.getValueCount(p));
             }
             assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
             assertEquals(3L, ab.getLong(ab.getFirstValueIndex(1)));
             assertEquals(5L, ab.getLong(ab.getFirstValueIndex(2)));
+            assertEquals(7L, ab.getLong(ab.getFirstValueIndex(3)));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
             assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
             assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+            assertEquals(40L, id.getLong(id.getFirstValueIndex(3)));
         }
     }
 
@@ -440,17 +444,64 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * The same-record duplicate resolves silently under {@link ErrorPolicy#STRICT}: two spellings of one dotted
-     * column are legitimate names for the same field (the shape indexes cleanly), so the query must not fail.
+     * column are legitimate names for the same field (the shape indexes cleanly), so the query must not fail. A
+     * sibling {@code id} column pins that the drained second spelling did not skew the row under fail-fast.
      */
     public void testSameRecordDuplicateSpellingsDoesNotFailStrict() throws IOException {
-        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2}\n";
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n";
 
-        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)), ErrorPolicy.STRICT)) {
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)), ErrorPolicy.STRICT)) {
             assertNotNull(page);
             assertEquals(1, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
             assertEquals(1, ab.getValueCount(0));
             assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * An empty array {@code []} commits a null cell, so it claims the row's single position for a dotted column: a
+     * later spelling of the same column in the record is drained (first-committed-cell-wins, distinct from the
+     * fully transparent plain JSON null). Reversed, a real value committed first wins and a later {@code []} is
+     * drained. A sibling {@code id} column pins alignment.
+     */
+    public void testSameRecordDuplicateEmptyArrayClaimsRow() throws IOException {
+        String ndjson = "{\"a.b\":[],\"a\":{\"b\":2},\"id\":10}\n" + "{\"a\":{\"b\":3},\"a.b\":[],\"id\":20}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertTrue("empty array claims the row -> null", ab.isNull(0));
+            assertEquals("value committed before [] wins", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A policy null-fill on a bad first value commits a null cell and claims the row: under a lenient policy the
+     * bad first spelling nulls the cell and a later good spelling of the same dotted column is drained. Reversed,
+     * a good value committed first wins and the later bad spelling is drained before coercion is even attempted,
+     * so it raises no value error. A sibling {@code id} column pins alignment.
+     */
+    public void testSameRecordDuplicateCoercionNullClaimsRow() throws IOException {
+        String ndjson = "{\"a.b\":\"bad\",\"a\":{\"b\":2},\"id\":10}\n" + "{\"a\":{\"b\":3},\"a.b\":\"bad\",\"id\":20}\n";
+
+        try (
+            Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)), ErrorPolicy.PERMISSIVE)
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertTrue("bad first value null-fills and claims the row -> null", ab.isNull(0));
+            assertEquals("value committed before the bad spelling wins", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
         }
     }
 
@@ -458,8 +509,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * The same-record duplicate must keep the dotted column aligned with its siblings on the lenient (per-record
      * scratch) decode path too, not just fail-fast. The lenient path builds each row in scratch builders and
      * copies one position per record, so a per-column position skew from a duplicate would corrupt the copy;
-     * pinning a sibling {@code id} column at every row catches it. Also pins that a lenient policy does not error
-     * on the duplicate.
+     * asserting a sibling {@code id} column at every row detects that skew. A lenient policy must not error on the
+     * duplicate either.
      */
     public void testSameRecordDuplicateSpellingsAlignsOnLenientPath() throws IOException {
         String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n" + "{\"id\":20}\n" + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":30}\n";

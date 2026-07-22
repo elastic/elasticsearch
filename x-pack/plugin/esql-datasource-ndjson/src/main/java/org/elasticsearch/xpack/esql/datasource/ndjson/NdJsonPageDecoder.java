@@ -1466,6 +1466,8 @@ public class NdJsonPageDecoder implements Closeable {
         /**
          * Resolve a flat dotted field name (e.g. {@code "a.b"} or {@code "a.b.c"}) as a path through this
          * decoder's {@code children} subtree, splitting on {@code .} and descending one segment at a time.
+         * The walk is relative to {@code this} node, so a caller on the {@code x} structural node resolves
+         * {@code "a.b"} as {@code x → a → b}, not from the tree root.
          * Returns the node the whole path lands on: a leaf decoder (the flat spelling of a dotted column) or a
          * structural prefix node (a flat prefix whose remainder is spelled nested, e.g. {@code {"a.b":{"c":1}}}
          * against schema {@code a.b.c}). The caller then decodes the value into that node exactly as it would
@@ -1477,20 +1479,21 @@ public class NdJsonPageDecoder implements Closeable {
         private BlockDecoder resolveDottedPath(String fieldName) {
             BlockDecoder node = this;
             int start = 0;
-            int dot;
-            do {
+            while (true) {
                 if (node.children == null) {
                     return null;
                 }
-                dot = fieldName.indexOf('.', start);
+                int dot = fieldName.indexOf('.', start);
                 String segment = dot < 0 ? fieldName.substring(start) : fieldName.substring(start, dot);
                 node = node.children.get(segment);
                 if (node == null) {
                     return null;
                 }
+                if (dot < 0) {
+                    return node;
+                }
                 start = dot + 1;
-            } while (dot >= 0);
-            return node;
+            }
         }
 
         /**

@@ -222,11 +222,15 @@ public abstract class AbstractPhysicalOperationProviders {
                         s -> mergeSpecs.add(new PartitionedHashMergeOperator.AggregatorSpec(s.supplier, s.channels)),
                         context
                     );
+                    int mergeWorkerCount = pragmas.partitionedAggMergeWorkerCount(
+                        PartitionedHashMergeOperator.DEFAULT_MERGE_WORKER_COUNT
+                    );
                     operatorFactory = new PartitionedHashMergeOperator.Builder().groupSpecs(
                         groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
                     )
                         .aggregators(mergeSpecs)
                         .partitionCount(partitionCount)
+                        .workerCount(mergeWorkerCount)
                         .maxPageSize(maxPageSize)
                         .aggregationBatchSize(aggregationBatchSize)
                         .executor(context.parallelWorkerExecutor())

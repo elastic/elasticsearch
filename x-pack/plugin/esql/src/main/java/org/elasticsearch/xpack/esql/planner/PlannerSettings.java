@@ -16,6 +16,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PartitionedHashAggregationOperator;
+import org.elasticsearch.compute.operator.PartitionedHashMergeOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -290,11 +291,11 @@ public class PlannerSettings {
 
     /**
      * Number of partitions used by {@link PartitionedHashAggregationOperator} for INITIAL-mode grouping aggregations.
-     * Default {@code 1} disables partitioning. Set to a value greater than 1 (e.g. 32) to enable.
+     * Must be greater than 1 to enable partitioned aggregation; set to 1 to disable.
      */
     public static final Setting<Integer> PARTITIONED_AGGREGATION_PARTITION_COUNT = Setting.intSetting(
         "esql.partitioned_agg_partition_count",
-        1,
+        PartitionedHashAggregationOperator.DEFAULT_PARTITION_COUNT,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -326,6 +327,14 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Integer> PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT = Setting.intSetting(
+        "esql.partitioned_agg_merge_worker_count",
+        PartitionedHashMergeOperator.DEFAULT_MERGE_WORKER_COUNT,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -350,7 +359,8 @@ public class PlannerSettings {
             IN_SUBQUERY_HASH_JOIN_THRESHOLD,
             PARTITIONED_AGGREGATION_PARTITION_COUNT,
             PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD,
-            PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD
+            PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD,
+            PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT
         );
     }
 

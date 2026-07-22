@@ -15,8 +15,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocValueFetcher;
@@ -36,7 +34,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,10 +46,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FetchFieldsPhaseTests extends ESTestCase {
-
-    private static IndexSettings indexSettingsWithSliceDisabled() {
-        return IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
-    }
 
     public void testDocValueFetcher() throws IOException {
 
@@ -91,8 +84,6 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(sec.getFieldType(any())).thenReturn(fieldType);
         when(sec.getMatchingFieldNames(any())).thenReturn(Set.of("field"));
         when(sec.nestedLookup()).thenReturn(NestedLookup.EMPTY);
-        IndexSettings indexSettings = indexSettingsWithSliceDisabled();
-        when(sec.getIndexSettings()).thenReturn(indexSettings);
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchFieldsContext()).thenReturn(ffc);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
@@ -126,8 +117,6 @@ public class FetchFieldsPhaseTests extends ESTestCase {
 
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
         when(sec.isMetadataField(any())).then(invocation -> invocation.getArguments()[0].toString().startsWith("_"));
-        IndexSettings indexSettings = indexSettingsWithSliceDisabled();
-        when(sec.getIndexSettings()).thenReturn(indexSettings);
 
         MappedFieldType routingFt = mock(MappedFieldType.class);
         when(routingFt.valueFetcher(any(), any())).thenReturn(new StoredValueFetcher(searchLookup, "_routing"));

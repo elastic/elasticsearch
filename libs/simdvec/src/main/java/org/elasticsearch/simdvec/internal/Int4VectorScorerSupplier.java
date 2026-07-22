@@ -17,6 +17,7 @@ import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -27,10 +28,6 @@ import java.lang.foreign.ValueLayout;
  * corrective terms (3 floats + 1 int). The query is unpacked to {@code dims} bytes before scoring.
  */
 public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplier {
-
-    // Size of the corrections trailer that follows each packed vector: 3 floats
-    // (lowerInterval, upperInterval, additionalCorrection) + 1 int (quantizedComponentSum).
-    private static final int CORRECTIONS_BYTES = 3 * Float.BYTES + Integer.BYTES;
 
     private final IndexInput input;
     private final QuantizedByteVectorValues values;
@@ -49,17 +46,24 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         this.values = values;
         this.similarityType = similarityType;
         this.packedDims = dims / 2;
-        this.vectorPitch = packedDims + CORRECTIONS_BYTES;
+        this.vectorPitch = packedDims + Int4VectorScorer.CORRECTIONS_BYTES;
         this.unpackedQuerySegment = Arena.ofAuto().allocate(dims, 32);
         this.scratch = new FixedSizeScratch(vectorPitch);
+        float centroidDP;
+        try {
+            centroidDP = values.getCentroidDP();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.scorerImpl = new Int4VectorScorer.ScorerImpl(
             input,
             values,
             dims,
             packedDims,
             vectorPitch,
-            Int4Corrections.singleCorrectionFor(similarityType),
-            Int4Corrections.bulkCorrectionFor(similarityType)
+            similarityType.function(),
+            centroidDP,
+            Int4Corrections.singleCorrectionFor(similarityType)
         );
     }
 

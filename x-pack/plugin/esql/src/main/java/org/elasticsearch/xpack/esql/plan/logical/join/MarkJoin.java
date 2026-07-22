@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -142,7 +143,7 @@ public class MarkJoin extends AbstractSubqueryJoin {
         // already wrapped the left side in an {@code Eval(svKey = MvSingleValueOrNull(leftField))} so multi-valued positions become
         // NULL before the join. {@code leftJoinConfig.leftFields()} therefore refers to the SV-guarded attribute, which we use in the
         // CASE so NULL/MV keys collapse to mark=NULL.
-        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, false);
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, ExecuteLocation.ANY);
         Attribute svKeyAttr = leftJoinConfig.leftFields().get(0);
         Expression caseExpr = buildMarkCase(source, svKeyAttr, sentinelAttr, rightHadNulls);
         Eval eval = new Eval(source, leftJoin, List.of(markAlias(source, caseExpr)));

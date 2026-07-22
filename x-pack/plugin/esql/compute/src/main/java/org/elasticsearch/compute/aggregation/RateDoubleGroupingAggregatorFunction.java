@@ -62,7 +62,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
         @Override
         public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            var warnings = driverContext.createWarnings(source);
             return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 
@@ -848,6 +848,10 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
         void appendInterval(long lastTs, double lastValue, long firstTs, double firstValue) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
+            // growExact is deliberate: each shard contributes at most one interval per group, so this
+            // array almost never grows beyond one or two entries. growExact avoids over-allocating
+            // capacity that would be wasted per group. TODO: benchmark in isolation and switch to
+            // grow() if real-world interval counts turn out larger than expected.
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
             this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
@@ -874,7 +878,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 values.appendDouble(lastValue());
                 values.appendDouble(firstValue());
             } else {
-                for (int intervalId : intervals) {
+                for (int i = 0; i < intervals.length; i++) {
+                    int intervalId = intervals[i];
                     timestamps.appendLong(intervalBuffer.lastTs(intervalId));
                     timestamps.appendLong(intervalBuffer.firstTs(intervalId));
                     values.appendDouble(intervalBuffer.lastValue(intervalId));

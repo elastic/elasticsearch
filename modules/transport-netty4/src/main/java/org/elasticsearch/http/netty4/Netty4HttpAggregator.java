@@ -36,7 +36,7 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
     public Netty4HttpAggregator(int maxContentLength, Predicate<HttpPreRequest> decider, HttpRequestDecoder decoder) {
         super(maxContentLength);
         this.decider = decider;
-        this.streamContentSizeHandler = new Netty4HttpContentSizeHandler(decoder, maxContentLength);
+        this.streamContentSizeHandler = new Netty4HttpContentSizeHandler(maxContentLength);
     }
 
     @Override

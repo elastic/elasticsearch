@@ -62,6 +62,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1175,19 +1176,19 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             offsets[0] = 0;
             offsets[1] = randomIntBetween(1, fileLength / 2 - sliceLen);
             offsets[2] = fileLength - sliceLen;
-            boolean available = indexInput.withMemorySegmentSlices(offsets, sliceLen, 3, segments -> {
-                assertEquals(3, segments.length);
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
+            boolean available = indexInput.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
                 for (int i = 0; i < 3; i++) {
-                    assertNotNull(segments[i]);
-                    assertTrue(segments[i].isReadOnly());
-                    assertEquals(sliceLen, segments[i].byteSize());
+                    long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, i);
+                    assertNotEquals(0L, addr);
+                    MemorySegment seg = MemorySegment.ofAddress(addr).reinterpret(sliceLen);
                     byte[] sliceBytes = new byte[sliceLen];
-                    MemorySegment.ofArray(sliceBytes).copyFrom(segments[i]);
+                    MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                     byte[] expected = Arrays.copyOfRange(input, (int) offsets[i], (int) offsets[i] + sliceLen);
                     assertArrayEquals("mismatch at offset " + offsets[i], expected, sliceBytes);
                 }
             });
-            assertTrue("withMemorySegmentSlices returned false; regionSize=" + regionSize, available);
+            assertTrue("withSliceAddresses returned false; regionSize=" + regionSize, available);
         }
     }
 
@@ -1243,10 +1244,14 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             // Offsets are relative to the slice; the implementation must add this.offset
             int rangeLen = randomIntBetween(1, sliceLength / 3);
             long[] offsets = { 0, randomIntBetween(1, sliceLength - rangeLen) };
-            boolean available = blobSlice.withMemorySegmentSlices(offsets, rangeLen, 2, segments -> {
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
+            boolean available = blobSlice.withSliceAddresses(offsets, rangeLen, 2, addrsOut, addrs -> {
                 for (int i = 0; i < 2; i++) {
+                    long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, i);
+                    assertNotEquals(0L, addr);
+                    MemorySegment seg = MemorySegment.ofAddress(addr).reinterpret(rangeLen);
                     byte[] sliceBytes = new byte[rangeLen];
-                    MemorySegment.ofArray(sliceBytes).copyFrom(segments[i]);
+                    MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                     byte[] expected = Arrays.copyOfRange(input, sliceOffset + (int) offsets[i], sliceOffset + (int) offsets[i] + rangeLen);
                     assertArrayEquals("mismatch at slice-relative offset " + offsets[i], expected, sliceBytes);
                 }
@@ -1294,7 +1299,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             int sliceLen = randomIntBetween(1, fileLength / 4);
             long[] offsets = { 0, randomIntBetween(1, fileLength - sliceLen) };
-            boolean available = indexInput.withMemorySegmentSlices(offsets, sliceLen, 2, segments -> {
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
+            boolean available = indexInput.withSliceAddresses(offsets, sliceLen, 2, addrsOut, addrs -> {
                 fail("action should not be invoked when mmap is not enabled");
             });
             assertFalse(available);
@@ -1351,10 +1357,14 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             // Verify bulk access is available before eviction
             int sliceLen = randomIntBetween(1, fileLengthA / 4);
             long[] offsets = { 0, randomIntBetween(1, fileLengthA - sliceLen) };
-            boolean availableBefore = indexInputA.withMemorySegmentSlices(offsets, sliceLen, 2, segments -> {
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
+            boolean availableBefore = indexInputA.withSliceAddresses(offsets, sliceLen, 2, addrsOut, addrs -> {
                 for (int i = 0; i < 2; i++) {
+                    long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, i);
+                    assertNotEquals(0L, addr);
+                    MemorySegment seg = MemorySegment.ofAddress(addr).reinterpret(sliceLen);
                     byte[] sliceBytes = new byte[sliceLen];
-                    MemorySegment.ofArray(sliceBytes).copyFrom(segments[i]);
+                    MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                     assertArrayEquals(Arrays.copyOfRange(inputA, (int) offsets[i], (int) offsets[i] + sliceLen), sliceBytes);
                 }
             });
@@ -1388,8 +1398,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 assertArrayEquals(evictInput, evictOutput);
             }
 
-            // After eviction, withMemorySegmentSlices should return false
-            boolean availableAfter = indexInputA.withMemorySegmentSlices(offsets, sliceLen, 2, segments -> {
+            // After eviction, withSliceAddresses should return false
+            boolean availableAfter = indexInputA.withSliceAddresses(offsets, sliceLen, 2, addrsOut, addrs -> {
                 fail("action should not be invoked after eviction");
             });
             assertFalse("expected buffers to be unavailable after eviction", availableAfter);

@@ -1564,6 +1564,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (nextDoc != currentDoc) {
                 // Flush the completed doc's elements as one encoded blob and record its count inline.
                 if (binaryDvs != null && docSlotCount > 0) {
+                    // TODO: improve MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode to directly write to column and
+                    // save allocation and copy
                     binaryDvs.setString(currentDoc, MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount));
                     dvCounts.setLong(currentDoc, docSlotCount);
                     docSlotCount = 0;

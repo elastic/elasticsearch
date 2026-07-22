@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -901,7 +902,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
             final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
-            final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
+            final var resolved = context.enrichResolution().getResolvedPolicy(plan.source());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
@@ -925,7 +926,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(policyName, plan.mode());
+                String error = context.enrichResolution().getError(plan.source());
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
@@ -1478,13 +1479,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-                boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
+                boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
+                return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
+            }
+        }
+
+        private static ExecuteLocation newLookupJoinMode(ExecuteLocation mode, boolean hasRemoteIndices) {
+            if (mode == ExecuteLocation.COORDINATOR) {
+                return ExecuteLocation.COORDINATOR;
+            } else if (mode == ExecuteLocation.REMOTE || hasRemoteIndices) {
+                return ExecuteLocation.REMOTE;
+            } else {
+                return ExecuteLocation.ANY;
             }
         }
 
@@ -1930,12 +1942,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
+            String name = attribute.name();
+            int lastDot = name.lastIndexOf('.');
+            String parentName = lastDot < 0 ? null : name.substring(0, lastDot);
+            String leafName = lastDot < 0 ? name : name.substring(lastDot + 1);
             return new FieldAttribute(
                 attribute.source(),
-                null,
+                parentName,
                 attribute.qualifier(),
-                attribute.name(),
-                new PotentiallyUnmappedKeywordEsField(attribute.name())
+                name,
+                new PotentiallyUnmappedKeywordEsField(leafName)
             );
         }
 

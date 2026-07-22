@@ -127,6 +127,27 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /**
+     * Instrument name patterns whose metrics are dropped.
+     * Patterns may contain the wildcards {@code *} (any run of characters) and {@code ?} (a single character).
+     */
+    public static final Setting<List<String>> TELEMETRY_METRICS_DISABLED = Setting.stringListSetting(
+        "telemetry.metrics.disabled",
+        NodeScope
+    );
+
+    /**
+     * Whether the per-instrument collection-time histogram ({@code es.apm.metrics.instrument.collection_time.histogram}) is
+     * recorded. Off by default because it adds one series per observable instrument; enable it at runtime to attribute metric
+     * collection cost to a specific instrument, then disable it again.
+     */
+    public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
+        "telemetry.metrics.instrument_timing.enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
     // --- Traces
 
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.
@@ -179,12 +200,12 @@ public final class OtelSdkSettings {
 
     // --- Logs
 
-    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_ENABLED} is true. */
+    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
     public static final Setting<String> TELEMETRY_LOGS_ENDPOINT = Setting.simpleString("telemetry.logs.endpoint", "", NodeScope);
 
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
-    public static final Setting<Boolean> TELEMETRY_LOGS_ENABLED = Setting.boolSetting(
-        "telemetry.logs.enabled",
+    public static final Setting<Boolean> TELEMETRY_LOGS_AUDIT_ENABLED = Setting.boolSetting(
+        "telemetry.logs.audit.enabled",
         false,
         new Setting.Validator<>() {
             @Override
@@ -194,7 +215,7 @@ public final class OtelSdkSettings {
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
                 if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
-                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.enabled=true"
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
                     );
                 }
             }
@@ -215,6 +236,83 @@ public final class OtelSdkSettings {
         "telemetry.logs.max_queue_size",
         10_000,
         1,
+        NodeScope
+    );
+
+    /**
+     * PEM-encoded CA certificate(s) used to verify the otel-delivery-gateway's server certificate.
+     * Multiple files are concatenated in PEM order. Paths are resolved relative to the Elasticsearch
+     * config directory when not absolute. When empty, the OTel exporter's default TLS handling is used.
+     */
+    public static final Setting<List<String>> TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES = Setting.stringListSetting(
+        "telemetry.logs.ssl.certificate_authorities",
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded client certificate for mTLS authentication to the otel-delivery-gateway.
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_KEY}.
+     * Path is resolved relative to the Elasticsearch config directory when not absolute.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_CERTIFICATE = Setting.simpleString(
+        "telemetry.logs.ssl.certificate",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String key = (String) settings.get(TELEMETRY_LOGS_SSL_KEY);
+                if (value.isEmpty() != key.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_KEY).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded private key for the client certificate ({@link #TELEMETRY_LOGS_SSL_CERTIFICATE}).
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_CERTIFICATE}.
+     * Supports PKCS#8 ({@code BEGIN PRIVATE KEY}) and PKCS#1 RSA ({@code BEGIN RSA PRIVATE KEY}) formats.
+     * Encrypted keys are not supported.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString(
+        "telemetry.logs.ssl.key",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String cert = (String) settings.get(TELEMETRY_LOGS_SSL_CERTIFICATE);
+                if (value.isEmpty() != cert.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_CERTIFICATE).iterator();
+            }
+        },
         NodeScope
     );
 

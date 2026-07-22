@@ -131,4 +131,34 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
             );
         }
     }
+
+    /**
+     * Immune-path regression pin for the partitioned-text {@code COUNT(*)} fix.
+     * A bare {@code COUNT(*)} over a Hive-partitioned <em>Parquet</em> dataset is served from footer/stripe
+     * row-count stats via {@code ComputeService.canSkipSplitDiscovery} → {@code resolveCount} with no scan
+     * operator at all — so unlike partitioned text it never reaches the virtual-column wrapper the fix
+     * touches. This asserts that path is undisturbed: the correct count with zero external scan operators,
+     * on the very first (cold) run. Green on main; the COUNT(*) shape (vs the COUNT(p) safe-miss above) was
+     * previously untested here.
+     */
+    public void testPartitionedCountStarServedFromStatsWithoutScan() throws Exception {
+        Path root = createTempDir().resolve("hive_parquet_countstar");
+        writeSingleColumnIdParquet(root.resolve("p=a"), 3); // ids 0,1,2
+        writeSingleColumnIdParquet(root.resolve("p=b"), 2); // ids 0,1
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("hive_parquet_countstar", glob, Map.of("hive_partitioning", true));
+
+        var request = syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)");
+        request.profile(true);
+        try (var response = run(request)) {
+            assertTrue(
+                "partitioned Parquet COUNT(*) is served from footer stats with no external scan operator",
+                externalScanNodeNames(response).isEmpty()
+            );
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("COUNT(*) returns a single row", rows.size(), equalTo(1));
+            assertThat("COUNT(*) counts all 5 rows across both partitions", ((Number) rows.getFirst().getFirst()).longValue(), equalTo(5L));
+        }
+    }
 }

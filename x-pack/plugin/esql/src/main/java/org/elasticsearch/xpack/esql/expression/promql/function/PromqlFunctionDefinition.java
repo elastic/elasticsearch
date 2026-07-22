@@ -265,6 +265,7 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -569,6 +570,23 @@ public final class PromqlFunctionDefinition {
             FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
         ) {
             this.functionType = FunctionType.ACROSS_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
+                source,
+                target,
+                Literal.TRUE,
+                ctx.window(),
+                extraParams.getFirst()
+            );
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduction(
+            PromqlParamInfo paramInfo,
+            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
                 source,

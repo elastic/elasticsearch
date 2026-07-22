@@ -113,6 +113,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
     private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
+    private final CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
@@ -129,11 +130,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ThreadPool threadPool,
         Client client,
         EstimatedHeapUsageCollector estimatedHeapUsageCollector,
+        CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
     ) {
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
+        this.cacheSizesAndCommitmentCollector = cacheSizesAndCommitmentCollector;
         this.nodeUsageStatsForThreadPoolsCollector = nodeUsageStatsForThreadPoolsCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
@@ -218,6 +221,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, Long> estimatedHeapUsagePerNode;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
+        private volatile Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
+        private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
@@ -235,6 +240,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchEstimatedHeapUsage(estimatedHeapThresholdEnabled);
                 fetchNodesUsageStatsForThreadPools();
+                fetchCacheUsageAndCommitments();
             }
         }
 
@@ -289,6 +295,29 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         public void onFailure(Exception e) {
                             logger.warn("failed to fetch thread pool usage estimates for nodes", e);
                             nodeThreadPoolUsageStatsPerNode = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
+            }
+        }
+
+        private void fetchCacheUsageAndCommitments() {
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                final ClusterState clusterState = clusterStateSupplier.get();
+                cacheSizesAndCommitmentCollector.collectCacheSizesAndCommitmentStats(
+                    clusterState,
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
+                            shardCacheRequirements = cacheSizesAndCommitmentStats.shardCacheRequirements();
+                            nodeCacheSizeAndCommitments = cacheSizesAndCommitmentStats.nodeCacheSizeAndCommitments();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch cache sizes and commitment stats", e);
+                            shardCacheRequirements = Map.of();
+                            nodeCacheSizeAndCommitments = Map.of();
                         }
                     }, fetchRefs.acquire())
                 );
@@ -519,7 +548,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodeThreadPoolUsageStatsPerNode,
                 indicesStatsSummary.shardWriteLoads(),
                 maxHeapPerNode,
-                nodeIdsWriteLoadHotspotting
+                nodeIdsWriteLoadHotspotting,
+                nodeCacheSizeAndCommitments,
+                shardCacheRequirements
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

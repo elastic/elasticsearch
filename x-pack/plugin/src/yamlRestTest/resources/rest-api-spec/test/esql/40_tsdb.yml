@@ -750,7 +750,7 @@ to_aggregate_metric_double with multi_values:
   - match: {columns.3.name: "from_ulong"}
   - match: {columns.3.type: "aggregate_metric_double"}
   - match: {values.0.0: '{"min":-10958.0,"max":182941.0,"sum":192368.0,"value_count":3}'}
-  - match: {values.0.1: '{"min":102.44400024414062,"max":195.10000610351562,"sum":297.54400634765625,"value_count":2}'}
+  - match: {values.0.1: '{"min":102.444,"max":195.1,"sum":297.544,"value_count":2}'}
   - match: {values.0.2: '{"min":64.0,"max":1456.0,"sum":2139.0,"value_count":4}'}
   - match: {values.0.3: '{"min":123.0,"max":1.9418924E7,"sum":1.9433032E7,"value_count":3}'}
 

@@ -108,7 +108,7 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                 "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
                 DataType.DOUBLE,
                 Matchers.nullValue()
-            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+            ).withWarning("Line 1:1: warnings during evaluation of [source]. Only first 20 failures recorded.")
                 .withWarning(
                     "Line 1:1: java.lang.IllegalArgumentException: [aggregate_metric_double] fields has a non-positive count"
                         + " [value_count=0], so it cannot fallback to a single average value, treating result as null"
@@ -133,7 +133,7 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                 "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
                 DataType.DOUBLE,
                 Matchers.nullValue()
-            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+            ).withWarning("Line 1:1: warnings during evaluation of [source]. Only first 20 failures recorded.")
                 .withWarning(
                     "Line 1:1: java.lang.IllegalArgumentException: [aggregate_metric_double] fields has a non-positive count"
                         + " [value_count="

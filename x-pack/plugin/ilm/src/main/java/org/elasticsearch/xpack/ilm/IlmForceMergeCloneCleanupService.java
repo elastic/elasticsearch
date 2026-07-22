@@ -227,9 +227,11 @@ public class IlmForceMergeCloneCleanupService implements ClusterStateListener, C
             }
         } catch (Exception e) {
             logger.warn(
-                "ILM force-merge clone cleanup failed to delete orphaned indices [{}] in project [{}]",
-                indexNames,
-                project.id(),
+                () -> Strings.format(
+                    "ILM force-merge clone cleanup failed to delete orphaned indices [%s] in project [%s]",
+                    indexNames,
+                    project.id()
+                ),
                 e
             );
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {

@@ -2011,8 +2011,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * A two-legged PUNK is rewritten to a union whose unmapped rows are loaded from _source as KEYWORD. An explicit cast that accepts
-     * KEYWORD but not the mapped type cannot consume every original type, so it fails analysis rather than silently dropping a leg (#150375).
+     * Reproducer for #150375.
      */
     public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
@@ -2027,8 +2026,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * A convert function that accepts neither the PUNK's mapped type nor KEYWORD (how its unmapped rows are loaded) cannot consume the
-     * field, and the error points at the missing KEYWORD support (#150375).
+     * Reproducer for #150375.
      */
     public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());

@@ -3192,13 +3192,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
                     if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
-                        // The explicit cast cannot consume one or more of the field's original mapped types, so it cannot be resolved.
-                        // This covers both date/date_nanos unions and two-legged PUNKs.
-                        String msg = unsupportedExplicitCastMessageFormat(unionTypeEsField, supportedTypes);
                         return new UnresolvedAttribute(
                             fa.source(),
                             fa.name(),
-                            Strings.format(msg, fa.name(), convertExpression.sourceText())
+                            Strings.format(
+                                unsupportedExplicitCastMessageFormat(unionTypeEsField, supportedTypes),
+                                fa.name(),
+                                convertExpression.sourceText()
+                            )
                         );
                     }
 
@@ -3314,7 +3315,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static String unsupportedExplicitCastMessageFormat(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
             if (unionTypeEsField.getUnmappedConversionExpression() == null) {
-                // A fully mapped union of multiple date types (date/date_nanos).
+                // A null unmapped conversion means this isn't a two-legged PUNK (ResolveTwoLeggedPunksInEsRelation always sets one). The
+                // only other non-synthetic union producer is DateMillisToNanosInEsRelation, so this is an all-dates union.
+                if (unionTypeEsField.getConversionExpressions()
+                    .stream()
+                    .allMatch(e -> e instanceof AbstractConvertFunction cf && cf.field().dataType().isDate()) == false) {
+                    throw new IllegalStateException("Expected a date/date_nanos union for [" + unionTypeEsField.getName() + "]");
+                }
                 return "One or more mapped types of [%s] cannot be accepted in [%s]";
             }
             // A partially unmapped non-KEYWORD field (PUNK): its unmapped rows are loaded from _source as KEYWORD.

@@ -216,17 +216,19 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
     private void deleteShardStore(ShardId shardId) {
         clusterService.getClusterApplierService()
             .runOnApplierThread("indices_store ([" + shardId + "] delete unallocated shard)", Priority.HIGH, currentState -> {
-                String localNodeId = currentState.nodes().getLocalNodeId();
-                for (var routingTableEntry : currentState.globalRoutingTable().routingTables().entrySet()) {
-                    IndexRoutingTable indexRouting = routingTableEntry.getValue().index(shardId.getIndex());
-                    if (indexRouting != null) {
-                        IndexShardRoutingTable currentShardRouting = indexRouting.shard(shardId.id());
-                        if (currentShardRouting != null && shardCanBeDeleted(localNodeId, currentShardRouting) == false) {
-                            logger.trace(
-                                "not deleting shard {}, not all copies are started or shard has been re-allocated to this node",
-                                shardId
-                            );
-                            return;
+                if (DiscoveryNode.isStateless(settings) == false) {
+                    String localNodeId = currentState.nodes().getLocalNodeId();
+                    for (var routingTableEntry : currentState.globalRoutingTable().routingTables().entrySet()) {
+                        IndexRoutingTable indexRouting = routingTableEntry.getValue().index(shardId.getIndex());
+                        if (indexRouting != null) {
+                            IndexShardRoutingTable currentShardRouting = indexRouting.shard(shardId.id());
+                            if (currentShardRouting != null && shardCanBeDeleted(localNodeId, currentShardRouting) == false) {
+                                logger.trace(
+                                    "not deleting shard {}, not all copies are started or shard has been re-allocated to this node",
+                                    shardId
+                                );
+                                return;
+                            }
                         }
                     }
                 }

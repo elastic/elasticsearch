@@ -837,6 +837,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             }));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
             assertNotNull(mapperService.fieldType("metrics.time"));
             assertNotNull(mapperService.fieldType("metrics.count"));
             assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
@@ -873,6 +874,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             }));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
             assertNotNull(mapperService.fieldType("metrics.time"));
             assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
         }

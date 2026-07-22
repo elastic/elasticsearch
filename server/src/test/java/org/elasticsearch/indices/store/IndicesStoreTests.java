@@ -106,42 +106,4 @@ public class IndicesStoreTests extends ESTestCase {
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
     }
 
-    public void testSafeToDeleteLocallyAllStartedElsewhere() {
-        final var shardId = new ShardId("test", "_na_", 0);
-        final var routingTable = new IndexShardRoutingTable.Builder(shardId);
-        routingTable.addShard(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), true, ShardRoutingState.STARTED));
-        routingTable.addShard(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), false, ShardRoutingState.STARTED));
-        assertTrue(IndicesStore.safeToDeleteLocally(localNode.getId(), routingTable.build()));
-    }
-
-    public void testSafeToDeleteLocallyAllocatedOnNode() {
-        final var shardId = new ShardId("test", "_na_", 0);
-        final var routingTable = new IndexShardRoutingTable.Builder(shardId);
-        routingTable.addShard(TestShardRouting.newShardRouting(shardId, localNode.getId(), true, ShardRoutingState.STARTED));
-        routingTable.addShard(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), false, ShardRoutingState.STARTED));
-        assertFalse(IndicesStore.safeToDeleteLocally(localNode.getId(), routingTable.build()));
-    }
-
-    public void testSafeToDeleteLocallyNoStartedCopyElsewhere() {
-        final var shardId = new ShardId("test", "_na_", 0);
-        final var routingTable = new IndexShardRoutingTable.Builder(shardId);
-        routingTable.addShard(
-            shardRoutingBuilder(shardId, randomAlphaOfLength(10), true, ShardRoutingState.INITIALIZING).withUnassignedInfo(
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-            ).build()
-        );
-        assertFalse(IndicesStore.safeToDeleteLocally(localNode.getId(), routingTable.build()));
-    }
-
-    public void testSafeToDeleteLocallyWithMixOfStartedAndNonStarted() {
-        final var shardId = new ShardId("test", "_na_", 0);
-        final var routingTable = new IndexShardRoutingTable.Builder(shardId);
-        routingTable.addShard(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), true, ShardRoutingState.STARTED));
-        routingTable.addShard(
-            shardRoutingBuilder(shardId, randomAlphaOfLength(10), false, ShardRoutingState.INITIALIZING).withUnassignedInfo(
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-            ).build()
-        );
-        assertTrue(IndicesStore.safeToDeleteLocally(localNode.getId(), routingTable.build()));
-    }
 }

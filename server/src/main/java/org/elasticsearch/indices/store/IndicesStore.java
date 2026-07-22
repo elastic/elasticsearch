@@ -213,20 +213,6 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         return true;
     }
 
-    static boolean safeToDeleteLocally(String localNodeId, IndexShardRoutingTable indexShardRoutingTable) {
-        boolean hasStartedCopyElsewhere = false;
-        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
-            ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
-            if (localNodeId.equals(shardRouting.currentNodeId())) {
-                return false;
-            }
-            if (shardRouting.started()) {
-                hasStartedCopyElsewhere = true;
-            }
-        }
-        return hasStartedCopyElsewhere;
-    }
-
     private void deleteShardStore(ShardId shardId) {
         clusterService.getClusterApplierService()
             .runOnApplierThread("indices_store ([" + shardId + "] delete unallocated shard)", Priority.HIGH, currentState -> {
@@ -235,9 +221,9 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                     IndexRoutingTable indexRouting = routingTableEntry.getValue().index(shardId.getIndex());
                     if (indexRouting != null) {
                         IndexShardRoutingTable currentShardRouting = indexRouting.shard(shardId.id());
-                        if (currentShardRouting != null && safeToDeleteLocally(localNodeId, currentShardRouting) == false) {
+                        if (currentShardRouting != null && shardCanBeDeleted(localNodeId, currentShardRouting) == false) {
                             logger.trace(
-                                "not deleting shard {}, no started copy exists elsewhere or shard has been re-allocated to this node",
+                                "not deleting shard {}, not all copies are started or shard has been re-allocated to this node",
                                 shardId
                             );
                             return;

@@ -106,6 +106,7 @@ class ImplClassWriter {
         CD_Class,
         CD_String
     );
+    private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
@@ -218,6 +219,9 @@ class ImplClassWriter {
      */
     private static void emitMhFieldInit(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String symbolResolverClassName) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
+        // For @Critical methods with no fallback adapter (using the Critical.UnsupportedFallback sentinel)
+        // we need to call LinkerAdapter.unsupportedFallback()
+        boolean isUnsupportedFallback = nm.isCritical() && hasFallbackAdapter == false;
 
         // For @Critical methods with a fallback adapter we need to call
         // LinkerAdapter.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
@@ -247,6 +251,9 @@ class ImplClassWriter {
             cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
             cb.ldc(nm.methodName());
             cb.invokestatic(CD_LinkerAdapter, "adaptCritical", MTD_adaptCritical);
+        } else if (isUnsupportedFallback) {
+            cb.ldc(nm.methodName());
+            cb.invokestatic(CD_LinkerAdapter, "unsupportedFallback", MTD_unsupportedFallback);
         }
 
         cb.putstatic(generatedDesc, nm.methodHandleFieldName(), CD_MethodHandle);

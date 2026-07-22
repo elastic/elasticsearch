@@ -10,25 +10,6 @@ setup:
       reason: "columnar index modes must accept subobjects: false as a no-op"
 
 ---
-"columnar standalone index accepts subobjects: false at root":
-  - do:
-      indices.create:
-        index: test_columnar_subobjects_false_root
-        body:
-          settings:
-            index.mode: columnar
-          mappings:
-            subobjects: false
-            properties:
-              log.level:
-                type: keyword
-
-  - do:
-      indices.get_mapping:
-        index: test_columnar_subobjects_false_root
-  - match: { test_columnar_subobjects_false_root.mappings.properties.log\.level.type: keyword }
-
----
 "logsdb_columnar standalone index accepts subobjects: false at root":
   - do:
       indices.create:

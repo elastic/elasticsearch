@@ -1514,6 +1514,14 @@ public class EsqlCapabilities {
          */
 
         VIEWS_DEDUPLICATION_BUGFIX,
+
+        /**
+         * Fixed a bug where a view and an index alias pointing to the same underlying index were
+         * not correctly identified as overlapping, causing field-caps to deduplicate the alias into
+         * the concrete index and silently drop one branch of data.
+         * See https://github.com/elastic/esql-planning/issues/889
+         */
+        VIEWS_ALIAS_DEDUPLICATION_BUGFIX,
         /**
          * Fixed false circular view reference errors when multiple sibling views are resolved together.
          * See https://github.com/elastic/elasticsearch/issues/146208

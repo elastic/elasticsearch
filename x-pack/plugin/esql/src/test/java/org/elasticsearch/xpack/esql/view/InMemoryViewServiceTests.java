@@ -1710,6 +1710,38 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
+     * Reproduces https://github.com/elastic/esql-planning/issues/889:
+     * when a view expands to a concrete index (e.g. {@code my-view = FROM source-index}) and the
+     * same query also references an alias that points to the same index (e.g. {@code source-alias}),
+     * the two branches must NOT be merged into a single {@link UnresolvedRelation} — doing so
+     * would cause field-caps to deduplicate {@code source-alias} into {@code source-index} and
+     * silently drop one copy of the data.
+     */
+    public void testViewAndAliasPointingToSameIndexProduceTwoCopies() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires views alias deduplication bugfix", EsqlCapabilities.Cap.VIEWS_ALIAS_DEDUPLICATION_BUGFIX.isEnabled());
+        addIndex("source-index");
+        addAlias("source-alias", "source-index");
+        addView("my-view", "FROM source-index");
+        // FROM my-view, source-alias: my-view expands to FROM source-index.
+        // source-alias is an alias for source-index, so both branches point to the same underlying
+        // index. Merging them into a single UnresolvedRelation would cause field-caps to deduplicate
+        // the data (1 copy instead of 2). The fix keeps them as separate branches.
+        //
+        // We test the state AFTER view-resolution + phase-1 compaction (preIndexResolution), which
+        // is exactly what EsqlSession feeds to PreAnalyzer / field-caps. Phase-2 compaction
+        // (postIndexResolution) only runs after ResolveTable, at which point UnresolvedRelations
+        // have already become EsRelations and the merge step is a no-op.
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-view, source-alias"), viewResolver);
+        LogicalPlan compacted = ViewCompaction.preIndexResolution(resolved);
+        // Before the fix, compacted was a single UR("source-index,source-alias") — the two branches
+        // were merged and field-caps would deduplicate them. After the fix it must be a ViewUnionAll
+        // with two separate children.
+        assertThat(compacted, instanceOf(ViewUnionAll.class));
+        assertThat(((ViewUnionAll) compacted).children().size(), equalTo(2));
+    }
+
+    /**
      * Tests a 12x10 matrix of nesting depth x branching width with compactable views.
      * Compactable views are simple aliases (just {@code FROM <target>}), which the ViewResolver
      * compacts into a single FROM clause, eliminating any FORK branching.
@@ -2586,6 +2618,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
+    }
+
+    private void addAlias(String aliasName, String indexName) {
+        viewService.addAlias(projectId, aliasName, indexName);
     }
 
     private void addDateMathIndex(String prefix) {

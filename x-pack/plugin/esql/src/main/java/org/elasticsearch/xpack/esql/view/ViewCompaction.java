@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -25,6 +26,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Compacts the nested plan produced by {@link ViewResolver} into the form expected by the rest
@@ -328,8 +331,22 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         flat.put(firstKey, merged);
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names. */
-    static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+    /**
+     * Merge the unresolved relation unless the index patterns contain matching index names, or
+     * unless alias resolution via {@code aliasResolver} reveals that patterns in {@code main} and
+     * {@code other} map to overlapping concrete indices (e.g. one pattern is an alias that points
+     * to the same index as a pattern in the other relation). Pass {@code null} to skip alias
+     * checking (the existing string-equality and wildcard checks still apply).
+     * <p>
+     * {@code aliasResolver} should map a local, non-wildcard index/alias name to the set of
+     * concrete index names it backs. For a concrete index {@code x} it should return {@code {x}};
+     * for an alias {@code a → x} it should return {@code {x}}.
+     */
+    static UnresolvedRelation mergeIfPossible(
+        UnresolvedRelation main,
+        UnresolvedRelation other,
+        @Nullable Function<String, Set<String>> aliasResolver
+    ) {
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
@@ -347,6 +364,23 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                     && Regex.simpleMatch(otherPattern, mainPattern)) {
                     return null;
                 }
+                // Check alias resolution: two non-wildcard, non-remote patterns may point to the same
+                // concrete index via alias. Without this check, merging "source-index" and "source-alias"
+                // (where source-alias → source-index) produces UnresolvedRelation("source-index,source-alias")
+                // which field-caps deduplicates to a single copy, silently dropping one data branch.
+                if (aliasResolver != null
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.isSimpleMatchPattern(otherPattern) == false
+                    && RemoteClusterAware.isRemoteIndexName(mainPattern) == false
+                    && RemoteClusterAware.isRemoteIndexName(otherPattern) == false) {
+                    Set<String> mainConcrete = aliasResolver.apply(mainPattern);
+                    Set<String> otherConcrete = aliasResolver.apply(otherPattern);
+                    for (String idx : mainConcrete) {
+                        if (otherConcrete.contains(idx)) {
+                            return null;
+                        }
+                    }
+                }
             }
         }
         return new UnresolvedRelation(
@@ -357,6 +391,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             main.indexMode(),
             main.unresolvedMessage()
         );
+    }
+
+    /** Merge the unresolved relation unless the index patterns contain matching index names. */
+    static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+        return mergeIfPossible(main, other, null);
     }
 
     /**

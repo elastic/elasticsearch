@@ -152,6 +152,8 @@ public class DatafeedJobBuilder {
                 java.time.Duration.ofMillis(ccsStabilizationFloorMs)
             );
             DatafeedJob datafeedJob = new DatafeedJob(
+                datafeedConfig.getId(),
+                datafeedConfig.getProjectRouting(),
                 job.getId(),
                 buildDataDescription(job),
                 frequency.millis(),
@@ -173,8 +175,13 @@ public class DatafeedJobBuilder {
 
             listener.onResponse(datafeedJob);
         }, e -> {
-            auditor.error(job.getId(), e.getMessage());
-            listener.onFailure(e);
+            Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                datafeedConfig.getId(),
+                datafeedConfig.getProjectRouting(),
+                e
+            );
+            auditor.error(job.getId(), enriched.getMessage());
+            listener.onFailure(enriched);
         });
 
         // Apply cross-project search mode to IndicesOptions before creating the factory

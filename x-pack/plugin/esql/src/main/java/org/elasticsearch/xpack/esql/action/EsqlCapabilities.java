@@ -2801,6 +2801,15 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
+         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
+         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
+         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
+         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
+         * containing such a node correctly returns {@code supported=false}.
+         */
+        REGISTER_FEDERATION_FEATURE,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
@@ -3470,6 +3479,14 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */
         PROMQL_TOPK,
+
+        /**
+         * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
+         * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
+         * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
+         * lookup used by rate interpolation.
+         */
+        FIX_TIME_SERIES_DATE_NANOS_MIXED_ROUNDING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

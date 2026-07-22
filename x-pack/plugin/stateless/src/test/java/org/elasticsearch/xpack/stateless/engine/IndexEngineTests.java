@@ -28,6 +28,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -37,6 +38,7 @@ import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -498,6 +500,21 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    /**
+     * Encodes a list of index operations as an {@link EirfBatch}. All operations must share the same
+     * {@link XContentType}. Bytes are copied so the caller does not need to manage the encoder's recycler lifecycle.
+     */
+    private static SourceBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            sources.add(op.source().originalBytes());
+        }
+        try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
+            return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
+        }
+    }
+
     public void testCommitUserDataIsEnrichedByAccumulatorData() throws IOException {
         TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
         when(mockTranslogReplicator.getMaxUploadedFile()).thenReturn(456L);
@@ -576,17 +593,28 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     /**
-     * Encodes a list of index operations as an {@link EirfBatch}. All operations must share the same
-     * {@link XContentType}. Bytes are copied so the caller does not need to manage the encoder's recycler lifecycle.
+     * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
+     * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
      */
-    private static SourceBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
-        List<BytesReference> sources = new ArrayList<>(operations.size());
-        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
-        for (Engine.Index op : operations) {
-            sources.add(op.source().originalBytes());
-        }
-        try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
-            return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
+    public void testStatelessMergeThrottleConfiguration() throws IOException {
+        int factor = randomIntBetween(1, 5);
+        Settings nodeSettings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), factor)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
+
+            // threshold = factor × allocatedProcessors (= thread pool merge max)
+            int maxConcurrentMerges = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertThat(scheduler.getMaxMergeCount(), equalTo(factor * maxConcurrentMerges));
+
+            // callbacks wire through to the engine's throttle state
+            assertFalse(engine.isThrottled());
+            scheduler.enableIndexingThrottling(0, 1, factor * maxConcurrentMerges);
+            assertTrue(engine.isThrottled());
+            scheduler.disableIndexingThrottling(0, 0, factor * maxConcurrentMerges);
+            assertFalse(engine.isThrottled());
         }
     }
 

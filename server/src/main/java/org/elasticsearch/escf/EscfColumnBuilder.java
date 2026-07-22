@@ -28,10 +28,8 @@ import java.util.List;
  * Accumulates the per-document values of a single ESCF leaf column and serializes them into an
  * {@link EscfColumnData} when {@link #finish(int)} is called.
  *
- * <p>The first non-absent value selects the kind. A scalar of the same type as a later typed
- * array (or vice versa) promotes the column to {@link EscfColumnKind#ARRAY} of that type, treating
- * the scalar as a single-element array. Any other type conflict, or an explicit {@code null},
- * promotes the column to {@link EscfColumnKind#UNION}.
+ * <p>The first non-absent value selects the kind. A conflicting later value, or an explicit
+ * {@code null}, promotes the column to {@link EscfColumnKind#UNION}.
  */
 final class EscfColumnBuilder {
 

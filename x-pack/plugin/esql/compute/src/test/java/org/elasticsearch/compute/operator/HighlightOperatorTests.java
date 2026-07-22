@@ -320,6 +320,110 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    // Phase 1 reuse tests: the memory index, its reader, and the per-field highlighters are now built once in the
+    // constructor and reused across rows/pages (see HighlightOperator's field comment). Each test below targets a
+    // specific stale-state bug that kind of reuse could introduce if reset() or highlighter caching were wrong.
+
+    public void testReusedIndexDoesNotLeakTermsBetweenRows() {
+        // Row 2's vocabulary is completely disjoint from "fox"; if the reused index kept row 1's terms around after
+        // reset(), row 2 could falsely match.
+        BytesRefBlock result = highlight(
+            config("fox", 5, 0, 0),
+            bytesRefs(List.of(List.of("the quick fox"), List.of("lorem ipsum dolor sit amet")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testReusedIndexDoesNotLeakTermsBetweenRowsMissFirst() {
+        // Same as above with the miss row first, to catch leakage in either direction across reset().
+        BytesRefBlock result = highlight(
+            config("fox", 5, 0, 0),
+            bytesRefs(List.of(List.of("lorem ipsum dolor sit amet"), List.of("the quick fox")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+            assertThat(value(result, 1), equalTo("the quick <em>fox</em>"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testReusedIndexAcrossPages() {
+        // addInput/getOutput (here, process()) is called repeatedly on the same operator instance in production;
+        // a second page must not see any state left over from the first page's rows.
+        HighlightConfig config = config("fox", 5, 0, 0);
+        try (
+            HighlightOperator operator = new HighlightOperator(
+                blockFactory(),
+                config.withExecutionContext(new StandardAnalyzer(), contentTerm("fox"), CONTENT),
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
+            )
+        ) {
+            BytesRefBlock page1Input = bytesRefs(List.of(List.of("the quick fox"), List.of("the quick fox again")));
+            Page page1Result = operator.process(new Page(page1Input));
+            try {
+                BytesRefBlock highlighted = page1Result.getBlock(page1Result.getBlockCount() - 1);
+                assertThat(value(highlighted, 0), equalTo("the quick <em>fox</em>"));
+                assertThat(value(highlighted, 1), equalTo("the quick <em>fox</em> again"));
+            } finally {
+                page1Result.releaseBlocks();
+            }
+
+            BytesRefBlock page2Input = bytesRefs(List.of(List.of("lorem ipsum dolor"), List.of("sit amet consectetur")));
+            Page page2Result = operator.process(new Page(page2Input));
+            try {
+                BytesRefBlock highlighted = page2Result.getBlock(page2Result.getBlockCount() - 1);
+                assertThat(highlighted.isNull(0), equalTo(true));
+                assertThat(highlighted.isNull(1), equalTo(true));
+            } finally {
+                page2Result.releaseBlocks();
+            }
+        }
+    }
+
+    public void testShrinkingTextAcrossRows() {
+        // Row 1 is long (several hundred tokens); row 2 is short. If the reused index/reader retained stale offsets
+        // sized for row 1, highlighting row 2 would either produce garbage text or throw.
+        StringBuilder longText = new StringBuilder();
+        for (int i = 0; i < 300; i++) {
+            longText.append("filler word ");
+        }
+        longText.append("fox jumps at the end.");
+        BytesRefBlock result = highlight(config("fox", 5, 0, 0), bytesRefs(List.of(List.of(longText.toString()), List.of("a fox."))));
+        try {
+            assertThat(value(result, 0).contains("<em>fox</em>"), equalTo(true));
+            assertThat(value(result, 1), equalTo("a <em>fox</em>."));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiFieldAlternatingNulls() {
+        // Two ON fields; each row sets a different one of the two. Reusing one highlighter per field must not
+        // confuse which field's postings a given row's snippet comes from.
+        Query query = new BooleanQuery.Builder().add(termQuery("title", "fox"), BooleanClause.Occur.SHOULD)
+            .add(termQuery("body", "fox"), BooleanClause.Occur.SHOULD)
+            .build();
+        BytesRefBlock title = bytesRefsOrNull(Arrays.asList("the fox", null));
+        BytesRefBlock body = bytesRefsOrNull(Arrays.asList(null, "a fox in the barn"));
+        Page result = highlightFields(config("fox", 5, 0, 0), query, TITLE_BODY, title, body);
+        try {
+            BytesRefBlock highlightTitle = result.getBlock(2);
+            BytesRefBlock highlightBody = result.getBlock(3);
+            assertThat(value(highlightTitle, 0), equalTo("the <em>fox</em>"));
+            assertThat(highlightBody.isNull(0), equalTo(true));
+            assertThat(highlightTitle.isNull(1), equalTo(true));
+            assertThat(value(highlightBody, 1), equalTo("a <em>fox</em> in the barn"));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
     private static Query contentTerm(String term) {
         return termQuery(CONTENT_FIELD, term);
     }
@@ -387,6 +491,21 @@ public class HighlightOperatorTests extends OperatorTestCase {
                         builder.appendBytesRef(new BytesRef(value));
                     }
                     builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    // Like bytesRefs, but a null element appends a null row instead of a value; used to build per-field blocks
+    // where different rows populate different ON fields.
+    private BytesRefBlock bytesRefsOrNull(List<String> values) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(values.size())) {
+            for (String value : values) {
+                if (value == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(value));
                 }
             }
             return builder.build();

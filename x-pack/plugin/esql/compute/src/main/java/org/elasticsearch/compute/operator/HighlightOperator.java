@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -88,6 +88,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final int highlighterNumberOfFragments;
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
+    // The memory index, its reader, and one highlighter per ON field are all built once and reused across every row
+    // (and every page) processed by this operator instance. This is safe because the operator is single-threaded per
+    // driver and process(Page) is called serially: no two rows are ever "in flight" on this state at once. Reusing
+    // them removes per-row allocation of a MemoryIndex/BytesRefHash and a UnifiedHighlighter.Builder, mirroring
+    // Lucene's own MemoryIndexOffsetStrategy, which resets a single MemoryIndex per document rather than recreating
+    // it (see that class's constructor comment: "appears to be re-usable").
+    private final MemoryIndex memoryIndex;
+    private final LeafReader memoryIndexReader;
+    private final CustomUnifiedHighlighter[] highlighters;
 
     public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
         this.blockFactory = blockFactory;
@@ -116,6 +125,29 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             config.wordBoundary(),
             config.locale()
         );
+        this.memoryIndex = new MemoryIndex(true); // true == store offsets, required by OffsetSource.POSTINGS
+        IndexSearcher searcher = memoryIndex.createSearcher();
+        this.memoryIndexReader = (LeafReader) searcher.getIndexReader();
+        this.highlighters = new CustomUnifiedHighlighter[fieldNames.size()];
+        for (int i = 0; i < fieldNames.size(); i++) {
+            UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+            builder.withFormatter(formatter);
+            builder.withBreakIterator(breakIteratorSupplier);
+            highlighters[i] = new CustomUnifiedHighlighter(
+                builder,
+                UnifiedHighlighter.OffsetSource.POSTINGS,
+                null,
+                "",
+                fieldNames.get(i),
+                query,
+                config.noMatchSize(),
+                highlighterNumberOfFragments,
+                indexMaxAnalyzedOffset,
+                queryMaxAnalyzedOffset,
+                true,
+                true
+            );
+        }
     }
 
     // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.
@@ -200,28 +232,30 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             appendNulls(fields);
             return;
         }
-        IndexSearcher searcher = createRowSearcher(fields);
-        for (HighlightField field : fields) {
+        fillRowIndex(fields);
+        for (int fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+            HighlightField field = fields[fieldIndex];
             if (field.rowText == null) {
                 field.builder.appendNull();
                 continue;
             }
             try {
-                appendSnippets(field.builder, highlight(searcher, field.name, field.rowText));
+                appendSnippets(field.builder, highlight(fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             }
         }
     }
 
-    private IndexSearcher createRowSearcher(HighlightField[] fields) {
-        MemoryIndex memoryIndex = new MemoryIndex(true);
+    // Refills the shared memory index for the current row. reset() clears previously indexed fields/terms so each
+    // row starts from an empty index; the index, its reader, and the highlighters below are otherwise untouched.
+    private void fillRowIndex(HighlightField[] fields) {
+        memoryIndex.reset();
         for (HighlightField field : fields) {
             if (field.rowText != null) {
                 memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
             }
         }
-        return memoryIndex.createSearcher();
     }
 
     private static void appendNulls(HighlightField[] fields) {
@@ -275,28 +309,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         return sb.toString();
     }
 
-    // TODO(perf): reuse a per-field CustomUnifiedHighlighter across rows; the Query is constant and the searcher
-    // argument is unused under POSTINGS + WEIGHT_MATCHES today (Lucene internal — guard with a multi-row test).
-    private Snippet[] highlight(IndexSearcher searcher, String field, String text) throws IOException {
-        UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
-        builder.withFormatter(formatter);
-        builder.withBreakIterator(breakIteratorSupplier);
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-            builder,
-            UnifiedHighlighter.OffsetSource.POSTINGS,
-            null,
-            "",
-            field,
-            query,
-            config.noMatchSize(),
-            highlighterNumberOfFragments,
-            indexMaxAnalyzedOffset,
-            queryMaxAnalyzedOffset,
-            true,
-            true
-        );
-        LeafReaderContext leaf = searcher.getIndexReader().leaves().getFirst();
-        return highlighter.highlightField(leaf.reader(), 0, () -> text);
+    // Reuses the per-field highlighter built in the constructor against the shared, just-refilled memory index
+    // reader. The highlighter's internal FieldHighlighter is derived from the (constant) Query at construction time
+    // and doesn't cache anything from the reader, so reusing it across rows/pages is safe.
+    private Snippet[] highlight(int fieldIndex, String text) throws IOException {
+        return highlighters[fieldIndex].highlightField(memoryIndexReader, 0, () -> text);
     }
 
     /**

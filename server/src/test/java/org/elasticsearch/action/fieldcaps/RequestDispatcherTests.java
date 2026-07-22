@@ -54,7 +54,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -86,6 +88,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -679,6 +682,141 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             dispatcher.execute();
             responseCollector.awaitCompletion();
             assertThat(responseCollector.failures.keySet(), equalTo(Sets.newHashSet(targetIndices)));
+        }
+    }
+
+    public void testStopDispatchingMidFlightWhenCancelled() throws Exception {
+        final List<String> allIndices = IntStream.rangeClosed(1, between(1, 5)).mapToObj(n -> "index_" + n).toList();
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ClusterState clusterState;
+        {
+            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+            discoNodes.add(newNode("node_0", VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
+            for (String index : allIndices) {
+                metadata.put(IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, 1, 0)));
+            }
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
+        }
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final CancellableTask parentTask = new CancellableTask(
+                0,
+                "type",
+                "action",
+                randomAlphaOfLength(10),
+                TaskId.EMPTY_TASK_ID,
+                Collections.emptyMap()
+            );
+            final boolean withFilter = false;
+            final ResponseCollector responseCollector = new ResponseCollector();
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
+                parentTask,
+                randomFieldCapRequest(withFilter),
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                allIndices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                responseCollector::addIndexResponse,
+                responseCollector::addIndexFailure,
+                responseCollector::onComplete
+            );
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
+
+            final CountDownLatch round0RequestReceived = new CountDownLatch(1);
+            final AtomicReference<Runnable> heldResponder = new AtomicReference<>();
+            transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
+                    FieldCapabilitiesNodeRequest nodeReq = (FieldCapabilitiesNodeRequest) request;
+                    heldResponder.set(
+                        () -> transportService.sendResponse(
+                            handler,
+                            randomNodeResponse(Collections.emptySet(), nodeReq.shardIds(), Collections.emptySet())
+                        )
+                    );
+                    round0RequestReceived.countDown();
+                }
+            });
+
+            dispatcher.execute();
+            assertTrue("round-0 node request should be dispatched", round0RequestReceived.await(30, TimeUnit.SECONDS));
+            TaskCancelHelper.cancel(parentTask, "simulated mid-flight cancel");
+            heldResponder.get().run();
+
+            responseCollector.awaitCompletion();
+            assertThat("round-0 should dispatch exactly one node request", requestTracker.sentNodeRequests, hasSize(1));
+            assertThat(requestTracker.sentNodeRequests.get(0).round, equalTo(0));
+            assertThat(dispatcher.executionRound(), equalTo(1));
+            assertThat(responseCollector.responses, anEmptyMap());
+            assertThat(responseCollector.failures, anEmptyMap());
+        }
+    }
+
+    public void testStopDispatchingWhenCancelled() throws Exception {
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
+        final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
+        {
+            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+            int numNodes = randomIntBetween(1, 10);
+            for (int i = 0; i < numNodes; i++) {
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
+            }
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
+            for (String index : allIndices) {
+                metadata.put(
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
+                );
+            }
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
+        }
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final boolean withFilter = randomBoolean();
+            final ResponseCollector responseCollector = new ResponseCollector();
+            final CancellableTask parentTask = new CancellableTask(
+                0,
+                "type",
+                "action",
+                randomAlphaOfLength(10),
+                TaskId.EMPTY_TASK_ID,
+                Collections.emptyMap()
+            );
+            TaskCancelHelper.cancel(parentTask, "simulated");
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
+                parentTask,
+                randomFieldCapRequest(withFilter),
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                indices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                responseCollector::addIndexResponse,
+                responseCollector::addIndexFailure,
+                responseCollector::onComplete
+            );
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
+            dispatcher.execute();
+            responseCollector.awaitCompletion();
+            assertThat("no node requests should be dispatched for a cancelled task", requestTracker.sentNodeRequests, hasSize(0));
+            assertThat("no rounds should be executed for a cancelled task", dispatcher.executionRound(), equalTo(0));
+            assertThat(responseCollector.responses, anEmptyMap());
+            assertThat(responseCollector.failures, anEmptyMap());
         }
     }
 

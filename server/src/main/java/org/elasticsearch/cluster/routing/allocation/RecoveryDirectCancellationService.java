@@ -59,9 +59,10 @@ public class RecoveryDirectCancellationService {
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
 
     /// This limit is conservative (compared to [org.elasticsearch.indices.ShardLimitValidator] limits), but it should
-    /// still capture all "still in use" cancellations for the majority of clusters. Each entry is expected to be ~32 bytes.
-    /// The max cache size is then ~1.6MB which is less than 0.1% of a 2GB heap.
-    private static final int MAX_CANCELLATIONS_CACHE_SIZE = 50_000;
+    /// still capture all "still in use" cancellations for the majority of clusters. Each entry is expected to be less
+    /// than 200 bytes, including the allocation ID key, the cache entry wrapper and SentCancellation object.
+    /// The max cache size is then less than 4MB (0.2% of a 2GB heap).
+    private static final int MAX_CANCELLATIONS_CACHE_SIZE = 20_000;
 
     /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures stale
     /// entries are eventually evicted in clusters where the size bound is rarely reached.
@@ -195,7 +196,7 @@ public class RecoveryDirectCancellationService {
                     dedupedCancellations.add(cancellation);
                     sentCancellations.put(
                         cancellation.allocationId(),
-                        new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
+                        new SentCancellation(request.term(), cancellation.cancelIfStarted())
                     );
                 }
             }
@@ -224,7 +225,7 @@ public class RecoveryDirectCancellationService {
                 for (ShardRecoveryCancellation cancellation : request.cancellations()) {
                     sentCancellations.invalidate(
                         cancellation.allocationId(),
-                        new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
+                        new SentCancellation(request.term(), cancellation.cancelIfStarted())
                     );
                 }
                 logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
@@ -313,5 +314,5 @@ public class RecoveryDirectCancellationService {
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 
-    record SentCancellation(long term, String allocationId, boolean cancelIfStarted) {}
+    record SentCancellation(long term, boolean cancelIfStarted) {}
 }

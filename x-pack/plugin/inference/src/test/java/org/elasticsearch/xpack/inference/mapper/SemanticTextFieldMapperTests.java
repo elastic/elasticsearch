@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
@@ -1087,17 +1088,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             SparseVectorFieldMapper sparseVectorFieldMapper = (SparseVectorFieldMapper) embeddingsMapper;
             assertEquals(sparseVectorFieldMapper.fieldType().isStored(), fieldType.useLegacyFormat() == false);
 
-            SparseVectorFieldMapper.SparseVectorIndexOptions applied = sparseVectorFieldMapper.fieldType().getIndexOptions();
-            SparseVectorFieldMapper.SparseVectorIndexOptions expected = expectedIndexOptions == null
-                ? null
-                : (SparseVectorFieldMapper.SparseVectorIndexOptions) expectedIndexOptions.indexOptions();
-            if (expected == null && applied != null) {
-                var indexVersionCreated = mapperService.getIndexSettings().getIndexVersionCreated();
-                if (SparseVectorFieldMapper.SparseVectorIndexOptions.isDefaultOptions(applied, indexVersionCreated)) {
-                    expected = SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
-                }
-            }
-            assertEquals(expected, applied);
+            IndexOptions expectedBaseIndexOptions = expectedIndexOptions == null ? null : expectedIndexOptions.indexOptions();
+            assertEquals(expectedBaseIndexOptions, sparseVectorFieldMapper.fieldType().getIndexOptions());
         } else {
             super.assertEmbeddingsField(mapperService, fieldType, embeddingsMapper, expectedIndexOptions);
         }

@@ -602,22 +602,21 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));
             DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsMapper;
 
+            IndexOptions expectedBaseIndexOptions = null;
+            DenseVectorFieldMapper.ElementType expectedElementType = modelSettings.elementType();
             if (expectedIndexOptions != null) {
                 IndexOptions expectedEmbeddingFieldIndexOptions = expectedIndexOptions.indexOptions();
                 if (expectedEmbeddingFieldIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
-                    assertEquals(edvio.getBaseIndexOptions(), denseVectorFieldMapper.fieldType().getIndexOptions());
+                    expectedBaseIndexOptions = edvio.getBaseIndexOptions();
+                    if (edvio.getElementType() != null) {
+                        expectedElementType = edvio.getElementType();
+                    }
                 } else {
-                    assertEquals(expectedEmbeddingFieldIndexOptions, denseVectorFieldMapper.fieldType().getIndexOptions());
+                    expectedBaseIndexOptions = expectedEmbeddingFieldIndexOptions;
                 }
-            } else {
-                assertNull(denseVectorFieldMapper.fieldType().getIndexOptions());
             }
 
-            DenseVectorFieldMapper.ElementType expectedElementType = getExpectedElementType(
-                indexVersion,
-                modelSettings.elementType(),
-                expectedIndexOptions
-            );
+            assertEquals(expectedBaseIndexOptions, denseVectorFieldMapper.fieldType().getIndexOptions());
             assertEquals(expectedElementType, denseVectorFieldMapper.fieldType().getElementType());
             assertEquals(modelSettings.dimensions().intValue(), denseVectorFieldMapper.fieldType().getVectorDimensions());
             if (modelSettings.similarity() != null && indexVersion.onOrAfter(NEW_SPARSE_VECTOR)) {
@@ -629,6 +628,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         }
     }
 
+    // TODO: Try to remove
     protected static DenseVectorFieldMapper.ElementType getExpectedElementType(
         IndexVersion indexVersion,
         DenseVectorFieldMapper.ElementType modelElementType,

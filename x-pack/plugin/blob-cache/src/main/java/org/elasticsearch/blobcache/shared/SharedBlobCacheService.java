@@ -1730,11 +1730,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             long[] offsets,
             int length,
             int count,
-            MemorySegment addrsOut,
+            MemorySegment addressesScratch,
             CheckedConsumer<MemorySegment, IOException> action,
             int advice
         ) throws IOException {
-            if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+            if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
                 return false;
             }
             final CacheFileRegion<KeyType>[] held = new CacheFileRegion[count];
@@ -1778,14 +1778,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     if (addr == -1L) {
                         return false;
                     }
-                    addrsOut.setAtIndex(ValueLayout.JAVA_LONG, i, addr);
+                    addressesScratch.setAtIndex(ValueLayout.JAVA_LONG, i, addr);
                 }
                 for (int i = 0; i < heldCount; i++) {
                     if (held[i].isEvicted()) {
                         return false;
                     }
                 }
-                action.accept(addrsOut);
+                action.accept(addressesScratch);
                 return true;
             } finally {
                 for (int i = 0; i < heldCount; i++) {

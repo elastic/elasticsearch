@@ -11,6 +11,7 @@ package org.elasticsearch.core;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 /**
  * An optional interface that an IndexInput can implement to provide direct
@@ -68,17 +69,22 @@ public interface DirectAccessInput {
     ) throws IOException;
 
     /**
-     * Validates the {@code offsets} and {@code count} arguments for
-     * {@link #withSliceAddresses}. Throws on negative count or an
-     * undersized offsets array. Returns {@code true} if count is zero
+     * Validates the {@code offsets}, {@code count} and {@code addressesScratch}arguments for
+     * {@link #withSliceAddresses}. Throws on negative count, an
+     * undersized offsets array or an undersized MemorySegment. Returns {@code true} if count is zero
      * (caller should treat as a no-op), {@code false} otherwise.
      */
-    static boolean checkSlicesArgs(long[] offsets, int count) {
+    static boolean checkSlicesArgs(long[] offsets, int count, MemorySegment addressesScratch) {
         if (count < 0) {
-            throw new IllegalArgumentException("count must not be negative, got " + count);
+            throw new IllegalArgumentException("count must not be negative, got [" + count + "]");
         }
         if (offsets.length < count) {
-            throw new IllegalArgumentException("offsets array length " + offsets.length + " is less than count " + count);
+            throw new IllegalArgumentException("offsets array length [" + offsets.length + "] is less than count [" + count + "]");
+        }
+        if (addressesScratch.byteSize() < count * ValueLayout.ADDRESS.byteSize()) {
+            throw new IllegalArgumentException(
+                "addressesScratch segment byte size [" + addressesScratch.byteSize() + "] is too small to hold [" + count + "] pointers"
+            );
         }
         return count == 0;
     }

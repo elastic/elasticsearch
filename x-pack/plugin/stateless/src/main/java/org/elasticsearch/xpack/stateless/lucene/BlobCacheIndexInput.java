@@ -182,7 +182,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         MemorySegment addressesScratch,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return false;
         }
         long[] adjusted = offsets;

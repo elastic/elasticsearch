@@ -54,7 +54,7 @@ public class DirectAccessIndexInput extends FilterIndexInput implements DirectAc
         MemorySegment addressesScratch,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return true;
         }
         // Test impl: allocate each slice into a confined arena that lives for the action, write the addresses.

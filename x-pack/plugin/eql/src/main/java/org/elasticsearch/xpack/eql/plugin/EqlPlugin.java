@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -38,7 +39,11 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin {
+// Implements ExtensiblePlugin (no-op marker using the default loadExtensions) so x-pack-esql can declare
+// x-pack-eql in its extendedPlugins and share EqlPlugin's classloader — giving EqlSearchAction/request/response
+// a single class identity across the esql->eql boundary. Without this, node startup fails with
+// "cannot extend non-extensible plugin".
+public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin, ExtensiblePlugin {
 
     public static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
     public static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());

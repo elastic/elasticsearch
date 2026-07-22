@@ -1,0 +1,52 @@
+// Tests for the EQL source command, which delegates execution to the EQL engine and exposes the
+// results under a fixed schema. Assertions pipe the EQL output through downstream ES|QL (STATS / KEEP /
+// SORT) rather than asserting the opaque _source column directly, which both keeps the expected values
+// stable and demonstrates that EQL composes as a regular source. The command is snapshot-only.
+
+eventQueryCountsMatchingEvents
+required_capability: eql_command
+
+EQL "process where true" WITH {"indices": "eql_test", "event_category_field": "category"}
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+eventQueryAppliesTheEqlPredicate
+required_capability: eql_command
+
+EQL "process where pid == 100" WITH {"indices": "eql_test", "event_category_field": "category"}
+| STATS count = COUNT(*)
+;
+
+count:long
+1
+;
+
+sequenceQueryUnnestsToOneRowPerEvent
+required_capability: eql_command
+
+EQL "sequence by pid [process where true] [network where true]" WITH {"indices": "eql_test", "event_category_field": "category"}
+| KEEP join_keys, _position
+| SORT join_keys, _position
+;
+
+join_keys:keyword | _position:integer
+100               | 0
+100               | 1
+200               | 0
+200               | 1
+;
+
+sequenceQueryCountsEventsAndSequences
+required_capability: eql_command
+
+EQL "sequence by pid [process where true] [network where true]" WITH {"indices": "eql_test", "event_category_field": "category"}
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_seq)
+;
+
+events:long | sequences:long
+4           | 2
+;

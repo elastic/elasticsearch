@@ -100,6 +100,7 @@ public enum FeatureMetric {
     FROM(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb() == false),
     TS(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb()),
     EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
+    EQL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.EqlRelation),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),
@@ -139,6 +140,7 @@ public enum FeatureMetric {
     private static final List<Class<? extends LogicalPlan>> excluded = List.of(
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
+        org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,

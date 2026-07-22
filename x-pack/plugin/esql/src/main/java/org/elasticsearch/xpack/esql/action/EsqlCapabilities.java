@@ -2713,6 +2713,14 @@ public class EsqlCapabilities {
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for the EQL source command. Delegates execution to the EQL engine (via
+         * {@code EqlSearchAction}) and exposes results under a fixed schema resolved at plan time.
+         * Snapshot-only: the grammar predicates in {@code EsqlBaseParser.g4}/{@code From.g4} read this
+         * capability directly to gate the EQL grammar surface.
+         */
+        EQL_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,

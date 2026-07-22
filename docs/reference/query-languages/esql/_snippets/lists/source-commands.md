@@ -1,3 +1,4 @@
+- [`EQL`](/reference/query-languages/esql/commands/eql.md) {applies_to}`stack: preview`
 - [`FROM`](/reference/query-languages/esql/commands/from.md)
 - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) {applies_to}`stack: preview 9.4` {applies_to}`stack: ga 9.5`
 - [`ROW`](/reference/query-languages/esql/commands/row.md)

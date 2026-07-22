@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -986,7 +987,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals("EXTERNAL", options.keyFoldedMap()) : Map.of();
 
         // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
         // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
@@ -1011,13 +1012,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
     }
 
+    @Override
+    public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
+        Source source = source(ctx);
+        Expression query = expression(ctx.stringOrParameter());
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+        Map<String, Object> config = options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of();
+        return new UnresolvedEqlRelation(source, query, config);
+    }
+
     /**
      * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
      * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
      * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
      * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
      */
-    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+    private static Map<String, Object> foldOptionLiterals(String commandName, Map<String, Expression> entries) {
         if (entries.isEmpty()) {
             return Map.of();
         }
@@ -1029,7 +1039,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 if (literalValue == null) {
                     throw new ParsingException(
                         value.source(),
-                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        "{} option [{}] has null value; null is not a valid option value",
+                        commandName,
                         entry.getKey()
                     );
                 }
@@ -1041,7 +1052,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             } else {
                 throw new ParsingException(
                     value.source(),
-                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    "{} options must be literal values; option [{}] has expression [{}]",
+                    commandName,
                     entry.getKey(),
                     value.sourceText()
                 );

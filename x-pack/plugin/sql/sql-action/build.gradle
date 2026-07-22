@@ -21,6 +21,10 @@ dependencies {
   api project(':x-pack:plugin:core')
   api project(':x-pack:plugin:ql')
   api project(':x-pack:plugin:sql:sql-proto')
+  // ql no longer re-exports mapper-version; sql-action references the Version type for response serialization.
+  // compileOnly (not bundled) so the sql plugin does not end up with a duplicate mapper-version alongside the
+  // one it reaches through its extendedPlugins chain (x-pack-sql -> x-pack-ql -> mapper-version).
+  compileOnly project(xpackModule('mapper-version'))
 
   testImplementation project(":test:framework")
   testImplementation(project(xpackModule('ql:test-fixtures')))

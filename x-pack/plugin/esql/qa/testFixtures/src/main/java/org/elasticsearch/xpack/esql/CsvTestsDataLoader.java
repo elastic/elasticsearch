@@ -302,6 +302,7 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW),
         new TestDataset("tdigest_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW),
         new TestDataset("histogram_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
+        new TestDataset("eql_test").withRequiredCapabilities(EsqlCapabilities.Cap.EQL_COMMAND),
         new TestDataset(
             "tdigest_timeseries_index",
             "tdigest_timeseries_index-mappings.json",

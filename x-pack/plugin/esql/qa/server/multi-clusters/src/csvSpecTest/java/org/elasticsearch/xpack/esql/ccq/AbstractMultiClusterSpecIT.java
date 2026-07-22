@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EQL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
@@ -258,6 +259,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
 
+        // The EQL command targets indices via its own WITH {"indices": ...} option, which the CCS test
+        // harness does not rewrite to remote (*:index) patterns the way it rewrites FROM. Skip in CCS.
+        assumeFalse("EQL command not supported in CCS", testCase.requiredCapabilities.contains(EQL_COMMAND.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

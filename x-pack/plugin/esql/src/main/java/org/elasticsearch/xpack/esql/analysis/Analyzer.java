@@ -24,9 +24,11 @@ import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.eql.parser.EqlQueryMode;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
@@ -150,6 +152,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
@@ -171,6 +174,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -274,6 +278,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveDatasetShadow(),
             new StripDatasetShadowRelations(),
             new ResolveExternalRelations(),
+            new ResolveEqlRelation(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveIpLocation(),
@@ -827,6 +832,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Object value = literal.value();
                 if (value instanceof org.apache.lucene.util.BytesRef) {
                     return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                }
+                return value.toString();
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Resolves the {@link UnresolvedEqlRelation} produced by the {@code EQL "<query>"} source command into a fully-typed
+     * {@link EqlRelation}. The EQL query string is parsed with the {@link org.elasticsearch.xpack.eql.parser.EqlParser} to
+     * determine the result mode (event / sequence / sample) and, for sequence and sample queries, the number of stages. Those
+     * two facts fix the output schema (see {@link EqlRelation#buildOutput}). No field-caps resolution is needed because the
+     * event payload is exposed as an opaque {@code _source} column; the EQL engine validates referenced fields at execution
+     * time. If the query string is not yet a folded literal (e.g. an unbound parameter), the node is left unresolved.
+     */
+    private static class ResolveEqlRelation extends AnalyzerRule<UnresolvedEqlRelation> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedEqlRelation plan) {
+            String queryString = extractEqlQuery(plan.query());
+            if (queryString == null) {
+                // Not a simple literal yet (e.g. a parameter reference); leave unresolved for the verifier.
+                return plan;
+            }
+            EqlQueryMode queryMode;
+            try {
+                queryMode = EqlQueryMode.of(queryString);
+            } catch (Exception e) {
+                throw new org.elasticsearch.xpack.esql.parser.ParsingException(
+                    plan.source(),
+                    "cannot parse EQL query [{}]: {}",
+                    queryString,
+                    e.getMessage()
+                );
+            }
+            EqlRelation.Mode mode = switch (queryMode) {
+                case EVENT -> EqlRelation.Mode.EVENT;
+                case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
+                case SAMPLE -> EqlRelation.Mode.SAMPLE;
+            };
+            return new EqlRelation(plan.source(), plan.query(), plan.options(), mode);
+        }
+
+        private static String extractEqlQuery(Expression query) {
+            if (query instanceof Literal literal && literal.value() != null) {
+                Object value = literal.value();
+                if (value instanceof org.apache.lucene.util.BytesRef bytesRef) {
+                    return BytesRefs.toString(bytesRef);
                 }
                 return value.toString();
             }

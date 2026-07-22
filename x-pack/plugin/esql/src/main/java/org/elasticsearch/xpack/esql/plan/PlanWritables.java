@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -143,6 +144,7 @@ public class PlanWritables {
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
+            EqlSourceExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
             ExchangeExec.ENTRY,

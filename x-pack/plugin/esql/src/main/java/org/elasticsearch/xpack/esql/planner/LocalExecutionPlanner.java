@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -103,6 +104,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -138,6 +140,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
+import org.elasticsearch.xpack.esql.eql.EqlSourceOperator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
@@ -158,6 +162,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -250,6 +255,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -280,7 +286,8 @@ public class LocalExecutionPlanner {
         OperatorFactoryRegistry operatorFactoryRegistry,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
-        MatcherWatchdog grokMatcherWatchdog
+        MatcherWatchdog grokMatcherWatchdog,
+        Client client
     ) {
 
         this.sessionId = sessionId;
@@ -306,6 +313,7 @@ public class LocalExecutionPlanner {
         // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
+        this.client = client;
     }
 
     /**
@@ -429,6 +437,8 @@ public class LocalExecutionPlanner {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
+        } else if (node instanceof EqlSourceExec eqlSource) {
+            return planEqlSource(eqlSource);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
         } else if (node instanceof ExternalSourceExec externalSource) {
@@ -1984,6 +1994,13 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
+    }
+
+    private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(eqlSource.output());
+        EqlSearchRequest request = EqlRequests.build(eqlSource.query(), eqlSource.options());
+        return PhysicalOperation.fromSource(new EqlSourceOperator.Factory(client, request, eqlSource.mode()), layout.build());
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

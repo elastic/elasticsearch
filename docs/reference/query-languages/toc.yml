@@ -105,6 +105,7 @@ toc:
             children:
               - file: esql/commands/source-commands.md
                 children:
+                  - file: esql/commands/eql.md
                   - file: esql/commands/from.md
                   - file: esql/commands/promql.md
                   - file: esql/commands/row.md

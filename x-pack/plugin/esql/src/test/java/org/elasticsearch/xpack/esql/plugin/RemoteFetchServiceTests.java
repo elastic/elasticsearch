@@ -822,6 +822,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         );
 
         TransportActionServices services = new TransportActionServices(
+            null,
             transportService,
             null,
             exchangeService,

@@ -47,6 +47,7 @@ sourceCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 processingCommand
@@ -114,6 +115,10 @@ timeSeriesCommand
 
 externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
+eqlCommand
+    : DEV_EQL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields

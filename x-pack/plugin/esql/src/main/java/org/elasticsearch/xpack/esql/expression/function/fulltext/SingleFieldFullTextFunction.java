@@ -59,9 +59,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         PostOptimizationPlanVerificationAware {
 
     protected final Expression field;
-
-    // Options for the function. They don't need to be serialized as the data nodes will retrieve them from the query builder
-    private final transient Expression options;
+    private final Expression options;
 
     protected SingleFieldFullTextFunction(
         Source source,
@@ -229,18 +227,19 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public boolean equals(Object o) {
-        // Functions do not serialize options, as they get included in the query builder.
-        // We override equals and hashcode to ignore options when comparing two function instances
         if (o == null || getClass() != o.getClass()) return false;
         SingleFieldFullTextFunction that = (SingleFieldFullTextFunction) o;
 
         // Compare query builders using identity because that's how they are compared during query rewriting
-        return Objects.equals(field(), that.field()) && Objects.equals(query(), that.query()) && queryBuilder() == that.queryBuilder();
+        return Objects.equals(field(), that.field())
+            && Objects.equals(query(), that.query())
+            && queryBuilder() == that.queryBuilder()
+            && Objects.equals(options, that.options());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()));
+        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()), options);
     }
 
     /**

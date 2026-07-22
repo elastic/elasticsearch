@@ -2276,9 +2276,28 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Window filters use the rounded bucket label's floor and ceiling when filtering windows
+         * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
+         * extrapolating over the window's own range instead of the outer time bucket's range when
+         * the window is smaller than the bucket, fixing values that were inflated by the ratio of
+         * bucket size to window size.
+         */
+        FIX_ESQL_SMALL_WINDOWS,
+
+        /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * On a {@code date_nanos} {@code @timestamp} index, PromQL evaluates in the millisecond domain: the
+         * {@code @timestamp} is normalized to {@code datetime} (epoch-millis) up front, so the time buckets, the
+         * windowing, and the built-in {@code step} column all behave exactly as on a plain {@code date} index. In
+         * particular the {@code step} column is always {@code datetime} regardless of the index resolution; without
+         * this, a {@code date_nanos} index produced a {@code date_nanos} {@code step} column that tripped the
+         * post-optimization output verifier.
+         */
+        FIX_PROMQL_DATE_NANOS_STEP(FIX_PROMQL_TIME_BUCKET_V2.isEnabled()),
 
         /**
          * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
@@ -2780,6 +2799,15 @@ public class EsqlCapabilities {
          * {@code supported=false}.
          */
         DATA_SOURCES_SERVERLESS_SCOPE,
+
+        /**
+         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
+         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
+         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
+         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
+         * containing such a node correctly returns {@code supported=false}.
+         */
+        REGISTER_FEDERATION_FEATURE,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -3451,6 +3479,14 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */
         PROMQL_TOPK,
+
+        /**
+         * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
+         * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
+         * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
+         * lookup used by rate interpolation.
+         */
+        FIX_TIME_SERIES_DATE_NANOS_MIXED_ROUNDING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

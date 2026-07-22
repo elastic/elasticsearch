@@ -13,6 +13,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -258,6 +259,28 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      * Called after {@link FieldMapper#parse(DocumentParserContext)} on the {@link RootObjectMapper}.
      */
     public void postParse(DocumentParserContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Called once per batch, before any columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * returns {@code true}; mirrors the role of {@link #preParse} in the row-major path, but reads
+     * per-document values off {@link BatchMappingContext} and attaches a Lucene column spanning the
+     * whole batch via {@link BatchMappingContext#addColumn} rather than adding a per-document
+     * {@link org.apache.lucene.document.Field}. Defaults to a no-op.
+     */
+    public void preColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Called once per batch, after all columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * returns {@code true}; mirrors the role of {@link #postParse} in the row-major path. Defaults
+     * to a no-op.
+     */
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
         // do nothing
     }
 

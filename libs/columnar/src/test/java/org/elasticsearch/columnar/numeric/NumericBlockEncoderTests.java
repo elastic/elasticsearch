@@ -81,6 +81,26 @@ public class NumericBlockEncoderTests extends ESTestCase {
         }
     }
 
+    public void testTsdbTimestamps() throws IOException {
+        // A realistic @timestamp series: millisecond-precision, strictly ascending with small jitter in
+        // the inter-arrival gap. Delta compression fires, so the block must round-trip exactly and encode
+        // far below the raw 1024 bytes (128 * 8).
+        long[] block = new long[BLOCK];
+        long ts = 1_700_000_000_000L; // ~2023-11 in epoch millis
+        for (int i = 0; i < BLOCK; i++) {
+            ts += between(1, 50); // small positive jitter keeps the series monotonic
+            block[i] = ts;
+        }
+        NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.defaultPipeline(BLOCK), BLOCK);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encode(block.clone(), out);
+        assertTrue("delta-compressed timestamps must be far below raw: " + out.size(), out.size() < BLOCK * 8L / 2);
+
+        long[] decoded = new long[BLOCK];
+        encoder.decode(new ByteArrayDataInput(out.toArrayCopy()), decoded);
+        assertArrayEquals(block, decoded);
+    }
+
     private static long[] filled(long value) {
         long[] block = new long[BLOCK];
         Arrays.fill(block, value);

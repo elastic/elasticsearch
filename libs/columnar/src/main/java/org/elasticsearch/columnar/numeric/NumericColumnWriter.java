@@ -49,6 +49,8 @@ public final class NumericColumnWriter {
      * @param cursors          supplies fresh forward cursors over the documents that have a value;
      *                         called once for iterator and once for the values
      * @param blockBytesCodec  terminal byte codec applied to each block
+     * @param skipCodec        skip-index codec fed inline during the value-encode pass, or {@code null}
+     *                         to write no skip index
      * @param directory        directory used for the temporary table files
      * @param context          IO context for the temporary table files
      * @param data             data output (iterator, value blocks, and tables are appended)
@@ -59,6 +61,7 @@ public final class NumericColumnWriter {
         int numValues,
         IOSupplier<NumericColumnValues> cursors,
         BlockBytesCodec blockBytesCodec,
+        SkipIndexCodec skipCodec,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -97,17 +100,25 @@ public final class NumericColumnWriter {
             long[] buffer = new long[BLOCK_SIZE];
             int inBlock = 0;
             int ordinal = 0;
+            SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
             NumericColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 if (multiValued) {
                     valueAddresses.add(ordinal);
                 }
                 int count = values.valueCount();
+                if (skip != null) {
+                    skip.startDoc(doc, count);
+                }
                 for (int i = 0; i < count; i++) {
                     if (inBlock == 0) {
                         blockOffsets.add(data.getFilePointer() - valuesOffset);
                     }
-                    buffer[inBlock++] = values.nextValue();
+                    long value = values.nextValue();
+                    if (skip != null) {
+                        skip.add(value);
+                    }
+                    buffer[inBlock++] = value;
                     ordinal++;
                     if (inBlock == BLOCK_SIZE) {
                         blockBytesCodec.write(out -> encoder.encode(buffer, out), data);
@@ -116,8 +127,13 @@ public final class NumericColumnWriter {
                 }
             }
             if (inBlock > 0) {
+                // Pad the final partial block by repeating the last real value rather than with zeros.
+                // Zero-padding a monotonic block (timestamps/counters) would break delta/offset detection
+                // and bloat the last block; repeating the last value keeps padding harmless — equal steps
+                // don't affect monotonic detection, deltas are 0, and values stay in range. The padding is
+                // ignored on read (only the real value count is decoded).
                 for (int i = inBlock; i < BLOCK_SIZE; i++) {
-                    buffer[i] = 0;
+                    buffer[i] = buffer[inBlock - 1];
                 }
                 blockBytesCodec.write(out -> encoder.encode(buffer, out), data);
             }
@@ -128,6 +144,10 @@ public final class NumericColumnWriter {
 
             MonotonicWriter.Table blocks = blockOffsets.finish(data);
             MonotonicWriter.Table addresses = multiValued ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
+
+            // The skip region is appended after the value blocks and tables: the writer buffered its
+            // bytes while being fed inline, so its recorded offset is the data pointer here.
+            NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(data);
 
             return new NumericColumnMetadata(
                 iterator,
@@ -144,7 +164,7 @@ public final class NumericColumnWriter {
                 addresses.dataOffset(),
                 addresses.dataLength(),
                 addresses.meta(),
-                null // the skip index, when present, is attached by the consumer after the values are written
+                skipper
             );
         } finally {
             IOUtils.close(blockOffsets, valueAddresses);

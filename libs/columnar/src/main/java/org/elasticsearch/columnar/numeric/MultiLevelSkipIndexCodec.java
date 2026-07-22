@@ -9,24 +9,28 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Writes a numeric column's doc-values skip index: documents are grouped into intervals, and for each
- * interval the value bounds and doc-id range are recorded. Intervals are aggregated into a small tree
- * so a range query can skip whole subtrees whose bounds miss the query.
+ * The default skip codec: documents are grouped into intervals, and for each interval the value bounds
+ * and doc-id range are recorded. Intervals are aggregated into a small tree so a range query can skip
+ * whole subtrees whose bounds miss the query.
  *
- * <p>An interval normally holds {@link #INTERVAL_SIZE} documents, but a dense run of one constant
- * value is kept together in a single (larger) interval so constant columns stay maximally skippable.
- * Level-0 entries are a fixed 29 bytes, which is what lets {@link NumericColumnSkipper} jump a level in
- * a constant number of bytes.
+ * <p>An interval normally holds {@link #INTERVAL_SIZE} documents, but a dense run of one constant value
+ * is kept together in a single (larger) interval so constant columns stay maximally skippable. Level-0
+ * entries are a fixed 29 bytes, which is what lets {@link NumericColumnSkipper} jump a level in a
+ * constant number of bytes.
  */
-public final class NumericSkipWriter {
+public final class MultiLevelSkipIndexCodec implements SkipIndexCodec {
 
     /** Documents per skip interval (before the constant-run extension). */
     public static final int INTERVAL_SIZE = 4096;
@@ -37,66 +41,104 @@ public final class NumericSkipWriter {
 
     private static final int MAX_ACCUMULATORS = 1 << (LEVEL_SHIFT * (MAX_LEVEL - 1));
 
-    private NumericSkipWriter() {}
+    @Override
+    public byte id() {
+        return MULTI_LEVEL_ID;
+    }
+
+    @Override
+    public Writer writer() {
+        return new MultiLevelWriter();
+    }
+
+    @Override
+    public DocValuesSkipper reader(NumericColumnMetadata.Skipper meta, IndexInput data) throws IOException {
+        return new NumericColumnSkipper(meta, data);
+    }
 
     /**
-     * Streams {@code values} (in doc order) and appends the skip index to {@code data}, returning its
-     * position and the column-wide summary. Accumulators are held only one aggregation group at a
-     * time, so nothing document-proportional stays on the heap.
+     * The incremental writer. Values are fed per document during the value-encode pass; encoded skip
+     * bytes accumulate in {@link #buffer} and are appended to the data output only in {@link #finish},
+     * because the value blocks are being written to that same output as this writer is fed.
      */
-    public static NumericColumnMetadata.Skipper write(NumericColumnValues values, IndexOutput data) throws IOException {
-        final long start = data.getFilePointer();
-        long globalMaxValue = Long.MIN_VALUE;
-        long globalMinValue = Long.MAX_VALUE;
-        int globalDocCount = 0;
-        int maxDocId = -1;
-        int globalMaxValueCount = 0;
-        final List<SkipAccumulator> accumulators = new ArrayList<>();
-        SkipAccumulator accumulator = null;
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            final long firstValue = values.nextValue();
-            final int valueCount = values.valueCount();
+    private static final class MultiLevelWriter implements Writer {
+        private final ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
+        private final List<SkipAccumulator> accumulators = new ArrayList<>();
+        private SkipAccumulator accumulator;
+
+        private long globalMaxValue = Long.MIN_VALUE;
+        private long globalMinValue = Long.MAX_VALUE;
+        private int globalDocCount = 0;
+        private int maxDocId = -1;
+        private int globalMaxValueCount = 0;
+
+        private int currentDoc;
+        private int currentValueCount;
+        private int valueIndex;
+
+        @Override
+        public void startDoc(int doc, int valueCount) {
+            currentDoc = doc;
+            currentValueCount = valueCount;
+            valueIndex = 0;
             globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
-            if (accumulator != null && accumulator.isDone(valueCount, firstValue, doc)) {
+        }
+
+        @Override
+        public void add(long value) {
+            if (valueIndex == 0) {
+                // The interval boundary is decided from the document's first value, exactly as the
+                // old per-doc loop did before touching the accumulator.
+                if (accumulator != null && accumulator.isDone(currentValueCount, value, currentDoc)) {
+                    globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
+                    globalMinValue = Math.min(globalMinValue, accumulator.minValue);
+                    globalDocCount += accumulator.docCount;
+                    maxDocId = accumulator.maxDocID;
+                    accumulator = null;
+                    if (accumulators.size() == MAX_ACCUMULATORS) {
+                        try {
+                            writeLevels(accumulators, buffer);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        accumulators.clear();
+                    }
+                }
+                if (accumulator == null) {
+                    accumulator = new SkipAccumulator(currentDoc);
+                    accumulators.add(accumulator);
+                }
+                accumulator.nextDoc(currentDoc);
+            }
+            accumulator.accumulate(value);
+            valueIndex++;
+        }
+
+        @Override
+        public NumericColumnMetadata.Skipper finish(IndexOutput data) throws IOException {
+            if (accumulators.isEmpty() == false) {
                 globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
                 globalMinValue = Math.min(globalMinValue, accumulator.minValue);
                 globalDocCount += accumulator.docCount;
                 maxDocId = accumulator.maxDocID;
-                accumulator = null;
-                if (accumulators.size() == MAX_ACCUMULATORS) {
-                    writeLevels(accumulators, data);
-                    accumulators.clear();
-                }
+                writeLevels(accumulators, buffer);
             }
-            if (accumulator == null) {
-                accumulator = new SkipAccumulator(doc);
-                accumulators.add(accumulator);
-            }
-            accumulator.nextDoc(doc);
-            accumulator.accumulate(firstValue);
-            for (int i = 1; i < valueCount; i++) {
-                accumulator.accumulate(values.nextValue());
-            }
+            final long start = data.getFilePointer();
+            buffer.copyTo(data);
+            return new NumericColumnMetadata.Skipper(
+                start,
+                data.getFilePointer() - start,
+                globalMinValue,
+                globalMaxValue,
+                globalDocCount,
+                maxDocId,
+                globalMaxValueCount,
+                MULTI_LEVEL_ID
+            );
         }
-        if (accumulators.isEmpty() == false) {
-            globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
-            globalMinValue = Math.min(globalMinValue, accumulator.minValue);
-            globalDocCount += accumulator.docCount;
-            maxDocId = accumulator.maxDocID;
-            writeLevels(accumulators, data);
-        }
-        return new NumericColumnMetadata.Skipper(
-            start,
-            data.getFilePointer() - start,
-            globalMinValue,
-            globalMaxValue,
-            globalDocCount,
-            maxDocId,
-            globalMaxValueCount
-        );
     }
 
-    private static void writeLevels(List<SkipAccumulator> accumulators, IndexOutput data) throws IOException {
+    private static void writeLevels(List<SkipAccumulator> accumulators, DataOutput data) throws IOException {
         final List<List<SkipAccumulator>> levels = new ArrayList<>(MAX_LEVEL);
         levels.add(accumulators);
         for (int i = 0; i < MAX_LEVEL - 1; i++) {

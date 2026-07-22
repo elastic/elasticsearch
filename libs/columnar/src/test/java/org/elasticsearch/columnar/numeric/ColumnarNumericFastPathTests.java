@@ -252,13 +252,11 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 values.length,
                 () -> singleValuedCursor(values),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
                 dir,
                 IOContext.DEFAULT,
                 out
             );
-            if (withSkipper && values.length > 0) {
-                written = written.withSkipper(NumericSkipWriter.write(singleValuedCursor(values), out));
-            }
             ColumnarCodecUtil.writeFooter(out);
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {

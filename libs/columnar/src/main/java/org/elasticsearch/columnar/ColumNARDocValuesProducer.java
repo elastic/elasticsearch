@@ -138,7 +138,10 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     @Override
     public DocValuesSkipper getSkipper(FieldInfo field) {
-        // A column is BINARY, so Lucene never asks for a skipper.
+        // Deliberately unsupported: a ColumNAR column is exposed as a BINARY field, and a BINARY field
+        // cannot carry a Lucene skip index, so Lucene never calls this. Range pushdown does not rely on
+        // a Lucene skipper — it uses the column's own skip index, driven by ColumnarNumericRangeQuery
+        // through the binary reader.
         throw typedNotSupported("skipper");
     }
 

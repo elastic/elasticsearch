@@ -200,7 +200,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         }
         final DocIdSetIterator approximation = DocIdSetIterator.all(maxDoc);
         final BlockMask mask = new BlockMask(lowerValue, upperValue);
-        final DocValuesSkipper skipper = skipperMeta == null ? null : new NumericColumnSkipper(skipperMeta, data);
+        final DocValuesSkipper skipper = skipperMeta == null ? null : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, data);
         final TwoPhaseIterator twoPhase = skipper == null
             ? scanningTwoPhase(approximation, mask, lowerValue, upperValue)
             : skippingTwoPhase(approximation, mask, skipper, lowerValue, upperValue);

@@ -16,7 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 
 /**
- * Reads the skip index written by {@link NumericSkipWriter}. Each {@link #advance} moves to the
+ * Reads the skip index written by {@link MultiLevelSkipIndexCodec}. Each {@link #advance} moves to the
  * interval tree entry covering the target document and exposes its per-level value bounds and doc-id
  * ranges; a range query uses the coarsest level whose bounds miss the query to skip a whole subtree.
  * The skip region is read on demand from the mapped input — nothing is held on the heap beyond the
@@ -30,11 +30,11 @@ public final class NumericColumnSkipper extends DocValuesSkipper {
     private final IndexInput input;
     private final long[] jumpLengths = jumpLengths();
 
-    private final int[] minDocID = new int[NumericSkipWriter.MAX_LEVEL];
-    private final int[] maxDocID = new int[NumericSkipWriter.MAX_LEVEL];
-    private final long[] minValue = new long[NumericSkipWriter.MAX_LEVEL];
-    private final long[] maxValue = new long[NumericSkipWriter.MAX_LEVEL];
-    private final int[] docCount = new int[NumericSkipWriter.MAX_LEVEL];
+    private final int[] minDocID = new int[MultiLevelSkipIndexCodec.MAX_LEVEL];
+    private final int[] maxDocID = new int[MultiLevelSkipIndexCodec.MAX_LEVEL];
+    private final long[] minValue = new long[MultiLevelSkipIndexCodec.MAX_LEVEL];
+    private final long[] maxValue = new long[MultiLevelSkipIndexCodec.MAX_LEVEL];
+    private final int[] docCount = new int[MultiLevelSkipIndexCodec.MAX_LEVEL];
     private int levels = 1;
 
     /**
@@ -105,7 +105,7 @@ public final class NumericColumnSkipper extends DocValuesSkipper {
     public NumericColumnSkipper(NumericColumnMetadata.Skipper meta, IndexInput data) throws IOException {
         this.meta = meta;
         this.input = data.slice("columnar skipper", meta.dataOffset(), meta.dataLength());
-        for (int i = 0; i < NumericSkipWriter.MAX_LEVEL; i++) {
+        for (int i = 0; i < MultiLevelSkipIndexCodec.MAX_LEVEL; i++) {
             minDocID[i] = maxDocID[i] = -1;
         }
     }
@@ -113,7 +113,7 @@ public final class NumericColumnSkipper extends DocValuesSkipper {
     @Override
     public void advance(int target) throws IOException {
         if (target > meta.maxDocId()) {
-            for (int i = 0; i < NumericSkipWriter.MAX_LEVEL; i++) {
+            for (int i = 0; i < MultiLevelSkipIndexCodec.MAX_LEVEL; i++) {
                 minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
             }
             return;
@@ -121,7 +121,7 @@ public final class NumericColumnSkipper extends DocValuesSkipper {
         assert target > maxDocID[0] : "target must be beyond the current interval";
         while (true) {
             levels = input.readByte();
-            assert levels > 0 && levels <= NumericSkipWriter.MAX_LEVEL : "level out of range [" + levels + "]";
+            assert levels > 0 && levels <= MultiLevelSkipIndexCodec.MAX_LEVEL : "level out of range [" + levels + "]";
             boolean valid = true;
             for (int level = levels - 1; level >= 0; level--) {
                 if ((maxDocID[level] = input.readInt()) < target) {
@@ -135,7 +135,7 @@ public final class NumericColumnSkipper extends DocValuesSkipper {
                 docCount[level] = input.readInt();
             }
             if (valid) {
-                while (levels < NumericSkipWriter.MAX_LEVEL && maxDocID[levels] >= target) {
+                while (levels < MultiLevelSkipIndexCodec.MAX_LEVEL && maxDocID[levels] >= target) {
                     levels++;
                 }
                 return;
@@ -195,12 +195,12 @@ public final class NumericColumnSkipper extends DocValuesSkipper {
 
     /** Bytes to skip past a below-target entry and its subtree, per level. Mirrors the 29-byte layout. */
     private static long[] jumpLengths() {
-        final long[] lengths = new long[NumericSkipWriter.MAX_LEVEL];
+        final long[] lengths = new long[MultiLevelSkipIndexCodec.MAX_LEVEL];
         lengths[0] = INTERVAL_BYTES - 5L; // already read the level byte (1) and this level's maxDocID (4)
-        for (int level = 1; level < NumericSkipWriter.MAX_LEVEL; level++) {
+        for (int level = 1; level < MultiLevelSkipIndexCodec.MAX_LEVEL; level++) {
             lengths[level] = lengths[level - 1];
-            lengths[level] += (1L << (level * NumericSkipWriter.LEVEL_SHIFT)) * INTERVAL_BYTES;
-            lengths[level] -= (1L << ((level - 1) * NumericSkipWriter.LEVEL_SHIFT));
+            lengths[level] += (1L << (level * MultiLevelSkipIndexCodec.LEVEL_SHIFT)) * INTERVAL_BYTES;
+            lengths[level] -= (1L << ((level - 1) * MultiLevelSkipIndexCodec.LEVEL_SHIFT));
         }
         return lengths;
     }

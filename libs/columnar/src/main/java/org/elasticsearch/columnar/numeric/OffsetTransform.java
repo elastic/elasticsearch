@@ -19,6 +19,9 @@ public final class OffsetTransform implements BlockTransform {
 
     static final byte ID = 1;
 
+    /** Shared stateless instance; the transform holds no per-block state. */
+    public static final OffsetTransform INSTANCE = new OffsetTransform();
+
     @Override
     public byte id() {
         return ID;
@@ -33,10 +36,11 @@ public final class OffsetTransform implements BlockTransform {
             max = Math.max(l, max);
         }
 
+        // The overflow guard must run first so Math.abs below is safe (Math.abs(Long.MIN_VALUE) overflows).
         if (max - min < 0) {
-            // overflow
+            // overflow: the shifted range would not fit in a signed long, so keep the block as-is
             min = 0;
-        } else if (min > 0 && min < (max >>> 2)) {
+        } else if (Math.abs(min) < Math.abs(max) / 4) {
             // removing the offset is unlikely to save bits per value, yet it makes decoding slower
             min = 0;
         }

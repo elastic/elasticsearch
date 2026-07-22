@@ -20,6 +20,9 @@ public final class GcdTransform implements BlockTransform {
 
     static final byte ID = 2;
 
+    /** Shared stateless instance; the transform holds no per-block state. */
+    public static final GcdTransform INSTANCE = new GcdTransform();
+
     @Override
     public byte id() {
         return ID;
@@ -37,8 +40,16 @@ public final class GcdTransform implements BlockTransform {
         if (Long.compareUnsigned(gcd, 1) <= 0) {
             return false;
         }
-        for (int i = 0; i < block.length; ++i) {
-            block[i] /= gcd;
+        if ((gcd & (gcd - 1)) == 0) {
+            // Power-of-two divisor: shift instead of divide.
+            int shift = Long.numberOfTrailingZeros(gcd);
+            for (int i = 0; i < block.length; ++i) {
+                block[i] >>>= shift;
+            }
+        } else {
+            for (int i = 0; i < block.length; ++i) {
+                block[i] /= gcd;
+            }
         }
         params.writeVLong(gcd - 2);
         return true;
@@ -47,8 +58,16 @@ public final class GcdTransform implements BlockTransform {
     @Override
     public void decode(long[] block, DataInput params) throws IOException {
         long gcd = 2 + params.readVLong();
-        for (int i = 0; i < block.length; ++i) {
-            block[i] *= gcd;
+        if ((gcd & (gcd - 1)) == 0) {
+            // Power-of-two divisor: shift instead of multiply.
+            int shift = Long.numberOfTrailingZeros(gcd);
+            for (int i = 0; i < block.length; ++i) {
+                block[i] <<= shift;
+            }
+        } else {
+            for (int i = 0; i < block.length; ++i) {
+                block[i] *= gcd;
+            }
         }
     }
 }

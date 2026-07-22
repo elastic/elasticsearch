@@ -19,6 +19,9 @@ public final class DeltaTransform implements BlockTransform {
 
     static final byte ID = 0;
 
+    /** Shared stateless instance; the transform holds no per-block state. */
+    public static final DeltaTransform INSTANCE = new DeltaTransform();
+
     @Override
     public byte id() {
         return ID;
@@ -26,16 +29,7 @@ public final class DeltaTransform implements BlockTransform {
 
     @Override
     public boolean tryEncode(long[] block, DataOutput params) throws IOException {
-        int gts = 0;
-        int lts = 0;
-        for (int i = 1; i < block.length; ++i) {
-            if (block[i] > block[i - 1]) {
-                gts++;
-            } else if (block[i] < block[i - 1]) {
-                lts++;
-            }
-        }
-        if ((gts == 0 && lts >= 2) == false && (lts == 0 && gts >= 2) == false) {
+        if (isMonotonic(block) == false) {
             return false;
         }
         for (int i = block.length - 1; i > 0; --i) {
@@ -46,6 +40,31 @@ public final class DeltaTransform implements BlockTransform {
         block[0] = block[1];
         params.writeZLong(first);
         return true;
+    }
+
+    /**
+     * A block is monotonic (worth delta-encoding) when all its strict steps go the same direction and
+     * there are at least two of them. Stops at the first direction conflict: once the block has shown
+     * both an increase and a decrease it can never be monotonic.
+     */
+    private static boolean isMonotonic(long[] block) {
+        boolean up = false;
+        boolean down = false;
+        int strictSteps = 0;
+        for (int i = 1; i < block.length; ++i) {
+            if (block[i] > block[i - 1]) {
+                up = true;
+                strictSteps++;
+            } else if (block[i] < block[i - 1]) {
+                down = true;
+                strictSteps++;
+            }
+            if (up && down) {
+                // both directions seen: not monotonic, no need to scan the rest
+                return false;
+            }
+        }
+        return strictSteps >= 2;
     }
 
     @Override

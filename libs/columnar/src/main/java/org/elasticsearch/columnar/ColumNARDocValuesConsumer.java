@@ -29,7 +29,7 @@ import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
-import org.elasticsearch.columnar.numeric.NumericSkipWriter;
+import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -95,7 +95,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     /**
      * Merge: re-runs the encoder pipeline over the source segments, reading their values in bulk off
      * disk via {@link ColumnarNumericBinaryDocValues#directValues}. A fresh merge cursor
-     * ({@link DocIDMerger} in merged doc order) is built per pass — iterator, values, skip index.
+     * ({@link DocIDMerger} in merged doc order) is built per pass — count, iterator, values (the skip
+     * index is built inline while the values are encoded, so it needs no pass of its own).
      */
     @Override
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
@@ -195,20 +196,19 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numValues += counter.valueCount();
         }
 
+        // A BINARY field can't carry a skipper, so the column builds its own skip index inline
+        // during the value-encode pass — no extra cursor over the data.
         NumericColumnMetadata metadata = NumericColumnWriter.write(
             maxDoc,
             numDocsWithField,
             numValues,
             cursors,
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+            SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
             directory,
             context,
             data
         );
-        // A BINARY field can't carry a skipper, so write the column's own skip index.
-        if (numDocsWithField > 0) {
-            metadata = metadata.withSkipper(NumericSkipWriter.write(cursors.get(), data));
-        }
         fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
 
@@ -234,7 +234,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     private static UnsupportedOperationException typedNotSupported(String shape) {
         return new UnsupportedOperationException(
-            "ColumNAR is a binary doc-values format and does not handle " + shape + " doc values; store the field as a tagged binary column"
+            "ColumNAR is a binary doc-values format and does not handle "
+                + shape
+                + " doc values; store the field as a binary doc-values field carrying the '"
+                + ColumNARDocValuesFormat.TYPE_ATTRIBUTE
+                + "' attribute"
         );
     }
 

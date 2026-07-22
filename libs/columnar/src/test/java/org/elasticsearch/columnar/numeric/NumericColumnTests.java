@@ -86,6 +86,22 @@ public class NumericColumnTests extends ESTestCase {
         }
     }
 
+    public void testPartialBlockMonotonic() throws IOException {
+        // Value counts that are NOT multiples of BLOCK_SIZE (128) with strictly ascending timestamps.
+        // The final partial block is padded with the last real value (not zero); zero-padding would
+        // break the monotonic delta/offset detection and bloat the block. Exact round-trip proves the
+        // padding is harmless.
+        for (int n : new int[] { 1, 5, 130, 200 }) {
+            long[][] docs = new long[n][];
+            long ts = 1_700_000_000_000L;
+            for (int d = 0; d < n; d++) {
+                ts += between(1, 1000);
+                docs[d] = new long[] { ts };
+            }
+            assertColumn(docs);
+        }
+    }
+
     private void assertColumn(long[][] docValues) throws IOException {
         int numDocsWithField = 0;
         int numValues = 0;
@@ -109,6 +125,7 @@ public class NumericColumnTests extends ESTestCase {
                     numValues,
                     () -> cursor(docValues),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                    SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
                     IOContext.DEFAULT,
                     out

@@ -66,8 +66,18 @@ public record NumericColumnMetadata(
      * @param docCount      documents with a value
      * @param maxDocId      largest doc id with a value
      * @param maxValueCount most values held by any single document
+     * @param codecId       {@link SkipIndexCodec} id that wrote the region, selecting the reader
      */
-    public record Skipper(long dataOffset, long dataLength, long minValue, long maxValue, int docCount, int maxDocId, int maxValueCount) {
+    public record Skipper(
+        long dataOffset,
+        long dataLength,
+        long minValue,
+        long maxValue,
+        int docCount,
+        int maxDocId,
+        int maxValueCount,
+        byte codecId
+    ) {
         void writeTo(DataOutput out) throws IOException {
             out.writeVLong(dataOffset);
             out.writeVLong(dataLength);
@@ -76,10 +86,20 @@ public record NumericColumnMetadata(
             out.writeVInt(docCount);
             out.writeVInt(maxDocId);
             out.writeVInt(maxValueCount);
+            out.writeByte(codecId);
         }
 
         static Skipper readFrom(DataInput in) throws IOException {
-            return new Skipper(in.readVLong(), in.readVLong(), in.readLong(), in.readLong(), in.readVInt(), in.readVInt(), in.readVInt());
+            return new Skipper(
+                in.readVLong(),
+                in.readVLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readVInt(),
+                in.readVInt(),
+                in.readVInt(),
+                in.readByte()
+            );
         }
     }
 

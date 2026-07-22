@@ -31,7 +31,9 @@ public final class NumericPipeline {
     /** The default chain: delta, offset, GCD, then FOR bit-packing. */
     public static NumericPipeline defaultPipeline(int blockSize) {
         return new NumericPipeline(
-            new BlockTransform[] { new DeltaTransform(), new OffsetTransform(), new GcdTransform() },
+            // Transforms are stateless, so the shared singletons are reused; the terminal owns scratch
+            // buffers and must stay per-pipeline.
+            new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
             new ForTerminal(blockSize)
         );
     }
@@ -77,9 +79,10 @@ public final class NumericPipeline {
 
         private static BlockTransform transform(byte id) {
             return switch (id) {
-                case DeltaTransform.ID -> new DeltaTransform();
-                case OffsetTransform.ID -> new OffsetTransform();
-                case GcdTransform.ID -> new GcdTransform();
+                // Transforms are stateless, so the shared singletons are reused.
+                case DeltaTransform.ID -> DeltaTransform.INSTANCE;
+                case OffsetTransform.ID -> OffsetTransform.INSTANCE;
+                case GcdTransform.ID -> GcdTransform.INSTANCE;
                 default -> throw new IllegalArgumentException("unknown block transform id [" + id + "]");
             };
         }

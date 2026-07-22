@@ -19,7 +19,9 @@ import java.util.Arrays;
 /** Frame-of-reference bit-packs a block: a {@code vint} bits-per-value then the packed longs. Frozen id 0. */
 public final class ForTerminal implements BlockTerminal {
 
-    static final byte ID = 0;
+    // Terminal ids occupy a separate id space from transform ids in the Registry; use a distinct
+    // range (0x40+) so a terminal id is never confused with a transform id when debugging.
+    static final byte ID = (byte) 0x40;
 
     private final DocValuesForUtil forUtil;
 

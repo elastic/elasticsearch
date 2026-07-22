@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentType;
@@ -69,7 +70,9 @@ class ClientHit implements PaginatedHitSource.Hit {
 
     @Override
     public String getRouting() {
-        return fieldValue(RoutingFieldMapper.NAME);
+        String routing = fieldValue(RoutingFieldMapper.NAME);
+        // A slice-enabled index surfaces its routing value as _slice rather than _routing.
+        return routing != null ? routing : fieldValue(SliceIndexing.PARAM_NAME);
     }
 
     @Override

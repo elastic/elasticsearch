@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -93,8 +94,12 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         final long currentTerm = clusterService.state().term();
         assert currentTerm >= request.term();
         if (currentTerm > request.term()) {
-            logger.debug("ignoring direct recovery cancellation request for term [{}], local term is [{}]", request.term(), currentTerm);
-            listener.onResponse(new CancelRecoveriesAction.Response(Set.of()));
+            logger.debug("obsolete direct recovery cancellation request for term [{}], local term is [{}]", request.term(), currentTerm);
+            listener.onFailure(
+                new ElasticsearchException(
+                    "obsolete direct recovery cancellation request for term " + request.term() + " local term is " + currentTerm
+                )
+            );
             return;
         }
 

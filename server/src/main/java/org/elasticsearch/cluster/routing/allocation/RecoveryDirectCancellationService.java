@@ -27,8 +27,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -68,6 +71,11 @@ public class RecoveryDirectCancellationService {
     private final Executor genericExecutor;
     private volatile boolean enableDirectRecoveryCancellations;
 
+    /// Time-based cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
+    /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
+    /// have taken effect on the data nodes.
+    final Cache<String, ShardRecoveryCancellation> sentCancellations;
+
     public RecoveryDirectCancellationService(
         TransportService transportService,
         ClusterService clusterService,
@@ -82,6 +90,9 @@ public class RecoveryDirectCancellationService {
             Priority.HIGH,
             new ShardFailedTaskExecutor(allocationService, rerouteService)
         );
+        this.sentCancellations = CacheBuilder.<String, ShardRecoveryCancellation>builder()
+            .setExpireAfterWrite(TimeValue.timeValueHours(3))
+            .build();
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
@@ -144,23 +155,54 @@ public class RecoveryDirectCancellationService {
             );
             return;
         }
-        // TODO: we should deduplicate those requests. Indeed, we might get several new desired balances close in time,
-        // that will trigger new cancellations before the previous ones have had time to take effect.
-        for (var nodeRequest : requests.entrySet()) {
+        final var deduplicatedRequests = deduplicateFromCache(requests);
+        logger.debug("sending direct cancellation requests {}", deduplicatedRequests);
+        for (var nodeRequest : deduplicatedRequests.entrySet()) {
             sendDirectCancelRecoveriesRequest(nodeRequest.getKey(), nodeRequest.getValue());
         }
     }
 
-    void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
+    /// Removes cancellations that were already sent recently. Best effort, since entries in the cache have a time expiration,
+    /// and a request has to be processed without error by the relevant data node for it to be recorded in the cache (which means
+    /// a subsequent request could check the cache before the master received a response for the prior request)
+    private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateFromCache(
+        Map<DiscoveryNode, CancelRecoveriesAction.Request> requests
+    ) {
+        final var deduped = new HashMap<DiscoveryNode, CancelRecoveriesAction.Request>();
+        for (var nodeRequest : requests.entrySet()) {
+            final CancelRecoveriesAction.Request request = nodeRequest.getValue();
+            final var dedupedCancellations = new ArrayList<ShardRecoveryCancellation>();
+            for (ShardRecoveryCancellation cancellation : request.cancellations()) {
+                final ShardRecoveryCancellation cached = sentCancellations.get(cancellation.allocationId());
+                assert cached == null || cached.shardId() == cancellation.shardId();
+                if (cached == null || (cached.cancelIfStarted() == false && cancellation.cancelIfStarted())) {
+                    dedupedCancellations.add(cancellation);
+                }
+            }
+            if (dedupedCancellations.isEmpty() == false) {
+                final var updatedNodeRequest = new CancelRecoveriesAction.Request(
+                    request.term(),
+                    request.clusterStateVersion(),
+                    dedupedCancellations
+                );
+                deduped.put(nodeRequest.getKey(), updatedNodeRequest);
+            }
+        }
+        return deduped;
+    }
+
+    private void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
         transportService.sendRequest(
             node,
             CancelRecoveriesAction.TYPE.name(),
             request,
-            new ActionListenerResponseHandler<>(
-                ActionListener.wrap(
-                    response -> failShardsCancelledInQueue(node, response),
-                    e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)
-                ),
+            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+                // We only record the cancellation in the cache once we know the data node processed it successfully
+                for (ShardRecoveryCancellation cancellation : request.cancellations()) {
+                    sentCancellations.put(cancellation.allocationId(), cancellation);
+                }
+                failShardsCancelledInQueue(node, response);
+            }, e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)),
                 CancelRecoveriesAction.Response::new,
                 genericExecutor
             )

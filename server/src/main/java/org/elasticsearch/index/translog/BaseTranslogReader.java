@@ -167,15 +167,27 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return Files.getLastModifiedTime(path).toMillis();
     }
 
-    /**
-     * Reads a single operation from the given location. Throws if the record at that location is
-     * an {@link Translog.IndexBatch} — batch records cover N documents but this method can only
-     * return a single {@link Translog.Operation}. Iterate the snapshot instead, which explodes
-     * batches into individual {@link Translog.Index} ops.
-     */
+    /** Reads a single non-batch operation. Throws if the record is a batch. */
     Translog.Operation read(Translog.Location location) throws IOException {
+        return read(location, -1);
+    }
+
+    /**
+     * Reads a single operation from the given location. If the record is an {@link Translog.IndexBatch}
+     * and {@code rowIndex >= 0}, returns that row's {@link Translog.Index} via
+     * {@link Translog.IndexBatch#getIndexOp(int)}. A batch record with {@code rowIndex < 0} throws.
+     */
+    Translog.Operation read(Translog.Location location, int rowIndex) throws IOException {
         assert location.generation() == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation();
         ByteBuffer buffer = ByteBuffer.allocate(location.size());
-        return read(checksummedStream(buffer, location.translogLocation(), location.size(), null));
+        final Translog.Record record = readRecord(checksummedStream(buffer, location.translogLocation(), location.size(), null));
+        if (record instanceof Translog.IndexBatch indexBatch) {
+            if (rowIndex < 0) {
+                throw new IOException("Record at location is a batch; provide a rowIndex to read a single row");
+            }
+            return indexBatch.getIndexOp(rowIndex);
+        }
+        assert rowIndex < 0 : "rowIndex set for a non-batch record";
+        return (Translog.Operation) record;
     }
 }

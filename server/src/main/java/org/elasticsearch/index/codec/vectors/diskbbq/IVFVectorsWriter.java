@@ -113,16 +113,41 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
+<<<<<<< HEAD
     public abstract CentroidInformation<float[]> calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
         throws IOException;
 
     public abstract CentroidInformation<float[]> calculateCentroids(
+=======
+    /**
+     * Calculate the centroids for the given field and vectors.
+     *
+     * @param fieldInfo field info
+     * @param floatVectorValues float vectors
+     * @return centroid information
+     * @throws IOException if an I/O error occurs
+     */
+    public abstract CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
+        throws IOException;
+
+    /**
+     * Calculate the centroids for the given field and vectors as part of a merge.
+     *
+     * @param fieldInfo         field info
+     * @param floatVectorValues float vectors
+     * @param mergeState        merge information
+     * @return centroid information
+     * @throws IOException if an I/O error occurs
+     */
+    public abstract CentroidInformation calculateCentroids(
+>>>>>>> upstream/main
         FieldInfo fieldInfo,
         KMeansFloatVectorValues floatVectorValues,
         MergeState mergeState
     ) throws IOException;
 
     /**
+<<<<<<< HEAD
      * Whether this writer supports native byte vector clustering.
      * When {@code false}, byte vectors are clustered via the float path (widening byte→float).
      */
@@ -145,20 +170,51 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         MergeState mergeState
     ) throws IOException;
 
+=======
+     * Information on the file offset and length of a set of centroids
+     */
+>>>>>>> upstream/main
     public record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
 
+    /**
+     * Writes any index to {@code centroidOutput}.
+     * <p>
+     * This is written before the posting lists and the centroid vector data because the centroid data records each
+     * centroid's posting-list offset and length, which are not known until the postings have been written. The
+     * centroid vector data is written afterwards by {@link #writeCentroidData}.
+     * <p>
+     * When the centroid index has a two-level (parent/child) structure, child centroids are grouped under their
+     * parents and the centroid ordinals are remapped to the grouped ordering; the lookup table is written through
+     * that remapping and the grouping is returned so {@code writeCentroidData} can lay out the centroids
+     * consistently. When there is no parent structure the lookup is written with an identity mapping and
+     * {@code null} is returned.
+     *
+     * @param centroidSupplier    provides the computed centroids and, via {@link CentroidSupplier#centroidIndex()},
+     *                            the optional hierarchical index
+     * @param centroidAssignments Array mapping vector ordinal to its assigned centroid ordinal.
+     * @param centroidOutput      the centroids file to write to
+     * @return Indexing information to be passed to {@code writeCentroidData}, if any
+     */
     protected abstract CI writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
         throws IOException;
 
-    protected abstract void writeCentroidData(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        CI centroidGroups,
-        IndexOutput centroidOutput
-    ) throws IOException;
-
+    /**
+     * Builds and writes the per-centroid posting lists for a field during flush.
+     * <p>
+     * Each vector is grouped into the posting list of the centroid it was first assigned to, and each additional centroid
+     * in its overspill assignments. For each centroid, the doc ids of its assigned vectors are written,
+     * followed by a quantized version of each vector relative to the centroid and corrections.
+     *
+     * @param fieldInfo            field info
+     * @param centroidSupplier     the computed centroids and centroid index
+     * @param floatVectorValues    the raw vectors
+     * @param postingsOutput       clusters file output
+     * @param fileOffset           base offset in {@code postingsOutput} that the returned offsets and lengths are relative to
+     * @param assignments          for each vector ordinal, the ordinal of the centroid it was primarily assigned to
+     * @param overspillAssignments additional centroid assignments per vector
+     * @param ivfSegmentConfig     IVF segment information
+     * @return the per-centroid posting-list offsets and lengths, relative to {@code fileOffset}
+     */
     public abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -170,6 +226,24 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
+    /**
+     * Builds and writes the per-centroid posting lists for a field during merge.
+     * <p>
+     * Each vector is grouped into the posting list of the centroid it was first assigned to, and each additional centroid
+     * in its overspill assignments. For each centroid, the doc ids of its assigned vectors are written,
+     * followed by a quantized version of each vector relative to the centroid and corrections.
+     *
+     * @param fieldInfo            field info
+     * @param centroidSupplier     the computed centroids and centroid index
+     * @param floatVectorValues    the raw vectors
+     * @param postingsOutput       clusters file output
+     * @param fileOffset           base offset in {@code postingsOutput} that the returned offsets and lengths are relative to
+     * @param mergeState           merge information
+     * @param assignments          for each vector ordinal, the ordinal of the centroid it was primarily assigned to
+     * @param overspillAssignments additional centroid assignments per vector
+     * @param ivfSegmentConfig     IVF segment information
+     * @return the per-centroid posting-list offsets and lengths, relative to {@code fileOffset}
+     */
     public abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -182,12 +256,45 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
+    /**
+     * Writes the centroid vector data to {@code centroidOutput}
+     * <p>
+     * This completes any indexing structure written by {@link #writeCentroidIndex} using data in {@code centroidGroups} (if any),
+     * and finishes with the offsets and length of each centroid's postings data in an indexed or flat ordinal order.
+     *
+     * @param fieldInfo               field info
+     * @param centroidSupplier        the computed centroids
+     * @param globalCentroid          the global centroid used as the reference point for quantization
+     * @param centroidOffsetAndLength the per-centroid posting-list offsets and lengths returned by
+     *                                {@link #buildAndWritePostingsLists}
+     * @param centroidGroups          Centroid indexing information provided by {@link #writeCentroidIndex}
+     * @param centroidOutput          the centroids file to write to
+     */
+    protected abstract void writeCentroidData(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        CentroidOffsetAndLength centroidOffsetAndLength,
+        CI centroidGroups,
+        IndexOutput centroidOutput
+    ) throws IOException;
+
+    /**
+     * Creates a {@link CentroidSupplier} from off-heap centroid data, usually as part of a merge
+     *
+     * @param centroidsInput        The centroids as concatenated float32 values
+     * @param centroidAssignments   Centroid assignment information
+     * @param fieldInfo             field info
+     */
     public abstract CentroidSupplier createCentroidSupplier(
         IndexInput centroidsInput,
         CentroidAssignments centroidAssignments,
         FieldInfo fieldInfo
     ) throws IOException;
 
+    /**
+     * Creates a {@link CentroidSupplier} from the specified centroids
+     */
     public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException;
 
     public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, byte[][] centroids, float[] globalCentroid) throws IOException;
@@ -222,7 +329,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
      * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsWriter} returns a resolved {@link IvfSegmentConfig};
      * other writers return {@code null}.
      */
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         return null;
     }
 
@@ -550,6 +657,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         for (int d = 0; d < dimension; d++) {
             centroid[d] /= count;
         }
+<<<<<<< HEAD
         // Scale centroid magnitude to match the average magnitude of assigned vectors.
         VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
         if (sim == VectorSimilarityFunction.COSINE
@@ -624,10 +732,15 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         }
         int[] assignments = new int[count];
         return CentroidInformation.ofBytes(dimension, new byte[][] { byteCentroid }, assignments, new SoarAssignments(new int[0]));
+=======
+        // For flat centroid assignments there is a single global centroid and no secondary centroid assignments
+        return new CentroidInformation(dimension, new float[][] { centroid }, new int[count], OverspillAssignments.NONE);
+>>>>>>> upstream/main
     }
 
     @Override
     public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+<<<<<<< HEAD
         // Per-field merge hook (see beginIvfFieldMerge): subclasses such as ESNextDiskBBQVectorsWriter resolve their
         // segment config here, and it must run for every field, including non-float encodings. The result is intentionally
         // not used in this base implementation - the float path re-resolves it inside mergeOneFieldIVF and the byte path
@@ -635,6 +748,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         beginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) || fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
+=======
+        IvfSegmentConfig resolvedConfig = resolveMergeConfig(fieldInfo, mergeState);
+        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
+            mergeOneFieldIVF(fieldInfo, mergeState, resolvedConfig);
+>>>>>>> upstream/main
         } else {
             // we simply write information that the field is present but we don't do anything with it.
             writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, IvfSegmentConfig.NONE);
@@ -689,6 +807,9 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         );
     }
 
+    /**
+     * Write any additional meta information to the end of {@code metaOutput}
+     */
     protected abstract void doWriteMeta(
         IndexOutput metaOutput,
         FieldInfo field,
@@ -701,8 +822,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        IvfSegmentConfig resolvedConfig = beginIvfFieldMerge(fieldInfo, mergeState);
+    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig resolvedConfig) throws IOException {
         final IvfSegmentConfig ivfSegmentConfig = resolvedConfig != null ? resolvedConfig : IvfSegmentConfig.NONE;
         final int numVectors;
         String tempRawVectorsFileName = null;

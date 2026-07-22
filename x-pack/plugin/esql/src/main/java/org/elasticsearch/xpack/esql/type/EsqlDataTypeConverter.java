@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -138,6 +139,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -647,8 +649,12 @@ public class EsqlDataTypeConverter {
         return GEO.wktToWkb(field);
     }
 
+    /**
+     * Anything spatial that isn't geo (i.e. anything not caught by {@link DataType#isSpatialGeo}) is assumed
+     * to be cartesian.
+     */
     public static BytesRef stringToSpatial(String field) {
-        return UNSPECIFIED.wktToWkb(field);
+        return CARTESIAN.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {
@@ -660,6 +666,12 @@ public class EsqlDataTypeConverter {
             return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
+        } catch (ArithmeticException e) {
+            // An in-range epoch (e.g. a huge epoch_second) can parse to a valid Instant and then overflow when
+            // Instant.toEpochMilli scales it. Remap so it flows through the readers' per-cell error policy (null/warn
+            // or fail_fast) rather than escaping as an ArithmeticException that hard-fails the whole read — the same
+            // contract coerceToUnsignedLong keeps for its overflow.
+            throw new IllegalArgumentException("epoch value overflows a long when scaled to milliseconds: " + dateTime, e);
         }
     }
 
@@ -667,9 +679,15 @@ public class EsqlDataTypeConverter {
         return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
     }
 
-    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+    /**
+     * Null {@code formatter} means ISO-8601 ({@link #DEFAULT_DATE_NANOS_FORMATTER}), matching
+     * {@link #dateTimeToLong(String, DateFormatter)}. The two sibling converters must agree on the null contract:
+     * a caller that threads an optional declared format through cannot be made to null-check one and not the other.
+     */
+    public static long dateNanosToLong(String dateNano, @Nullable DateFormatter formatter) {
         try {
-            Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+            DateFormatter effective = formatter == null ? DEFAULT_DATE_NANOS_FORMATTER : formatter;
+            Instant parsed = DateFormatters.from(effective.parse(dateNano)).toInstant();
             return DateUtils.toLong(parsed);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);

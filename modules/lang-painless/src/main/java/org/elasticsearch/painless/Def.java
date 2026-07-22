@@ -21,6 +21,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,6 +68,10 @@ public final class Def {
     private static final MethodHandle LIST_INDEX_NORMALIZE;
     /** factory for arraylength MethodHandle (intrinsic) */
     private static final MethodHandle ARRAY_LENGTH;
+    /** pointer to {@link PainlessScript#$checkAllocBytes(long)}, used to charge def-dispatched allocations against the limit */
+    private static final MethodHandle SCRIPT_CHECK_ALLOC_BYTES;
+    /** pointer to {@link AllocationGuard#sanitizeEstimate(long)}, used to clamp {@code @allocates} estimator results */
+    private static final MethodHandle SANITIZE_ALLOC_ESTIMATE;
 
     public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
 
@@ -96,6 +101,16 @@ public final class Def {
                 MethodHandles.class,
                 "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class)
+            );
+            SCRIPT_CHECK_ALLOC_BYTES = methodHandlesLookup.findVirtual(
+                PainlessScript.class,
+                "$checkAllocBytes",
+                MethodType.methodType(void.class, long.class)
+            );
+            SANITIZE_ALLOC_ESTIMATE = methodHandlesLookup.findStatic(
+                AllocationGuard.class,
+                "sanitizeEstimate",
+                MethodType.methodType(long.class, long.class)
             );
         } catch (ReflectiveOperationException roe) {
             throw new AssertionError(roe);
@@ -177,6 +192,55 @@ public final class Def {
             reorder[i] = i;
         }
         return MethodHandles.permuteArguments(handle, swapped, reorder);
+    }
+
+    /** Unreflects an estimator into a handle (this-module lookup for built-ins, {@code publicLookup} for plugins). */
+    private static MethodHandle unreflectAllocationEstimator(Method estimator) {
+        Class<?> declaringClass = estimator.getDeclaringClass();
+        MethodHandles.Lookup lookup = declaringClass.getModule() == Def.class.getModule()
+            ? MethodHandles.lookup()
+            : MethodHandles.publicLookup().in(declaringClass);
+        try {
+            return lookup.unreflect(estimator);
+        } catch (IllegalAccessException iae) {
+            throw new IllegalStateException("could not access allocation estimator [" + estimator + "]", iae);
+        }
+    }
+
+    /**
+     * Wraps {@code handle} (shape {@code (receiver, scriptThis, userArgs...)}) to charge {@code estimator}'s {@code @allocates}
+     * cost via {@link PainlessScript#$checkAllocBytes(long)} before the call. No-lambda shape only (see {@link #lookupMethod}).
+     */
+    private static MethodHandle chargeAllocationBeforeCall(
+        MethodHandle handle,
+        Method estimator,
+        Object[] injections,
+        boolean methodTakesScriptThis
+    ) {
+        // The estimator shares the raw handle's parameter shape, so apply the same injection binding + scriptThis adaptation.
+        MethodHandle estimate = MethodHandles.filterReturnValue(unreflectAllocationEstimator(estimator), SANITIZE_ALLOC_ESTIMATE);
+        if (injections.length > 0) {
+            estimate = MethodHandles.insertArguments(estimate, methodTakesScriptThis ? 2 : 1, injections);
+        }
+        estimate = methodTakesScriptThis ? swapFirstTwoArguments(estimate) : MethodHandles.dropArguments(estimate, 1, PainlessScript.class);
+
+        // Coerce to the handle's exact params (no-op normally; for a bridge, asType casts the Object-widened param back to the
+        // estimator's boxed type — safe since def boxed the value).
+        estimate = estimate.asType(handle.type().changeReturnType(long.class));
+
+        // Fold estimate into $checkAllocBytes' size arg; permute unifies its spare scriptThis slot with the estimator's so both
+        // read the one pushed receiver. Combiner consumes all handle args, returns void.
+        MethodHandle combiner = MethodHandles.collectArguments(SCRIPT_CHECK_ALLOC_BYTES, 1, estimate);
+        int parameterCount = handle.type().parameterCount();
+        int[] reorder = new int[parameterCount + 1];
+        reorder[0] = 1; // $checkAllocBytes receiver <- scriptThis
+        reorder[1] = 0; // estimator receiver <- receiver
+        reorder[2] = 1; // estimator scriptThis <- scriptThis
+        for (int i = 3; i <= parameterCount; i++) {
+            reorder[i] = i - 1; // estimator userArgs shift past the spare leading slot
+        }
+        combiner = MethodHandles.permuteArguments(combiner, MethodType.methodType(void.class, handle.type().parameterList()), reorder);
+        return MethodHandles.foldArguments(handle, combiner);
     }
 
     /**
@@ -262,10 +326,16 @@ public final class Def {
             // shadowing the augmentation name) drop the call site's extra scriptThis slot
             // instead so the call still proceeds.
             if (scriptThisPushed) {
-                if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                boolean methodTakesScriptThis = painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class);
+                if (methodTakesScriptThis) {
                     handle = swapFirstTwoArguments(handle);
                 } else {
                     handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+                }
+                // Charge via the inheritance-walked estimator (handles an unannotated subclass shadowing an annotated supertype).
+                Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, name, numArguments - 1);
+                if (estimator != null) {
+                    handle = chargeAllocationBeforeCall(handle, estimator, injections, methodTakesScriptThis);
                 }
             }
 
@@ -322,8 +392,8 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
 
-        // Same script-first → receiver-first swap as the simple case above when the resolved
-        // method carries @script_aware; drop the extra slot when it doesn't.
+        // Same script-first → receiver-first swap as the simple case; drop the extra slot when not @script_aware.
+        // Allocation is not charged on this (lambda-argument) path — no allocation-annotated target takes a lambda. v1 gap.
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);

@@ -16,8 +16,13 @@ import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -33,6 +38,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 /**
  * Parquet implementation of {@link ColumnExtractor}.
@@ -46,7 +52,7 @@ import java.util.concurrent.ExecutionException;
  * splits, so any extractor on the same file resolves any survivor's identity correctly,
  * regardless of which split first emitted it.
  * <p>
- * Algorithm per multi-column {@link #extract(String[], long[], BlockFactory) extract} call (no
+ * Algorithm per multi-column {@link #extract(String[], DataType[], long[], BlockFactory) extract} call (no
  * slow / sequential fallback path; the extractor is deliberately strict so a regression that
  * would silently fall back to whole-RG scanning fails loud instead):
  * <ol>
@@ -78,6 +84,15 @@ import java.util.concurrent.ExecutionException;
  *       bucket-visit order (independent of decode arrival order). A gather permutation then
  *       routes each caller slot to its position in the concatenated block via
  *       {@link Block#filter(boolean, int...)}, replaying duplicate requests for the same row.</li>
+ *   <li><b>Coerce to the target type.</b> The extractor always decodes a column at the file's own
+ *       physical type; when the caller-supplied target (planner/declared) type differs, the
+ *       stitched block is coerced through {@link DeclaredTypeCoercions#castBlock} — the same
+ *       engine (and therefore the same values and the same policy-aware failure behavior:
+ *       warn+null by default, fail the read under {@code fail_fast}) as the eager decode paths
+ *       in {@link ParquetFormatReader}. Unlike the eager paths nothing is
+ *       fused into the decode loops here, so every non-identity supported pair coerces this way;
+ *       a pair {@link DeclaredTypeCoercions#supports} rejects (a drifted glob file) reads as
+ *       all-null with a response Warning, mirroring the eager per-file validation.</li>
  * </ol>
  * <p>
  * I/O cost: one async coalesced fetch per visited row group, all dispatched in parallel up to
@@ -96,6 +111,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private final StorageObject storageObject;
     private final ParquetFormatReader reader;
     private final ParquetMetadata ownedFooter;
+    /** See {@link #castBlockWarnings()}. */
+    private final ErrorPolicy errorPolicy;
     private final long rowCount;
     /**
      * Precomputed prefix sum of row counts over {@link #ownedFooter}'s blocks, with a leading
@@ -106,6 +123,23 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * in the file's address space; the extractor does not need or want a subset view).
      */
     private final long[] rowGroupOffsets;
+    /**
+     * Relay for per-value declared-coercion warnings, or {@code null} to fall back to emitting
+     * directly via {@code HeaderWarning}. The extractor runs on the
+     * driver thread, so direct emission is correct; a non-null sink is the budget-gated wrapper that
+     * caps the whole source. See {@link #coercionWarnings()}.
+     */
+    @Nullable
+    private final Consumer<String> warningSink;
+
+    /**
+     * Delegates to {@link #ParquetColumnExtractor(StorageObject, ParquetFormatReader, ParquetMetadata, ErrorPolicy, Consumer)}
+     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance
+     * cap only). Used by tests and any on-driver-thread caller that does not centrally cap the channel.
+     */
+    ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter, ErrorPolicy errorPolicy) {
+        this(storageObject, reader, ownedFooter, errorPolicy, null);
+    }
 
     /**
      * @param storageObject the storage handle for the file (extractor borrows it; caller closes)
@@ -115,11 +149,25 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      *                      iterators (full-file or range-split) emit file-global row identities,
      *                      so the extractor's address space matches the file rather than any
      *                      split slice.
+     * @param errorPolicy   the read's error policy, inherited from the iterator that produced the
+     *                      row identities so the deferred columns fail (or warn+null) exactly like
+     *                      the eagerly scanned ones
+     * @param warningSink   where per-value coercion warnings are relayed (budget-gated direct
+     *                      emission on the driver thread), or {@code null} for direct
+     *                      {@code HeaderWarning} emission
      */
-    ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter) {
+    ParquetColumnExtractor(
+        StorageObject storageObject,
+        ParquetFormatReader reader,
+        ParquetMetadata ownedFooter,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
+    ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
         this.reader = Objects.requireNonNull(reader, "reader");
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
+        this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
+        this.warningSink = warningSink;
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         this.rowGroupOffsets = new long[blocks.size() + 1];
         long acc = 0;
@@ -137,7 +185,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     @Override
-    public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory blockFactory) throws IOException {
+    public Block[] extract(String[] columnNames, @Nullable DataType[] targetTypes, long[] localPositions, BlockFactory blockFactory)
+        throws IOException {
         Objects.requireNonNull(columnNames, "columnNames");
         Objects.requireNonNull(localPositions, "localPositions");
         Objects.requireNonNull(blockFactory, "blockFactory");
@@ -146,6 +195,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             if (columnName.equals(ROW_POSITION_COLUMN)) {
                 throw new IllegalArgumentException("cannot extract reserved column [" + ROW_POSITION_COLUMN + "]");
             }
+        }
+        if (targetTypes != null && targetTypes.length != columnNames.length) {
+            throw new IllegalArgumentException(
+                "targetTypes length [" + targetTypes.length + "] must match columnNames length [" + columnNames.length + "]"
+            );
         }
 
         int colCount = columnNames.length;
@@ -240,7 +294,16 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             for (int c = 0; c < colCount; c++) {
                 // stitchAndGather releases its per-bucket blocks and nulls the array entries so
                 // the outer defensive cleanup is a no-op for already-stitched columns.
-                result[c] = stitchAndGather(perBucketBlocks[c], buckets, count, blockFactory);
+                Block stitched = stitchAndGather(perBucketBlocks[c], buckets, count, blockFactory);
+                result[c] = stitched;
+                DataType target = targetTypes == null ? null : targetTypes[c];
+                if (target != null && target != infos[c].esqlType()) {
+                    // coerceToTarget consumes `stitched` (its finally closes it), so clear the
+                    // slot first — a throw mid-coercion must not double-close via the outer
+                    // defensive cleanup.
+                    result[c] = null;
+                    result[c] = coerceToTarget(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
+                }
             }
             built = true;
             return result;
@@ -481,6 +544,93 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         }
     }
 
+    /**
+     * Coerces one stitched physical-type block to the caller's target (planner/declared) type
+     * through {@link DeclaredTypeCoercions#castBlock} — the identical engine, formatter (the
+     * column's declared date {@code format} via
+     * {@link ParquetFormatReader#declaredDateFormatterFor}), and policy-aware failure behavior
+     * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
+     * like an eagerly scanned one — including the declared-vs-inferred null-fill decision: the lossy
+     * {@link DeclaredTypeCoercions#supports} escape (which admits narrowing) is honored only for a
+     * DECLARED column, mirroring {@code validatePlannerTypesAgainstFile}. An inferred target may only
+     * widen ({@link ParquetFormatReader#plannerTypeCompatibleWithFileDerivedType}); a narrowing or a
+     * drifted-glob pair reads the column as all-null rather than downcasting (which would disagree
+     * with the eager scan of the same file). Always consumes {@code physical} and returns a fresh
+     * caller-owned block.
+     */
+    private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
+        try {
+            // Same gate as the eager reader (validatePlannerTypesAgainstFile). castBlock only functions on a supports()
+            // pair, so that stays the precondition; on top of it the lossy narrowing it admits is licensed only for a
+            // DECLARED column — an inferred target may coerce only when the pair also widens. So an inferred narrowing
+            // (supports true, not widening, not declared) null-fills instead of downcasting, agreeing with the eager
+            // scan of the same file. columnName is physical here (the extractor projects physical names), matching the set.
+            boolean coercible = DeclaredTypeCoercions.supports(fileType, target)
+                && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType)
+                    || reader.isDeclaredTypeColumn(columnName));
+            if (coercible) {
+                return DeclaredTypeCoercions.castBlock(
+                    physical,
+                    fileType,
+                    target,
+                    reader.declaredDateFormatterFor(columnName),
+                    factory,
+                    columnName,
+                    castBlockWarnings()
+                );
+            }
+            coercionWarnings().add(
+                "Column ["
+                    + columnName
+                    + "] in file ["
+                    + storageObject.path()
+                    + "] has type ["
+                    + fileType
+                    + "] incompatible with planner type ["
+                    + target
+                    + "]; returning nulls for this column"
+            );
+            return factory.newConstantNullBlock(count);
+        } finally {
+            physical.close();
+        }
+    }
+
+    /**
+     * Lazily-created sink for per-value declared-coercion failures (capped response Warning
+     * headers + nulled cells); shared by every column and {@link #extract} call of this extractor
+     * so the per-instance cap is per deferred-extraction pass, mirroring the per-iterator sink the
+     * eager scan paths keep ({@code ParquetColumnIterator#coercionWarnings()}). Emitted messages go
+     * to {@link #warningSink} when supplied (the budget-gated driver-thread relay that caps the whole
+     * source) or directly via {@code HeaderWarning} otherwise. Single driver thread owns the instance
+     * (see the class Javadoc threading note).
+     */
+    private SkipWarnings coercionWarnings;
+
+    private SkipWarnings coercionWarnings() {
+        if (coercionWarnings == null) {
+            coercionWarnings = new SkipWarnings(
+                "Parquet file ["
+                    + storageObject.path()
+                    + "] has values that could not be coerced to the declared column type; they are returned as null",
+                warningSink
+            );
+        }
+        return coercionWarnings;
+    }
+
+    /**
+     * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
+     * {@code fail_fast} so the failure propagates — identical to the eager iterators'
+     * policy-aware {@code coercionWarnings()}. The drifted-glob whole-column-null fallback in
+     * {@link #coerceToTarget} stays on the always-live {@link #coercionWarnings()} regardless of
+     * policy, mirroring the eager per-file validation which also warns+nulls under every policy.
+     */
+    @Nullable
+    private SkipWarnings castBlockWarnings() {
+        return errorPolicy.isStrict() ? null : coercionWarnings();
+    }
+
     private void validatePositions(long[] localPositions, int count) {
         long min = localPositions[0];
         long max = localPositions[0];
@@ -609,8 +759,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * List-column sparse decode. parquet-mr's {@link ColumnReader} is repetition-aware so we
-     * walk the row-group rows in source order via {@link ParquetColumnDecoding#skipListValues}
-     * and {@link ParquetColumnDecoding#readListColumn}, alternating skip/read runs in lock-step
+     * walk the row-group rows in source order via {@link #skipListRows} (a sparse row-granular
+     * skip — {@code ParquetColumnDecoding#skipListValues} skips values, not rows, and would leave
+     * the data cursor stale here) and {@link ParquetColumnDecoding#readListColumn}, alternating skip/read runs in lock-step
      * with the unique survivor positions. Same in-memory chunks as the flat path; we only swap
      * the decoder.
      */

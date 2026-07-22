@@ -144,13 +144,13 @@ Note that if you return both the original `location` and the extracted `x` and `
 
 ## Runtime fields [esql-limitations-runtime-fields]
 
-{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. However, you cannot define new runtime fields at search time in {{esql}}. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to create computed columns instead.
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to compute fields at query time, the built-in equivalent of runtime fields.
 
-Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive.
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive. Loading unmapped fields from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with `SET unmapped_fields="load"` is slower than querying mapped fields, and filters or sorts on loaded fields can force a full scan. To learn more, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
 ## _source availability [esql-_source-availability]
 
-{{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
+{{esql}} does not support configurations where the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
 ## Full-text search [esql-limitations-full-text-search]
 
@@ -159,6 +159,18 @@ like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functi
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+This restriction does not apply when `MATCH` targets an expression rather
+than an indexed field (for example, a column produced by `EVAL` or `STATS`).
+In that case, `MATCH` evaluates by scanning values row by row instead of
+using the index, and can appear anywhere in the query.
+When searching expressions:
+
+* [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+  (match query options) are not supported.
+* `MATCH` on an expression does not contribute to the relevance score when
+  using `METADATA _score`.
 
 For example, this query is valid:
 

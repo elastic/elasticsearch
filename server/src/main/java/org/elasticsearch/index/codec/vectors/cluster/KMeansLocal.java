@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,8 +22,7 @@ import java.util.function.IntUnaryOperator;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
- * with finalizing nearby pre-established clusters and generate
- * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ * with finalizing nearby pre-established clusters
  *
  * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
@@ -150,15 +148,6 @@ abstract class KMeansLocal<V> {
     }
 
     /**
-     * Computes any overspill assignments and returns them in {@code OverspillAssignments}
-     */
-    protected abstract OverspillAssignments assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansResult<V> kMeansResult,
-        NeighborHood[] neighborhoods
-    ) throws IOException;
-
-    /**
      * Compute a clustering that considers prior clustered neighborhoods when adjusting centroids.
      * Different implementations of this abstract class may use different algorithm for clustering.
      * This also is used to generate the neighborhood aware additional overspill assignments
@@ -173,7 +162,7 @@ abstract class KMeansLocal<V> {
      * @return the clustering result with the overspill assignments
      * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      */
-    final KMeansWithOverspill<V> cluster(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult, int clustersPerNeighborhood)
+    final NeighborHood[] cluster(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult, int clustersPerNeighborhood)
         throws IOException {
         if (clustersPerNeighborhood < 2) {
             throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
@@ -184,11 +173,7 @@ abstract class KMeansLocal<V> {
             neighborhoods = computeNeighborhoods(kMeansResult.centroids(), clustersPerNeighborhood);
         }
         doCluster(vectors, kMeansResult, neighborhoods);
-        OverspillAssignments overspill = null;
-        if (kMeansResult.centroids().length > 1) {
-            overspill = assignSpilled(vectors, kMeansResult, neighborhoods);
-        }
-        return new KMeansWithOverspill<>(kMeansResult, overspill);
+        return neighborhoods;
     }
 
     private void doCluster(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult, NeighborHood[] neighborhoods)

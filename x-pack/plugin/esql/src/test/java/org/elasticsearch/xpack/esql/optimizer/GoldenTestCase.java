@@ -125,7 +125,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * {@code {current}} checks the newest version range at {@link TransportVersion#current()}; {@code {historical}} checks
-     * every range at a random released version inside it. Two fixed values so muting one never disarms the other.
+     * every range at a random defined version inside it. Two fixed values so muting one never disarms the other.
      * See GoldenTestsReadme.MD.
      */
     public static final String MODE_CURRENT = "current";
@@ -400,7 +400,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         /** Ranges whose window can still be sampled; a dead range is a cleanup prompt, not a failure. */
         private List<VersionRange> liveRanges(String testName) {
             TransportVersion lowerBound = since != null ? since : TransportVersion.minimumCompatible();
-            List<VersionRange> ranges = deriveRanges(lowerBound, labels, COMPATIBLE_RELEASED_VERSIONS);
+            List<VersionRange> ranges = deriveRanges(lowerBound, labels, COMPATIBLE_VERSIONS);
             List<VersionRange> live = new ArrayList<>(ranges.size());
             for (int i = 0; i < ranges.size(); i++) {
                 if (ranges.get(i).versions().isEmpty()) {
@@ -533,16 +533,16 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * {@code dir} is null for the newest range and for tests without labels — their files live directly in the test
-     * directory. {@code versions} holds every released compatible version the range covers, ascending; checks draw from it.
+     * directory. {@code versions} holds every supplied compatible version the range covers, ascending; checks draw from it.
      */
     record VersionRange(String dir, TransportVersion start, List<TransportVersion> versions) {}
 
     /**
-     * Splits the version window at the labels and assigns every released version to the range it belongs to,
+     * Splits the version window at the labels and assigns every candidate version to the range it belongs to,
      * by {@link TransportVersion#supports}. Ranges may come back empty ({@code versions}) — the caller decides
      * whether that's a cleanup prompt or a failure.
      */
-    static List<VersionRange> deriveRanges(TransportVersion lowerBound, List<Label> labels, Collection<TransportVersion> released) {
+    static List<VersionRange> deriveRanges(TransportVersion lowerBound, List<Label> labels, Collection<TransportVersion> candidates) {
         List<TransportVersion> cuts = new ArrayList<>(labels.size() + 1);
         cuts.add(lowerBound);
         for (Label label : labels) {
@@ -558,7 +558,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         for (int i = 0; i < cuts.size(); i++) {
             partition.add(new ArrayList<>());
         }
-        for (TransportVersion version : released) {
+        for (TransportVersion version : candidates) {
             if (version.supports(cuts.getFirst()) == false) {
                 continue; // below the lower bound
             }
@@ -592,7 +592,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (version.supports(cuts.get(i)) == false) {
                 throw new IllegalStateException(
                     Strings.format(
-                        "released transport version [%s] supports [%s] but not the older [%s] — a version-aware change was "
+                        "transport version [%s] supports [%s] but not the older [%s] — a version-aware change was "
                             + "backported below another one that wasn't. No golden version range can describe this version's "
                             + "planning; see the backporting caution on Versioned's javadoc. If the backport is deliberate, "
                             + "cover this combination with explicitly pinned transport versions.",
@@ -605,7 +605,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
     }
 
-    private static final List<TransportVersion> COMPATIBLE_RELEASED_VERSIONS = TransportVersionUtils.allReleasedVersions()
+    /** Every defined compatible version: any of them may identify a running cluster, particularly on Serverless. */
+    private static final List<TransportVersion> COMPATIBLE_VERSIONS = TransportVersionUtils.allReleasedVersions()
         .stream()
         .filter(TransportVersion::isCompatible)
         .toList();

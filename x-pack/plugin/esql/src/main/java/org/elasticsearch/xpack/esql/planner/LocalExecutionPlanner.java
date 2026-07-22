@@ -798,7 +798,7 @@ public class LocalExecutionPlanner {
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
-        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+        if (parallelWorkerExecutor != null) {
             int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
             parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
                 parallelWorkerExecutor,

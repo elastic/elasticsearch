@@ -139,6 +139,27 @@ public class GoogleAiStudioStreamingProcessorTests extends ESTestCase {
 
         var processor = new GoogleAiStudioStreamingProcessor(noOp -> { throw expectedException; });
 
-        assertThat(onError(processor, events("hi")), sameInstance(expectedException));
+        // Use a valid JSON object so parseObjects can tokenize and invoke the content function.
+        assertThat(onError(processor, events("{}")), sameInstance(expectedException));
+    }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() {
+        var firstJson = """
+             {
+              "candidates": [{"content": {"parts": [{"text": "Hello"}], "role": "model"}, "finishReason": "STOP", "index": 0}],
+              "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 1}
+            }\
+            """;
+        var secondJson = """
+             {
+              "candidates": [{"content": {"parts": [{"text": ", World"}], "role": "model"}, "finishReason": "STOP", "index": 0}],
+              "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 1}
+            }\
+            """;
+        var item = events(firstJson + "\n" + secondJson);
+
+        var response = onNext(new GoogleAiStudioStreamingProcessor(GoogleAiStudioCompletionResponseEntity::content), item);
+        assertThat(response.results().size(), equalTo(2));
+        assertThat(response.results(), containsResults("Hello", ", World"));
     }
 }

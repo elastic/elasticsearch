@@ -10,6 +10,7 @@
 module org.elasticsearch.telemetry.apm {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
@@ -21,6 +22,7 @@ module org.elasticsearch.telemetry.apm {
     requires io.opentelemetry.sdk.logs;
     requires io.opentelemetry.sdk.trace;
     requires io.opentelemetry.exporter.otlp;
+    requires io.opentelemetry.instrumentation_api;
     requires io.opentelemetry.instrumentation.runtime_telemetry;
     requires io.opentelemetry.sdk.common;
     requires org.elasticsearch.logging;

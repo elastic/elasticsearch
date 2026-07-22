@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -21,7 +23,9 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -29,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -42,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -50,8 +56,11 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 
 public class ExternalDistributionTests extends ESTestCase {
 
@@ -151,6 +160,79 @@ public class ExternalDistributionTests extends ESTestCase {
             "Expected TopN inside fragment, got: " + fragment.fragment().getClass().getSimpleName(),
             fragment.fragment() instanceof TopN
         );
+    }
+
+    // --- Request filter warning tests (elastic/esql-planning#1158) ---
+
+    public void testIntegrateEsFilterWarnsForExternalDataset() {
+        ExternalRelation external = createExternalRelation();
+        FragmentExec fragment = new FragmentExec(external);
+
+        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+
+        assertTrue("Expected FragmentExec, got: " + result.getClass().getSimpleName(), result instanceof FragmentExec);
+        // The filter is still stored on the fragment (unchanged, pre-existing no-op behavior for external
+        // sources); only the warning is new -- see PlannerUtils.localPlan, which only ever consumes it for EsSourceExec.
+        assertNotNull("Filter should still be stored on the fragment", ((FragmentExec) result).esFilter());
+        assertWarnings(
+            "The filter in the ES|QL query request is not applied to external dataset(s) [s3://bucket/data/*.parquet]; "
+                + "use a WHERE clause to filter rows from external datasets instead"
+        );
+    }
+
+    public void testIntegrateEsFilterWarningNamesDatasetName() {
+        ExternalRelation external = createExternalRelationWithDatasetName("my_dataset");
+        FragmentExec fragment = new FragmentExec(external);
+
+        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+
+        assertWarnings(
+            "The filter in the ES|QL query request is not applied to external dataset(s) [my_dataset]; "
+                + "use a WHERE clause to filter rows from external datasets instead"
+        );
+    }
+
+    public void testIntegrateEsFilterWarningListsMultipleDistinctDatasets() {
+        ExternalRelation left = createExternalRelationWithDatasetName("dataset_a");
+        ExternalRelation right = createExternalRelationWithDatasetName("dataset_b");
+        LookupJoinExec join = new LookupJoinExec(
+            SRC,
+            new FragmentExec(left),
+            new FragmentExec(right),
+            List.of(),
+            List.of(),
+            List.of(),
+            null
+        );
+
+        PlannerUtils.integrateEsFilterIntoFragment(join, QueryBuilders.termQuery("name", "foo"));
+
+        // Both distinct datasets must be named, in encounter order, joined into a single warning
+        // rather than one warning per dataset.
+        assertWarnings(
+            "The filter in the ES|QL query request is not applied to external dataset(s) [dataset_a, dataset_b]; "
+                + "use a WHERE clause to filter rows from external datasets instead"
+        );
+    }
+
+    public void testIntegrateEsFilterNoWarningWithoutEsFilter() {
+        ExternalRelation external = createExternalRelation();
+        FragmentExec fragment = new FragmentExec(external);
+
+        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, null);
+
+        // no request filter at all -- nothing to warn about; unchecked warnings would fail teardown
+        assertSame(fragment, result);
+    }
+
+    public void testIntegrateEsFilterNoWarningWithoutExternalSource() {
+        EsRelation relation = createEsRelation();
+        FragmentExec fragment = new FragmentExec(relation);
+
+        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+
+        // no ExternalRelation anywhere in the plan -- the warning must not fire; an unexpected warning
+        // would otherwise fail this test at teardown (ESTestCase#ensureNoWarnings)
     }
 
     // --- Context validation tests ---
@@ -256,6 +338,69 @@ public class ExternalDistributionTests extends ESTestCase {
         assertTrue(
             "Expected FragmentExec directly under LimitExec, got: " + collapsedLimit.child().getClass().getSimpleName(),
             collapsedLimit.child() instanceof FragmentExec
+        );
+    }
+
+    // --- Gather-boundary detection tests ---
+
+    // Detecting the exchange that collapseExternalSourceExchanges would remove is what tells the local path a gather is
+    // still needed. When true and there is more than one split group, the exchange must be preserved and the partial
+    // aggregation run on the local node so the parallel per-group drivers merge into a single final aggregation.
+
+    public void testHasCollapsibleExternalExchangeDetectsFragmentExchange() {
+        ExternalRelation external = createExternalRelation();
+        Aggregate aggregate = new Aggregate(SRC, external, List.of(), List.of());
+
+        Mapper mapper = new Mapper();
+        PhysicalPlan physicalPlan = mapper.map(new Versioned<>(aggregate, TransportVersion.current()));
+
+        assertTrue(
+            "STATS over an external source must keep a collapsible exchange",
+            ComputeService.hasCollapsibleExternalExchange(physicalPlan)
+        );
+    }
+
+    public void testHasCollapsibleExternalExchangeDetectsDirectSourceExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        ExchangeExec exchange = new ExchangeExec(SRC, externalSource);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+
+        assertTrue(ComputeService.hasCollapsibleExternalExchange(limit));
+    }
+
+    public void testNeedsGatherBoundaryOnlyForPerDriverUnsafeOperators() {
+        ExternalRelation external = createExternalRelation();
+        Mapper mapper = new Mapper();
+
+        PhysicalPlan aggPlan = mapper.map(new Versioned<>(new Aggregate(SRC, external, List.of(), List.of()), TransportVersion.current()));
+        assertTrue(
+            "STATS emits one row per driver when replicated, so it needs a gather",
+            ExternalDistributionStrategy.needsGatherBoundary(aggPlan)
+        );
+
+        // A limit is enforced across drivers by a single shared Limiter, so replicating it stays correct and the
+        // scan must keep its cheaper collapsed path rather than being rerouted through an exchange.
+        PhysicalPlan limitPlan = mapper.map(
+            new Versioned<>(new Limit(SRC, new Literal(SRC, 10, DataType.INTEGER), external), TransportVersion.current())
+        );
+        assertFalse("a limit-only plan must not be rerouted through a gather", ExternalDistributionStrategy.needsGatherBoundary(limitPlan));
+    }
+
+    public void testHasCollapsibleExternalExchangeFalseWithoutExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), null);
+
+        assertFalse("A plain external scan without an exchange needs no gather", ComputeService.hasCollapsibleExternalExchange(limit));
+    }
+
+    public void testHasCollapsibleExternalExchangeFalseForNonExternalExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        AggregateExec agg = new AggregateExec(SRC, externalSource, List.of(), List.of(), AggregatorMode.INITIAL, List.of(), null);
+        ExchangeExec exchange = new ExchangeExec(SRC, agg);
+
+        assertFalse(
+            "An exchange whose child is not directly the external source is not collapsible",
+            ComputeService.hasCollapsibleExternalExchange(exchange)
         );
     }
 
@@ -395,10 +540,65 @@ public class ExternalDistributionTests extends ESTestCase {
             exec -> exec.splits().isEmpty() ? exec.withSplits(splits) : exec
         );
 
-        final List<ExternalSourceExec> sources = new java.util.ArrayList<>();
+        final List<ExternalSourceExec> sources = new ArrayList<>();
         withSplits.forEachDown(ExternalSourceExec.class, sources::add);
         assertFalse("Should have at least one ExternalSourceExec", sources.isEmpty());
         assertEquals("Splits should be injected", 2, sources.get(0).splits().size());
+    }
+
+    // --- Split coalescing floor wiring ---
+
+    public void testCoalesceSplitsFloorsTopLevelSplitCount() {
+        int fileCount = 200;
+        int minGroupCount = 14;
+        List<ExternalSplit> splits = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        ExternalSourceExec exec = createExternalSourceExec().withSplits(splits);
+
+        PhysicalPlan coalesced = ComputeService.coalesceSplits(exec, () -> minGroupCount);
+
+        List<ExternalSourceExec> sources = new ArrayList<>();
+        coalesced.forEachDown(ExternalSourceExec.class, sources::add);
+        assertEquals(1, sources.size());
+        List<ExternalSplit> result = sources.get(0).splits();
+        assertEquals("tiny files must stay spread across the floor, not collapse to one split", minGroupCount, result.size());
+        assertEquals("no leaves lost", fileCount, CoalescedSplit.flatten(result).size());
+    }
+
+    public void testCoalesceSplitsResolvesFloorAtMostOnceAndOnlyWhenNeeded() {
+        AtomicInteger resolutions = new AtomicInteger();
+        IntSupplier countingFloor = () -> {
+            resolutions.incrementAndGet();
+            return 14;
+        };
+
+        // Resolving the floor reads cluster state and thread-pool info, so a plan with nothing to coalesce must not
+        // pay for it: split discovery runs on every query, the overwhelming majority of which have no external source.
+        ComputeService.coalesceSplits(createExternalSourceExec(), countingFloor);
+        assertEquals("a plan with no coalescible external source must not resolve the floor", 0, resolutions.get());
+
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < SplitCoalescer.COALESCING_THRESHOLD + 1; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        ComputeService.coalesceSplits(createExternalSourceExec().withSplits(splits), countingFloor);
+        assertEquals("a coalescible external source resolves the floor exactly once", 1, resolutions.get());
+    }
+
+    public void testExternalCoalesceFloorIsTaskConcurrencyTimesNodes() {
+        assertEquals(14, ComputeService.externalCoalesceFloor(14, 1));
+        assertEquals(56, ComputeService.externalCoalesceFloor(14, 4));
+        // A degenerate task_concurrency must not drive the floor below one, which would make coalescing throw.
+        assertEquals(1, ComputeService.externalCoalesceFloor(0, 4));
+        assertEquals(1, ComputeService.externalCoalesceFloor(-3, 4));
+        // An implausibly wide cluster must clamp rather than overflow.
+        assertEquals(Integer.MAX_VALUE, ComputeService.externalCoalesceFloor(Integer.MAX_VALUE, 4));
     }
 
     // --- Field retention through local optimization tests ---
@@ -518,6 +718,21 @@ public class ExternalDistributionTests extends ESTestCase {
         );
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
         return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of());
+    }
+
+    private static ExternalRelation createExternalRelationWithDatasetName(String datasetName) {
+        List<Attribute> output = List.of(
+            new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
+        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of(), datasetName);
+    }
+
+    private static EsRelation createEsRelation() {
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        return new EsRelation(SRC, "test", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), attributes);
     }
 
     private static ExternalRelation createMultiFieldExternalRelation() {

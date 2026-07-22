@@ -393,6 +393,32 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), ex.status().getStatus());
     }
 
+    public void testDfsRewriteTimeoutWithPartialResults() {
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
+            .setQuery(new RewriteTimeoutQuery());
+        ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
+            assertThat(searchResponse.isTimedOut(), equalTo(true));
+            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getFailedShards());
+            assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
+            assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
+            assertEquals(0, searchResponse.getHits().getTotalHits().value());
+            assertEquals(0, searchResponse.getHits().getHits().length);
+        });
+    }
+
+    public void testPartialResultsIntolerantDfsRewriteTimeout() {
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
+                .setQuery(new RewriteTimeoutQuery())
+                .setAllowPartialSearchResults(false)
+        );
+        assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), ex.status().getStatus());
+    }
+
     public static final class SearchTimeoutPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {

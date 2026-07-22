@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -408,15 +409,42 @@ public abstract class DocumentParserContext {
 
     /**
      * Enforces that a field configured with {@code multi_value=false} receives at most one value per document. The first call for a given
-     * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
-     * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     * field name succeeds; a subsequent call for the same name violates the constraint. Shared across all child contexts so the
+     * constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     * <p>
+     * When {@code onFailure} is {@link FieldMapper.DocValuesParameter.Values.OnFailure#FAIL}, a violation throws {@link
+     * IllegalArgumentException}, rejecting the whole document. When it is {@code IGNORE}, the violating value is instead written to a
+     * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
+     * value ever reaching the field's own doc values.
+     * <p>
+     * {@code IGNORE} redirects fields that fail validation to a failure column and proceeds.
+     *
+     * @return {@code true} if this value was redirected to the failure column and the caller must skip normal parsing (including
+     * multi-fields) for it; {@code false} if the caller should parse and index this value normally.
      */
-    public final void enforceSingleValue(String fieldName) {
-        if (singleValuedFields.add(fieldName) == false) {
+    public final boolean enforceSingleValue(String fieldName, FieldMapper.DocValuesParameter.Values.OnFailure onFailure)
+        throws IOException {
+        if (singleValuedFields.add(fieldName)) {
+            return false;
+        }
+        XContentParser.Token currentToken = parser().currentToken();
+        assert currentToken != XContentParser.Token.START_OBJECT && currentToken != XContentParser.Token.START_ARRAY
+            : "enforceSingleValue should only be called for leaf values, but field ["
+                + fieldName
+                + "] is currently at token "
+                + currentToken;
+        if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
+        if (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored()) {
+            // Stored source already retains the offending value; only synthetic (and columnar_stored, which reconstructs
+            // its per-document source the same way) need the value copied out to survive reconstruction.
+            OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
+        }
+        addIgnoredField(fieldName);
+        return true;
     }
 
     /**
@@ -429,7 +457,10 @@ public abstract class DocumentParserContext {
 
     /**
      * Enforce that the current Lucene doc carries a non-null value for every {@code [nullability=false]} field scoped to it. Called once
-     * per Lucene doc: the root doc against the root scope, each nested instance against its own nested path. Throws when any are missing.
+     * per Lucene doc: the root doc against the root scope, each nested instance against its own nested path.
+     * <p>
+     * A missing field resolved to {@code on_failure=FAIL} is thrown for, as before. One resolved to {@code IGNORE} is instead just
+     * marked ignored - there's no parser value to redirect to a failure column for a field that was never provided.
      */
     public final void enforceRequiredFields() {
         if (mappingLookup.hasRequiredFields() == false) {
@@ -451,7 +482,26 @@ public abstract class DocumentParserContext {
         }
         // sortedDifference gives a deterministic message regardless of iteration order; only allocated on the (cold) failure path.
         SortedSet<String> missing = Sets.sortedDifference(required, satisfied);
-        throw new IllegalArgumentException("Field(s) " + missing + " are configured with [nullability=false] but no value was provided");
+        SortedSet<String> toFail = new TreeSet<>();
+        for (String fieldName : missing) {
+            if (onFailureBehavior(fieldName) == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                addIgnoredField(fieldName);
+            } else {
+                toFail.add(fieldName);
+            }
+        }
+        if (toFail.isEmpty() == false) {
+            throw new IllegalArgumentException("Field(s) " + toFail + " are configured with [nullability=false] but no value was provided");
+        }
+    }
+
+    /**
+     * Resolves the {@code on_failure} behavior configured on the given required field.
+     */
+    private FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior(String fieldName) {
+        var mapper = mappingLookup.getMapper(fieldName);
+        assert mapper instanceof FieldMapper : "required field [" + fieldName + "] must resolve to a FieldMapper, but got " + mapper;
+        return ((FieldMapper) mapper).onFailureBehavior();
     }
 
     /**

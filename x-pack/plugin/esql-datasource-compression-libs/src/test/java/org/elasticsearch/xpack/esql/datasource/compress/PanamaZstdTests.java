@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.compress;
 import com.github.luben.zstd.Zstd;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.nio.ByteBuffer;
 
@@ -25,9 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PanamaZstdTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void requireNativeZstd() throws Exception {
         assumeTrue("PanamaZstd requires the native zstd binding to be available on this platform", PanamaZstd.instance().isAvailable());
     }
 

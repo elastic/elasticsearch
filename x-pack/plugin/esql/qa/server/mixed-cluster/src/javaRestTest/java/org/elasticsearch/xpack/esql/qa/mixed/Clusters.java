@@ -37,7 +37,11 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            .setting("ingest.geoip.downloader.enabled", "false");
+            .setting("ingest.geoip.downloader.enabled", "false")
+            // DLM frozen tier serialization is gated on both a feature flag and a transport version, so nodes in a mixed cluster can
+            // disagree on the wire format when their build types differ (snapshot vs release). Disable the flag on every node so
+            // serialization is consistent regardless of build type. See https://github.com/elastic/elasticsearch/issues/153679.
+            .systemProperty("es.dlm_searchable_snapshots_feature_flag_enabled", "false");
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

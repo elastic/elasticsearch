@@ -174,6 +174,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
@@ -599,6 +600,7 @@ public class EsqlFunctionRegistry {
                 MvDedupe.DEFINITION,
                 MvDifference.DEFINITION,
                 MvFirst.DEFINITION,
+                MvInRange.DEFINITION,
                 MvIntersection.DEFINITION,
                 MvLast.DEFINITION,
                 MvMax.DEFINITION,
@@ -1161,6 +1163,9 @@ public class EsqlFunctionRegistry {
             capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);
+            }
+            for (String sub : def.snapshotCapabilities()) {
+                capabilities.add(name + "_" + sub, enabled && Build.current().isSnapshot());
             }
         }
     }

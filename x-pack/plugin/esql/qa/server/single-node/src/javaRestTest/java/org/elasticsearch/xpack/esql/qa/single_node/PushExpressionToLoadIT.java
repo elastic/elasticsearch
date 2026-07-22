@@ -304,9 +304,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            // High-cardinality keyword now stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushdown is disabled for
-            // that encoding (see KeywordFieldType#supportsBlockLoaderConfig), so values are loaded with the generic reader instead.
-            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount", 1)
+            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushes down into the matching
+            // array-order reader, which skips inline nulls and computes the minimum over the non-null values.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
 
@@ -426,9 +426,33 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            // High-cardinality keyword now stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushdown is disabled for
-            // that encoding (see KeywordFieldType#supportsBlockLoaderConfig), so values are loaded with the generic reader instead.
-            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount", 1)
+            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushes down into the matching
+            // array-order reader, which skips inline nulls and computes the maximum over the non-null values.
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+        );
+    }
+
+    public void testLengthToKeywordHighCardinality() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
+            // The trailing null makes the slot count 2 (nulls are counted but not stored), forcing the array-order length reader rather
+            // than the single-value fast path, while the single non-null value keeps LENGTH single-valued.
+            b -> b.startArray("test").value(value).nullValue().endArray(),
+            "| EVAL test = LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1)
+        );
+    }
+
+    public void testByteLengthToKeywordHighCardinality() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
+            b -> b.startArray("test").value(value).nullValue().endArray(),
+            "| EVAL test = BYTE_LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1)
         );
     }
 
@@ -1196,8 +1220,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * Runs a {@code MV_MIN}/{@code MV_MAX} pushdown test against a strict-columnar index so the keyword field gets HIGH-cardinality binary
-     * doc values, exercising the {@code FromBinary.SeparateCount} block loaders instead of the SortedSet ordinal loaders.
+     * Runs a function-pushdown test against a strict-columnar index so the keyword field gets HIGH-cardinality binary doc values
+     * (the {@code ArrayOrderInlineNull} format), exercising the array-order binary block loaders instead of the SortedSet ordinal loaders.
      */
     private void testHighCardinality(
         CheckedConsumer<XContentBuilder, IOException> mapping,

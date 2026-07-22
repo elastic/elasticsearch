@@ -65,8 +65,10 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.is;
 
-//The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+// The default 20 minutes timeout isn't always enough; Darwin CI hosts are very slow and the
+// encryption-at-rest periodic step copies the entire workspace onto a LUKS dm-crypt volume,
+// adding substantial I/O overhead that can push the suite beyond 60 minutes.
+@TimeoutSuite(millis = 80 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_admin";

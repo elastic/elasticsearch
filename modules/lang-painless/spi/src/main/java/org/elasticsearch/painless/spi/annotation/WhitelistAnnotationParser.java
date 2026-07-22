@@ -32,8 +32,7 @@ public interface WhitelistAnnotationParser {
             new AbstractMap.SimpleEntry<>(AugmentedAnnotation.NAME, AugmentedAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(DynamicTypeAnnotation.NAME, DynamicTypeAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(AliasAnnotation.NAME, AliasAnnotationParser.INSTANCE),
-            new AbstractMap.SimpleEntry<>(AllocatesConstantAnnotation.NAME, AllocatesConstantAnnotationParser.INSTANCE),
-            new AbstractMap.SimpleEntry<>(AllocatesDynamicAnnotation.NAME, AllocatesDynamicAnnotationParser.INSTANCE)
+            new AbstractMap.SimpleEntry<>(AllocatesAnnotation.NAME, AllocatesAnnotationParser.INSTANCE)
         ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

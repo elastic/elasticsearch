@@ -134,7 +134,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 Level.DEBUG,
                 Strings.format(
                     "estimated heap usages exceeded the high watermark [%.2f] for nodes * triggering reroute",
-                    (highWatermarkPercentage * 100 / 100.0)
+                    (double) highWatermarkPercentage
                 )
             );
             mockLog.addExpectation(expectation);
@@ -148,7 +148,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     new NodeHeapMetrics(
                         nodeId,
                         totalBytesPerNode,
-                        validHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                        validHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage - 1) / 100)
                     )
                 )
             );
@@ -177,7 +177,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     Level.DEBUG,
                     Strings.format(
                         "estimated heap usages exceeded the high watermark [%.2f] for nodes * triggering reroute",
-                        (highWatermarkPercentage * 100 / 100.0)
+                        (double) highWatermarkPercentage
                     )
                 )
             );
@@ -227,7 +227,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 Level.DEBUG,
                 Strings.format(
                     "estimated heap usages dropped below the low watermark [%.2f] for nodes * triggering reroute",
-                    (lowWatermarkPercentage * 100 / 100.0)
+                    (double) lowWatermarkPercentage
                 )
             );
             mockLog.addExpectation(expectation);

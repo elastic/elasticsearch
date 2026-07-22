@@ -960,6 +960,16 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    private void onMergeEnqueued() {
+        var count = queuedOrRunningMergesCount.incrementAndGet();
+        assert count > 0;
+    }
+
+    private void onMergeExecutedOrAborted() {
+        var count = queuedOrRunningMergesCount.decrementAndGet();
+        assert count >= 0;
+    }
+
     public boolean hasQueuedOrRunningMerges() {
         return queuedOrRunningMergesCount.get() > 0;
     }
@@ -1048,14 +1058,12 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected void mergeQueued(OnGoingMerge merge) {
-            var count = queuedOrRunningMergesCount.incrementAndGet();
-            assert count > 0;
+            onMergeEnqueued();
         }
 
         @Override
         protected void mergeExecutedOrAborted(OnGoingMerge merge) {
-            var count = queuedOrRunningMergesCount.decrementAndGet();
-            assert count >= 0;
+            onMergeExecutedOrAborted();
         }
 
         @Override

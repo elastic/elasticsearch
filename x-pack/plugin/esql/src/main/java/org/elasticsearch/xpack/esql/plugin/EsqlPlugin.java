@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -155,6 +156,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -371,6 +373,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
+
+        // Force Federation to initialize now so the kill-switch property is validated (fail fast on an invalid value)
+        // and the disabled state is logged at startup, rather than lazily on the first federation operation.
+        try {
+            MethodHandles.publicLookup().ensureInitialized(Federation.class);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Failed to initialize " + Federation.class.getName(), e);
+        }
 
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
         // This discovers built-in plugins from this plugin's classloader
@@ -638,8 +648,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
             new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
+            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -656,23 +666,31 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        return List.of(
-            new RestEsqlQueryAction(capabilities),
-            new RestEsqlAsyncQueryAction(capabilities),
-            new RestEsqlGetAsyncResultAction(),
-            new RestEsqlStopAsyncAction(),
-            new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction(),
-            new RestPutViewAction(),
-            new RestDeleteViewAction(),
-            new RestGetViewAction(),
-            new RestPutDataSourceAction(),
-            new RestGetDataSourceAction(),
-            new RestDeleteDataSourceAction(),
-            new RestPutDatasetAction(),
-            new RestGetDatasetAction(),
-            new RestDeleteDatasetAction()
+        List<RestHandler> handlers = new ArrayList<>(
+            List.of(
+                new RestEsqlQueryAction(capabilities),
+                new RestEsqlAsyncQueryAction(capabilities),
+                new RestEsqlGetAsyncResultAction(),
+                new RestEsqlStopAsyncAction(),
+                new RestEsqlDeleteAsyncResultAction(),
+                new RestEsqlListQueriesAction(),
+                new RestPutViewAction(),
+                new RestDeleteViewAction(),
+                new RestGetViewAction()
+            )
         );
+        // Federation (external data sources) REST handlers are registered only when the feature is on. When
+        // suppressed the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
+        // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        if (Federation.isAvailable()) {
+            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestGetDataSourceAction());
+            handlers.add(new RestDeleteDataSourceAction());
+            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestGetDatasetAction());
+            handlers.add(new RestDeleteDatasetAction());
+        }
+        return handlers;
     }
 
     @Override

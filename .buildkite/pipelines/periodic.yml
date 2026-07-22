@@ -439,8 +439,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 8.19.19 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.19#bwcTest
+      - label: 8.19.20 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.20#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -451,7 +451,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 8.19.19
+          BWC_VERSION: 8.19.20
         retry:
           automatic:
             - exit_status: "-1"
@@ -531,8 +531,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.3.8 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.8#bwcTest
+      - label: 9.3.9 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.9#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -543,7 +543,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 9.3.8
+          BWC_VERSION: 9.3.9
         retry:
           automatic:
             - exit_status: "-1"
@@ -554,8 +554,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.4.4 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.4#bwcTest
+      - label: 9.4.5 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -566,7 +566,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 9.4.4
+          BWC_VERSION: 9.4.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -707,7 +707,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.19", "9.3.8", "9.4.4", "9.5.0", "9.6.0"]
+            BWC_VERSION: ["8.19.20", "9.3.9", "9.4.5", "9.5.0", "9.6.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -774,7 +774,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.19", "9.3.8", "9.4.4", "9.5.0", "9.6.0"]
+            BWC_VERSION: ["8.19.20", "9.3.9", "9.4.5", "9.5.0", "9.6.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -833,7 +833,7 @@ steps:
               - openjdk21
               - openjdk25
               - openjdk26
-            BWC_VERSION: ["8.19.19", "9.3.8", "9.4.4", "9.5.0", "9.6.0"]
+            BWC_VERSION: ["8.19.20", "9.3.9", "9.4.5", "9.5.0", "9.6.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

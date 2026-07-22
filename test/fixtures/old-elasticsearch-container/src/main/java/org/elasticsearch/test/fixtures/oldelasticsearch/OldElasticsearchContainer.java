@@ -54,10 +54,7 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
 
     private static ImageFromDockerfile localImage(String version) {
         String resourceBase = "docker/" + version + "/";
-        return new ImageFromDockerfile(
-            "localhost/old-elasticsearch-" + version.replace('.', '-') + "-fixture:" + FIXTURE_IMAGE_VERSION
-        )
-            .withFileFromClasspath("Dockerfile", resourceBase + "Dockerfile")
+        return new ImageFromDockerfile().withFileFromClasspath("Dockerfile", resourceBase + "Dockerfile")
             .withFileFromClasspath("entrypoint.sh", resourceBase + "entrypoint.sh");
     }
 

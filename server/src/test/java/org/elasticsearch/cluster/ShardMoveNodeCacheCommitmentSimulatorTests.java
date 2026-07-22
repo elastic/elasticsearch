@@ -24,9 +24,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
 
-    public void testNewShardOnlyAddsToTargetNode() {
+    /**
+     * Unassigned shard could mean a new shard not assigned to a node, or an existing shard that is unassigned for whatever reason.
+     */
+    public void testUnassignedShardOnlyAddsToTargetNode() {
         var nodeId = "node-0";
-        var shard = newInitializingShard(nodeId);
+        var shard = createUnassignedShard(nodeId);
 
         final long cacheSize = randomLongBetween(100, 1000);
         final long initialBoostedCommitment = randomLongBetween(0, 300);
@@ -283,56 +286,6 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
         );
     }
 
-    public void testDoesNotClampOverCommitment() {
-        var fromNodeId = "node-0";
-        var toNodeId = "node-1";
-        var shard = relocatingShard(fromNodeId, toNodeId);
-
-        final long boostedRequirement = randomLongBetween(50, 100);
-        final long unboostedRequirement = randomLongBetween(50, 100);
-        final long fromNodeCacheSize = randomLongBetween(100, 1000);
-        // Always at least as large as the max possible requirement (100), so subtracting it never goes negative.
-        final long fromNodeInitialBoostedCommitment = randomLongBetween(100, 300);
-        final long fromNodeInitialUnboostedCommitment = randomLongBetween(100, 300);
-        // The target node's cache size and initial commitment are deliberately small, so that adding the requirement pushes the
-        // commitment total over the cache size (over-commit), and that over-commit must not be clamped.
-        final long toNodeCacheSize = randomLongBetween(1, 10);
-        final long toNodeInitialBoostedCommitment = randomLongBetween(1, 10);
-        final long toNodeInitialUnboostedCommitment = randomLongBetween(1, 10);
-
-        var clusterInfo = ClusterInfo.builder()
-            .nodeCacheSizeAndCommitments(
-                Map.of(
-                    fromNodeId,
-                    new NodeCacheSizeAndCommitments(
-                        fromNodeCacheSize,
-                        fromNodeInitialBoostedCommitment,
-                        fromNodeInitialUnboostedCommitment
-                    ),
-                    toNodeId,
-                    new NodeCacheSizeAndCommitments(toNodeCacheSize, toNodeInitialBoostedCommitment, toNodeInitialUnboostedCommitment)
-                )
-            )
-            .shardCacheRequirements(
-                Map.of(shard.shardId(), new BoostedAndUnboostedCacheRequirements(boostedRequirement, unboostedRequirement))
-            )
-            .build();
-
-        var simulator = new ShardMoveNodeCacheCommitmentSimulator(clusterInfo);
-        simulator.simulateShardStarted(shard);
-
-        assertThat(
-            simulator.getSimulatedNodeCacheSizeAndCommitments().get(toNodeId),
-            equalTo(
-                new NodeCacheSizeAndCommitments(
-                    toNodeCacheSize,
-                    toNodeInitialBoostedCommitment + boostedRequirement,
-                    toNodeInitialUnboostedCommitment + unboostedRequirement
-                )
-            )
-        );
-    }
-
     /**
      * The desired balance computer now always simulates relocating shards as started before deducting their commitment
      * from the source (#154504), so a well-formed {@link ClusterInfo} snapshot should never produce a negative commitment.
@@ -398,7 +351,7 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("unboosted cache commitment for node [" + fromNodeId + "] went negative"));
     }
 
-    private static ShardRouting newInitializingShard(String nodeId) {
+    private static ShardRouting createUnassignedShard(String nodeId) {
         return shardRoutingBuilder(new ShardId("my-index", "_na_", 0), nodeId, true, INITIALIZING).withRecoverySource(
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         ).build();

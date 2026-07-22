@@ -51,8 +51,21 @@ public class ShardMoveNodeCacheCommitmentSimulator {
     }
 
     private enum Modification {
-        ADD,
-        REMOVE
+        ADD(1),
+        REMOVE(-1);
+
+        private final int sign;
+
+        Modification(int sign) {
+            this.sign = sign;
+        }
+
+        public long applyDelta(long currentValue, long shardRequirement) {
+            if (shardRequirement == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT) {
+                return currentValue;
+            }
+            return Math.addExact(currentValue, sign * shardRequirement);
+        }
     }
 
     private void modifyNodeCacheCommitment(String nodeId, BoostedAndUnboostedCacheRequirements requirement, Modification modification) {
@@ -62,16 +75,14 @@ public class ShardMoveNodeCacheCommitmentSimulator {
             return;
         }
 
-        long sign = modification == Modification.ADD ? 1L : -1L;
-        long boostedDelta = requirement.boostedCacheRequirementInBytes() == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT
-            ? 0L
-            : sign * requirement.boostedCacheRequirementInBytes();
-        long unboostedDelta = requirement.unboostedCacheRequirementInBytes() == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT
-            ? 0L
-            : sign * requirement.unboostedCacheRequirementInBytes();
-
-        long updatedBoostedCommitment = Math.addExact(current.boostedCacheCommitmentInBytes(), boostedDelta);
-        long updatedUnboostedCommitment = Math.addExact(current.unboostedCacheCommitmentInBytes(), unboostedDelta);
+        long updatedBoostedCommitment = modification.applyDelta(
+            current.boostedCacheCommitmentInBytes(),
+            requirement.boostedCacheRequirementInBytes()
+        );
+        long updatedUnboostedCommitment = modification.applyDelta(
+            current.unboostedCacheCommitmentInBytes(),
+            requirement.unboostedCacheRequirementInBytes()
+        );
         // ClusterInfo gives us a consistent snapshot of node commitments and shard requirements, so a shard's requirement should
         // never be subtracted from a node that didn't have it counted in the first place.
         assert updatedBoostedCommitment >= 0

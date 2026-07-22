@@ -277,6 +277,28 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         assertTrue(fieldType.isSearchable());
     }
 
+    @Override
+    protected DenseVectorFieldMapper.DenseVectorIndexOptions getExplicitDenseVectorIndexOptions(Model model, IndexVersion indexVersion) {
+        TaskType taskType = model.getTaskType();
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        Integer dimensions = model.getServiceSettings().dimensions();
+
+        if (taskType == TaskType.SPARSE_EMBEDDING) {
+            return null;
+        }
+
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = null;
+        boolean floatFamilyElementType = elementType == DenseVectorFieldMapper.ElementType.FLOAT
+            || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
+        if (floatFamilyElementType
+            && SemanticTextFieldMapper.setExplicitIndexOptionsForSemanticText(indexVersion)
+            && dimensions >= DenseVectorFieldMapper.BBQ_MIN_DIMS) {
+            indexOptions = defaultBbqHnswDenseVectorIndexOptions();
+        }
+
+        return indexOptions;
+    }
+
     /**
      * Randomized sweep over all combinations of endpoint availability and
      * index version to confirm correct default inference ID.

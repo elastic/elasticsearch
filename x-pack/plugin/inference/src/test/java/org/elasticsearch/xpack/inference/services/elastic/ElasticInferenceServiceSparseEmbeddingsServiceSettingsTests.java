@@ -33,6 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -109,14 +110,14 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             Map.of(ServiceFields.MODEL_ID, "my-model-id", ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE, invalidBatchSize)
         );
 
-        ValidationException e = expectThrows(
-            ValidationException.class,
+        var e = expectThrows(
+            XContentParseException.class,
             () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
         assertThat(
-            e.getMessage(),
-            containsString("Invalid value [" + invalidBatchSize + "]. [max_batch_size] must be a positive integer;")
+            e.getCause().getMessage(),
+            containsString("Invalid value [" + invalidBatchSize + "]. [max_batch_size] must be a positive integer")
         );
     }
 
@@ -156,12 +157,13 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             )
         );
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
+        assertThat(exception.getCause(), instanceOf(ValidationException.class));
         assertThat(
-            exception.getMessage(),
+            exception.getCause().getMessage(),
             containsString(
                 "[service_settings] rate limit settings are not permitted for service [elastic] and task type [sparse_embedding]"
             )

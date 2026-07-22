@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
@@ -86,13 +85,13 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         parser.declareInt(Builder::setMaxBatchSize, new ParseField(MAX_BATCH_SIZE));
-        if (context == ConfigurationParseContext.REQUEST) {
-            parser.declareObject(
-                (builder, v) -> builder.rejectRateLimit(),
-                (p, c) -> RateLimitSettings.createParser(false, RateLimitSettings.DISABLED_INSTANCE).apply(p, null),
-                new ParseField(RateLimitSettings.FIELD_NAME)
-            );
-        }
+        RateLimitSettings.declareUnsupportedRateLimitField(
+            parser,
+            ModelConfigurations.SERVICE_SETTINGS,
+            ElasticInferenceService.NAME,
+            TaskType.SPARSE_EMBEDDING,
+            context
+        );
 
         return parser;
     }
@@ -106,14 +105,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
-        } catch (XContentParseException e) {
-            if (e.getCause() instanceof ValidationException ve) {
-                throw ve;
-            }
-            if (e.getCause() instanceof IllegalArgumentException iae) {
-                throw new ValidationException().addValidationError(iae.getMessage());
-            }
-            throw e;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
@@ -296,21 +287,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         public ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
             validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
-        }
-
-        /**
-         * Always throws: declared as the {@code rate_limit} setter on the request parser so that supplying the field produces a
-         * validation error rather than an unknown-field parse error.
-         */
-        public void rejectRateLimit() {
-            throw new ValidationException().addValidationError(
-                Strings.format(
-                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    ElasticInferenceService.NAME,
-                    TaskType.SPARSE_EMBEDDING.toString()
-                )
-            );
         }
     }
 }

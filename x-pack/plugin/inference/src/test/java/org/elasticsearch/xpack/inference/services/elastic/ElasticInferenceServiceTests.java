@@ -282,11 +282,16 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
 
-            var failureListener = getModelListenerForException(
-                ValidationException.class,
-                "Validation Failed: 1: [service_settings] rate limit settings are not permitted for "
-                    + "service [elastic] and task type [sparse_embedding];"
-            );
+            var failureListener = ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
+                assertThat(e, Matchers.instanceOf(XContentParseException.class));
+                assertThat(e.getCause(), Matchers.instanceOf(ValidationException.class));
+                assertThat(
+                    e.getCause().getMessage(),
+                    Matchers.containsString(
+                        "[service_settings] rate limit settings are not permitted for service [elastic] and task type [sparse_embedding]"
+                    )
+                );
+            });
             service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }

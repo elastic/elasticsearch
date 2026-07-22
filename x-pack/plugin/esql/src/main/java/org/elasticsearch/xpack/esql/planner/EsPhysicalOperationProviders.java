@@ -25,7 +25,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -83,7 +82,6 @@ import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -244,8 +242,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+            shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
         }
 
         // Apply any block loader function if present
@@ -298,7 +296,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
             fieldName = getFieldName((Attribute) convert.field());
-            shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
+            shardContext = wrapWithUnmappedFieldContext(shardContext, fieldName);
             conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
@@ -380,8 +378,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
-        return new DefaultShardContextForUnmappedField(ctx, unmappedField);
+    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, String fullFieldName) {
+        return new DefaultShardContextForUnmappedField(ctx, fullFieldName);
     }
 
     /** A hack to pretend an unmapped field still exists. */
@@ -393,17 +391,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             UNMAPPED_FIELD_TYPE.setStored(false);
             UNMAPPED_FIELD_TYPE.freeze();
         }
-        private final KeywordEsField unmappedEsField;
+        private final String fullFieldName;
 
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
+        DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
-            this.unmappedEsField = unmappedEsField;
+            this.fullFieldName = fullFieldName;
         }
 
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+            return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
@@ -481,7 +479,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 shardContexts,
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                topNAutoStrategy(),
+                LuceneTopNSourceOperator.autoStrategy(
+                    sortBuilders,
+                    scoring,
+                    context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+                ),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
@@ -504,11 +506,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 singleValueQueryWarnings
             );
         } else {
+            // A no-limit scan (e.g. STATS) visits every matching doc, so it shares the cost-threshold rule with count and
+            // TopN: cheap -> SEGMENT, scan-heavy -> DOC (implicit-limit stays SHARD; time-series keeps its own strategy).
+            long minCostForDoc = context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
+            var autoStrategy = context.timeSeries()
+                ? context.autoPartitioningStrategy()
+                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                context.autoPartitioningStrategy(),
+                autoStrategy,
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
@@ -524,15 +532,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
-    }
-
-    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
-        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
-        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
-        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
-        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
-        // via the data_partitioning pragma.
-        return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
     List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 154569
+summary: Upgrade the version of jackson to 2.18.9
+type: upgrade

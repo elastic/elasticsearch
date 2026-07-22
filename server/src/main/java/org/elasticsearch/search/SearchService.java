@@ -1722,7 +1722,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         activeReaders.putRelocatedReader(mappingKey, context);
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            removeReaderContext(context.id(), "index not found during putRelocatedReaderContext");
+            // The relocation mapping has not been created yet at this point, so we must remove
+            // by the local key rather than by context.id() (which would look up via relocationMap).
+            removeReaderContext(new ShardSearchContextId(sessionId, mappingKey), "index not found during putRelocatedReaderContext");
             throw new IndexNotFoundException(index);
         }
     }

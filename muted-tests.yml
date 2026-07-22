@@ -628,3 +628,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.HnswUtilsTests
   method: testNeighborhoodGraphSearchFindsSelf
   issue: https://github.com/elastic/elasticsearch/issues/154633
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithRelocationOrObjectStoreFailures
+  issue: https://github.com/elastic/elasticsearch/issues/154655

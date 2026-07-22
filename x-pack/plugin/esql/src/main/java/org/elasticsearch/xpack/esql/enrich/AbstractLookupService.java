@@ -861,6 +861,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 searchContext.getSearchExecutionContext(),
                 QueryWarnings.NOOP
             );
+            // Queries built via the wrapper charge its own accounting pool, which nothing else drains.
+            searchContext.addReleasable(esqlCtx::releaseQueryConstructionMemory);
             return new LookupShardContext(
                 new EsPhysicalOperationProviders.DefaultShardContext(0, searchContext, esqlCtx, searchContext.request().getAliasFilter()),
                 esqlCtx,

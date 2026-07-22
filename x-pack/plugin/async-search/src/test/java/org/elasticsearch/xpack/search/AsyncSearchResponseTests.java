@@ -548,14 +548,23 @@ public class AsyncSearchResponseTests extends ESTestCase {
             new CorruptIndexException("abc", "123"),
             new SearchShardTarget("nodeId0", new ShardId("bar1", UUID.randomUUID().toString(), 0), "cluster_1")
         );
+        // Duplicate failures (same index and exception message but different shard ID) should not appear in the XContent
+        ShardSearchFailure failure1Duplicate = new ShardSearchFailure(
+            new NullPointerException("NPE details"),
+            new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), 1), "cluster_1")
+        );
+        ShardSearchFailure failure2Duplicate = new ShardSearchFailure(
+            new CorruptIndexException("abc", "123"),
+            new SearchShardTarget("nodeId0", new ShardId("bar1", UUID.randomUUID().toString(), 1), "cluster_1")
+        );
         updated = clusters.swapCluster(
             cluster1.getClusterAlias(),
             (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
-                .setTotalShards(2)
+                .setTotalShards(4)
                 .setSuccessfulShards(0)
                 .setSkippedShards(0)
-                .setFailedShards(2)
-                .setFailures(List.of(failure1, failure2))
+                .setFailedShards(4)
+                .setFailures(List.of(failure1, failure1Duplicate, failure2, failure2Duplicate))
                 .setTook(null)
                 .setTimedOut(false)
                 .build()
@@ -655,10 +664,10 @@ public class AsyncSearchResponseTests extends ESTestCase {
                           "indices" : "foo,bar*",
                           "timed_out" : false,
                           "_shards" : {
-                            "total" : 2,
+                            "total" : 4,
                             "successful" : 0,
                             "skipped" : 0,
-                            "failed" : 2
+                            "failed" : 4
                           },
                           "failures" : [
                             {

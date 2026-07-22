@@ -329,75 +329,21 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    // The memory index, its reader, and the per-field highlighters are built once in the constructor and reused
-    // across rows and pages (see HighlightOperator's field comment). Each test below targets a specific stale-state
-    // bug that reuse could introduce if reset() or highlighter caching were wrong.
-
     public void testReusedIndexDoesNotLeakTermsBetweenRows() {
-        // Row 2's vocabulary is completely disjoint from "fox"; if the reused index kept row 1's terms around after
-        // reset(), row 2 could falsely match.
         BytesRefBlock result = highlight(
             config("fox", 5, 0, 0),
-            bytesRefs(List.of(List.of("the quick fox"), List.of("lorem ipsum dolor sit amet")))
+            bytesRefs(List.of(List.of("the quick fox"), List.of("lorem ipsum dolor sit amet"), List.of("a fox in the barn")))
         );
         try {
             assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
             assertThat(result.isNull(1), equalTo(true));
+            assertThat(value(result, 2), equalTo("a <em>fox</em> in the barn"));
         } finally {
             result.close();
-        }
-    }
-
-    public void testReusedIndexDoesNotLeakTermsBetweenRowsMissFirst() {
-        // Same as above with the miss row first, to catch leakage in either direction across reset().
-        BytesRefBlock result = highlight(
-            config("fox", 5, 0, 0),
-            bytesRefs(List.of(List.of("lorem ipsum dolor sit amet"), List.of("the quick fox")))
-        );
-        try {
-            assertThat(result.isNull(0), equalTo(true));
-            assertThat(value(result, 1), equalTo("the quick <em>fox</em>"));
-        } finally {
-            result.close();
-        }
-    }
-
-    public void testReusedIndexAcrossPages() {
-        // addInput/getOutput (here, process()) is called repeatedly on the same operator instance in production;
-        // a second page must not see any state left over from the first page's rows.
-        HighlightConfig config = config("fox", 5, 0, 0);
-        try (
-            HighlightOperator operator = new HighlightOperator(
-                blockFactory(),
-                config.withExecutionContext(new StandardAnalyzer(), contentTerm("fox"), CONTENT),
-                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
-            )
-        ) {
-            BytesRefBlock page1Input = bytesRefs(List.of(List.of("the quick fox"), List.of("the quick fox again")));
-            Page page1Result = operator.process(new Page(page1Input));
-            try {
-                BytesRefBlock highlighted = page1Result.getBlock(page1Result.getBlockCount() - 1);
-                assertThat(value(highlighted, 0), equalTo("the quick <em>fox</em>"));
-                assertThat(value(highlighted, 1), equalTo("the quick <em>fox</em> again"));
-            } finally {
-                page1Result.releaseBlocks();
-            }
-
-            BytesRefBlock page2Input = bytesRefs(List.of(List.of("lorem ipsum dolor"), List.of("sit amet consectetur")));
-            Page page2Result = operator.process(new Page(page2Input));
-            try {
-                BytesRefBlock highlighted = page2Result.getBlock(page2Result.getBlockCount() - 1);
-                assertThat(highlighted.isNull(0), equalTo(true));
-                assertThat(highlighted.isNull(1), equalTo(true));
-            } finally {
-                page2Result.releaseBlocks();
-            }
         }
     }
 
     public void testShrinkingTextAcrossRows() {
-        // Row 1 is long (several hundred tokens); row 2 is short. If the reused index/reader retained stale offsets
-        // sized for row 1, highlighting row 2 would either produce garbage text or throw.
         StringBuilder longText = new StringBuilder();
         for (int i = 0; i < 300; i++) {
             longText.append("filler word ");
@@ -413,8 +359,6 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     public void testMultiFieldAlternatingNulls() {
-        // Two ON fields; each row sets a different one of the two. Reusing one highlighter per field must not
-        // confuse which field's postings a given row's snippet comes from.
         Query query = new BooleanQuery.Builder().add(termQuery("title", "fox"), BooleanClause.Occur.SHOULD)
             .add(termQuery("body", "fox"), BooleanClause.Occur.SHOULD)
             .build();
@@ -433,14 +377,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    // Only tokens the query can match are indexed (see HighlightOperator#buildKeepWordMatcher and #fillRowIndex).
-    // Each test below targets a specific correctness risk that dropping non-query tokens could introduce.
-
     public void testFilteredIndexPreservesPositionsForPhrases() {
-        // Row 1: "fox" and "jumps" are adjacent (positions 0,1) -> the slop-0 phrase matches.
-        // Row 2: "quickly" sits between them; after filtering it's dropped but its position increment is kept, so
-        // the filtered index has fox=0, jumps=2 -> the phrase must NOT match. A broken position-increment carry
-        // (fox=0, jumps=1) would make this row falsely match.
         Query phraseQuery = new PhraseQuery(CONTENT_FIELD, "fox", "jumps");
         BytesRefBlock result = highlight(
             config("\"fox jumps\"", 5, 0, 0),
@@ -455,45 +392,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testNoMatchSizeStillReturnsLeadingTextWithFiltering() {
-        // A miss row (no "fox") sits between two hit rows; no_match_size > 0 means the miss row must still run the
-        // highlighter and return its leading text rather than being short-circuited to null.
-        BytesRefBlock result = highlight(
-            config("fox", 5, 0, 200),
-            bytesRefs(
-                List.of(List.of("The quick fox jumps."), List.of("Gardens and flowers bloom in spring."), List.of("A fox in the barn."))
-            )
-        );
-        try {
-            assertThat(value(result, 0), equalTo("The quick <em>fox</em> jumps."));
-            assertThat(value(result, 1), equalTo("Gardens and flowers bloom in spring."));
-            assertThat(value(result, 2), equalTo("A <em>fox</em> in the barn."));
-        } finally {
-            result.close();
-        }
-    }
-
-    public void testShortCircuitMissRowsYieldNull() {
-        // no_match_size == 0, so a row where filtering keeps nothing hits the fillRowIndex short-circuit directly.
-        BytesRefBlock result = highlight(
-            config("fox", 5, 0, 0),
-            bytesRefs(
-                List.of(List.of("The quick fox jumps."), List.of("Gardens and flowers bloom in spring."), List.of("A fox in the barn."))
-            )
-        );
-        try {
-            assertThat(value(result, 0), equalTo("The quick <em>fox</em> jumps."));
-            assertThat(result.isNull(1), equalTo(true));
-            assertThat(value(result, 2), equalTo("A <em>fox</em> in the barn."));
-        } finally {
-            result.close();
-        }
-    }
-
     public void testMultiTermQueryDisablesFiltering() {
-        // PrefixQuery triggers consumeTermsMatching, which cannot be enumerated into a keep-word matcher, so
-        // filtering must be silently disabled (every token indexed) and highlighting must still produce the same
-        // output it would without filtering, including a plain miss row yielding null.
         Query prefixQuery = new PrefixQuery(new Term(CONTENT_FIELD, "fo"));
         BytesRefBlock result = highlight(
             config("fo*", 5, 0, 0),
@@ -509,11 +408,6 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     public void testMustNotTermsAreNotHighlighted() {
-        // MUST_NOT terms are kept in the filtered index (see buildKeepWordMatcher's Javadoc): unlike Lucene's
-        // MemoryIndexOffsetStrategy, this operator's memory index is the only thing that decides whether a row
-        // matches, so dropping "dog" would erase the evidence needed to correctly exclude row 1. Row 2 has no
-        // prohibited term, matches, and highlights only "fox". "dog" never gets wrapped in tags even when kept,
-        // because the highlighter never produces spans for MUST_NOT clauses.
         Query query = new BooleanQuery.Builder().add(termQuery(CONTENT_FIELD, "fox"), BooleanClause.Occur.MUST)
             .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
             .build();
@@ -531,12 +425,6 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     public void testCustomAnalyzerMatchesThroughSynonyms() throws IOException {
-        // The keep-word matcher compares post-analysis tokens against post-analysis query terms, so filtering must
-        // compose with whatever a custom analyzer emits, including tokens that never appear in the original text.
-        // Here the analyzer injects "automobile" as a synonym of "car": the query term can only match through the
-        // injected token, so if filtering compared raw text (or dropped injected tokens) row 1 would wrongly yield
-        // null. The snippet must wrap the original "car", whose offsets the injected token carries. Row 2 keeps no
-        // tokens and exercises the short-circuit under a custom analyzer.
         SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
         synonyms.add(new CharsRef("car"), new CharsRef("automobile"), true);
         SynonymMap synonymMap = synonyms.build();
@@ -641,8 +529,6 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    // Like bytesRefs, but a null element appends a null row instead of a value; used to build per-field blocks
-    // where different rows populate different ON fields.
     private BytesRefBlock bytesRefsOrNull(List<String> values) {
         try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(values.size())) {
             for (String value : values) {

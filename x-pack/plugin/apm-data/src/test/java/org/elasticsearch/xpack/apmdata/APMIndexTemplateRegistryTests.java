@@ -92,7 +92,14 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
-            new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, new FeatureService(List.of()))
+            new StackTemplateRegistry(
+                Settings.EMPTY,
+                clusterService,
+                threadPool,
+                client,
+                NamedXContentRegistry.EMPTY,
+                new FeatureService(List.of())
+            )
         );
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(

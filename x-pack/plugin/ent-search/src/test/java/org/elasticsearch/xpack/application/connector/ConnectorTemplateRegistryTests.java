@@ -80,7 +80,13 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new ConnectorTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY, new FeatureService(List.of()));
+        registry = new ConnectorTemplateRegistry(
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After

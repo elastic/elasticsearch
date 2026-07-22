@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -23,7 +26,17 @@ import java.util.Map;
  * These tests verify that unmapped fields are properly handled.
  */
 public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
+    private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public AnalyzerUnmappedGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     public void testKeep() throws Exception {
         runTests("""
@@ -838,8 +851,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP bytes
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
@@ -849,14 +861,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP bytes
             """;
         runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBetween(
-            query,
-            STAGES,
-            DimensionValues.DIMENSION_VALUES_VERSION,
-            CompactMultiTypeEsField.CompactMultiTypeEsField,
-            "preCompact"
-        );
+        runTestsLoadAcrossCompactChange(query, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
@@ -866,8 +871,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP cost
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
@@ -876,8 +880,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | STATS s = SUM(network.bytes_in::long) BY cluster
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
@@ -886,14 +889,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | STATS s = SUM(network.bytes_in::long) BY cluster
             """;
         runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBetween(
-            query,
-            STAGES,
-            DimensionValues.DIMENSION_VALUES_VERSION,
-            CompactMultiTypeEsField.CompactMultiTypeEsField,
-            "preCompact"
-        );
+        runTestsLoadAcrossCompactChange(query, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
@@ -903,8 +899,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP cluster, network.cost
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -920,8 +915,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP message
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testMappedInOneIndexOnlyCast() throws Exception {
@@ -930,8 +924,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | EVAL x = message :: LONG
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // message is keyword-mapped in sample_data and unmapped (loaded as keyword) in no_mapping_sample_data, so it
@@ -952,8 +945,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP event_duration
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
@@ -963,8 +955,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP event_duration
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // @timestamp is mapped with conflicting types across sample_data_ts_long and sample_data, and unmapped in
@@ -976,10 +967,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | EVAL ts = @timestamp::date
             | KEEP ts
             """;
-        runTestsNullifyOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsNullifyOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsNullifyAcrossCompactChange(query);
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
@@ -989,8 +978,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP message
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
@@ -1001,8 +989,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
@@ -1013,8 +1000,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP *
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
@@ -1023,8 +1009,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP @timestamp, event_duration
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
@@ -1142,8 +1127,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | DROP message
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
@@ -1153,8 +1137,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | DROP event_duration
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
@@ -1164,8 +1147,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | DROP *_ip, *_duration, @timestamp
             """;
         runTestsNullifyOnly(query, STAGES);
-        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadAcrossCompactChange(query);
     }
 
     // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.
@@ -1411,6 +1393,18 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
 
     private void runTests(String query, Map<String, String> views) {
         runTestsNullifyAndLoad(query, STAGES, null, views);
+    }
+
+    private void runTestsNullifyAcrossCompactChange(String query) {
+        runTestsNullifyOnlyWithVersionRanges(query, STAGES, builder -> builder.expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD));
+    }
+
+    private void runTestsLoadAcrossCompactChange(String query) {
+        runTestsLoadOnlyWithVersionRanges(query, STAGES, builder -> builder.expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD));
+    }
+
+    private void runTestsLoadAcrossCompactChange(String query, TransportVersion since) {
+        runTestsLoadOnlyWithVersionRanges(query, STAGES, builder -> builder.since(since).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD));
     }
 
     private void runTests(String query, TransportVersion minimumSupportedVersion, String... nestedPath) {

@@ -92,8 +92,8 @@ public class RequestFilterRewriterTests extends ESTestCase {
     }
 
     /**
-     * The opt-in gate: with {@code esql.query.request_filter_on_dataset.enabled} false — the default in every build —
-     * the relation is read unfiltered and the user is told, rather than the filter being silently dropped.
+     * The feature gate: when off (a release build, where the feature flag is excluded) the relation is read
+     * unfiltered and the user is told, rather than the filter being silently dropped.
      */
     public void testDisabledLeavesThePlanUnchangedAndWarns() {
         ExternalRelation relation = relation();
@@ -101,7 +101,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertSame(relation, result);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because applying the request filter to "
-                + "datasets is not enabled; they were read unfiltered. "
+                + "datasets is not enabled in this build; they were read unfiltered. "
                 + "Use a WHERE clause to filter rows from external datasets instead"
         );
     }
@@ -113,7 +113,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertSame(relation, result);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because applying the request filter to "
-                + "datasets is not enabled; they were read unfiltered. "
+                + "datasets is not enabled in this build; they were read unfiltered. "
                 + "Use a WHERE clause to filter rows from external datasets instead"
         );
     }

@@ -72,7 +72,6 @@ public class PlanExecutor {
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
     private final AnalysisRegistry analysisRegistry;
-    private final BooleanSupplier requestFilterOnDatasetEnabled;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -86,8 +85,7 @@ public class PlanExecutor {
         PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
         ExternalSourceCacheService cacheService,
-        AnalysisRegistry analysisRegistry,
-        BooleanSupplier requestFilterOnDatasetEnabled
+        AnalysisRegistry analysisRegistry
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -102,7 +100,6 @@ public class PlanExecutor {
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
         this.analysisRegistry = analysisRegistry;
-        this.requestFilterOnDatasetEnabled = requestFilterOnDatasetEnabled;
     }
 
     /**
@@ -212,8 +209,7 @@ public class PlanExecutor {
             indicesExpressionGrouper,
             services.projectResolver().getProjectMetadata(services.clusterService().state()),
             services.plannerSettings().get(),
-            services,
-            requestFilterOnDatasetEnabled
+            services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

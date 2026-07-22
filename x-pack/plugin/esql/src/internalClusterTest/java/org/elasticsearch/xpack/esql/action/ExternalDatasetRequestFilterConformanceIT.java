@@ -16,7 +16,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -52,18 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
  * coincides with scalar equality; the multivalue any-value semantics are pinned by the translator's unit tests.
  */
 public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalDataSourceIT {
-
-    /**
-     * The request filter on datasets is opt-in and off by default in every build; this suite is about what it does
-     * once enabled, so turn it on for these nodes.
-     */
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(EsqlPlugin.REQUEST_FILTER_ON_DATASET_ENABLED.getKey(), true)
-            .build();
-    }
 
     private static final int ROWS = 40;
     private static final String INDEX = "conf_idx";

@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -43,18 +41,6 @@ import static org.hamcrest.Matchers.empty;
  * in full under a negation, and that the applied clauses on the other dataset still bite.
  */
 public class HeterogeneousDatasetsRequestFilterIT extends AbstractExternalDataSourceIT {
-
-    /**
-     * The request filter on datasets is opt-in and off by default in every build; this suite is about what it does
-     * once enabled, so turn it on for these nodes.
-     */
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(EsqlPlugin.REQUEST_FILTER_ON_DATASET_ENABLED.getKey(), true)
-            .build();
-    }
 
     private static final int N = 20;
     private static final int BASE_A = 0;

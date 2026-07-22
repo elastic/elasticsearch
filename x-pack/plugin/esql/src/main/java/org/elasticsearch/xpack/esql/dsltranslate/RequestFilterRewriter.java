@@ -31,13 +31,12 @@ import java.util.List;
  * ({@link IllegalArgumentException}) naming the construct, rather than silently applying a widened superset. A filter
  * that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
- * <p>The rewrite is <em>opt-in</em>. Applying the filter to datasets is a behavior change for anyone already querying
- * one — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the query —
- * so it must not flip on by itself, in any build. {@code esql.query.request_filter_on_dataset.enabled} defaults to
- * {@code false} everywhere, and {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG} gates whether that setting may be
- * turned on at all: enabling it is rejected outright in a release build. This mirrors {@code index.slice.enabled} and
- * its {@code SLICE_FEATURE_FLAG}. While it is off the relation is read unfiltered <em>with a warning</em>, which is
- * the behavior datasets had before this feature existed — never a silent drop.
+ * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets changes what an existing dataset query
+ * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
+ * query — so it is gated on {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}: on by default in snapshot builds (so
+ * development, CI and tests exercise it) and excluded from release builds until we choose to ship it. While it is off
+ * the relation is read unfiltered <em>with a warning</em>, which is the behavior datasets had before this feature
+ * existed — never a silent drop.
  *
  * <p>The rewrite is also version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do
  * not have; the inserted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version
@@ -49,10 +48,9 @@ import java.util.List;
 public final class RequestFilterRewriter {
 
     /**
-     * Gates whether {@code esql.query.request_filter_on_dataset.enabled} may be turned on at all. Enabled in snapshot
-     * builds, off in release builds — so a shipped build cannot enable the feature even deliberately, and shipping this
-     * code cannot change what an existing dataset query returns. The setting itself defaults to {@code false}, so the
-     * feature is off by default in every build, snapshot included.
+     * Gates applying the request filter to datasets: on by default in snapshot builds, excluded from release builds
+     * unless {@code -Des.esql_request_filter_on_dataset_feature_flag_enabled=true}. Shipping this code therefore cannot
+     * change what an existing dataset query returns until we decide to turn it on.
      */
     public static final FeatureFlag REQUEST_FILTER_ON_DATASET_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_dataset");
 
@@ -61,8 +59,9 @@ public final class RequestFilterRewriter {
     private RequestFilterRewriter() {}
 
     /**
-     * @param enabled        the current value of {@code esql.query.request_filter_on_dataset.enabled}; when
-     *                       {@code false} (the default in every build) the relation is read unfiltered with a warning.
+     * @param enabled        whether the feature is on (production passes {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG});
+     *                       when {@code false} the relation is read unfiltered with a warning. A parameter rather than a
+     *                       direct flag read so the disabled path is unit-testable.
      * @param configuration  the query configuration — anchors {@code now} date math so a request filter over an
      *                       external source resolves {@code "now-15m"} to the same instant the index path would, and
      *                       supplies the locale for case-folding.
@@ -80,7 +79,7 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         if (enabled == false) {
-            warnNotApplied(analyzed, "applying the request filter to datasets is not enabled");
+            warnNotApplied(analyzed, "applying the request filter to datasets is not enabled in this build");
             return analyzed;
         }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {

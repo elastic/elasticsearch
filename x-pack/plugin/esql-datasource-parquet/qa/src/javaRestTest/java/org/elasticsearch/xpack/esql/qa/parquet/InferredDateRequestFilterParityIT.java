@@ -85,19 +85,6 @@ public class InferredDateRequestFilterParityIT extends ESRestTestCase {
         assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
     }
 
-    /**
-     * Applying the request filter to datasets is opt-in and off by default in every build, so turn it on before these
-     * tests run. It is a dynamic setting, and {@link #preserveClusterSettings()} is false, so the framework wipes it
-     * again when the suite finishes — the cluster is shared, and this must not leak into the sibling suite.
-     */
-    @Before
-    public void enableRequestFilterOnDatasets() throws Exception {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("""
-            {"persistent":{"esql.query.request_filter_on_dataset.enabled":true}}""");
-        client().performRequest(request);
-    }
-
     @BeforeClass
     public static void writeFixture() throws Exception {
         localFixturesPath = FixtureUtils.resolveLocalFixturesPath(logger, InferredDateRequestFilterParityIT.class);

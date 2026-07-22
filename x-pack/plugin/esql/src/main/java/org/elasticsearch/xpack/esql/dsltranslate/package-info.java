@@ -34,8 +34,8 @@
  *     datasets, indices or views — reaching a new boundary is a change of the predicate, not of the mechanism.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset <em>policy</em> over
  *     that mechanism: it targets external leaves, and gates the rewrite. It is fail-closed: an unsupported clause fails
- *     the whole query with a 400 naming the construct, rather than silently applying a widened superset. It is opt-in
- *     ({@code esql.query.request_filter_on_dataset.enabled}, off by default in every build) and version-gated, because
+ *     the whole query with a 400 naming the construct, rather than silently applying a widened superset. It is feature-flagged
+ *     (on in snapshot builds, excluded from release) and version-gated, because
  *     the translated predicate can contain expressions older nodes cannot deserialize.</li>
  * </ul>
  *

@@ -153,7 +153,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -217,7 +216,6 @@ public class EsqlSession {
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final BooleanSupplier requestFilterOnDatasetEnabled;
     private final String clusterName;
     private final String clusterUuid;
     private final IpLocationService ipLocationService;
@@ -278,11 +276,9 @@ public class EsqlSession {
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
         PlannerSettings plannerSettings,
-        TransportActionServices services,
-        BooleanSupplier requestFilterOnDatasetEnabled
+        TransportActionServices services
     ) {
         this.sessionId = sessionId;
-        this.requestFilterOnDatasetEnabled = requestFilterOnDatasetEnabled;
         this.localClusterMinimumVersion = localClusterMinimumVersion;
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
@@ -475,7 +471,7 @@ public class EsqlSession {
                         plan = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
-                            requestFilterOnDatasetEnabled.getAsBoolean(),
+                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion
                         );

@@ -145,6 +145,23 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
          * return the group id — numbered the same way {@link #add} numbers groups.
          */
         int addRow(Page page, int position, int hash);
+
+        /**
+         * Compute partition IDs for rows {@code 0..count-1} in {@code page} (caller guarantees no
+         * nulls in the key columns), writing {@code Math.floorMod(hash, partitionCount)} to
+         * {@code partitionOf[i]} and incrementing {@code counts[partitionOf[i]]} for each row.
+         *
+         * <p>Implementations may override this to hoist per-page block lookups (e.g.
+         * {@link Page#getBlock}) out of the inner loop, avoiding {@code count} redundant calls.
+         * The default delegates per-row to {@link #partitionHashOfRow}.
+         */
+        default void fillPartitions(Page page, int count, int partitionCount, int[] partitionOf, int[] counts) {
+            for (int i = 0; i < count; i++) {
+                int part = Math.floorMod(partitionHashOfRow(page, i), partitionCount);
+                partitionOf[i] = part;
+                counts[part]++;
+            }
+        }
     }
 
     /**

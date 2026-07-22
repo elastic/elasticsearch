@@ -554,7 +554,7 @@ public class PartitionedHashAggregationOperator implements Operator {
             if (start == end) {
                 continue;
             }
-            try (Page subPage = intermediatePage.filter(false, Arrays.copyOfRange(sortedPositions, start, end))) {
+            try (Page subPage = intermediatePage.filter(false, sortedPositions, start, end - start)) {
                 mergeIntermediateIntoTable(targets[p], subPage);
             }
         }
@@ -587,17 +587,19 @@ public class PartitionedHashAggregationOperator implements Operator {
     // ---- steady-state partitioned processing ----
 
     /**
-     * Routes each row to its owning partition, then physically bucket-sorts the page data so that
-     * each partition's rows are contiguous before insertion. For each partition we:
+     * Routes each row to its owning partition, then bucket-sorts positions so each partition's rows
+     * are contiguous before insertion. For each partition we:
      * <ol>
-     *   <li>Compute a partition ID per row via {@code probeHash.router().partitionHashOfRow} (one
-     *       call per row — the routing hash computed here is <em>not</em> reused for table
-     *       insertion, so there is no redundant re-hash).</li>
+     *   <li>Compute a partition ID per row. When no key column has nulls,
+     *       {@link BlockHash.Router#fillPartitions} is used: implementations can hoist
+     *       {@link Page#getBlock} calls outside the inner loop (O(1) per page instead of O(N)).
+     *       Rows with a null key land in {@link #NULL_PARTITION} regardless.</li>
      *   <li>Bucket-sort positions into a per-partition contiguous range in O(N+P) time.</li>
-     *   <li>Create a filtered sub-page (physically copying just that partition's rows) and feed it
-     *       to {@code partitions[p].blockHash.add()} — the fastest available hash for this schema
-     *       (typically {@code LongIntAdaptiveBlockHash}), with sequential rather than scattered
-     *       block reads.</li>
+     *   <li>Create a filtered sub-page via {@link Page#filter(boolean, int[], int, int)},
+     *       passing the pre-sorted positions array with an offset and length to avoid a
+     *       per-partition {@link java.util.Arrays#copyOfRange} allocation.</li>
+     *   <li>Feed the sub-page to {@code partitions[p].blockHash.add()} — the fastest available
+     *       hash for this schema (typically {@code LongIntAdaptiveBlockHash}).</li>
      * </ol>
      */
     private void addToPartitions(Page page) {
@@ -628,10 +630,8 @@ public class PartitionedHashAggregationOperator implements Operator {
                 counts[partitionOf[i]]++;
             }
         } else {
-            for (int i = 0; i < positions; i++) {
-                partitionOf[i] = Math.floorMod(probeRouter.partitionHashOfRow(page, i), partitionCount);
-                counts[partitionOf[i]]++;
-            }
+            // No nulls: use the bulk method so implementations can hoist per-page block gets.
+            probeRouter.fillPartitions(page, positions, partitionCount, partitionOf, counts);
         }
         int[] offsets = new int[partitionCount + 1];
         for (int p = 0; p < partitionCount; p++) {
@@ -648,7 +648,9 @@ public class PartitionedHashAggregationOperator implements Operator {
                 continue;
             }
             Table table = partitions[p];
-            try (Page subPage = page.filter(false, Arrays.copyOfRange(sortedPositions, start, end))) {
+            // Use offset+length into sortedPositions directly — avoids the Arrays.copyOfRange
+            // allocation that the varargs form would require.
+            try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
                 List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(table.aggregators.size());
                 try {
                     for (GroupingAggregator aggregator : table.aggregators) {

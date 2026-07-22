@@ -86,6 +86,26 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
                     "LongIntAdaptiveBlockHash router is routing-only; use blockHash.add() for insertion"
                 );
             }
+
+            @Override
+            public void fillPartitions(Page page, int count, int partitionCount, int[] partitionOf, int[] counts) {
+                LongVector longVec = ((LongBlock) page.getBlock(longChannel)).asVector();
+                IntVector intVec = ((IntBlock) page.getBlock(intChannel)).asVector();
+                if (longVec == null || intVec == null) {
+                    Router.super.fillPartitions(page, count, partitionCount, partitionOf, counts);
+                    return;
+                }
+                for (int i = 0; i < count; i++) {
+                    long k1 = longVec.getLong(i);
+                    long k2 = intVec.getInt(i);
+                    long h = k1 * 0x9E3779B97F4A7C15L ^ k2;
+                    h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
+                    h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
+                    int part = Math.floorMod((int) (h ^ (h >>> 32)), partitionCount);
+                    partitionOf[i] = part;
+                    counts[part]++;
+                }
+            }
         };
     }
 

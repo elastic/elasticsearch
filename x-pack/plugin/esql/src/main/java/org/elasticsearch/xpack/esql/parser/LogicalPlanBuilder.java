@@ -735,17 +735,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /**
-     * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery} descendants) holds an
+     * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery}/{@link UnionAll} descendants) holds an
      * {@link UnresolvedRelation} with a time-series {@link IndexMode}.
      * <p>
-     * Traversal stops at {@link Subquery} boundaries so that a {@code TS} command nested inside a
+     * Traversal stops at {@link Subquery} and {@link UnionAll} boundaries so that a {@code TS} command nested inside a
      * {@code FROM} subquery (e.g. {@code FROM (TS k8s), (FROM employees)}) does not cause the outer
      * {@code STATS} to pick {@link TimeSeriesAggregate}.  The outer command is {@code FROM}, not
      * {@code TS}, so time-series aggregate planning must not be triggered by a relation that is
      * isolated inside an independent subquery.
      */
     private static boolean hasOuterTimeSeries(LogicalPlan plan) {
-        if (plan instanceof Subquery) {
+        if (plan instanceof UnionAll || plan instanceof Subquery) {
             return false;
         }
         if (plan instanceof UnresolvedRelation ur && ur.indexMode().isTsdb()) {

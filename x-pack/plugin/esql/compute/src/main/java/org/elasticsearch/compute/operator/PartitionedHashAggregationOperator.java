@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -42,12 +41,13 @@ import static java.util.stream.Collectors.joining;
  * <p>
  *     Starts as a single ordinary table (the "legacy" table) and converts, non-destructively,
  *     into {@code N} partitions once that table's key count crosses
- *     {@code partitionConversionThreshold}. Steady-state routing uses a bucket-sort pass over
- *     each input page's grouping columns: {@link BlockHash.Router#partitionHashOfRow} picks a
- *     partition per row, {@link BlockHash.Router#addRow} inserts into that partition's own table,
- *     and the resulting (groupId, position) pairs are fed to each partition's aggregators via
- *     {@link GroupingAggregatorFunction.AddInput#addGather}, reading values directly off the
- *     original, unfiltered page — no per-partition row copies.
+ *     {@code partitionConversionThreshold}. Steady-state routing uses a two-phase bucket-sort:
+ *     a routing-only {@link BlockHash} ({@code probeHash}, always a {@code PackedValuesBlockHash})
+ *     computes a partition ID per row via {@link BlockHash.Router#partitionHashOfRow}; a single
+ *     scatter pass then places positions into contiguous per-partition ranges; and for each
+ *     non-empty partition a filtered sub-page (a physical copy of just that partition's rows) is
+ *     fed to the partition's own table via {@code blockHash.add()} — typically the faster
+ *     {@code LongIntAdaptiveBlockHash}, which does not need to expose a router itself.
  * </p>
  * <p>
  *     Only supports {@link AggregatorMode#INITIAL} (raw input, partial output): partitioning is a
@@ -270,6 +270,14 @@ public class PartitionedHashAggregationOperator implements Operator {
     private Table legacy;
     /** Non-null once converted from the legacy table. */
     private Table[] partitions;
+    /**
+     * Routing-only hash, non-null once {@link #convertToPartitioned} succeeds. Uses
+     * {@link BlockHash#buildPackedValuesBlockHash} (which has a {@link BlockHash.Router} for any
+     * fixed-width key schema) solely to compute partition IDs via
+     * {@link BlockHash.Router#partitionHashOfRow}. Never used for aggregation — the actual
+     * partition tables use the faster {@link BlockHash#build} result.
+     */
+    private BlockHash probeHash;
     /** Set once a multi-valued key is observed; conversion is never attempted again after that. */
     private boolean permanentlyUnpartitioned;
 
@@ -429,7 +437,7 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(legacy, output);
+        Releasables.close(legacy, probeHash, output);
         if (partitions != null) {
             Releasables.close(partitions);
         }
@@ -476,16 +484,24 @@ public class PartitionedHashAggregationOperator implements Operator {
      * no group ids are lost (unlike the destructive periodic-early-emit reset).
      */
     private void convertToPartitioned() {
+        int cappedBatchSize = Math.min(aggregationBatchSize, Operator.TARGET_PAGE_SIZE);
+        // Try the specialized hash first: BytesRefBlockHash, for example, exposes a router for
+        // single-column BYTES_REF keys. If it has no router (e.g. LongIntAdaptiveBlockHash for
+        // multi-column fixed-width schemas), fall back to PackedValuesBlockHash.
+        BlockHash routingHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), cappedBatchSize, false);
+        if (routingHash.router() == null) {
+            routingHash.close();
+            routingHash = BlockHash.buildPackedValuesBlockHash(internalGroupSpecs, driverContext.blockFactory(), cappedBatchSize);
+        }
+        if (routingHash.router() == null) {
+            routingHash.close();
+            permanentlyUnpartitioned = true;
+            return;
+        }
+        probeHash = routingHash;
         Table[] newPartitions = new Table[partitionCount];
         for (int p = 0; p < partitionCount; p++) {
             newPartitions[p] = newPartitionTable(aggregationBatchSize);
-        }
-        if (newPartitions[0].blockHash.router() == null) {
-            // SwissHash unavailable (or otherwise unsupported by this grouping shape): give up on
-            // partitioning permanently rather than attempt it again on every subsequent page.
-            permanentlyUnpartitioned = true;
-            Releasables.close(newPartitions);
-            return;
         }
         try (ReleasableIterator<Page> intermediatePages = evaluateToIntermediate(legacy)) {
             while (intermediatePages.hasNext()) {
@@ -499,11 +515,20 @@ public class PartitionedHashAggregationOperator implements Operator {
         partitions = newPartitions;
     }
 
+    /**
+     * Distributes a single intermediate page across {@code targets} by partition hash. Uses a
+     * single O(N+P) bucket-sort pass (count → prefix-sum → scatter) to collect each partition's
+     * positions, then creates a filtered sub-page per partition and merges it into that target
+     * via {@link #mergeIntermediateIntoTable}. The filtered sub-pages are physically reordered
+     * copies — sequential reads on the target table's BlockHash improve cache utilisation
+     * compared to a scatter-gather approach.
+     */
     private void distributeIntermediatePage(Page intermediatePage, Table[] targets) {
         int positions = intermediatePage.getPositionCount();
         int keyCount = groupChannels.size();
-        BlockHash.Router probeRouter = targets[0].blockHash.router();
+        BlockHash.Router probeRouter = probeHash.router();
         int[] partitionOf = new int[positions];
+        int[] counts = new int[targets.length];
         for (int i = 0; i < positions; i++) {
             boolean anyNull = false;
             for (int k = 0; k < keyCount; k++) {
@@ -513,25 +538,23 @@ public class PartitionedHashAggregationOperator implements Operator {
                 }
             }
             partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(intermediatePage, i), targets.length);
+            counts[partitionOf[i]]++;
+        }
+        int[] offsets = new int[targets.length + 1];
+        for (int p = 0; p < targets.length; p++) {
+            offsets[p + 1] = offsets[p] + counts[p];
+        }
+        int[] cursor = offsets.clone();
+        int[] sortedPositions = new int[positions];
+        for (int i = 0; i < positions; i++) {
+            sortedPositions[cursor[partitionOf[i]]++] = i;
         }
         for (int p = 0; p < targets.length; p++) {
-            int count = 0;
-            for (int i = 0; i < positions; i++) {
-                if (partitionOf[i] == p) {
-                    count++;
-                }
-            }
-            if (count == 0) {
+            int start = offsets[p], end = offsets[p + 1];
+            if (start == end) {
                 continue;
             }
-            int[] filterPositions = new int[count];
-            int idx = 0;
-            for (int i = 0; i < positions; i++) {
-                if (partitionOf[i] == p) {
-                    filterPositions[idx++] = i;
-                }
-            }
-            try (Page subPage = intermediatePage.filter(false, filterPositions)) {
+            try (Page subPage = intermediatePage.filter(false, Arrays.copyOfRange(sortedPositions, start, end))) {
                 mergeIntermediateIntoTable(targets[p], subPage);
             }
         }
@@ -563,14 +586,26 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     // ---- steady-state partitioned processing ----
 
+    /**
+     * Routes each row to its owning partition, then physically bucket-sorts the page data so that
+     * each partition's rows are contiguous before insertion. For each partition we:
+     * <ol>
+     *   <li>Compute a partition ID per row via {@code probeHash.router().partitionHashOfRow} (one
+     *       call per row — the routing hash computed here is <em>not</em> reused for table
+     *       insertion, so there is no redundant re-hash).</li>
+     *   <li>Bucket-sort positions into a per-partition contiguous range in O(N+P) time.</li>
+     *   <li>Create a filtered sub-page (physically copying just that partition's rows) and feed it
+     *       to {@code partitions[p].blockHash.add()} — the fastest available hash for this schema
+     *       (typically {@code LongIntAdaptiveBlockHash}), with sequential rather than scattered
+     *       block reads.</li>
+     * </ol>
+     */
     private void addToPartitions(Page page) {
         int positions = page.getPositionCount();
         int keyCount = groupChannels.size();
-
+        BlockHash.Router probeRouter = probeHash.router();
         int[] partitionOf = new int[positions];
-        int[] rawHash = new int[positions];
         int[] counts = new int[partitionCount];
-        BlockHash.Router probeRouter = partitions[0].blockHash.router();
         for (int i = 0; i < positions; i++) {
             boolean anyNull = false;
             for (int k = 0; k < keyCount; k++) {
@@ -579,16 +614,9 @@ public class PartitionedHashAggregationOperator implements Operator {
                     break;
                 }
             }
-            if (anyNull) {
-                partitionOf[i] = NULL_PARTITION;
-            } else {
-                int hash = probeRouter.partitionHashOfRow(page, i);
-                rawHash[i] = hash;
-                partitionOf[i] = Math.floorMod(hash, partitionCount);
-            }
+            partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(page, i), partitionCount);
             counts[partitionOf[i]]++;
         }
-
         int[] offsets = new int[partitionCount + 1];
         for (int p = 0; p < partitionCount; p++) {
             offsets[p + 1] = offsets[p] + counts[p];
@@ -598,41 +626,22 @@ public class PartitionedHashAggregationOperator implements Operator {
         for (int i = 0; i < positions; i++) {
             sortedPositions[cursor[partitionOf[i]]++] = i;
         }
-
-        int[] sortedGroupIds = new int[positions];
         for (int p = 0; p < partitionCount; p++) {
-            int start = offsets[p];
-            int end = offsets[p + 1];
-            BlockHash.Router router = partitions[p].blockHash.router();
-            for (int j = start; j < end; j++) {
-                int i = sortedPositions[j];
-                sortedGroupIds[j] = router.addRow(page, i, rawHash[i]);
+            int start = offsets[p], end = offsets[p + 1];
+            if (start == end) {
+                continue;
             }
-        }
-
-        BlockFactory blockFactory = driverContext.blockFactory();
-        try (
-            IntVector allGroupIds = blockFactory.newIntArrayVector(sortedGroupIds, positions);
-            IntVector allPositions = blockFactory.newIntArrayVector(sortedPositions, positions)
-        ) {
-            for (int p = 0; p < partitionCount; p++) {
-                int start = offsets[p];
-                int end = offsets[p + 1];
-                if (start == end) {
-                    continue;
-                }
-                Table table = partitions[p];
+            Table table = partitions[p];
+            try (Page subPage = page.filter(false, Arrays.copyOfRange(sortedPositions, start, end))) {
                 List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(table.aggregators.size());
-                try (IntVector groupIdSlice = allGroupIds.slice(start, end); IntVector positionSlice = allPositions.slice(start, end)) {
+                try {
                     for (GroupingAggregator aggregator : table.aggregators) {
-                        GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(table.blockHash, page);
+                        GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(table.blockHash, subPage);
                         if (addInput != null) {
                             prepared.add(addInput);
                         }
                     }
-                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                        addInput.addGather(groupIdSlice, positionSlice);
-                    }
+                    table.blockHash.add(subPage, new FanOutAddInput(prepared));
                 } finally {
                     Releasables.closeExpectNoException(Releasables.wrap(prepared));
                 }
@@ -673,6 +682,9 @@ public class PartitionedHashAggregationOperator implements Operator {
             }
             success = true;
         } finally {
+            BlockHash ph = probeHash;
+            probeHash = null;
+            Releasables.close(ph);
             Releasables.close(partitions);
             partitions = null;
             if (success) {
@@ -822,22 +834,13 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     /**
-     * Builds a partition table whose {@link BlockHash} exposes a non-null {@link BlockHash.Router}
-     * whenever possible. Type-specialized hashes (e.g. {@code LongIntAdaptiveBlockHash}) are
-     * preferred for aggregation speed but may lack a router; in that case this method falls back to
-     * {@code PackedValuesBlockHash}, which supports routing for any fixed-width key schema (LONG,
-     * INT, DOUBLE). For variable-width schemas (BYTES_REF) the router may still be null, which the
-     * caller handles by setting {@link #permanentlyUnpartitioned}.
+     * Builds a partition table for aggregation. Routing (which partition a row belongs to) is
+     * handled separately by {@link #probeHash}, so the table's {@link BlockHash} does not need
+     * to expose a {@link BlockHash.Router} — we can always use the fastest available hash (e.g.
+     * {@code LongIntAdaptiveBlockHash}) without a PackedValues fallback.
      */
     private Table newPartitionTable(int emitBatchSize) {
         BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), emitBatchSize, false);
-        if (blockHash.router() == null) {
-            // The specialized hash has no router. Try PackedValuesBlockHash, which supports routing
-            // for fixed-width schemas. Cap the batch size to avoid pre-allocating huge arrays.
-            blockHash.close();
-            int cappedBatchSize = Math.min(emitBatchSize, Operator.TARGET_PAGE_SIZE);
-            blockHash = BlockHash.buildPackedValuesBlockHash(internalGroupSpecs, driverContext.blockFactory(), cappedBatchSize);
-        }
         boolean success = false;
         try {
             Table table = new Table(blockHash, buildAggregators());

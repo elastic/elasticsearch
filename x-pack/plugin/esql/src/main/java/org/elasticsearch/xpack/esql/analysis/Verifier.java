@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -51,7 +52,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -59,7 +63,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -147,6 +153,10 @@ public class Verifier {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
+        }
+
+        if (unmappedResolution == UnmappedResolution.LOAD_ALL) {
+            checkLoadAllModeSupportedCommands(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -483,6 +493,38 @@ public class Verifier {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
             }
         });
+    }
+
+    /**
+     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"}: only FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT
+     * are supported. Any other command (STATS, JOIN, FORK, ENRICH, views, ...) is rejected until its interaction with the
+     * expanded {@code _unmapped_fields} column is designed and implemented.
+     */
+    private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> {
+            if (supportedInLoadAllMode(p) == false) {
+                failures.add(
+                    fail(
+                        p,
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT "
+                            + "commands; [{}] is not supported yet",
+                        p instanceof TelemetryAware telemetryAware ? telemetryAware.telemetryLabel() : p.nodeName()
+                    )
+                );
+            }
+        });
+    }
+
+    private static boolean supportedInLoadAllMode(LogicalPlan plan) {
+        // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        return plan instanceof EsRelation
+            || plan instanceof Project
+            || plan instanceof Drop
+            || plan instanceof Rename
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof Limit;
     }
 
     /**

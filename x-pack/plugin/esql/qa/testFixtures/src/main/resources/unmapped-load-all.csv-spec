@@ -193,40 +193,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// STATS drops the per-document synthetic column entirely: no _unmapped_fields column is present
-// in the schema, so ExpandUnmappedFieldsPostProcessor is a no-op.
-fromStatsDropsUnmappedFieldsExpand
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| STATS cnt = COUNT(*), max_dur = MAX(event_duration)
-;
-
-cnt:long | max_dur:long
-7        | 8268152
-;
-
-// INLINE STATS creates language_code:long column, shadowing the unmapped source field.
-// language_code is excluded from the block loader; 3 unmapped fields remain and are expanded.
-inlineStatsConflictsWithUnmappedExpand
-required_capability: optional_fields_load_all
-required_capability: inline_stats
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| INLINE STATS language_code = COUNT(*) BY message
-| SORT @timestamp
-| LIMIT 4
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | language_code:long | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | 1                  | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | 1                  | Connected to 10.1.0.2! | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 1                  | 42                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | 3                  | Connection error?      | d                       | 725449                          | Disconnection error
-;
-
 // Complex pipeline: EVAL + DROP mapped cols + RENAME. Unmapped field set is unchanged.
 complexDropRenameEvalExpand
 required_capability: optional_fields_load_all
@@ -244,73 +210,6 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450             | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764             | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T13:33:34.937Z | 42                     | 1232             | 2                     | e                       | 1232383                         | 43
-;
-
-############################
-# Distributed / join coverage
-############################
-
-// LOOKUP JOIN: the LOOKUP index does not contribute to the expanded columns.
-// message_type (from lookup) appears before the expanded unmapped field columns.
-lookupJoinDoesNotContributeToUnmappedFieldsExpand
-required_capability: optional_fields_load_all
-required_capability: join_lookup_v12
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| LOOKUP JOIN partial_message_types_lookup ON message
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | message_type:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | connection           | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | error                | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | error                | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | error                | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | numeric              | 2                     | e                       | 1232383                         | 43
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | connection           | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | connection           | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-;
-
-############################
-# TS coverage
-############################
-
-// TS STATS: aggregation drops the per-document expanded columns entirely.
-tsStatsDropsUnmappedFieldsExpand
-required_capability: optional_fields_load_all
-required_capability: ts_command_v0
-
-SET unmapped_fields="LOAD_ALL"\;
-TS ts_window
-| STATS total_val = SUM(val) BY dim
-| SORT dim
-;
-
-total_val:long | dim:keyword
-30             | a
-300            | b
-;
-
-// TS without STATS on a fully-mapped index: every row has no unmapped fields.
-// The expansion finds zero unique field names, so no extra columns are added.
-// The result schema is simply the KEEP columns (no synthetic column of any kind).
-tsWithoutStatsAllMappedFieldsExpand
-required_capability: optional_fields_load_all
-required_capability: ts_command_v0
-
-SET unmapped_fields="LOAD_ALL"\;
-TS ts_window
-| SORT @timestamp, dim
-| KEEP @timestamp, dim, val
-| LIMIT 4
-;
-
-@timestamp:datetime      | dim:keyword | val:long
-2024-01-01T00:00:00.000Z | a           | 1
-2024-01-01T00:00:00.000Z | b           | 10
-2024-01-01T00:01:00.000Z | a           | 2
-2024-01-01T00:01:00.000Z | b           | 20
 ;
 
 ############################

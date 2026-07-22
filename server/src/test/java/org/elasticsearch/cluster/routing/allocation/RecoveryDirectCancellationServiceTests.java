@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -469,10 +470,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             taskQueue.runAllRunnableTasks();
 
             assertThat(sentRequests, hasSize(1));
-            final var sentCancellations = sentRequests.getFirst().cancellations();
-            assertThat(sentCancellations, hasSize(2));
+            final var cancellations = sentRequests.getFirst().cancellations();
+            assertThat(cancellations, hasSize(2));
             assertThat(
-                sentCancellations,
+                cancellations,
                 containsInAnyOrder(
                     new ShardRecoveryCancellation(shardId0, allocationId0.getId(), false),
                     new ShardRecoveryCancellation(shardId1, allocationId1.getId(), false)
@@ -522,9 +523,9 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             taskQueue.runAllRunnableTasks();
 
             assertThat(sentRequests, hasSize(1));
-            final var sentCancellations = sentRequests.getFirst().cancellations();
-            assertThat(sentCancellations, hasSize(1));
-            assertThat(sentCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId2, allocationId2.getId(), false)));
+            final var cancellations = sentRequests.getFirst().cancellations();
+            assertThat(cancellations, hasSize(1));
+            assertThat(cancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId2, allocationId2.getId(), false)));
         }
 
         // Verify cache contains all three allocation IDs
@@ -663,6 +664,79 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         service.computeAndSubmitCancellations(desiredBalance, createRoutingAllocationFrom(clusterState, forbidRemain));
         taskQueue.runAllRunnableTasks();
         assertThat(sentRequests, hasSize(0));
+    }
+
+    public void testRequestWithChangedTermDoesNotGetDeduplicated() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+        final var allocationId = AllocationId.newInitializing(randomIdentifier("alloc-"));
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(shardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(allocationId)
+                    .build()
+            );
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
+
+        final var taskQueue = new DeterministicTaskQueue();
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
+        final var sentRequests = new CopyOnWriteArrayList<CancelRecoveriesAction.Request>();
+
+        doAnswer(invocation -> {
+            CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            sentRequests.add(req);
+            handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
+            return null;
+        }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());
+
+        final var state = mock(ClusterState.class);
+        when(state.getMinTransportVersion()).thenReturn(TransportVersion.current());
+        final var service = new RecoveryDirectCancellationService(
+            transportService,
+            createMockClusterService(state, true),
+            mock(AllocationService.class),
+            mock(RerouteService.class)
+        );
+
+        final var clusterStateWithTermOne = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true).coordinationMetadata(CoordinationMetadata.builder().term(1L).build()))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        // First round with term=1, cancellation is sent
+        service.computeAndSubmitCancellations(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne));
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(sentRequests, hasSize(1));
+        final var firstRoundCancellations = sentRequests.getFirst().cancellations();
+        assertThat(firstRoundCancellations, hasSize(1));
+        assertThat(firstRoundCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId, allocationId.getId(), false)));
+
+        // Second round with term=1, cancellation is deduplicated
+        sentRequests.clear();
+        service.computeAndSubmitCancellations(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne));
+        taskQueue.runAllRunnableTasks();
+        assertThat(sentRequests, hasSize(0));
+
+        // Third round with term=2, term changed, so the cached entry is bypassed and the cancellation is re-sent
+        sentRequests.clear();
+        final var clusterStateWithTermTwo = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true).coordinationMetadata(CoordinationMetadata.builder().term(2L).build()))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+        service.computeAndSubmitCancellations(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo));
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(sentRequests, hasSize(1));
+        final var thirdRoundCancellations = sentRequests.getFirst().cancellations();
+        assertThat(thirdRoundCancellations, hasSize(1));
+        assertThat(thirdRoundCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId, allocationId.getId(), false)));
     }
 
     private static AllocationDecider forbidRemainDecider(ShardId shardId, String forbiddenNodeId, boolean primary) {

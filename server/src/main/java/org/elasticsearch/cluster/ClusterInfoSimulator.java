@@ -236,7 +236,7 @@ public class ClusterInfoSimulator {
      * @param sourceNodeId The source node ID if the shard started as a result of relocation. {@code null} otherwise.
      */
     public void simulateAlreadyStartedShard(ShardRouting startedShard, @Nullable String sourceNodeId) {
-        assert startedShard.started() : "expected an already started shard, but got: " + startedShard;
+        assert startedShard.started() || startedShard.relocating() : "expected an already started shard, but got: " + startedShard;
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "simulated started shard {} on node [{}] as a {}",

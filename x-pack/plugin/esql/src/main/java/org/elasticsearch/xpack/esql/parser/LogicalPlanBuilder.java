@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -115,6 +116,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 
@@ -903,7 +905,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+                child = child.transformDown(
+                    LookupJoin.class,
+                    lj -> new LookupJoin(
+                        lj.source(),
+                        lj.left(),
+                        lj.right(),
+                        lj.config(),
+                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                    )
+                );
             }
 
             return new Enrich(
@@ -1103,7 +1114,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
         }
-        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+        var rightPatternSplit = RemoteClusterAware.splitIndexName(rightPattern);
+        var mode = Objects.equals(rightPatternSplit.clusterAlias(), "_coordinator") ? ExecuteLocation.COORDINATOR : ExecuteLocation.ANY;
+        if (rightPatternSplit.clusterAlias() != null && mode != ExecuteLocation.COORDINATOR) {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
@@ -1120,7 +1133,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new IndexPattern(source(target.index), rightPattern),
+            new IndexPattern(source(target.index), rightPatternSplit.indexExpression()),
             false,
             emptyList(),
             IndexMode.LOOKUP,
@@ -1135,7 +1148,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             p,
             right,
             joinInfo.joinFields(),
-            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
+            mode
         );
     }
 

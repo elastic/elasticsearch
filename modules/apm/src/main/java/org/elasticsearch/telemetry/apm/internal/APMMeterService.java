@@ -50,6 +50,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
+        this.meterRegistry.setInstrumentTimingEnabled(OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED.get(settings));
     }
 
     private static MeterSupplier createOtelMeterSupplier(Settings settings, Path diskBufferPath) {

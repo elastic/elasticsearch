@@ -67,7 +67,7 @@ setup:
             - fn_json_extract
             - esql_limit_by
             - dedup_command
-            - highlight_v4
+            - highlight_v5
             - fillnull
       reason: "Test that should only be executed on snapshot versions"
 

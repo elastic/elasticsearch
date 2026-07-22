@@ -603,7 +603,15 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         closeMockClient(blobStore);
     }
 
-    public void testConcurrentWriteBlobAtomicUploadsConcurrently() throws Exception {
+    public void testConcurrentWriteBlobAtomicSingleThread() throws Exception {
+        testConcurrentWriteBlobAtomic(true);
+    }
+
+    public void testConcurrentWriteBlobAtomicMultipleThreads() throws Exception {
+        testConcurrentWriteBlobAtomic(false);
+    }
+
+    public void testConcurrentWriteBlobAtomic(boolean singleThread) throws Exception {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final int nbParts = randomIntBetween(2, 5);
@@ -625,8 +633,9 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             CreateMultipartUploadResponse.builder().uploadId(randomAlphaOfLength(25)).build()
         );
 
+        final int numThreads = singleThread ? 1 : nbParts;
         // Barrier requires all nbParts threads to arrive before proceeding
-        final CyclicBarrier barrier = new CyclicBarrier(nbParts);
+        final CyclicBarrier barrier = new CyclicBarrier(numThreads);
         when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenAnswer(inv -> {
             safeAwait(barrier);
             return UploadPartResponse.builder().eTag("test-etag").build();
@@ -635,16 +644,19 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             CompleteMultipartUploadResponse.builder().build()
         );
 
-        final ExecutorService executorService = Executors.newFixedThreadPool(nbParts - 1);
+        final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
         try {
-            new S3BlobContainer(BlobPath.EMPTY, blobStore).writeBlobAtomic(
-                randomPurpose(),
-                blobName,
-                blobSize,
-                (offset, length) -> new ByteArrayInputStream(new byte[0]),
-                randomBoolean(),
-                executorService
-            );
+            executorService.submit(() -> {
+                new S3BlobContainer(BlobPath.EMPTY, blobStore).writeBlobAtomic(
+                    randomPurpose(),
+                    blobName,
+                    blobSize,
+                    (offset, length) -> new ByteArrayInputStream(new byte[0]),
+                    randomBoolean(),
+                    executorService
+                );
+                return null;
+            }).get();
         } finally {
             ESTestCase.terminate(executorService);
         }

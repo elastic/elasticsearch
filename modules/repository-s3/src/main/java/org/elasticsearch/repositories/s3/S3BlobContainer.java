@@ -380,49 +380,47 @@ class S3BlobContainer extends AbstractBlobContainer {
         try {
             final CompletedPart[] completedParts = new CompletedPart[nbParts];
             final AtomicInteger nextPart = new AtomicInteger(1);
-            final CountDownLatch latch = new CountDownLatch(nbParts - 1);
+            final CountDownLatch latch = new CountDownLatch(nbParts);
             final AtomicReference<Throwable> firstError = new AtomicReference<>();
 
             final Runnable worker = () -> {
                 int partNum;
-                while (firstError.get() == null && (partNum = nextPart.getAndIncrement()) <= nbParts) {
-                    final boolean lastPart = (partNum == nbParts);
-                    final long curPartSize = lastPart ? lastPartSize : partSize;
-                    final long offset = (long) (partNum - 1) * partSize;
-                    try {
-                        final UploadPartRequest uploadRequest = createPartUploadRequest(
-                            purpose,
-                            uploadId,
-                            partNum,
-                            absoluteBlobKey,
-                            curPartSize,
-                            lastPart
-                        );
-                        final InputStream stream = provider.apply(offset, curPartSize);
-                        try (stream; var clientReference = blobStore.clientReference()) {
-                            final UploadPartResponse uploadResponse = clientReference.client()
-                                .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, curPartSize));
-                            completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
+                while ((partNum = nextPart.getAndIncrement()) <= nbParts) {
+                    if (firstError.get() == null) {
+                        final boolean lastPart = (partNum == nbParts);
+                        final long curPartSize = lastPart ? lastPartSize : partSize;
+                        final long offset = (long) (partNum - 1) * partSize;
+                        try {
+                            final UploadPartRequest uploadRequest = createPartUploadRequest(
+                                purpose,
+                                uploadId,
+                                partNum,
+                                absoluteBlobKey,
+                                curPartSize,
+                                lastPart
+                            );
+                            final InputStream stream = provider.apply(offset, curPartSize);
+                            try (stream; var clientReference = blobStore.clientReference()) {
+                                final UploadPartResponse uploadResponse = clientReference.client()
+                                    .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, curPartSize));
+                                completedParts[partNum - 1] = CompletedPart.builder()
+                                    .partNumber(partNum)
+                                    .eTag(uploadResponse.eTag())
+                                    .build();
+                            }
+                        } catch (Throwable t) {
+                            firstError.compareAndSet(null, t);
                         }
-                    } catch (Throwable t) {
-                        firstError.compareAndSet(null, t);
                     }
+                    latch.countDown();
                 }
             };
 
             for (int i = 0; i < nbParts - 1; i++) {
                 try {
-                    executor.execute(() -> {
-                        try {
-                            worker.run();
-                        } finally {
-                            latch.countDown();
-                        }
-                    });
+                    executor.execute(worker);
                 } catch (Exception e) {
-                    // Worker was not submitted, release the latch slot
                     // We ignore exceptions since the calling thread will process unclaimed tasks
-                    latch.countDown();
                 }
             }
             // Calling thread also processes tasks

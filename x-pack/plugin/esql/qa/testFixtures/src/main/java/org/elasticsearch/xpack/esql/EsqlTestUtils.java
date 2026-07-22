@@ -1152,6 +1152,20 @@ public final class EsqlTestUtils {
     }
 
     /**
+     * Resolves a single classpath resource by its exact name, stripping
+     * any leading "/" (resource names looked up via the classloader must
+     * not start with "/"). This is a fast alternative to
+     * {@link #classpathResources(String)} for callers who already know
+     * the exact resource name and don't need pattern matching.
+     */
+    public static URL classpathResource(String name) {
+        while (name.startsWith("/")) {
+            name = name.substring(1);
+        }
+        return EsqlTestUtils.class.getClassLoader().getResource(name);
+    }
+
+    /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
      *

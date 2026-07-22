@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -54,8 +56,11 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 
 public class ExternalDistributionTests extends ESTestCase {
 
@@ -336,6 +341,69 @@ public class ExternalDistributionTests extends ESTestCase {
         );
     }
 
+    // --- Gather-boundary detection tests ---
+
+    // Detecting the exchange that collapseExternalSourceExchanges would remove is what tells the local path a gather is
+    // still needed. When true and there is more than one split group, the exchange must be preserved and the partial
+    // aggregation run on the local node so the parallel per-group drivers merge into a single final aggregation.
+
+    public void testHasCollapsibleExternalExchangeDetectsFragmentExchange() {
+        ExternalRelation external = createExternalRelation();
+        Aggregate aggregate = new Aggregate(SRC, external, List.of(), List.of());
+
+        Mapper mapper = new Mapper();
+        PhysicalPlan physicalPlan = mapper.map(new Versioned<>(aggregate, TransportVersion.current()));
+
+        assertTrue(
+            "STATS over an external source must keep a collapsible exchange",
+            ComputeService.hasCollapsibleExternalExchange(physicalPlan)
+        );
+    }
+
+    public void testHasCollapsibleExternalExchangeDetectsDirectSourceExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        ExchangeExec exchange = new ExchangeExec(SRC, externalSource);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+
+        assertTrue(ComputeService.hasCollapsibleExternalExchange(limit));
+    }
+
+    public void testNeedsGatherBoundaryOnlyForPerDriverUnsafeOperators() {
+        ExternalRelation external = createExternalRelation();
+        Mapper mapper = new Mapper();
+
+        PhysicalPlan aggPlan = mapper.map(new Versioned<>(new Aggregate(SRC, external, List.of(), List.of()), TransportVersion.current()));
+        assertTrue(
+            "STATS emits one row per driver when replicated, so it needs a gather",
+            ExternalDistributionStrategy.needsGatherBoundary(aggPlan)
+        );
+
+        // A limit is enforced across drivers by a single shared Limiter, so replicating it stays correct and the
+        // scan must keep its cheaper collapsed path rather than being rerouted through an exchange.
+        PhysicalPlan limitPlan = mapper.map(
+            new Versioned<>(new Limit(SRC, new Literal(SRC, 10, DataType.INTEGER), external), TransportVersion.current())
+        );
+        assertFalse("a limit-only plan must not be rerouted through a gather", ExternalDistributionStrategy.needsGatherBoundary(limitPlan));
+    }
+
+    public void testHasCollapsibleExternalExchangeFalseWithoutExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), null);
+
+        assertFalse("A plain external scan without an exchange needs no gather", ComputeService.hasCollapsibleExternalExchange(limit));
+    }
+
+    public void testHasCollapsibleExternalExchangeFalseForNonExternalExchange() {
+        ExternalSourceExec externalSource = createExternalSourceExec();
+        AggregateExec agg = new AggregateExec(SRC, externalSource, List.of(), List.of(), AggregatorMode.INITIAL, List.of(), null);
+        ExchangeExec exchange = new ExchangeExec(SRC, agg);
+
+        assertFalse(
+            "An exchange whose child is not directly the external source is not collapsible",
+            ComputeService.hasCollapsibleExternalExchange(exchange)
+        );
+    }
+
     // --- localPlan expansion tests ---
 
     public void testLocalPlanExpandsFragmentExecToExternalSourceExec() {
@@ -472,10 +540,65 @@ public class ExternalDistributionTests extends ESTestCase {
             exec -> exec.splits().isEmpty() ? exec.withSplits(splits) : exec
         );
 
-        final List<ExternalSourceExec> sources = new java.util.ArrayList<>();
+        final List<ExternalSourceExec> sources = new ArrayList<>();
         withSplits.forEachDown(ExternalSourceExec.class, sources::add);
         assertFalse("Should have at least one ExternalSourceExec", sources.isEmpty());
         assertEquals("Splits should be injected", 2, sources.get(0).splits().size());
+    }
+
+    // --- Split coalescing floor wiring ---
+
+    public void testCoalesceSplitsFloorsTopLevelSplitCount() {
+        int fileCount = 200;
+        int minGroupCount = 14;
+        List<ExternalSplit> splits = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        ExternalSourceExec exec = createExternalSourceExec().withSplits(splits);
+
+        PhysicalPlan coalesced = ComputeService.coalesceSplits(exec, () -> minGroupCount);
+
+        List<ExternalSourceExec> sources = new ArrayList<>();
+        coalesced.forEachDown(ExternalSourceExec.class, sources::add);
+        assertEquals(1, sources.size());
+        List<ExternalSplit> result = sources.get(0).splits();
+        assertEquals("tiny files must stay spread across the floor, not collapse to one split", minGroupCount, result.size());
+        assertEquals("no leaves lost", fileCount, CoalescedSplit.flatten(result).size());
+    }
+
+    public void testCoalesceSplitsResolvesFloorAtMostOnceAndOnlyWhenNeeded() {
+        AtomicInteger resolutions = new AtomicInteger();
+        IntSupplier countingFloor = () -> {
+            resolutions.incrementAndGet();
+            return 14;
+        };
+
+        // Resolving the floor reads cluster state and thread-pool info, so a plan with nothing to coalesce must not
+        // pay for it: split discovery runs on every query, the overwhelming majority of which have no external source.
+        ComputeService.coalesceSplits(createExternalSourceExec(), countingFloor);
+        assertEquals("a plan with no coalescible external source must not resolve the floor", 0, resolutions.get());
+
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < SplitCoalescer.COALESCING_THRESHOLD + 1; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        ComputeService.coalesceSplits(createExternalSourceExec().withSplits(splits), countingFloor);
+        assertEquals("a coalescible external source resolves the floor exactly once", 1, resolutions.get());
+    }
+
+    public void testExternalCoalesceFloorIsTaskConcurrencyTimesNodes() {
+        assertEquals(14, ComputeService.externalCoalesceFloor(14, 1));
+        assertEquals(56, ComputeService.externalCoalesceFloor(14, 4));
+        // A degenerate task_concurrency must not drive the floor below one, which would make coalescing throw.
+        assertEquals(1, ComputeService.externalCoalesceFloor(0, 4));
+        assertEquals(1, ComputeService.externalCoalesceFloor(-3, 4));
+        // An implausibly wide cluster must clamp rather than overflow.
+        assertEquals(Integer.MAX_VALUE, ComputeService.externalCoalesceFloor(Integer.MAX_VALUE, 4));
     }
 
     // --- Field retention through local optimization tests ---

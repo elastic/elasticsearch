@@ -34,13 +34,14 @@ import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
 /**
- * Models a {@code @LibrarySpecification}-annotated interface and the methods that will be bound to
- * native symbols. The supported surface is intentionally narrow: every abstract method must be
- * annotated with {@code @Function} or {@code @StructFactory}; parameter types are limited to
- * primitives and {@code MemorySegment}; return types may also be {@code String}.
+ * Models a {@code @LibrarySpecification}-annotated interface or abstract class and the methods
+ * that will be bound to native symbols. The supported surface is intentionally narrow: every
+ * abstract method must be annotated with {@code @Function} or {@code @StructFactory}; parameter
+ * types are limited to primitives and {@code MemorySegment}; return types may also be
+ * {@code String}.
  *
- * @param qualifiedName the fully-qualified interface name
- * @param simpleName the simple interface name
+ * @param qualifiedName the fully-qualified interface or class name
+ * @param simpleName the simple interface or class name
  * @param packageName the package name (may be empty)
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
  * @param methods all native methods in declaration order
@@ -48,6 +49,7 @@ import javax.tools.Diagnostic.Kind;
  * @param structs all {@code @StructSpecification} types enclosed in this interface, in declaration order
  * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
+ * @param isAbstractClass {@code true} when the base type is an abstract class rather than an interface
  */
 public record LibraryModel(
     String qualifiedName,
@@ -57,7 +59,8 @@ public record LibraryModel(
     List<MethodModel> methods,
     List<String> unavailableOn,
     List<StructModel> structs,
-    String symbolResolverClassName
+    String symbolResolverClassName,
+    boolean isAbstractClass
 ) {
 
     /** All known platform names — used to detect a library that can never be natively loaded. */
@@ -87,16 +90,22 @@ public record LibraryModel(
     }
 
     /**
-     * Builds a {@code LibraryModel} from a {@code @LibrarySpecification}-annotated interface element.
-     * Emits {@link Kind#ERROR} diagnostics via the messager for any validation failure.
+     * Builds a {@code LibraryModel} from a {@code @LibrarySpecification}-annotated interface or
+     * abstract class element. Emits {@link Kind#ERROR} diagnostics via the messager for any
+     * validation failure.
      *
      * @return the built model, or null if any error was emitted
      */
     public static LibraryModel from(TypeElement element, ProcessingEnvironment env) {
         Messager messager = env.getMessager();
 
-        if (element.getKind() != ElementKind.INTERFACE) {
-            messager.printMessage(Kind.ERROR, "@LibrarySpecification must be on an interface", element);
+        boolean isAbstractClass;
+        if (element.getKind() == ElementKind.INTERFACE) {
+            isAbstractClass = false;
+        } else if (element.getKind() == ElementKind.CLASS && element.getModifiers().contains(Modifier.ABSTRACT)) {
+            isAbstractClass = true;
+        } else {
+            messager.printMessage(Kind.ERROR, "@LibrarySpecification must be on an interface or abstract class", element);
             return null;
         }
 
@@ -122,6 +131,11 @@ public record LibraryModel(
 
         String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils());
         if (symbolResolverClassName == null) {
+            hasError = true;
+        }
+
+        if (isAbstractClass && hasCallableNoArgConstructor(element) == false) {
+            messager.printMessage(Kind.ERROR, "@LibrarySpecification abstract class must have a callable no-arg constructor", element);
             hasError = true;
         }
 
@@ -172,8 +186,16 @@ public record LibraryModel(
                 continue;
             }
             ExecutableElement method = (ExecutableElement) enclosed;
-            if (method.getModifiers().contains(Modifier.DEFAULT) || method.getModifiers().contains(Modifier.STATIC)) {
-                continue;
+            if (isAbstractClass) {
+                // For abstract classes, only process abstract methods; skip concrete, static, etc.
+                if (method.getModifiers().contains(Modifier.ABSTRACT) == false) {
+                    continue;
+                }
+            } else {
+                // For interfaces, skip default and static methods
+                if (method.getModifiers().contains(Modifier.DEFAULT) || method.getModifiers().contains(Modifier.STATIC)) {
+                    continue;
+                }
             }
 
             MethodModel methodModel = MethodModel.from(method, env, structSimpleNames);
@@ -194,7 +216,8 @@ public record LibraryModel(
                 methods,
                 unavailableOn,
                 structs,
-                symbolResolverClassName
+                symbolResolverClassName,
+                isAbstractClass
             );
     }
 
@@ -302,6 +325,29 @@ public record LibraryModel(
             }
         }
         return false;
+    }
+
+    /**
+     * Returns {@code true} if the generated {@code $Impl} subclass can call {@code super()} on this
+     * type — i.e. the type has a non-{@code private} no-arg constructor (public, protected, or
+     * package-private). When no explicit constructors are declared, Java provides an implicit
+     * {@code public} no-arg constructor — the annotation processor source model exposes no element
+     * for it, so an empty constructor list is treated as having an implicit public no-arg constructor.
+     */
+    private static boolean hasCallableNoArgConstructor(TypeElement type) {
+        boolean foundAnyConstructor = false;
+        for (var enclosed : type.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
+                continue;
+            }
+            foundAnyConstructor = true;
+            ExecutableElement ctor = (ExecutableElement) enclosed;
+            if (ctor.getParameters().isEmpty() && ctor.getModifiers().contains(Modifier.PRIVATE) == false) {
+                return true;
+            }
+        }
+        // No explicit constructors → Java provides an implicit public no-arg constructor.
+        return foundAnyConstructor == false;
     }
 
     /**

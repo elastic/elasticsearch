@@ -402,6 +402,18 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter, whether for
+     * cancellation or allocation tracking. Decoupled from {@link IRCStaticCancellationCheck}, which additionally emits the
+     * poll; a static cancellation lambda carries both.
+     */
+    public static class IRCStaticScriptCapture implements IRCondition {
+
+        private IRCStaticScriptCapture() {
+
+        }
+    }
+
     /** describes the type for an instanceof instruction */
     public static class IRDInstanceType extends IRDType {
 

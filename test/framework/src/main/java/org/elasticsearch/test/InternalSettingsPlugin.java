@@ -9,6 +9,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
@@ -75,7 +76,8 @@ public final class InternalSettingsPlugin extends Plugin {
             IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
             FsService.ALWAYS_REFRESH_SETTING,
             PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING
+            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING,
+            RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING
         );
     }
 }

@@ -79,8 +79,9 @@ is the same regardless of how many stages the query has:
 Use `STATS ... BY _seq` to reconstruct or aggregate whole matches.
 
 ::::{note}
-Because the target indices are given by the `indices` option rather than a `FROM` pattern, the `EQL`
-command is not supported in cross-cluster search.
+Cross-cluster search is supported. Include a remote cluster in the `indices` option, for example
+`"my_remote:logs-*"`. The option is passed through to the EQL engine, which resolves the remote
+cluster and runs the query there.
 ::::
 
 ## Examples

@@ -21,8 +21,12 @@ import java.util.Optional;
  * {@link Destination#IGNORED_SOURCE} ({@code _ignored_source}),
  * {@link Destination#IGNORE_MALFORMED} ({@code ._ignore_malformed}), or
  * {@link Destination#ON_FAILURE} ({@code ._on_failure}).
- * Call {@link #resolvePrecaptureReason} for pre-capture decisions and {@link #write} for
- * immediate malformed/cardinality writes.
+ * Callers supply a {@link Reason} — the router derives the {@link Destination} via {@link #route}.
+ * <ul>
+ *   <li>Immediate write: {@link #write} or {@link #writeParent}</li>
+ *   <li>Pre-capture before parsing a sub-tree: {@link #preCapture} or {@link #preCaptureParent}</li>
+ *   <li>Field-mapper parse entry point: {@link #parseField}</li>
+ * </ul>
  */
 public final class FallbackStorageRouter {
 
@@ -256,48 +260,67 @@ public final class FallbackStorageRouter {
     }
 
     // -------------------------------------------------------------------------
-    // _ignored_source writes
+    // Immediate writes — caller supplies WHY; router decides WHERE
     // -------------------------------------------------------------------------
 
     /**
-     * Encodes the current parser token and writes it to {@code _ignored_source} for {@code fieldPath}
-     * (a child of {@code context.parent()}).
-     *
-     * @return {@code true} if written; {@code false} if {@link DocumentParserContext#canAddIgnoredField()} is false
+     * Encodes the current parser token and writes it to the appropriate fallback destination for
+     * {@code fieldPath} (a child of {@code context.parent()}).
+     * <p>
+     * For {@link Destination#IGNORED_SOURCE} reasons: encodes via {@link DocumentParserContext#encodeFlattenedToken()}
+     * and returns {@code false} when {@link DocumentParserContext#canAddIgnoredField()} is false.
+     * For other destinations the write always succeeds and this method returns {@code true}.
      */
-    public static boolean writeToIgnoredSource(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
-        if (context.canAddIgnoredField() == false) {
-            return false;
-        }
-        context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, context.encodeFlattenedToken()));
-        return true;
+    public static boolean write(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
+        return switch (route(reason)) {
+            case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath);
+            case IGNORE_MALFORMED -> {
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, context.parser());
+                yield true;
+            }
+            case ON_FAILURE -> {
+                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                    OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, context.parser());
+                }
+                yield true;
+            }
+        };
     }
 
     /**
-     * Encodes the current parser token and writes {@code context.parent()} to {@code _ignored_source}.
-     * Use when {@code context.parent()} is the field being stored (e.g. a disabled object), not a container.
-     *
-     * @return {@code true} if written; {@code false} if {@link DocumentParserContext#canAddIgnoredField()} is false
+     * Encodes the current parser token and writes {@code context.parent()} to the appropriate
+     * fallback destination. Use when {@code context.parent()} is the entity being stored
+     * (e.g. a disabled object), not merely a container for {@code fieldPath}.
+     * <p>
+     * Returns {@code false} when {@link DocumentParserContext#canAddIgnoredField()} is false
+     * and the reason routes to {@link Destination#IGNORED_SOURCE}; otherwise always {@code true}.
      */
-    public static boolean writeParentToIgnoredSource(DocumentParserContext context, Reason reason) throws IOException {
-        if (context.canAddIgnoredField() == false) {
-            return false;
-        }
-        ObjectMapper parent = context.parent();
-        int parentOffset = parent.fullPath().lastIndexOf(parent.leafName());
-        context.addIgnoredField(
-            new IgnoredSourceFieldMapper.NameValue(parent.fullPath(), parentOffset, context.encodeFlattenedToken(), context.doc())
-        );
-        return true;
+    public static boolean writeParent(DocumentParserContext context, Reason reason) throws IOException {
+        return switch (route(reason)) {
+            case IGNORED_SOURCE -> writeParentToIgnoredSource(context);
+            case IGNORE_MALFORMED -> {
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, context.parent().fullPath(), context.parser());
+                yield true;
+            }
+            case ON_FAILURE -> {
+                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                    OnFailureStoredValues.storeValueForOnFailureIgnore(context, context.parent().fullPath(), context.parser());
+                }
+                yield true;
+            }
+        };
     }
 
+    // -------------------------------------------------------------------------
+    // Pre-capture — caller supplies WHY; router decides WHERE
+    // -------------------------------------------------------------------------
+
     /**
-     * Pre-captures the current parser position to {@code _ignored_source} for {@code fieldPath}
-     * (a child of {@code context.parent()}) before the field is parsed.
+     * Pre-captures the current parser position for {@code fieldPath} (a child of {@code context.parent()})
+     * before the field is parsed, so its XContent can be reconstructed later.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    public static DocumentParserContext preCaptureToIgnoredSource(DocumentParserContext context, String fieldPath, Reason reason)
-        throws IOException {
+    public static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
@@ -305,11 +328,11 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Pre-captures the current parser position to {@code _ignored_source} for {@code context.parent()}.
+     * Pre-captures the current parser position for {@code context.parent()} before its content is parsed.
      * Use when {@code context.parent()} is the object being captured, not a container.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    public static DocumentParserContext preCaptureParentToIgnoredSource(DocumentParserContext context, Reason reason) throws IOException {
+    public static DocumentParserContext preCaptureParent(DocumentParserContext context, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
@@ -321,29 +344,27 @@ public final class FallbackStorageRouter {
     }
 
     // -------------------------------------------------------------------------
-    // Immediate write for IGNORE_MALFORMED and ON_FAILURE
+    // Private _ignored_source helpers
     // -------------------------------------------------------------------------
 
-    /**
-     * Writes the current parser token to the appropriate fallback destination for {@link Reason#MALFORMED}
-     * or {@link Reason#MULTI_VALUE_VIOLATION}. Throws {@link IllegalArgumentException} if the reason
-     * routes to {@link Destination#IGNORED_SOURCE}; use {@link #writeToIgnoredSource} or
-     * {@link #preCaptureToIgnoredSource} for those.
-     */
-    public static void write(DocumentParserContext context, String fieldPath, Reason reason, XContentParser parser) throws IOException {
-        switch (route(reason)) {
-            case IGNORE_MALFORMED -> IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, parser);
-            case ON_FAILURE -> {
-                // Stored source retains the value verbatim; only synthetic/columnar_stored source needs
-                // the failure column to reproduce it during reconstruction.
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
-                    OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, parser);
-                }
-            }
-            case IGNORED_SOURCE -> throw new IllegalArgumentException(
-                "Use writeToIgnoredSource or preCaptureToIgnoredSource for IGNORED_SOURCE reason: " + reason
-            );
+    private static boolean writeToIgnoredSource(DocumentParserContext context, String fieldPath) throws IOException {
+        if (context.canAddIgnoredField() == false) {
+            return false;
         }
+        context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, context.encodeFlattenedToken()));
+        return true;
+    }
+
+    private static boolean writeParentToIgnoredSource(DocumentParserContext context) throws IOException {
+        if (context.canAddIgnoredField() == false) {
+            return false;
+        }
+        ObjectMapper parent = context.parent();
+        int parentOffset = parent.fullPath().lastIndexOf(parent.leafName());
+        context.addIgnoredField(
+            new IgnoredSourceFieldMapper.NameValue(parent.fullPath(), parentOffset, context.encodeFlattenedToken(), context.doc())
+        );
+        return true;
     }
 
 }

@@ -853,7 +853,7 @@ public abstract class DocumentParserContext {
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     try {
-                        FallbackStorageRouter.writeToIgnoredSource(this, fullPath, FallbackStorageRouter.Reason.FIELD_LIMIT_EXCEEDED);
+                        FallbackStorageRouter.write(this, fullPath, FallbackStorageRouter.Reason.FIELD_LIMIT_EXCEEDED);
                     } catch (IOException e) {
                         throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
                     }
@@ -868,7 +868,7 @@ public abstract class DocumentParserContext {
             if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
                 if (builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
                     try {
-                        FallbackStorageRouter.writeToIgnoredSource(this, fullPath, FallbackStorageRouter.Reason.FIELD_NAME_TOO_LONG);
+                        FallbackStorageRouter.write(this, fullPath, FallbackStorageRouter.Reason.FIELD_NAME_TOO_LONG);
                     } catch (IOException e) {
                         throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
                     }

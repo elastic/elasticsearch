@@ -404,6 +404,9 @@ public class HollowIndexEngine extends Engine {
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
         if (flushFirst) {
             final PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
+            /// Ensure the hollow commit has completed its flush so that it can be read from the object store by snapshot.
+            /// Values for the `force` and `waitIfOngoing` arguments make no difference as they are just placeholders to
+            /// satisfy the method signature. See also [#flushHoldingLock]
             flush(false, true, future);
             future.actionGet();
         }

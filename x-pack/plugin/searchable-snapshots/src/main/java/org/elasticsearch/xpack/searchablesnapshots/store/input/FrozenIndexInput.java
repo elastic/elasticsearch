@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 
 public final class FrozenIndexInput extends MetadataCachingIndexInput implements DirectAccessInput {
@@ -108,12 +109,12 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
     }
 
     @Override
-    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-        return cacheFile.withByteBufferSlice(offset + this.offset, Math.toIntExact(length), action);
+    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+        return cacheFile.withMemorySegmentSlice(offset + this.offset, Math.toIntExact(length), action);
     }
 
     @Override
-    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
         throws IOException {
         if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
             return false;
@@ -125,7 +126,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFile.withByteBufferSlices(adjusted, length, count, action);
+        return cacheFile.withMemorySegmentSlices(adjusted, length, count, action);
     }
 
     @Override

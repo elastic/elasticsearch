@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
@@ -21,25 +22,17 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.index.codec.zstd.ZstdCompressionMode.ZstdDecompressor;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.List;
 
 public class ZstdDecompressorTests extends ESTestCase {
 
-    private static NativeAccess nativeAccess;
-
-    @BeforeClass
-    public static void checkNative() {
-        nativeAccess = NativeAccess.instance();
-        assumeTrue("native zstd required", nativeAccess.getZstd() != null);
-    }
-
-    // Exercises the DirectAccessInput fast path where withByteBufferSlice succeeds and the
+    // Exercises the DirectAccessInput fast path where withMemorySegmentSlice succeeds and the
     // compressed data is passed directly to zstd without an intermediate heap copy.
     public void testDecompressViaDirectAccess() throws IOException {
         byte[] original = randomByteArrayOfLength(randomIntBetween(1, 8192));
@@ -47,7 +40,7 @@ public class ZstdDecompressorTests extends ESTestCase {
 
         Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
         IndexInput rawIn = new ByteArrayIndexInput("test", compressed);
-        IndexInput directIn = new DirectAccessIndexInput("direct", rawIn, compressed, nativeAccess);
+        IndexInput directIn = new DirectAccessIndexInput("direct", rawIn, compressed);
 
         BytesRef result = new BytesRef();
         decompressor.decompress(directIn, original.length, 0, original.length, result);
@@ -55,7 +48,7 @@ public class ZstdDecompressorTests extends ESTestCase {
         assertArrayEquals(original, BytesRef.deepCopyOf(result).bytes);
     }
 
-    // Exercises the fallback when withByteBufferSlice throws AlreadyClosedException (e.g. the blob
+    // Exercises the fallback when withMemorySegmentSlice throws AlreadyClosedException (e.g. the blob
     // cache region was evicted mid-read). Decompression must still succeed via copyAndDecompress.
     public void testDecompressFallbackWhenDirectAccessThrowsAlreadyClosed() throws IOException {
         byte[] original = randomByteArrayOfLength(randomIntBetween(1, 8192));
@@ -71,7 +64,7 @@ public class ZstdDecompressorTests extends ESTestCase {
         assertArrayEquals(original, BytesRef.deepCopyOf(result).bytes);
     }
 
-    // Exercises the fallback when the input implements DirectAccessInput but withByteBufferSlice
+    // Exercises the fallback when the input implements DirectAccessInput but withMemorySegmentSlice
     // returns false, forcing decompression through the copy-based copyAndDecompress path.
     public void testDecompressFallbackWhenDirectAccessUnavailable() throws IOException {
         byte[] original = randomByteArrayOfLength(randomIntBetween(1, 8192));
@@ -113,7 +106,7 @@ public class ZstdDecompressorTests extends ESTestCase {
 
         Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
         IndexInput rawIn = new ByteArrayIndexInput("test", compressed);
-        IndexInput directIn = new DirectAccessIndexInput("direct", rawIn, compressed, nativeAccess);
+        IndexInput directIn = new DirectAccessIndexInput("direct", rawIn, compressed);
 
         BytesRef result = new BytesRef();
         decompressor.decompress(directIn, original.length, offset, length, result);
@@ -132,12 +125,144 @@ public class ZstdDecompressorTests extends ESTestCase {
 
         Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
         IndexInput rawIn = new ByteArrayIndexInput("test", compressed);
-        IndexInput directIn = new DirectAccessIndexInput("direct", rawIn, compressed, nativeAccess);
+        IndexInput directIn = new DirectAccessIndexInput("direct", rawIn, compressed);
 
         BytesRef result = new BytesRef();
         decompressor.decompress(directIn, original.length, 0, original.length, result);
 
         assertEquals(compressed.length, directIn.getFilePointer());
+    }
+
+    // Verifies the direct path: decompressDirect writes into bytes.bytes and sets offset/length.
+    public void testDecompressDirect() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(100, 8192));
+        byte[] compressed = compress(original);
+
+        int offset = randomIntBetween(0, original.length / 2);
+        int length = randomIntBetween(1, original.length - offset);
+
+        ZstdDecompressor decompressor = newDecompressor();
+        DataInput in = new ByteArrayIndexInput("test", compressed);
+        int compressedLength = in.readVInt();
+
+        BytesRef bytes = new BytesRef(new byte[original.length]);
+        decompressor.decompressDirect(in, compressedLength, original.length, offset, length, bytes);
+
+        assertEquals(offset, bytes.offset);
+        assertEquals(length, bytes.length);
+        byte[] expected = new byte[length];
+        System.arraycopy(original, offset, expected, 0, length);
+        byte[] actual = new byte[length];
+        System.arraycopy(bytes.bytes, bytes.offset, actual, 0, length);
+        assertArrayEquals(expected, actual);
+    }
+
+    // Verifies that decompressSlice uses a temp buffer and copies only the needed range.
+    public void testDecompressSlice() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(100, 8192));
+        byte[] compressed = compress(original);
+
+        int offset = randomIntBetween(1, original.length / 2);
+        int length = randomIntBetween(1, original.length - offset);
+
+        ZstdDecompressor decompressor = newDecompressor();
+        DataInput in = new ByteArrayIndexInput("test", compressed);
+        int compressedLength = in.readVInt();
+
+        BytesRef bytes = new BytesRef();
+        decompressor.decompressSlice(in, compressedLength, original.length, offset, length, bytes);
+
+        assertEquals(0, bytes.offset);
+        assertEquals(length, bytes.length);
+        byte[] expected = new byte[length];
+        System.arraycopy(original, offset, expected, 0, length);
+        assertArrayEquals(expected, BytesRef.deepCopyOf(bytes).bytes);
+    }
+
+    // Verifies that decompressSlice does not grow bytes.bytes beyond what is needed.
+    public void testDecompressSliceDoesNotRetainFullChunk() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(1000, 8192));
+        byte[] compressed = compress(original);
+
+        int length = randomIntBetween(1, original.length / 4);
+        int offset = randomIntBetween(0, original.length - length);
+
+        ZstdDecompressor decompressor = newDecompressor();
+        DataInput in = new ByteArrayIndexInput("test", compressed);
+        int compressedLength = in.readVInt();
+
+        BytesRef bytes = new BytesRef();
+        decompressor.decompressSlice(in, compressedLength, original.length, offset, length, bytes);
+
+        assertTrue("bytes.bytes should be sized to length, not originalLength", bytes.bytes.length < original.length);
+    }
+
+    // Verifies that the full-decompress fast path is chosen when offset==0 and length==originalLength.
+    public void testFullDecompressPath() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(1, 8192));
+        byte[] compressed = compress(original);
+
+        Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
+        IndexInput in = new ByteArrayIndexInput("test", compressed);
+
+        BytesRef result = new BytesRef();
+        decompressor.decompress(in, original.length, 0, original.length, result);
+
+        assertEquals(0, result.offset);
+        assertEquals(original.length, result.length);
+        assertArrayEquals(original, BytesRef.deepCopyOf(result).bytes);
+    }
+
+    // Verifies the reuse path: when bytes.bytes is already large enough, decompressDirect is used.
+    public void testReusePathWhenBufferAlreadyLargeEnough() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(100, 4096));
+        byte[] compressed = compress(original);
+
+        int offset = randomIntBetween(1, original.length / 2);
+        int length = randomIntBetween(1, original.length - offset);
+
+        Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
+        IndexInput in = new ByteArrayIndexInput("test", compressed);
+
+        // Pre-allocate a buffer larger than originalLength to trigger the reuse path
+        BytesRef result = new BytesRef(new byte[original.length + 1024]);
+        decompressor.decompress(in, original.length, offset, length, result);
+
+        assertEquals(offset, result.offset);
+        assertEquals(length, result.length);
+        byte[] expected = new byte[length];
+        System.arraycopy(original, offset, expected, 0, length);
+        byte[] actual = new byte[length];
+        System.arraycopy(result.bytes, result.offset, actual, 0, length);
+        assertArrayEquals(expected, actual);
+    }
+
+    // Verifies copyAndDecompress: plain DataInput with no IndexInput features.
+    public void testCopyAndDecompress() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(1, 8192));
+        byte[] compressed = compress(original);
+
+        DataInput in = new ByteArrayIndexInput("test", compressed);
+        int compressedLength = in.readVInt();
+
+        byte[] dst = new byte[original.length];
+        MemorySegment dstSegment = MemorySegment.ofArray(dst);
+        int decompressedLen = ZstdDecompressor.copyAndDecompress(in, compressedLength, dstSegment);
+
+        assertEquals(original.length, decompressedLen);
+        assertArrayEquals(original, dst);
+    }
+
+    // Verifies checkLength throws CorruptIndexException on mismatch.
+    public void testCheckLengthThrowsOnMismatch() {
+        DataInput dummyIn = new ByteArrayIndexInput("test", new byte[0]);
+        expectThrows(org.apache.lucene.index.CorruptIndexException.class, () -> ZstdDecompressor.checkLength(99, 100, dummyIn));
+    }
+
+    // Verifies checkLength does not throw when lengths match.
+    public void testCheckLengthPassesOnMatch() throws Exception {
+        DataInput dummyIn = new ByteArrayIndexInput("test", new byte[0]);
+        ZstdDecompressor.checkLength(100, 100, dummyIn);
     }
 
     private byte[] compress(byte[] data) throws IOException {
@@ -148,9 +273,13 @@ public class ZstdDecompressorTests extends ESTestCase {
         return output.toArrayCopy();
     }
 
+    private static ZstdDecompressor newDecompressor() {
+        return (ZstdDecompressor) new ZstdCompressionMode(1).newDecompressor();
+    }
+
     /**
      * An IndexInput that implements DirectAccessInput but always throws AlreadyClosedException from
-     * withByteBufferSlice, simulating a blob cache region being evicted mid-read.
+     * withMemorySegmentSlice, simulating a blob cache region being evicted mid-read.
      */
     static class ThrowingAlreadyClosedDirectAccessIndexInput extends FilterIndexInput implements DirectAccessInput {
 
@@ -159,12 +288,17 @@ public class ZstdDecompressorTests extends ESTestCase {
         }
 
         @Override
-        public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) {
+        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) {
             throw new AlreadyClosedException("no free region found");
         }
 
         @Override
-        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action) {
+        public boolean withMemorySegmentSlices(
+            long[] offsets,
+            int length,
+            int count,
+            CheckedConsumer<MemorySegment[], IOException> action
+        ) {
             throw new AlreadyClosedException("no free region found");
         }
 
@@ -190,12 +324,17 @@ public class ZstdDecompressorTests extends ESTestCase {
         }
 
         @Override
-        public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) {
+        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) {
             return false;
         }
 
         @Override
-        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action) {
+        public boolean withMemorySegmentSlices(
+            long[] offsets,
+            int length,
+            int count,
+            CheckedConsumer<MemorySegment[], IOException> action
+        ) {
             return false;
         }
 

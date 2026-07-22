@@ -272,7 +272,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 sortOrders,
                 IntStream.of(groupKeys).boxed().toList(),
                 maxPageSize,
-                jumboPageBytes
+                jumboPageBytes,
+                GroupedTopNOperator.OutputOrdering.SORTED
             );
         }
         return new TopNOperator.TopNOperatorFactory(
@@ -470,7 +471,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]"
                 + ", groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             try (Operator operator = topN.get(driverContext())) {
                 assertThat(operator.toString(), equalTo(expectedDescription));
             }
@@ -1288,7 +1289,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + sorts
                 + "], groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             assertThat(factory.describe(), equalTo("GroupedTopNOperator[count=10" + tail));
             try (Operator operator = factory.get(driverContext())) {
                 assertThat(operator.toString(), equalTo("GroupedTopNOperator[count=0/0/10" + tail));

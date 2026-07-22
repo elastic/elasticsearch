@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -91,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -154,6 +156,7 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        AcrossSeriesReduction.class,
         HistogramQuantile.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
@@ -196,6 +199,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
+        RemoteFetchSource.class,
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,

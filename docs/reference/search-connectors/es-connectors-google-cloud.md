@@ -126,7 +126,7 @@ The connector will fetch all buckets and paths the service account has access to
 The `Owner` field is not fetched as `read_only` scope doesn’t allow the connector to fetch IAM information.
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 8 MiB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permission are not synced. All documents indexed to an Elastic deployment will be visible to all users with access to that Elastic Deployment.
 
 ::::

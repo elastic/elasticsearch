@@ -20,6 +20,8 @@ import java.util.List;
 
 import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.HIGH;
 import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.LOW;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -56,16 +58,17 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
         // multi_value=false is only valid in strict-columnar index modes.
         boolean multiValue = isColumnar == false || randomBoolean();
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = randomFrom(FAIL, IGNORE);
 
         // Columnar mode always enables text doc values (see TextFieldMapper.defaultDocValuesParameters) so DISABLED is not valid option
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         if (isColumnar) {
-            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), multiValue, true);
+            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), multiValue, true, onFailure);
         }
 
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true, onFailure);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true, onFailure);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

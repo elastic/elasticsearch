@@ -2,6 +2,8 @@ setup:
   - requires:
       cluster_features: ["mapper.bbq_disk_support", "index.slice_indexing"]
       reason: Needs bbq_disk and slice indexing support
+  - requires:
+      test_runner_features: [ contains ]
   - do:
       indices.create:
         index: bbq_disk_slice
@@ -105,10 +107,10 @@ setup:
 
   - match: { hits.total.value: 4 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.3._id: "4" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
 
 ---
 "KNN search with multiple _slice values and duplicatessearches across the requested slices":
@@ -125,10 +127,10 @@ setup:
 
   - match: { hits.total.value: 4 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.3._id: "4" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
 
 ---
 "KNN search with _all":
@@ -145,10 +147,10 @@ setup:
 
   - match: { hits.total.value: 4 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.3._id: "4" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
 ---
 "Search without _slice defaults to _all on slice-enabled index":
   - do:

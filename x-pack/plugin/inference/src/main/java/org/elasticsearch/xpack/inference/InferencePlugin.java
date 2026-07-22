@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -277,8 +276,6 @@ public class InferencePlugin extends Plugin
 
     private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
 
-    public static final FeatureFlag INFERENCE_REGION_POLICY_FEATURE_FLAG = new FeatureFlag("inference_region_policy");
-
     /**
      * TransportVersion indicating when Mixedbread features were added. The Mixedbread integration has been removed, but this transport
      * version definition cannot be deleted
@@ -309,40 +306,35 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ActionHandler> getActions() {
-        var actions = new ArrayList<ActionHandler>(
-            List.of(
-                new ActionHandler(InferenceAction.INSTANCE, TransportInferenceAction.class),
-                new ActionHandler(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
-                new ActionHandler(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
-                new ActionHandler(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
-                new ActionHandler(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
-                new ActionHandler(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
-                new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
-                new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
-                new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
-                new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
-                new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
-                new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
-                new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
-                new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
-                new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
-                new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
-                new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
-                new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
-                new ActionHandler(ClearInferencePreferencesCacheAction.INSTANCE, ClearInferencePreferencesCacheAction.class),
-                new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
-                new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
-                new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-                new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
-                new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class)
-            )
+        return List.of(
+            new ActionHandler(InferenceAction.INSTANCE, TransportInferenceAction.class),
+            new ActionHandler(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
+            new ActionHandler(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
+            new ActionHandler(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
+            new ActionHandler(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
+            new ActionHandler(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
+            new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
+            new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
+            new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
+            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
+            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
+            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
+            new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
+            new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
+            new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
+            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
+            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+            new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
+            new ActionHandler(ClearInferencePreferencesCacheAction.INSTANCE, ClearInferencePreferencesCacheAction.class),
+            new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
+            new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
+            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
+            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+            new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class),
+            new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class),
+            new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class),
+            new ActionHandler(DeleteRegionPolicyAction.INSTANCE, TransportDeleteRegionPolicyAction.class)
         );
-        if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            actions.add(new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class));
-            actions.add(new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class));
-            actions.add(new ActionHandler(DeleteRegionPolicyAction.INSTANCE, TransportDeleteRegionPolicyAction.class));
-        }
-        return actions;
     }
 
     @Override
@@ -351,27 +343,22 @@ public class InferencePlugin extends Plugin
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        var handlers = new ArrayList<RestHandler>(
-            List.of(
-                new RestInferenceAction(),
-                new RestStreamInferenceAction(threadPoolSetOnce),
-                new RestGetInferenceModelAction(),
-                new RestPutInferenceModelAction(),
-                new RestUpdateInferenceModelAction(),
-                new RestDeleteInferenceEndpointAction(),
-                new RestGetInferenceDiagnosticsAction(),
-                new RestGetInferenceServicesAction(),
-                new RestGetCCMConfigurationAction(ccmFeature.get()),
-                new RestPutCCMConfigurationAction(ccmFeature.get()),
-                new RestDeleteCCMConfigurationAction(ccmFeature.get())
-            )
+        return List.of(
+            new RestInferenceAction(),
+            new RestStreamInferenceAction(threadPoolSetOnce),
+            new RestGetInferenceModelAction(),
+            new RestPutInferenceModelAction(),
+            new RestUpdateInferenceModelAction(),
+            new RestDeleteInferenceEndpointAction(),
+            new RestGetInferenceDiagnosticsAction(),
+            new RestGetInferenceServicesAction(),
+            new RestGetCCMConfigurationAction(ccmFeature.get()),
+            new RestPutCCMConfigurationAction(ccmFeature.get()),
+            new RestDeleteCCMConfigurationAction(ccmFeature.get()),
+            new RestGetRegionPolicyAction(),
+            new RestPutRegionPolicyAction(),
+            new RestDeleteRegionPolicyAction()
         );
-        if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            handlers.add(new RestGetRegionPolicyAction());
-            handlers.add(new RestPutRegionPolicyAction());
-            handlers.add(new RestDeleteRegionPolicyAction());
-        }
-        return List.copyOf(handlers);
     }
 
     @Override
@@ -420,6 +407,7 @@ public class InferencePlugin extends Plugin
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var ccmRelatedComponents = createCCMDependentComponents(
             services,
             inferenceServiceSettings,
@@ -427,12 +415,13 @@ public class InferencePlugin extends Plugin
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
             ccmFeature.get(),
+            inferenceFeatureService,
             inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
         inferenceServices.add(() -> List.of(context -> {
-            var eisService = new ElasticInferenceService(
+            var eisService = ElasticInferenceService.create(
                 elasticInferenceServiceFactory.get(),
                 serviceComponents.get(),
                 inferenceServiceSettings,
@@ -466,7 +455,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             services.clusterService(),
             settings,
-            inferenceStats
+            inferenceStats,
+            services.featureService()
         );
 
         // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
@@ -537,6 +527,7 @@ public class InferencePlugin extends Plugin
         Sender sender,
         ModelRegistry modelRegistry,
         CCMFeature ccmFeature,
+        InferenceFeatureService inferenceFeatureService,
         InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
@@ -564,10 +555,11 @@ public class InferencePlugin extends Plugin
             ccmAuthApplierFactory,
             ccmFeature,
             ccmService,
+            services.clusterService(),
+            services.featureService(),
             inferencePreferencesCache
         );
 
-        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
@@ -747,12 +739,8 @@ public class InferencePlugin extends Plugin
         SystemIndexDescriptor v1 = builder.setMappings(InferenceIndex.mappingsV1()).build();
         SystemIndexDescriptor v2 = builder.setMappings(InferenceIndex.mappingsV2()).build();
 
-        if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
-            return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
-        } else {
-            return builder.setMappings(InferenceIndex.mappingsV3()).setPriorSystemIndexDescriptors(List.of(v1, v2)).build();
-        }
+        SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
+        return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
     }
 
     private SystemIndexDescriptor createInferenceSecretsIndexDescriptor() {

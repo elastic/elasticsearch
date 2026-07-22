@@ -62,10 +62,22 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
         if (indexMode.isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true, true);
+            return new DocValuesParameter.Values(
+                true,
+                DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                DocValuesParameter.Values.OnFailure.FAIL
+            );
         }
 
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
+        return new DocValuesParameter.Values(
+            true,
+            DocValuesParameter.Values.Cardinality.LOW,
+            true,
+            true,
+            DocValuesParameter.Values.OnFailure.FAIL
+        );
     }
 
     public static final class CollationFieldType extends StringFieldType {

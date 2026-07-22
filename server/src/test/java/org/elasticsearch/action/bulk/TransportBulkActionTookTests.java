@@ -86,8 +86,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterService() throws Exception {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
                 VersionUtils.randomCompatibleVersion(Version.CURRENT),
@@ -99,8 +98,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutor;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
@@ -882,6 +882,7 @@ public class StatelessPlugin extends Plugin
             readerHeapMetrics,
             StatelessReaderHeapMetrics.register(services.telemetryProvider().getMeterRegistry(), readerHeapBreaker.get())
         );
+        StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
         setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
@@ -1241,6 +1242,7 @@ public class StatelessPlugin extends Plugin
             TranslogReplicator.FLUSH_SIZE_SETTING,
             IndexEngine.MERGE_PREWARM,
             IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+            IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
@@ -1328,8 +1330,8 @@ public class StatelessPlugin extends Plugin
             MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING,
             MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING,
             MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING,
-            ShardStateAction.SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY,
-            ShardStateAction.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
+            ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY,
+            ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
@@ -1527,14 +1529,32 @@ public class StatelessPlugin extends Plugin
                 }
 
                 @Override
+                public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+                    if (reason == IndexRemovalReason.DELETED) {
+                        // Evict cache regions of shards of the deleted index
+                        final var cacheService = sharedBlobCacheService.get();
+                        if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
+                            cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
+                        }
+                    }
+                }
+
+                @Override
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
+
+                    // Demote cache regions of the closed shard, so they can be more easily evicted
                     final var cacheService = sharedBlobCacheService.get();
                     // TODO consider removing the flag guard once performance is verified
                     if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
                         final var hasShard = indicesService.get().hasShardPredicate();
-                        final Predicate<ShardId> shouldDemote = id -> hasShard.test(id) == false
-                            && commitService.isNodeShuttingDown() == false;
+                        // Index deletion also ultimately closes the store, but the cache regions are enqueued to
+                        // be evicted in beforeIndexRemoved above, so there is no reason to demote. We check index
+                        // existence in the predicate because onStoreClosed can run on the cluster state applier thread,
+                        // where querying the ClusterService#state() is not allowed.
+                        final Predicate<ShardId> shouldDemote = id -> commitService.isNodeShuttingDown() == false
+                            && clusterService.get().state().metadata().lookupProject(id.getIndex()).isPresent()
+                            && hasShard.test(id) == false;
                         cacheService.demoteAllAsync(shardId, shouldDemote);
                     }
                 }

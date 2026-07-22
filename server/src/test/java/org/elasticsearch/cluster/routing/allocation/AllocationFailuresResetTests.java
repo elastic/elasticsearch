@@ -36,6 +36,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
@@ -98,9 +100,8 @@ public class AllocationFailuresResetTests extends ESTestCase {
         return ClusterState.builder(state).metadata(meta).routingTable(routingTable).build();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startClusterService() throws Exception {
         threadPool = new TestThreadPool("reset-alloc-failures");
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         var allocationService = new AllocationService(
@@ -114,9 +115,8 @@ public class AllocationFailuresResetTests extends ESTestCase {
         allocationService.addAllocFailuresResetListenerTo(clusterService);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void stopClusterService() throws Exception {
         clusterService.stop();
         threadPool.shutdownNow();
     }

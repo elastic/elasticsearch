@@ -14,15 +14,18 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.VectorSimilarityType;
+import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Optional;
-
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkSparse;
 
 /**
  * Int4 packed-nibble query-time scorer. The float query is quantized externally
@@ -31,6 +34,14 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkSp
  * followed by corrective terms (3 floats + 1 int).
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
+
+    // Size of the corrections trailer that follows each packed vector in the codec's per-vector
+    // record: 3 floats (lowerInterval, upperInterval, additionalCorrection) + 1 int (quantizedComponentSum).
+    static final int CORRECTIONS_BYTES = 3 * Float.BYTES + Integer.BYTES;
 
     private final ScorerImpl scorerImpl;
     private final QueryContext query;
@@ -90,7 +101,13 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         IndexInputUtils.checkInputType(input);
         int dims = values.dimension();
         int packedDims = dims / 2;
-        long vectorPitch = packedDims + 3L * Float.BYTES + Integer.BYTES;
+        int vectorPitch = packedDims + CORRECTIONS_BYTES;
+        float centroidDP;
+        try {
+            centroidDP = values.getCentroidDP();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
 
         this.scorerImpl = new ScorerImpl(
             input,
@@ -98,8 +115,9 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             dims,
             packedDims,
             vectorPitch,
-            Int4Corrections.singleCorrectionFor(similarityType),
-            Int4Corrections.bulkCorrectionFor(similarityType)
+            similarityType.function(),
+            centroidDP,
+            Int4Corrections.singleCorrectionFor(similarityType)
         );
         this.query = new QueryContext(
             lowerInterval,
@@ -131,10 +149,11 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final QuantizedByteVectorValues values;
         private final int dims;
         private final int packedDims;
-        private final long vectorPitch;
+        private final int vectorPitch;
+        private final VectorSimilarityFunction similarityFunction;
+        private final float centroidDP;
         private final Int4Corrections.SingleCorrection correction;
-        private final Int4Corrections.BulkCorrection bulkCorrection;
-        private byte[] scratch;
+        private final FixedSizeScratch scratch;
         private final AddressesScratch addrsScratch = new AddressesScratch();
         private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -143,17 +162,20 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             QuantizedByteVectorValues values,
             int dims,
             int packedDims,
-            long vectorPitch,
-            Int4Corrections.SingleCorrection correction,
-            Int4Corrections.BulkCorrection bulkCorrection
+            int vectorPitch,
+            VectorSimilarityFunction similarityFunction,
+            float centroidDP,
+            Int4Corrections.SingleCorrection correction
         ) {
             this.input = input;
             this.values = values;
             this.dims = dims;
             this.packedDims = packedDims;
             this.vectorPitch = vectorPitch;
+            this.similarityFunction = similarityFunction;
+            this.centroidDP = centroidDP;
             this.correction = correction;
-            this.bulkCorrection = bulkCorrection;
+            this.scratch = new FixedSizeScratch(vectorPitch);
         }
 
         void checkOrdinal(int ord) {
@@ -162,19 +184,19 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             }
         }
 
-        private byte[] getScratch(int len) {
-            if (scratch == null || scratch.length < len) {
-                scratch = new byte[len];
-            }
-            return scratch;
-        }
-
-        private float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException {
+        private float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) {
+            float docLower = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 0);
+            float docUpper = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, Float.BYTES);
+            float docAdditional = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 2L * Float.BYTES);
+            int docComponentSum = correctionsSlice.get(ValueLayout.JAVA_INT_UNALIGNED, 3L * Float.BYTES);
             return correction.apply(
-                values,
                 dims,
                 rawScore,
-                ord,
+                docLower,
+                docUpper,
+                docAdditional,
+                docComponentSum,
+                centroidDP,
                 query.lowerInterval(),
                 query.upperInterval(),
                 query.additionalCorrection(),
@@ -182,18 +204,23 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             );
         }
 
-        private float applyCorrectionsBulk(MemorySegment scores, MemorySegment ordinals, int numNodes, QueryContext query)
-            throws IOException {
-            return bulkCorrection.apply(
-                values,
-                dims,
-                scores,
-                ordinals,
+        private float applyCorrectionsBulk(MemorySegment scores, MemorySegment addrs, int numNodes, QueryContext query) {
+            return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                similarityFunction,
+                addrs,
                 numNodes,
+                packedDims,
+                vectorPitch,
+                dims,
                 query.lowerInterval(),
                 query.upperInterval(),
+                query.quantizedComponentSum(),
                 query.additionalCorrection(),
-                query.quantizedComponentSum()
+                Int4Corrections.LIMIT_SCALE,
+                Int4Corrections.LIMIT_SCALE,
+                centroidDP,
+                true,
+                scores
             );
         }
 
@@ -201,9 +228,9 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             checkOrdinal(node);
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
-            return IndexInputUtils.withSlice(input, packedDims, this::getScratch, packedTarget -> {
-                int rawScore = dotProductI4(query.unpackedQuery(), packedTarget, packedDims);
-                return applyCorrections(rawScore, node, query);
+            return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg, packedDims);
+                return applyCorrections(rawScore, seg.asSlice(packedDims, CORRECTIONS_BYTES), query);
             });
         }
 
@@ -215,26 +242,19 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorPitch;
             }
+            float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
             MemorySegment scoresSeg = MemorySegment.ofArray(scores);
-            boolean resolved = IndexInputUtils.withSliceAddresses(
-                input,
-                offsets,
-                packedDims,
-                numNodes,
-                addrsScratch::get,
-                addrs -> dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
-            );
-            if (resolved) {
-                return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
+                DISTANCE_FUNCS.dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg);
+                maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes, query);
+            });
+            if (resolved == false) {
+                for (int i = 0; i < numNodes; i++) {
+                    scores[i] = scoreWithQuery(query, ordinals[i]);
+                    maxScore[0] = Math.max(maxScore[0], scores[i]);
+                }
             }
-
-            // fallback to sequential scoring
-            float max = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < numNodes; i++) {
-                scores[i] = scoreWithQuery(query, ordinals[i]);
-                max = Math.max(max, scores[i]);
-            }
-            return max;
+            return maxScore[0];
         }
     }
 

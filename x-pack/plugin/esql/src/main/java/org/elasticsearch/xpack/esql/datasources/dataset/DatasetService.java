@@ -119,7 +119,7 @@ public class DatasetService {
                 throw ex;
             }
         }
-        // Shape-only validation of the declared mapping (no file I/O): declarable types, rename/copy_to name collisions,
+        // Shape-only validation of the declared mapping (no file I/O): declarable types, rename name collisions,
         // and the _id.path reference. A `path` column rename is honored by all formats (translation is centralized at
         // the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());

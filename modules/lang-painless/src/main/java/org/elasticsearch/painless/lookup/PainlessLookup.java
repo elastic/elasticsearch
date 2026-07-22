@@ -10,6 +10,7 @@
 package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -277,6 +278,51 @@ public final class PainlessLookup {
         );
 
         return lookupPainlessObject(originalTargetClass, objectLookup);
+    }
+
+    /**
+     * Like {@link #lookupRuntimePainlessMethod} but returns the first {@code @allocates} estimator in resolution order (walking past
+     * an unannotated subclass entry that shadows an annotated supertype), or null. For def dispatch.
+     */
+    public Method lookupRuntimeAllocationEstimator(Class<?> originalTargetClass, String methodName, int methodArity) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, Method> objectLookup = targetPainlessClass -> {
+            PainlessMethod painlessMethod = targetPainlessClass.runtimeMethods.get(painlessMethodKey);
+            return painlessMethod == null ? null : painlessMethod.allocationEstimator();
+        };
+
+        return lookupPainlessObject(originalTargetClass, objectLookup);
+    }
+
+    /** Statically-typed counterpart of {@link #lookupRuntimeAllocationEstimator}: walks {@code methods}/{@code staticMethods}. */
+    public Method lookupAllocationEstimator(Class<?> targetClass, boolean isStatic, String methodName, int methodArity) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(methodName);
+
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
+            return null;
+        }
+
+        if (targetClass.isPrimitive()) {
+            targetClass = typeToBoxedType(targetClass);
+
+            if (classesToPainlessClasses.containsKey(targetClass) == false) {
+                return null;
+            }
+        }
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, Method> objectLookup = targetPainlessClass -> {
+            PainlessMethod painlessMethod = isStatic
+                ? targetPainlessClass.staticMethods.get(painlessMethodKey)
+                : targetPainlessClass.methods.get(painlessMethodKey);
+            return painlessMethod == null ? null : painlessMethod.allocationEstimator();
+        };
+
+        return lookupPainlessObject(targetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {

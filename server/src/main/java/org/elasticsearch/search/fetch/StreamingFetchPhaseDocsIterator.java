@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
@@ -69,6 +70,10 @@ import java.util.function.Supplier;
  * {@link ChunkProducingIterator#hasNext()}.
  */
 abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
+
+    protected StreamingFetchPhaseDocsIterator(Supplier<StoreMetrics> storeMetricsSupplier) {
+        super(storeMetricsSupplier);
+    }
 
     /**
      * Asynchronous iteration using {@link ThrottledIterator} for streaming mode.
@@ -318,6 +323,10 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         }
 
         private PendingChunk produceNext() {
+            return measure(this::doProduceNext);
+        }
+
+        private PendingChunk doProduceNext() {
             RecyclerBytesStreamOutput chunkBuffer = null;
             try {
                 chunkBuffer = chunkWriter.newNetworkBytesStream();

@@ -21,7 +21,8 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
+import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -103,7 +104,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createPanamaScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> new MSBitToBitESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D1Q1 -> new MSBitToBitES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4_STRIPED -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
@@ -258,7 +259,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToBitESNextOSQVectorsScorer,
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToBitES940OSQVectorsScorer,
         MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
         MSD7Q7ES940OSQVectorsScorer {
 
@@ -287,7 +288,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         protected final int dimensions;
         protected final int bulkSize;
 
-        private byte[] scratch;
+        protected final BufferScratch scratch = new BufferScratch();
 
         /**
          * Creates a new MemorySegmentScorer. The index input must be a
@@ -331,13 +332,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                     scores[i] = 0;
                 }
             }
-        }
-
-        protected byte[] getScratch(int len) {
-            if (scratch == null || scratch.length < len) {
-                scratch = new byte[len];
-            }
-            return scratch;
         }
 
         /**

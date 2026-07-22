@@ -960,15 +960,18 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             return;
         }
 
-        if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
+        if (snapshotCompletedSuccessfully(existingSnapshot, indexName)) {
             logger.info("DLM found valid snapshot [{}] for index [{}]", snapshotName, indexName);
         } else {
             logger.info(
-                "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), deleting and recreating",
+                "DLM found invalid orphaned snapshot [{}] for index [{}] "
+                    + "(state [{}], successful shards [{}], failed shards [{}], indices {}), deleting and recreating",
                 snapshotName,
                 indexName,
                 existingSnapshot.state(),
-                existingSnapshot.failedShards()
+                existingSnapshot.successfulShards(),
+                existingSnapshot.failedShards(),
+                existingSnapshot.indices()
             );
             deleteSnapshotIfExists(repositoryName, snapshotName, indexName);
             createSnapshot(indexName, repositoryName, snapshotName);
@@ -1111,7 +1114,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             throw new ElasticsearchException("DLM snapshot [{}] for index [{}] did not return snapshot info", snapshotName, indexName);
         }
 
-        if (snapshotInfo.state() == SnapshotState.SUCCESS && snapshotInfo.failedShards() == 0) {
+        if (snapshotCompletedSuccessfully(snapshotInfo, indexName)) {
             logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
             return;
         }
@@ -1121,22 +1124,34 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String reason = snapshotInfo.reason();
         if (Strings.hasText(reason)) {
             throw new ElasticsearchException(
-                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}], reason [{}]",
+                "DLM snapshot [{}] for index [{}] finished with [{}] successful shards and [{}] failed shards, "
+                    + "state [{}], indices {}, reason [{}]",
                 snapshotName,
                 indexName,
+                snapshotInfo.successfulShards(),
                 failedShards,
                 state,
+                snapshotInfo.indices(),
                 reason
             );
         } else {
             throw new ElasticsearchException(
-                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}]",
+                "DLM snapshot [{}] for index [{}] finished with [{}] successful shards and [{}] failed shards, state [{}], indices {}",
                 snapshotName,
                 indexName,
+                snapshotInfo.successfulShards(),
                 failedShards,
-                state
+                state,
+                snapshotInfo.indices()
             );
         }
+    }
+
+    private static boolean snapshotCompletedSuccessfully(SnapshotInfo snapshotInfo, String indexName) {
+        return snapshotInfo.state() == SnapshotState.SUCCESS
+            && snapshotInfo.failedShards() == 0
+            && snapshotInfo.successfulShards() > 0
+            && snapshotInfo.indices().contains(indexName);
     }
 
     /**
@@ -1160,6 +1175,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
+        request.partial(true);
         request.userMetadata(Map.of(DLM_CREATED_METADATA_KEY, true));
         return request;
     }

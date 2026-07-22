@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.time.DateFormatter;
+
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
@@ -30,9 +31,14 @@ import java.util.Locale;
  *                           consulted only when {@link #escaping} is {@code true} — inside quoted
  *                           fields when {@link #quoting} is also on, otherwise at value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
- * @param nullValue          string representation of null in the data (default: empty string)
+ * @param nullValue          token whose exact match reads as null (default: empty string, which installs
+ *                           no null token, so an empty field is a present empty value rather than null)
  * @param encoding           character encoding of the input (default: UTF-8)
- * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
+ * @param datetimeFormatter  custom datetime parser compiled from the {@code datetime_format} option, or null for
+ *                           ISO-8601/epoch. An ES {@link DateFormatter} — the same engine the per-column declared
+ *                           {@code format} and the date field mapper use — so a pattern means the same thing on every
+ *                           text format: zone-aware, missing fields defaulted, ES named formats and {@code a||b}
+ *                           composites accepted
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
  *                           (default: 10MB). Provides OOM protection against malformed files.
  * @param multiValueSyntax   syntax for multi-value fields: NONE (default — standard CSV, no array
@@ -68,7 +74,7 @@ public record CsvFormatOptions(
     String commentPrefix,
     String nullValue,
     Charset encoding,
-    DateTimeFormatter datetimeFormatter,
+    DateFormatter datetimeFormatter,
     int maxFieldSize,
     MultiValueSyntax multiValueSyntax,
     boolean headerRow,
@@ -194,7 +200,7 @@ public record CsvFormatOptions(
         String commentPrefix,
         String nullValue,
         Charset encoding,
-        DateTimeFormatter datetimeFormatter,
+        DateFormatter datetimeFormatter,
         int maxFieldSize,
         MultiValueSyntax multiValueSyntax,
         boolean headerRow,

@@ -83,7 +83,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
             inferred,
-            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), null, "row_id"))
+            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"))
         );
         assertSame(inferred, o.output());
         assertSame(inferred, o.fileSchema());
@@ -122,7 +122,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testNoMappingsYieldsEmpty() {
-        DatasetMapping roleOnly = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), null, "row_id"));
+        DatasetMapping roleOnly = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"));
         assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
         assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
         assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());
@@ -148,18 +148,5 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         List<String> names = DeclaredSchemaResolver.overlayNonStrict(inferred, m).output().stream().map(Attribute::name).toList();
         assertEquals(List.of("@timestamp", "other"), names);
         assertEquals(Map.of("@timestamp", "ts"), DeclaredSchemaResolver.renameMap(m));
-    }
-
-    public void testCopyToLeavesTheResolverSchema() {
-        // A copy_to is NOT expanded in the resolver — it becomes an EVAL above the relation. The resolver schema stays
-        // base (just the source column), and the rename map carries only the move.
-        List<Attribute> inferred = List.of(attr("ts", DataType.DATETIME), attr("other", DataType.KEYWORD));
-        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("ts", new DatasetFieldMapping("date", null, "@timestamp"));
-        DatasetMapping m = mapping(props);
-        List<String> names = DeclaredSchemaResolver.overlayNonStrict(inferred, m).output().stream().map(Attribute::name).toList();
-        assertEquals(List.of("ts", "other"), names); // no @timestamp here — it's an Eval target
-        assertTrue(DeclaredSchemaResolver.renameMap(m).isEmpty()); // ts == physical ts, no rename; copy is not a rename
-        assertEquals(List.of("ts"), DeclaredSchemaResolver.declaredAttributes(m).stream().map(Attribute::name).toList());
     }
 }

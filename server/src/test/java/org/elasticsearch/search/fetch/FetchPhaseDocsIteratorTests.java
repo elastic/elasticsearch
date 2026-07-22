@@ -91,7 +91,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         writer.close();
 
         int[] docs = randomDocIds(docCount - 1);
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
 
             LeafReaderContext ctx = null;
             int[] docsInLeaf = null;
@@ -149,7 +149,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         int[] docs = randomDocIds(docCount - 1);
         int badDoc = docs[randomInt(docs.length - 1)];
 
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -538,7 +538,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         // Iterator that cancels after processing some docs
         AtomicInteger processedDocs = new AtomicInteger(0);
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -592,7 +592,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
         // Iterator that throws after processing some docs
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(null) {
             private int count = 0;
 
             @Override
@@ -758,7 +758,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         List<int[]> setNextReaderDocsInLeaf = new CopyOnWriteArrayList<>();
         List<Integer> nextDocCalls = new CopyOnWriteArrayList<>();
 
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
                 setNextReaderLeafOrdinals.add(ctx.ord);
@@ -860,7 +860,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         // in doc-id order: 10, 50, 100, 150, 200, ... timeout at doc 200
         final int timeoutAfterDocId = 200;
 
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1138,7 +1138,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     private static StreamingFetchPhaseDocsIterator createStreamingIterator() {
-        return new StreamingFetchPhaseDocsIterator() {
+        return new StreamingFetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1189,6 +1189,10 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     private static class RecordingStreamingIterator extends StreamingFetchPhaseDocsIterator {
         private final List<SetupEvent> setups = new CopyOnWriteArrayList<>();
+
+        RecordingStreamingIterator() {
+            super(null);
+        }
 
         @Override
         protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {

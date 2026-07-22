@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 153873
+pr: 153946
+summary: Skip read when external prune removes all files
+type: enhancement

@@ -22,7 +22,6 @@ import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Float32VectorScorer;
 import org.elasticsearch.simdvec.internal.Float32VectorScorerSupplier;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.Int4VectorScorer;
 import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;

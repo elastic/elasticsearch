@@ -1116,6 +1116,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         result.setDirectoryMetrics(delta);
     }
 
+    private static void setFetchDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
+        if (context.currentThreadStoreMetrics() == null) {
+            setDirectoryMetrics(result, metricsDelta, context);
+            return;
+        }
+        long fetchBytesRead = context.getFetchThreadsBytesRead() + context.getWorkerThreadsBytesRead();
+        result.setDirectoryMetrics(metricsDelta.get().withMetric(StoreMetrics.NAME, new StoreMetrics(fetchBytesRead)));
+    }
+
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
@@ -1300,7 +1309,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable closeOnce
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
-            setDirectoryMetrics(fetchResult, metricsDelta, searchContext);
+            setFetchDirectoryMetrics(fetchResult, metricsDelta, searchContext);
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }

@@ -30,7 +30,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex(this::ensureYellow);
+        createAndPopulateIndices(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {
@@ -483,6 +483,73 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testUnmappedWithIndexedText() {
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedKeyword() {
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_unmapped, test_keyword METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test_keyword"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedTextAndKeyword() {
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_keyword, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_keyword"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testWithKeywordAndTextConflictDataType() {
+        var query = """
+            FROM test, test_keyword METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_keyword")));
+        }
+    }
+
     public void testMatchRuntimeEvalWithOptionsThrowsError() {
         var query = """
             FROM test
@@ -615,13 +682,33 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
-        var indexName = "test";
+    static void createAndPopulateIndices(Consumer<String[]> ensureYellow) {
+        createTestIndex("test", """
+            {
+              "properties":{ "id": { "type": "integer" }, "content": { "type": "text" } }
+            }
+            """);
+        createTestIndex("test_keyword", """
+            {
+              "properties":{ "id": { "type": "integer" }, "content": { "type": "keyword" } }
+            }
+            """);
+        createTestIndex("test_unmapped", "{ \"dynamic\": false }");
+
+        var lookupIndexName = "test_lookup";
+        var client = client().admin().indices();
+        createAndPopulateLookupIndex(client, lookupIndexName);
+
+        ensureYellow.accept(new String[] { "test", "test_lookup", "test_keyword", "test_unmapped" });
+    }
+
+    static void createTestIndex(String indexName, String mapping) {
         var client = client().admin().indices();
         var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
+            .setMapping(mapping);
         assertAcked(createRequest);
+
         client().prepareBulk()
             .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
             .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
@@ -631,11 +718,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-
-        var lookupIndexName = "test_lookup";
-        createAndPopulateLookupIndex(client, lookupIndexName);
-
-        ensureYellow.accept(new String[] { indexName, lookupIndexName });
     }
 
     static void createAndPopulateLookupIndex(IndicesAdminClient client, String lookupIndexName) {

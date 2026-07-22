@@ -698,3 +698,179 @@ from all_types
 constant_keyword-foo:keyword | keyword:keyword
 foo                          | key2
 ;
+
+###############################################
+# Tests for MATCH_PHRASE on runtime text expressions (not index-mapped fields)
+#
+
+matchPhraseOnRuntimeText
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2675            | The Lord of the Rings - Boxed Set
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+;
+
+matchPhraseOnRuntimeTextOrderMatters
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Rings the of Lord")
+| KEEP book_no
+;
+
+book_no:keyword
+;
+
+matchPhraseOnRuntimeTextAndIndexedField
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings") OR match_phrase(author, "William Faulkner")
+| SORT book_no
+| LIMIT 5
+| KEEP book_no
+;
+
+book_no:keyword
+1463
+2675
+2713
+2714
+2883
+;
+
+matchPhraseOnTextWithRow
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "The fox is brown"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox")
+| SORT content
+;
+
+content:text
+This is a brown fox
+;
+
+matchPhraseOnTextWithRowAndNullValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+| MV_EXPAND content
+| EVAL content = to_text(case(content == "This is a brown fox", null, content))
+| WHERE match_phrase(content, "brown dog")
+| SORT content
+;
+
+content:text
+This is a brown dog
+;
+
+matchPhraseOnTextWithRowAndMultiValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+| MV_EXPAND content
+| EVAL content = to_text(mv_append(content, "wholly unrelated"))
+| WHERE match_phrase(content, "brown dog")
+| SORT content
+;
+
+content:text
+[This is a brown dog, wholly unrelated]
+;
+
+matchPhraseOnRuntimeTextDoesNotSpanMultipleValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+// mv_append returns keyword, so wrap it in to_text to stay on the runtime text path
+ROW content = to_text(mv_append("ends with brown", "fox starts"))
+| WHERE match_phrase(content, "brown fox")
+| KEEP content
+;
+
+content:text
+;
+
+###############################################
+# Tests for MATCH_PHRASE on runtime keyword expressions: a pushed-down match_phrase on a keyword
+# field rewrites to a term query, so the runtime path matches the exact value
+#
+
+matchPhraseOnRuntimeKeyword
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match_phrase(full_name, "Anneke Preusig") OR match_phrase(full_name, "Berni Genin")
+| SORT emp_no
+| KEEP emp_no, full_name
+;
+
+emp_no:integer | full_name:keyword
+10006          | Anneke Preusig
+10014          | Berni Genin
+;
+
+matchPhraseOnRuntimeKeywordIsExact
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+// only the exact value matches: no phrase-within-value, no case folding, no analysis
+ROW content = ["brown fox", "a brown fox", "Brown Fox", "brown, fox"]
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox")
+;
+
+content:keyword
+brown fox
+;
+
+matchPhraseOnKeywordWithRowAndNullValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL content = CASE(content == "foo", NULL, "foobar")
+| WHERE match_phrase(content, "foobar")
+;
+
+content:keyword
+foobar
+foobar
+;
+
+matchPhraseOnKeywordWithRowAndMultiValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL content = mv_append(content, "extra")
+| WHERE match_phrase(content, "foobar")
+;
+
+content:keyword
+[foobar, extra]
+;

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +56,8 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
 public class CacheFileReader {
 
     public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
+
+    static final int MAX_PREFETCH_ALREADY_UPLOADED_RETRIES = 2;
 
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
 
@@ -302,8 +307,30 @@ public class CacheFileReader {
         final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
         // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
         // however read range must stay within file length
-        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
         final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
+        populateForPrefetch(offset, intLength, remainingFileLength, rangeToRead, 0, ActionListener.wrap(v -> {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+        }, e -> {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+            logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+        }));
+        return false;
+    }
+
+    /**
+     * Populates the cache for an async prefetch, but retries in case of {@link ResourceAlreadyUploadedException}.
+     * Such a failure means the batched compound commit was uploaded to the object store while the fetch to the
+     * indexing node was in flight
+     */
+    private void populateForPrefetch(
+        long offset,
+        int intLength,
+        long remainingFileLength,
+        ByteRange rangeToRead,
+        int attempt,
+        ActionListener<Integer> listener
+    ) {
+        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
         cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
             channel.prefetch(channelPos, len);
             return len;
@@ -319,14 +346,19 @@ public class CacheFileReader {
                 StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
             ),
             "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
-            ActionListener.wrap(v -> {
-                blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
-            }, e -> {
-                blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
-                logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+            listener.delegateResponse((l, e) -> {
+                if (attempt < MAX_PREFETCH_ALREADY_UPLOADED_RETRIES
+                    && ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
+                    logger.debug(
+                        () -> "prefetch for [" + cacheFile.getCacheKey() + "] already uploaded, retrying with attempt " + attempt,
+                        e
+                    );
+                    populateForPrefetch(offset, intLength, remainingFileLength, rangeToRead, attempt + 1, l);
+                } else {
+                    l.onFailure(e);
+                }
             })
         );
-        return false;
     }
 
     /**
@@ -347,33 +379,38 @@ public class CacheFileReader {
     }
 
     /**
-     * If a direct byte buffer view is available for the given range, passes it
+     * If a direct memory segment view is available for the given range, passes it
      * to {@code action} and returns {@code true}. Otherwise returns
      * {@code false} without invoking the action.
      *
      * @param offset the byte offset within the file
      * @param length the number of bytes requested
-     * @param action the action to perform with the byte buffer
-     * @return {@code true} if a buffer was available and the action was invoked
+     * @param action the action to perform with the memory segment
+     * @return {@code true} if a segment was available and the action was invoked
      */
-    public final boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+    public final boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action)
+        throws IOException {
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withByteBufferSlice(offset, length, action);
+            return cacheFile.withMemorySegmentSlice(offset, length, action);
         }
         final long regionStart = (offset / regionSize) * regionSize;
         final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
-        return cacheFile.withByteBufferSlice(offset, length, action, advice);
+        return cacheFile.withMemorySegmentSlice(offset, length, action, advice);
     }
 
-    public final boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
-        throws IOException {
+    public final boolean withMemorySegmentSlices(
+        long[] offsets,
+        int length,
+        int count,
+        CheckedConsumer<MemorySegment[], IOException> action
+    ) throws IOException {
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withByteBufferSlices(offsets, length, count, action);
+            return cacheFile.withMemorySegmentSlices(offsets, length, count, action);
         }
         // For top-level files the entire range is exclusive, so a single advice applies.
         // For compound sub-files, individual regions could differ, but the bulk path is
         // only used for vector data which is always in a top-level .vec file.
-        return cacheFile.withByteBufferSlices(offsets, length, count, action, desiredMAdvice);
+        return cacheFile.withMemorySegmentSlices(offsets, length, count, action, desiredMAdvice);
     }
 
     /**

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.orc;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -30,8 +29,7 @@ import java.util.Set;
  * <p>Heavy dependencies (ORC, Hadoop) are isolated in this module to avoid jar hell issues
  * in the core ESQL plugin.
  *
- * <p>ORC is not in the released ship set yet, so format registration is gated on the umbrella
- * {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} and the component
+ * <p>ORC is not in the released ship set yet, so format registration is gated on
  * {@link #ESQL_EXTERNAL_ORC_FEATURE_FLAG}: the reader is available in snapshot/development builds and
  * disabled in release. When the gate is off the {@code orc} format and {@code .orc} extension are not
  * registered, so an ORC dataset resolves to the generic "No format reader registered" rejection.
@@ -45,7 +43,7 @@ public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public static final FeatureFlag ESQL_EXTERNAL_ORC_FEATURE_FLAG = new FeatureFlag("esql_external_orc");
 
     private static boolean enabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_ORC_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_ORC_FEATURE_FLAG.isEnabled();
     }
 
     @Override

@@ -200,7 +200,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -214,7 +214,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 
@@ -27,6 +29,8 @@ import java.util.List;
  * overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
+
+    private static final Logger logger = LogManager.getLogger(ExternalSourceSettings.class);
 
     private ExternalSourceSettings() {}
 
@@ -127,6 +131,61 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Upper bound on how many stream-only-compressed (gzip/zstd) segmentators may occupy the
+     * {@code esql_external_io} pool at once, across all queries and operators on the node. Each open streaming read
+     * runs one long-lived segmentator that pins a pool thread while it blocks on its chunk/buffer queues and the
+     * upstream decompress stream; its per-chunk parser tasks run on the same pool. Without a cap, enough
+     * concurrently-open reads pin every pool thread and their parser tasks — queued behind the segmentators — never
+     * get a thread, deadlocking the reads (elastic/esql-planning #1093, item 4). Bounding concurrent segmentators
+     * below the pool size guarantees threads remain free for parser tasks.
+     * <p>
+     * Default {@code 0} means "derive": the effective cap tracks the {@code esql_external_io} pool size
+     * ({@link #externalIoThreads(Settings)}), clamped to {@code poolSize - 1} so at least one pool thread always
+     * remains for parser tasks. An explicit positive value overrides the derivation (still clamped below the pool
+     * size). Node-scoped: the pool is sized at startup.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_SEGMENTATORS = Setting.intSetting(
+        "esql.external.max_concurrent_segmentators",
+        0,
+        0,
+        4096,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Effective cap on concurrent stream-only-compressed segmentators for a node, resolving {@link #MAX_CONCURRENT_SEGMENTATORS}
+     * ({@code 0} = derive) and clamping the result to {@code [1, poolSize - 1]} so at least one {@code esql_external_io}
+     * thread always remains for the one-shot parser tasks that a segmentator depends on. The pool size is
+     * {@link #externalIoThreads(Settings)}, which sizes that pool; the derived default tracks it, so the cap is
+     * {@code poolSize - 1} unless an operator sets a lower explicit value. An explicit value above {@code poolSize - 1}
+     * is clamped and logged at WARN so the operator sees it was ineffective.
+     * <p>
+     * Degenerate case: a {@code poolSize == 1} pool (only reachable by explicitly setting
+     * {@code esql.external.max_concurrent_requests=1}) floors the cap at 1, which cannot leave a free parser thread —
+     * parallel streaming needs {@code poolSize >= 2} to be deadlock-free. At that size the deadlock-free path is the
+     * single-pass fallback (parallelism {@code <= 1}), which runs no segmentator; a parallel streaming read on a
+     * one-thread pool is a misconfiguration this cap cannot rescue.
+     */
+    public static int maxConcurrentSegmentators(Settings settings) {
+        int poolSize = externalIoThreads(settings);
+        int configured = MAX_CONCURRENT_SEGMENTATORS.get(settings);
+        int desired = configured > 0 ? configured : poolSize;
+        int cap = Math.max(1, Math.min(desired, poolSize - 1));
+        if (configured > 0 && configured > poolSize - 1) {
+            logger.warn(
+                "[{}]=[{}] exceeds the esql_external_io pool headroom and was clamped to [{}] (pool size [{}] - 1) "
+                    + "so a thread stays free for parser tasks; lower the setting or raise [{}] to make it effective",
+                MAX_CONCURRENT_SEGMENTATORS.getKey(),
+                configured,
+                cap,
+                poolSize,
+                MAX_CONCURRENT_REQUESTS.getKey()
+            );
+        }
+        return cap;
+    }
+
+    /**
      * Maximum total time (in seconds) to spend retrying throttled cloud API requests
      * before giving up. Bounds the cumulative retry duration regardless of the retry count,
      * ensuring queries fail cleanly when throttling is persistent rather than blocking
@@ -204,6 +263,24 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Gates provisioning data sources that use workload-identity federation (e.g. S3 {@code role_arn},
+     * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single setting covers every
+     * file-based provider, since they all funnel through {@code FileDataSourceValidator} and share the
+     * {@code DataSourceConfiguration#hasFederatedAuth()} mechanism.
+     * <p>
+     * Disabled by default. This is an operator-dynamic setting: changes take effect immediately without a node
+     * restart, and it can only be changed by an operator (e.g. via file-based settings), not by an end user
+     * through the public {@code _cluster/settings} API — so it can be enabled fleet-wide (or per-deployment) via
+     * gitops without exposing a customer-facing toggle.
+     */
+    public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.datasource.federated_identity.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    /**
      * Allowlist of local filesystem root paths from which ES|QL {@code file://} external sources are permitted to read.
      * Mirrors {@code path.repo}: the list <em>is</em> the enable — an empty list (the default) disables local-disk reads
      * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
@@ -219,11 +296,13 @@ public final class ExternalSourceSettings {
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
+            MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
             MANAGED_IDENTITY_ENABLED,
+            FEDERATED_IDENTITY_ENABLED,
             LOCAL_ALLOWED_PATHS
         );
     }

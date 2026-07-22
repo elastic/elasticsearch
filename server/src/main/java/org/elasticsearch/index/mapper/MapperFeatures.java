@@ -17,6 +17,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.ProvidedIdFieldMapper.ID_FIELD_MODE_MAPPING_ATTRIBUTE;
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES_BY_DEFAULT;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_COLUMNAR_DOCUMENT_ORDER;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -197,6 +198,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_MULTI_VALUE_RENAME,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            FLATTENED_COLUMNAR_DOCUMENT_ORDER,
             ARRAY_OBJECTS_LIMIT,
             ES940_DISK_BBQ,
             FLATTENED_PASSTHROUGH_FEATURE,

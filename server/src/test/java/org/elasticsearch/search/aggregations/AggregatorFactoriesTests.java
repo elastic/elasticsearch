@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -61,9 +62,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AggregatorFactoriesTests extends ESTestCase {
     private NamedXContentRegistry xContentRegistry;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initXContentRegistry() throws Exception {
         Settings settings = Settings.builder()
             .put("node.name", AbstractQueryTestCase.class.toString())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())

@@ -50,7 +50,8 @@ dependencies {
   javaRestTestImplementation "io.grpc:grpc-api:1.78.0"
   javaRestTestImplementation "io.grpc:grpc-protobuf:1.78.0"
   javaRestTestImplementation "io.grpc:grpc-stub:1.78.0"
-  javaRestTestRuntimeOnly "io.grpc:grpc-netty:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-netty:1.78.0"
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
   javaRestTestRuntimeOnly "io.grpc:grpc-core:1.78.0"
   javaRestTestRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
   javaRestTestRuntimeOnly "io.netty:netty-handler-proxy:${versions.netty}"

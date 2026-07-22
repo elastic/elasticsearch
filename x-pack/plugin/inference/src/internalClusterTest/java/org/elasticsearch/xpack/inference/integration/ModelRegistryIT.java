@@ -166,7 +166,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 mock(ThreadPool.class),
                 mock(ClusterService.class),
                 Settings.EMPTY,
-                InferenceStatsTests.mockInferenceStats()
+                InferenceStatsTests.mockInferenceStats(),
+                mock(FeatureService.class)
             )
         );
 

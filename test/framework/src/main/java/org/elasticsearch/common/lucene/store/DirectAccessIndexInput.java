@@ -17,66 +17,59 @@ import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 /**
  * A test utility that wraps an {@link IndexInput} and implements {@link DirectAccessInput},
- * serving direct {@link ByteBuffer} slices backed by {@link CloseableByteBuffer} for
+ * serving direct {@link MemorySegment} slices backed by {@link CloseableByteBuffer} for
  * deterministic native memory management. The buffers are allocated via {@link NativeAccess}
  * and freed eagerly when the action completes.
  */
 public class DirectAccessIndexInput extends FilterIndexInput implements DirectAccessInput {
 
     private final byte[] data;
-    private final NativeAccess nativeAccess;
 
-    public DirectAccessIndexInput(String resourceDescription, IndexInput delegate, byte[] data, NativeAccess nativeAccess) {
+    public DirectAccessIndexInput(String resourceDescription, IndexInput delegate, byte[] data) {
         super(resourceDescription, delegate);
         this.data = data;
-        this.nativeAccess = nativeAccess;
     }
 
     @Override
-    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-        try (CloseableByteBuffer cbuf = nativeAccess.newConfinedBuffer((int) length)) {
-            cbuf.buffer().put(0, data, (int) offset, (int) length);
-            action.accept(cbuf.buffer().asReadOnlyBuffer());
+    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+        try (Arena arena = Arena.ofConfined()) {
+            var seg = arena.allocate((int) length);
+            MemorySegment.copy(data, (int) offset, seg, ValueLayout.JAVA_BYTE, 0L, (int) length);
+            action.accept(seg);
         }
         return true;
     }
 
     @Override
-    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
         throws IOException {
         if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
             return true;
         }
-        CloseableByteBuffer[] cbufs = new CloseableByteBuffer[count];
-        try {
-            ByteBuffer[] views = new ByteBuffer[count];
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment[] segments = new MemorySegment[count];
             for (int i = 0; i < count; i++) {
-                cbufs[i] = nativeAccess.newConfinedBuffer(length);
-                cbufs[i].buffer().put(0, data, (int) offsets[i], length);
-                views[i] = cbufs[i].buffer().asReadOnlyBuffer();
+                segments[i] = arena.allocate(length);
+                MemorySegment.copy(data, (int) offsets[i], segments[i], ValueLayout.JAVA_BYTE, 0L, length);
             }
-            action.accept(views);
-        } finally {
-            for (CloseableByteBuffer cbuf : cbufs) {
-                if (cbuf != null) {
-                    cbuf.close();
-                }
-            }
+            action.accept(segments);
         }
         return true;
     }
 
     @Override
     public IndexInput clone() {
-        return new DirectAccessIndexInput("clone(" + toString() + ")", in.clone(), data, nativeAccess);
+        return new DirectAccessIndexInput("clone(" + toString() + ")", in.clone(), data);
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-        return new DirectAccessIndexInput(sliceDescription, in.slice(sliceDescription, offset, length), data, nativeAccess);
+        return new DirectAccessIndexInput(sliceDescription, in.slice(sliceDescription, offset, length), data);
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -33,6 +34,8 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -157,6 +160,64 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private static NumberFieldType indexTermsIntegerFieldType() {
+        return new NumberFieldType(
+            "field",
+            NumberType.INTEGER,
+            IndexType.terms(true, true),
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null,
+            false,
+            false,
+            true
+        );
+    }
+
+    private static BytesRef sortableBytesTerm(int value) {
+        byte[] bytes = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(value, bytes, 0);
+        return new BytesRef(bytes);
+    }
+
+    public void testIndexTermsIntegerTermQuery() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        // The query value is redirected to the sortable-bytes term in the inverted index.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(42))), ft.termQuery(42, MOCK_CONTEXT));
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(42))), ft.termQuery("42", MOCK_CONTEXT));
+        // Negative values are indexed and searchable too.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(-1))), ft.termQuery(-1, MOCK_CONTEXT));
+    }
+
+    public void testIndexTermsIntegerTermQueryNonMatchingValues() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        // Decimal and out-of-int-range values cannot match any document and are turned into a
+        // match-no-docs query.
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(2147483648L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(-2147483649L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIndexTermsIntegerTermsQuery() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        assertEquals(
+            new TermInSetQuery("field", Arrays.asList(sortableBytesTerm(1), sortableBytesTerm(-2))),
+            ft.termsQuery(Arrays.asList(1, -2), MOCK_CONTEXT)
+        );
+        // Non-matching values (decimal, out-of-range) are dropped; matching ones remain.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTerm(3))),
+            ft.termsQuery(Arrays.asList(3, 2.1, 2147483648L), MOCK_CONTEXT)
+        );
+        // If no value can match, a match-no-docs query is returned.
+        assertTrue(ft.termsQuery(Arrays.asList(2.1, 2147483648L), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
     private static MappedFieldType unsearchable() {
         return new NumberFieldType(
             "field",
@@ -170,6 +231,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             null,
+            false,
             false,
             false
         );
@@ -746,7 +808,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 includeUpper,
                 randomBoolean(),
                 MOCK_CONTEXT,
-                randomBoolean()
+                randomBoolean(),
+                false
             );
             Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery(
                 "half_float",
@@ -756,7 +819,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 includeUpper,
                 randomBoolean(),
                 MOCK_CONTEXT,
-                randomBoolean()
+                randomBoolean(),
+                false
             );
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
@@ -766,16 +830,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed)
+            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed, false),
+            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed, false)
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
+            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
+            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
+            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
+            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
         );
 
         final boolean hasDocValues = isIndexed == false || randomBoolean(); // at least one should be true
@@ -845,7 +909,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 true,
                 MOCK_CONTEXT,
-                true
+                true,
+                false
             );
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
@@ -905,7 +970,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 true,
                 context,
-                isIndexed
+                isIndexed,
+                false
             );
             assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
             Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();

@@ -164,10 +164,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         threadPool = new TestThreadPool("ShardReplicationTests");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         primaryActionExecution = randomFrom(TransportReplicationAction.PrimaryActionExecution.values());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
@@ -185,10 +183,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

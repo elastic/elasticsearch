@@ -38,10 +38,10 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {
-        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider);
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false);
     }
 
-    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
+    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
         boolean securityEnabled = Booleans.parseBoolean(System.getProperty(SECURITY_ENABLED_PROPERTY, "false"));
         var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
@@ -51,7 +51,6 @@ public class Clusters {
             .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
-            .shared(true)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
@@ -60,6 +59,9 @@ public class Clusters {
             .apply(() -> configProvider);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
+        }
+        if (shared) {
+            builder.shared(true);
         }
         return builder.build();
     }

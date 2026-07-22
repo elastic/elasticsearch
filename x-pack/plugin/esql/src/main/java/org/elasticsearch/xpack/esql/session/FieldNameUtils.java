@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -432,7 +431,6 @@ public class FieldNameUtils {
             || p instanceof Filter
             || p instanceof Fork
             || p instanceof InlineStats
-            || p instanceof Insist
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand

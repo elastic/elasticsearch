@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -108,6 +110,11 @@ public class PlanExecutor {
      * caller-supplied {@code metadataReadConcurrency} (production: the {@code snapshot_meta}-shaped discovery
      * default, capped at 100) — stays testable without standing up the full query path. See {@link #esql} for why
      * an in-flight bound that may exceed the pool size is safe.
+     * <p>
+     * {@code threadContext} is the calling request's transport {@link ThreadContext}, captured while still on the
+     * authenticated calling thread; the resolver restores it around its outward completion listener so that an async
+     * metadata read completing on a non-ES thread (e.g. a native async storage SDK's I/O thread) does not lose the
+     * request's security context before the subsequent compute transport send.
      */
     static ExternalSourceResolver createExternalSourceResolver(
         Executor externalSourceExecutor,
@@ -115,7 +122,8 @@ public class PlanExecutor {
         Settings settings,
         ExternalSourceCacheService cacheService,
         BooleanSupplier cancellation,
-        int externalSourceConcurrency
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext
     ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
@@ -123,7 +131,8 @@ public class PlanExecutor {
             settings,
             cacheService,
             cancellation,
-            externalSourceConcurrency
+            externalSourceConcurrency,
+            threadContext
         );
     }
 
@@ -176,7 +185,8 @@ public class PlanExecutor {
             services.clusterService().getSettings(),
             cacheService,
             cancellation,
-            externalSourceConcurrency
+            externalSourceConcurrency,
+            services.transportService().getThreadPool().getThreadContext()
         );
         final var session = new EsqlSession(
             sessionId,

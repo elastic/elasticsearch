@@ -37,7 +37,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -155,8 +156,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     /**
      * Verifies that {@link FrozenIndexInput}'s {@code DirectAccessInput} methods correctly adjust
      * offsets when operating on a sliced input. A slice has a non-zero {@code this.offset};
-     * {@code withByteBufferSlice} must add it to produce the correct absolute file position, and
-     * {@code withByteBufferSlices} must adjust every entry in the offsets array. The test reads the
+     * {@code withMemorySegmentSlice} must add it to produce the correct absolute file position, and
+     * {@code withMemorySegmentSlices} must adjust every entry in the offsets array. The test reads the
      * file to populate the {@link SharedBlobCacheService} mmap cache, then checks both the root
      * input and a slice, comparing returned bytes against the known file content.
      */
@@ -179,7 +180,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             ByteSizeValue.ofBytes(fileData.length)
         );
 
-        // Region large enough to fit the entire file so withByteBufferSlice always succeeds
+        // Region large enough to fit the entire file so withMemorySegmentSlice always succeeds
         final ByteSizeValue regionSize = ByteSizeValue.ofBytes(16 * SharedBytes.PAGE_SIZE);
         final Settings settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
@@ -228,11 +229,11 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             indexInput.readBytes(allData, 0, allData.length);
             assertArrayEquals(fileData, allData);
 
-            // Test withByteBufferSlice on the root input (offset == 0)
+            // Test withMemorySegmentSlice on the root input (offset == 0)
             int readLen = randomIntBetween(1, Math.min(64, fileData.length));
-            assertTrue(((FrozenIndexInput) indexInput).withByteBufferSlice(0, readLen, bb -> {
+            assertTrue(((FrozenIndexInput) indexInput).withMemorySegmentSlice(0, readLen, ms -> {
                 for (int i = 0; i < readLen; i++) {
-                    assertEquals(fileData[i], bb.get(i));
+                    assertEquals(fileData[i], ms.get(ValueLayout.JAVA_BYTE, i));
                 }
             }));
 
@@ -242,15 +243,19 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             IndexInput sliceInput = indexInput.slice("test-slice", sliceOffset, sliceLength);
             assertThat(sliceInput, instanceOf(FrozenIndexInput.class));
 
-            // withByteBufferSlice on the slice: FrozenIndexInput adds this.offset to the requested offset
+            // withMemorySegmentSlice on the slice: FrozenIndexInput adds this.offset to the requested offset
             int sliceReadLen = randomIntBetween(1, Math.min(64, sliceLength));
-            assertTrue(((FrozenIndexInput) sliceInput).withByteBufferSlice(0, sliceReadLen, bb -> {
+            assertTrue(((FrozenIndexInput) sliceInput).withMemorySegmentSlice(0, sliceReadLen, ms -> {
                 for (int i = 0; i < sliceReadLen; i++) {
-                    assertEquals("byte mismatch at slice-relative offset " + i, fileData[sliceOffset + i], bb.get(i));
+                    assertEquals(
+                        "byte mismatch at slice-relative offset " + i,
+                        fileData[sliceOffset + i],
+                        ms.get(ValueLayout.JAVA_BYTE, i)
+                    );
                 }
             }));
 
-            // withByteBufferSlices on the slice: verifies offset adjustment for the bulk path
+            // withMemorySegmentSlices on the slice: verifies offset adjustment for the bulk path
             int vectorSize = randomIntBetween(1, 16);
             int numVectors = Math.min(randomIntBetween(2, 5), sliceLength / vectorSize);
             if (numVectors >= 2) {
@@ -258,12 +263,12 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 for (int i = 0; i < numVectors; i++) {
                     offsets[i] = (long) i * vectorSize;
                 }
-                assertTrue(((FrozenIndexInput) sliceInput).withByteBufferSlices(offsets, vectorSize, numVectors, bbs -> {
+                assertTrue(((FrozenIndexInput) sliceInput).withMemorySegmentSlices(offsets, vectorSize, numVectors, segments -> {
                     for (int i = 0; i < numVectors; i++) {
-                        ByteBuffer bb = bbs[i];
+                        MemorySegment ms = segments[i];
                         for (int j = 0; j < vectorSize; j++) {
                             int absPos = sliceOffset + i * vectorSize + j;
-                            assertEquals("byte mismatch at vector " + i + " byte " + j, fileData[absPos], bb.get(j));
+                            assertEquals("byte mismatch at vector " + i + " byte " + j, fileData[absPos], ms.get(ValueLayout.JAVA_BYTE, j));
                         }
                     }
                 }));

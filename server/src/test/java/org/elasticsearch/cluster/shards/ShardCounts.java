@@ -84,7 +84,7 @@ public class ShardCounts {
         int mainIndexReplicas = ESTestCase.between(1, numSearchNodes);
         int failingIndexShards = ESTestCase.between(2, PER_INDEX_MAX_NUMBER_OF_SHARDS);
 
-        // At least fits replica shards from the main index
+        // At least fits all replica shards from the main index
         int shardsPerNode = mainIndexShards * mainIndexReplicas / numSearchNodes + 1;
         // No more than the max number of replica shards can be created for the failing index
         int maxShardsPerNode = (mainIndexShards * mainIndexReplicas + failingIndexShards * numSearchNodes - 1) / numSearchNodes;

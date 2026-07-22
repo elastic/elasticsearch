@@ -1279,7 +1279,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Context Engine's SML storage: a regular (non-system) index that Kibana
         // creates and manages itself, including its alias.
-        Arrays.asList(".ai-index-idx-sml-data", ".ai-index-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+        Arrays.asList("ai-index-idx-sml-data", "ai-index-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
 
         // Agent Builder OTLP telemetry (traces + logs from span events)

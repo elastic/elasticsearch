@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable {
+public class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable {
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
     private final Map<ShardId, Exception> failures;
     private final Set<ShardId> unmatchedShardIds;

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -141,6 +142,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -155,6 +157,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -439,12 +442,21 @@ public class EsqlSession {
         final Configuration finalConfiguration = configurationToUse;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
+        QueryBuilder timestampFilters = TimestampIndexFilterExtractor.extract(plan, configuration);
+        QueryBuilder requestFilter = request.filter();
+        if (timestampFilters != null) {
+            if (requestFilter == null) {
+                requestFilter = timestampFilters;
+            } else {
+                requestFilter = Queries.combine(FILTER, Arrays.asList(requestFilter, timestampFilters));
+            }
+        }
         analyzedPlan(
             plan,
             QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
             finalConfiguration,
             executionInfo,
-            request.filter(),
+            requestFilter,
             new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {

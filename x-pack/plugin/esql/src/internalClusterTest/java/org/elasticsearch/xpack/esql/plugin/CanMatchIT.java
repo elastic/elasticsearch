@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesNodeResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,6 +25,8 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -87,6 +92,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .get();
         try {
             var queriedIndices = captureQueriedIndices();
+            var fieldCapsIndices = captureFieldCapsResponseIndices();
+
             try (
                 EsqlQueryResponse resp = run(
                     syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
@@ -96,11 +103,16 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2023")));
+                fieldCapsIndices.clear();
             }
+            // date_parse is not foldable at extraction time
             try (EsqlQueryResponse resp = run("from events_* | WHERE @timestamp >= date_parse(\"yyyy-MM-dd\", \"2023-01-01\")")) {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022", "events_2023")));
+                fieldCapsIndices.clear();
             }
 
             try (
@@ -112,11 +124,15 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(3));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022")));
+                fieldCapsIndices.clear();
             }
             try (EsqlQueryResponse resp = run("from events_* | WHERE @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-01-01\")")) {
                 assertThat(getValuesList(resp), hasSize(3));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022", "events_2023")));
+                fieldCapsIndices.clear();
             }
 
             try (
@@ -128,6 +144,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(7));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022", "events_2023")));
+                fieldCapsIndices.clear();
             }
             try (
                 EsqlQueryResponse resp = run(
@@ -139,6 +157,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(7));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022", "events_2023")));
+                fieldCapsIndices.clear();
             }
 
             try (
@@ -150,6 +170,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(0));
                 assertThat(queriedIndices, empty());
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, empty());
+                fieldCapsIndices.clear();
             }
             try (
                 EsqlQueryResponse resp = run(
@@ -161,6 +183,9 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(0));
                 assertThat(queriedIndices, empty());
                 queriedIndices.clear();
+                // date_parse is not supported
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022", "events_2023")));
+                fieldCapsIndices.clear();
             }
 
             try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("""
@@ -171,6 +196,9 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
+                // date_parse is not supported
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2022", "events_2023")));
+                fieldCapsIndices.clear();
             }
             try (
                 EsqlQueryResponse resp = run(
@@ -182,6 +210,25 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
+                assertThat(fieldCapsIndices, equalTo(Set.of("events_2023")));
+                fieldCapsIndices.clear();
+            }
+
+            long nowMillis = System.currentTimeMillis();
+            assertAcked(client().admin().indices().prepareCreate("ts_old").setMapping("@timestamp", "type=date", "uid", "type=keyword"));
+            client().prepareBulk("ts_old")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("@timestamp", nowMillis - 3L * 365 * 24 * 60 * 60 * 1000, "uid", "old"))
+                .get();
+            assertAcked(client().admin().indices().prepareCreate("ts_recent").setMapping("@timestamp", "type=date", "uid", "type=keyword"));
+            client().prepareBulk("ts_recent")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("@timestamp", nowMillis - 180L * 24 * 60 * 60 * 1000, "uid", "recent"))
+                .get();
+            try (EsqlQueryResponse resp = run("FROM ts_old,ts_recent | WHERE @timestamp >= NOW() - 1 year")) {
+                assertThat(getValuesList(resp), hasSize(1));
+                assertThat(fieldCapsIndices, equalTo(Set.of("ts_recent")));
+                assertThat(queriedIndices, equalTo(Set.of("ts_recent")));
             }
         } finally {
             cleanAllTransportRules();
@@ -451,6 +498,38 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             );
         }
         return queriedIndices;
+    }
+
+    protected static Set<String> captureFieldCapsResponseIndices() {
+        Set<String> matchingIndices = ConcurrentCollections.newConcurrentSet();
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            as(transportService, MockTransportService.class).addRequestHandlingBehavior(
+                TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        FieldCapabilitiesNodeResponse nodeResponse = (FieldCapabilitiesNodeResponse) response;
+                        for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
+                            if (indexResponse.canMatch()) {
+                                matchingIndices.add(indexResponse.getIndexName());
+                            }
+                        }
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task)
+            );
+        }
+        return matchingIndices;
     }
 
     private static void cleanAllTransportRules() {

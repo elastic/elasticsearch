@@ -320,7 +320,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * Visible for testing
      */
     <T> Map<String, T> filterBasedOnFeatures(ClusterState clusterState, Map<String, T> templates, Function<T, Template> templateExtractor) {
-        // Considering that allFeaturesSupported will be true eventually, we use this flag to 
+        // Considering that allFeaturesSupported will be true eventually, we use this flag to
         // short-circuit the check when the end state is reached.
         if (allFeaturesSupported || templates.isEmpty()) {
             return templates;

@@ -174,7 +174,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             // 1 million documents over 5000 seconds ~= 83 minutes.
             // If we have > 5 data nodes, we don't set our throttling.
             requestsPerSec = numberOfDatanodes < 5
-                ? (float) (AbstractBulkByPaginatedSearchRequest.DEFAULT_PAGINATED_SEARCH_BATCH_SIZE / 5) * numberOfDatanodes
+                ? (AbstractBulkByPaginatedSearchRequest.DEFAULT_PAGINATED_SEARCH_BATCH_SIZE / 5.0f) * numberOfDatanodes
                 : Float.POSITIVE_INFINITY;
         }
         deleteExpiredData(request, dataRemoversIterator, requestsPerSec, listener, isTimedOutSupplier, true);

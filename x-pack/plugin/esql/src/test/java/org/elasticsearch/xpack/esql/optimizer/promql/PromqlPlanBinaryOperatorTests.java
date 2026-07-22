@@ -139,7 +139,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         Row row = plan.collect(Row.class).getFirst();
         assertThat(row.fields().getFirst().name(), equalTo("step"));
         assertThat(((Literal) row.fields().getFirst().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
-        Eval eval = findEvalWithField(plan, "result");
+        Eval eval = findEvalWithFieldAndExpression(plan, "result", Add.class);
         assertThat(eval.fields().getFirst().child(), instanceOf(Add.class));
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
@@ -203,7 +203,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         TimeSeriesCollapse collapse = plan.collect(TimeSeriesCollapse.class).getFirst();
         Row row = collapse.child().collect(Row.class).getFirst();
         assertThat(((Literal) row.fields().getFirst().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
-        Eval eval = findEvalWithField(collapse.child(), "result");
+        Eval eval = findEvalWithFieldAndExpression(collapse.child(), "result", Add.class);
         assertThat(eval.fields().getFirst().child(), instanceOf(Add.class));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
         assertNoIndexBackedPromqlPlan(plan);
@@ -409,6 +409,20 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
     }
 
+    public void testBinaryFilteredRateAggregationsDoNotLoseReferences() {
+        var plan = planPromql(
+            "PROMQL index=k8s step=10m value=("
+                + "sum(rate(network.total_bytes_in{network.bytes_in =~\"1..\"}[10m])) / sum(rate(network.total_bytes_in[10m])) * 100)"
+        );
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("value", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("both rate sums should fold into single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(2L));
+    }
+
     public void testFunctionOnBinaryAggregations() {
         // Pattern: func(agg op agg) - tests that Eval nodes for function are preserved
         var plan = planPromql("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))");
@@ -471,5 +485,13 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     private static Eval findEvalWithField(LogicalPlan plan, String fieldName) {
         return plan.collect(Eval.class).stream().filter(e -> e.fields().getFirst().name().equals(fieldName)).findFirst().orElseThrow();
+    }
+
+    private static Eval findEvalWithFieldAndExpression(LogicalPlan plan, String fieldName, Class<? extends Expression> expressionClass) {
+        return plan.collect(Eval.class)
+            .stream()
+            .filter(e -> e.fields().getFirst().name().equals(fieldName) && expressionClass.isInstance(e.fields().getFirst().child()))
+            .findFirst()
+            .orElseThrow();
     }
 }

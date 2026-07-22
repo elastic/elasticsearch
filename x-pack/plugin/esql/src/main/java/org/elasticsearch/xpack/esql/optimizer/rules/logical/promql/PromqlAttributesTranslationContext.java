@@ -304,6 +304,11 @@ public final class PromqlAttributesTranslationContext {
         public List<Attribute> pathExclusions() {
             return accumulatedExclusions;
         }
+
+        /** The concrete labels demanded of this scope; empty when the scope is the unconstrained universe. */
+        public List<Attribute> demandedLabels() {
+            return isTop(required) ? List.of() : required;
+        }
     }
 
     /**
@@ -495,4 +500,33 @@ public final class PromqlAttributesTranslationContext {
          */
         List<Attribute> excludedDimensions
     ) {}
+
+    public static Attribute findByLabelName(List<Attribute> attributes, String labelName) {
+        // Prometheus passthrough dimensions surface under two names: the concrete field (e.g. `labels.pod`) and a short
+        // alias (`pod`). `canonicalName` strips the passthrough prefix, so both match `labelName`. The `_timeseries`
+        // block loader excludes by the concrete dimension field name, so we must resolve to the concrete (prefixed)
+        // attribute and never to the bare alias - otherwise the exclusion name never matches and the label leaks. The
+        // bare attribute is the right answer only when no prefixed variant exists (a top-level dimension), so keep it
+        // as a fallback. Without this preference the result depended on the alphabetical order of `attributes`: labels
+        // sorting after `labels.` (e.g. `pod`) happened to hit the concrete field first, while earlier ones (`cluster`,
+        // `job`, `instance`) hit the alias and leaked.
+        Attribute bareMatch = null;
+        for (var attr : attributes) {
+            if (canonicalName(attr).equals(labelName)) {
+                if (attr.name().equals(labelName) == false) {
+                    return attr;
+                }
+                bareMatch = attr;
+            }
+        }
+        return bareMatch;
+    }
+
+    /** The concrete dimension attributes, excluding the synthetic {@code _timeseries} attribute. */
+    public static List<Attribute> concreteDimensions(List<Attribute> attributes) {
+        return filterDimensionAttributes(attributes).stream()
+            // FieldAttribute.timeSeriesAttribute(...) also reports as a dimension; keep it out of concrete label demand.
+            .filter(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false)
+            .toList();
+    }
 }

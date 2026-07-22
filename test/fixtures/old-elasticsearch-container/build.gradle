@@ -13,7 +13,7 @@ apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 description = 'Testcontainers fixture for old Elasticsearch versions'
 
-def fixtureVersion = '1.0'
+def fixtureVersion = '1.1'
 
 dockerFixtures {
   create('old-elasticsearch-5-0-0') {

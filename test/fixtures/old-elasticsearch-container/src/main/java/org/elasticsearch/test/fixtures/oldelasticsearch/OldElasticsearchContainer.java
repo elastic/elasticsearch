@@ -29,10 +29,10 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
 
     private static final int HTTP_PORT = 9200;
     private static final Map<String, String> IMAGES = Map.of(
-        "5.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:1.0",
-        "5.6.16", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:1.0",
-        "6.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:1.0",
-        "6.8.20", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:1.0"
+        "5.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:1.1",
+        "5.6.16", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:1.1",
+        "6.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:1.1",
+        "6.8.20", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:1.1"
     );
 
     public OldElasticsearchContainer(String version, String repoLocation) {

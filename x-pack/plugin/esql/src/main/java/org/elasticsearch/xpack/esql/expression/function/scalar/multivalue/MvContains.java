@@ -21,14 +21,18 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsSetQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -36,14 +40,19 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * Function that takes two multivalued expressions and checks if values of one expression(subset) are
@@ -63,7 +72,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     <li>null, null &rArr; true (&empty; &equiv; &empty;)</li>
  * </ul>
  */
-public class MvContains extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvContains extends BinaryScalarFunction implements EvaluatorMapper, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvContains",
@@ -71,7 +80,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvContains.class)
         .binary(MvContains::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "lucene_pushdown")
         .name("mv_contains");
 
     @FunctionInfo(
@@ -306,5 +315,44 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             }
         }
         return true;
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        // TODO: Add Lucene pushdown for spatial types too
+        // TODO: When the right argument is NULL, we always return true. We should fold early in this case.
+        DataType dataType = right().dataType();
+        if (dataType.isNumeric() == false
+            && DataType.isString(dataType) == false
+            && dataType.isDate() == false
+            && dataType != DataType.VERSION
+            && dataType != DataType.IP
+            && dataType != DataType.BOOLEAN) {
+            return Translatable.NO;
+        }
+
+        if (pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable()) {
+            Object literalValue = literalValueOf(right());
+            if (literalValue == null) {
+                return Translatable.NO;
+            }
+            if (literalValue instanceof List<?> list && list.isEmpty()) {
+                return Translatable.NO;
+            }
+
+            return Translatable.YES;
+        }
+        return Translatable.NO;
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        Object literalValue = literalValueOf(right());
+        List<?> values = literalValue instanceof List ? (List<?>) literalValue : List.of(literalValue);
+
+        LinkedHashSet<Object> terms = new LinkedHashSet<>();
+        values.forEach(v -> terms.add(Foldables.literalValueAsLuceneQueryObject(v, left().dataType())));
+
+        return new TermsSetQuery(source(), handler.nameOf(left()), terms);
     }
 }

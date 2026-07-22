@@ -48,6 +48,7 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -653,6 +654,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         if (isRunning() == false) {
             throw new IllegalStateException("Object store service is not running [" + lifecycleState() + ']');
         }
+    }
+
+    /**
+     * Acquires a permit for the lifetime of a copy task so that {@link #doClose()} blocks until all in-flight
+     * copies have completed before closing the blob store. The returned releasable must be closed when the copy
+     * finishes. Throws {@link IllegalStateException} if the service is not running.
+     */
+    public Releasable acquireCopyPermit() {
+        ensureRunning();
+        permits.acquireUninterruptibly();
+        return Releasables.releaseOnce(permits::release);
     }
 
     /**

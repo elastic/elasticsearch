@@ -28,6 +28,8 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.query.bitmapterms.IntBitmapIndexBKDQuery;
+import org.elasticsearch.index.query.bitmapterms.IntBitmapIndexTermsQuery;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,6 +43,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -51,11 +54,11 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Compares two ways of matching an integer {@code terms} query as the size of the value list
- * grows: the current default (BKD points, {@link IntPoint#newSetQuery}) against the
- * {@code index_terms}-mapped path (a sortable-bytes term in the terms dictionary, matched with
- * {@link TermInSetQuery}) that {@code NumberFieldMapper} uses when {@code index_terms} is enabled
- * on an {@code integer} field.
+ * Compares four ways of matching an integer set query as the size of the value list grows:
+ * BKD points ({@link IntPoint#newSetQuery}), the {@code index_terms}-mapped path
+ * ({@link TermInSetQuery} over sortable-bytes terms), and two bitmap variants
+ * ({@link IntBitmapIndexBKDQuery} and {@link IntBitmapIndexTermsQuery}) that accept a
+ * pre-serialized {@link RoaringBitmap} instead of an explicit value list.
  * <p>
  * The field/query construction mirrors {@code NumberFieldMapper}'s private {@code IndexTermsIntegerField},
  * {@code encodeIndexTerm}, and {@code INDEX_TERMS_FIELD_TYPE} (points path) / the {@code indexTerms}
@@ -66,7 +69,7 @@ import java.util.concurrent.TimeUnit;
  * {@code buildQuery} isolates the cost of turning {@code nTerms} values into a {@link Query} (sorting,
  * dedup, packing); {@code search} isolates the cost of matching a pre-built query against the index.
  * Both matter: a large raw values list pays the construction cost on every request, while match cost
- * is what governs how the two approaches scale as {@code nTerms} grows towards and past the default
+ * is what governs how the approaches scale as {@code nTerms} grows towards and past the default
  * {@code index.max_terms_count} (65536) — a limit this benchmark deliberately ignores since it lives
  * in {@code TermsQueryBuilder}, above the Lucene query layer exercised here.
  */
@@ -170,14 +173,89 @@ public class IntegerTermsQueryBenchmark {
                 }
                 return new TermInSetQuery(FIELD, terms);
             }
+        },
+
+        /**
+         * Bitmap query over BKD points: same indexing as POINT, query via {@link IntBitmapIndexBKDQuery}.
+         * Shares the POINT index on disk so the index is not rebuilt.
+         */
+        BITMAP_BKD {
+            @Override
+            void addField(Document doc, int value) {
+                POINT.addField(doc, value);
+            }
+
+            @Override
+            Query termsQuery(int[] values, RoaringBitmap bitmap) {
+                return new IntBitmapIndexBKDQuery(FIELD, bitmap);
+            }
+
+            @Override
+            RoaringBitmap buildBitmap(int[] values) {
+                RoaringBitmap bitmap = new RoaringBitmap();
+                for (int value : values) {
+                    bitmap.add(value);
+                }
+                return bitmap;
+            }
+
+            @Override
+            String indexDir() {
+                return POINT.name();
+            }
+        },
+        /**
+         * Bitmap query over the index_terms inverted index: same indexing as INDEX_TERMS, query via
+         * {@link IntBitmapIndexTermsQuery}. Shares the INDEX_TERMS index on disk so the index is not rebuilt.
+         */
+        BITMAP_TERMS {
+            @Override
+            void addField(Document doc, int value) {
+                INDEX_TERMS.addField(doc, value);
+            }
+
+            @Override
+            Query termsQuery(int[] values, RoaringBitmap bitmap) {
+                return new IntBitmapIndexTermsQuery(FIELD, bitmap);
+            }
+
+            @Override
+            RoaringBitmap buildBitmap(int[] values) {
+                RoaringBitmap bitmap = new RoaringBitmap();
+                for (int value : values) {
+                    bitmap.add(value);
+                }
+                return bitmap;
+            }
+
+            @Override
+            String indexDir() {
+                return INDEX_TERMS.name();
+            }
         };
 
         abstract void addField(Document doc, int value);
 
-        abstract Query termsQuery(int[] values);
+        Query termsQuery(int[] values, RoaringBitmap bitmap) {
+            return termsQuery(values);
+        }
+
+        Query termsQuery(int[] values) {
+            throw new UnsupportedOperationException(name() + " must override termsQuery");
+        }
+
+        /** Builds the pre-computed bitmap for this strategy; returns {@code null} for non-bitmap strategies. */
+        RoaringBitmap buildBitmap(int[] values) {
+            return null;
+        }
+
+        /** Directory name for this strategy's index. Strategies sharing an index structure share a directory. */
+        String indexDir() {
+            return name();
+        }
     }
 
-    @Param({ "POINT", "INDEX_TERMS" })
+    @Param({ "POINT", "INDEX_TERMS", "BITMAP_BKD", "BITMAP_TERMS" })
     public Strategy strategy;
 
     @Param({ "1", "10", "100", "1000", "10000", "100000" })
@@ -187,6 +265,7 @@ public class IntegerTermsQueryBenchmark {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private int[] queryValues;
+    private RoaringBitmap prebuiltBitmap;
     private Query prebuiltQuery;
 
     @Setup(Level.Trial)
@@ -195,7 +274,7 @@ public class IntegerTermsQueryBenchmark {
         // survives between trials. Persist the index on disk instead, keyed by strategy and doc
         // count, so only the first trial for a given strategy pays to build and force-merge it;
         // the other nTerms trials for that strategy just open the existing directory.
-        Path path = Path.of(System.getProperty("tests.index"), strategy.name() + "-" + N_DOCS);
+        Path path = Path.of(System.getProperty("tests.index"), strategy.indexDir() + "-" + N_DOCS);
         directory = FSDirectory.open(path);
         if (DirectoryReader.indexExists(directory) == false) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
@@ -214,7 +293,8 @@ public class IntegerTermsQueryBenchmark {
         // Fixed seed: POINT and INDEX_TERMS search the exact same values at a given nTerms.
         queryValues = distinctRandomInts(new Random(42), nTerms, N_DOCS);
 
-        prebuiltQuery = strategy.termsQuery(queryValues);
+        prebuiltBitmap = strategy.buildBitmap(queryValues);
+        prebuiltQuery = strategy.termsQuery(queryValues, prebuiltBitmap);
     }
 
     @TearDown(Level.Trial)
@@ -229,7 +309,7 @@ public class IntegerTermsQueryBenchmark {
 
     @Benchmark
     public Query buildQuery() {
-        return strategy.termsQuery(queryValues);
+        return strategy.termsQuery(queryValues, prebuiltBitmap);
     }
 
     @Benchmark

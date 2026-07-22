@@ -35,6 +35,13 @@ import java.util.TreeMap;
  * that match the {@link UnmappedFieldsPattern} (matching all include patterns and
  * not matching any exclude pattern), and re-serialises the surviving key/value
  * pairs as a JSON object.
+ *
+ * <p><b>Known limitations</b> — this is proof-of-concept quality and needs hardening before it
+ * could ship: it does not apply field-level security to the {@code _source} keys it exposes; it
+ * re-reads and re-parses {@code _source} per document instead of sharing a cached parse with the
+ * other field-extraction operators that also touch {@code _source} (partially mapped fields and
+ * demand-loaded unmapped fields); and it does not account its allocations against the
+ * {@link CircuitBreaker}.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 

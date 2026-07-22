@@ -537,6 +537,63 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testUnmappedWithIndexedKeyword() {
+        // The field is keyword on test_keyword and unmapped (loaded from _source) on test_unmapped: the phrase must
+        // not be pushed down as a Lucene query, which would silently miss the rows of the unmapped index. Runtime
+        // evaluation matches the exact value on both.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped METADATA _index
+            | WHERE match_phrase(content, "There is also a white cat")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(5, "test_keyword"), List.of(5, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedText() {
+        // to_text over a partially unmapped field is evaluated as a runtime expression.
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match_phrase(content, "quick brown fox")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedTextAndKeyword() {
+        // to_text over a partially unmapped field is evaluated as a runtime expression.
+        assumeRuntimeMatchPhraseEnabled();
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_keyword, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match_phrase(content, "quick brown fox")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_keyword"), List.of(6, "test_unmapped")));
+        }
+    }
+
     public void testSimpleWhereRuntimeMatchPhraseWithScore() {
         assumeRuntimeMatchPhraseEnabled();
         // Runtime match_phrase does not contribute to the score, so matching rows keep a 0.0 score.

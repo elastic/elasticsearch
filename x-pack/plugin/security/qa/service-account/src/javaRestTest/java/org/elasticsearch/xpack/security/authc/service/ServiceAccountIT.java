@@ -114,6 +114,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 "monitor",
                 "manage_own_api_key",
                 "read_fleet_secrets",
+                "write_fleet_secrets",
                 "cluster:admin/xpack/connector/*"
               ],
               "indices": [

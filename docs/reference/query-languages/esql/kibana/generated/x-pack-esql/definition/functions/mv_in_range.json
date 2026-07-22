@@ -551,6 +551,6 @@
     "ROW values = [3, 6]\n| EVAL in_range = mv_in_range(values, 4, 6, {\"include_upper\": false})",
     "ROW values = [4, 6]\n| EVAL in_range = mv_in_range(values, 4, 6, {\"include_lower\": false, \"include_upper\": false})"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

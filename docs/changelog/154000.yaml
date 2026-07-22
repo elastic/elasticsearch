@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154000
+summary: ESQLDS/NDJSON - Null whole position on array item coercion failure
+type: bug

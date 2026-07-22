@@ -168,15 +168,18 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            context.processArrayOffsets(context);
-            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-                metadataMapper.postParse(context);
-            }
             // Required-field enforcement is per Lucene document, not per _source document. This is done in order to accommodate nested
             // objects. A nested object yields one Lucene doc per array element, each enforced at its own close (see parseObjectOrNested)
             // against a fresh per-doc tally. A non-nested mapping yields exactly one Lucene doc, so the root check here covers it; the
             // empty-doc ({}) short-circuit above still reaches this call.
+            // Must run before the metadata mappers' postParse loop below, since IgnoredFieldMapper.postParse builds _ignored from
+            // getIgnoredFields() and on_failure=ignore marks fields ignored here rather than throwing.
             context.enforceRequiredFields();
+
+            context.processArrayOffsets(context);
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.postParse(context);
+            }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
@@ -495,7 +498,12 @@ public final class DocumentParser {
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                // Skip the _ignored_source pre-capture for fields that redirect multi_value=false violations to ._on_failure:
+                // the duplicate value must land in exactly one storage location, and on_failure=ignore already handles that write.
+                boolean redirectsMultiValueViolations = fieldMapper.isSingleValueEnforced()
+                    && fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
                 if (context.canAddIgnoredField()
+                    && redirectsMultiValueViolations == false
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
                         || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && parsesArrayValue(mapper) == false)

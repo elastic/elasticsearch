@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -30,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
 
@@ -63,6 +72,9 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
+        .capabilities("unmapped_fields_pushdown_fix")
+        // in-development runtime search support; move to capabilities(...) when released
+        .snapshotCapabilities("runtime_filter")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -171,7 +183,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new MatchPhrase(source, field, query, null, queryBuilder);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new MatchPhrase(source, field, query, options, queryBuilder);
     }
 
     @Override
@@ -180,6 +195,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -236,4 +255,82 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
+    /**
+     * Runtime search on non-index-mapped expressions is under development and enabled in snapshot builds only,
+     * advertised through the snapshot-only {@code fn_match_phrase_runtime_filter} function capability declared on
+     * {@link #DEFINITION}.
+     */
+    public static boolean runtimeSearchEnabled() {
+        return Build.current().isSnapshot();
+    }
+
+    @Override
+    public boolean isRuntimeSearch() {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
+            // Runtime search on expressions is currently snapshot-only.
+            return runtimeSearchEnabled();
+        }
+        // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+        // indices where the field is unmapped, so it is matched at runtime instead.
+        return fieldAttribute.isPotentiallyUnmapped();
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
+            return Translatable.NO;
+        }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        super.fieldVerifier(plan, function, field, failures);
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+        if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (false == isRuntimeSearch()) {
+            // we push down match_phrase to the shards as a Lucene query.
+            return super.toEvaluator(toEvaluator);
+        }
+
+        if (field.dataType() == TEXT) {
+            return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+        }
+        // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
+        // falling through to exact matching would silently give it the wrong semantics. NULL fields never get
+        // here because the function folds to null.
+        if (field.dataType() != KEYWORD) {
+            throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+        }
+        // A pushed-down match_phrase on a keyword field rewrites to a term query, so the runtime path preserves
+        // that: exact, unanalyzed equality with the query string. Query types are strings only, so no conversion
+        // of the folded value is needed.
+        return new RuntimeSearchBytesRefEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            (BytesRef) Foldables.queryAsObject(query(), sourceText()),
+            context -> new BytesRef()
+        );
+    }
 }

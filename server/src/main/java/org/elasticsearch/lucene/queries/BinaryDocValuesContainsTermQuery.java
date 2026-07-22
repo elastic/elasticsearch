@@ -24,7 +24,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -52,6 +54,9 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
+        // Captured for the binary doc values decode checkpoint below. This query is reached via rewrite() so it gets its own weight and
+        // must establish the breaker itself.
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -60,6 +65,9 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                 if (values == null) {
                     return null;
                 }
+
+                // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
 
                 // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
                 // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's

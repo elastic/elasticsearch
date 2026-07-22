@@ -388,6 +388,6 @@
     "ROW setA = [\"a\",\"c\"], setB = [\"a\", \"b\", \"c\"]\n| EVAL a_intersects_b = mv_intersects(setB, setA)\n| EVAL b_intersects_a = mv_intersects(setA, setB)",
     "FROM airports\n| WHERE mv_intersects(type, [\"major\"]) AND scalerank == 9\n| KEEP scalerank, name, country\n| SORT country"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

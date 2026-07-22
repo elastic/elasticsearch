@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.esql.type;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PotentiallyUnmappedSingleTypeEsFieldTests extends ESTestCase {
+public class PotentiallyUnmappedSingleTypeEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedSingleTypeEsField> {
     /** Regression against #150676. */
     public void testChildFieldsCanBeRegistered() {
         EsField mappedField = new EsField("parent", DataType.LONG, Map.of(), randomBoolean(), EsField.TimeSeriesFieldType.NONE);
@@ -38,5 +40,40 @@ public class PotentiallyUnmappedSingleTypeEsFieldTests extends ESTestCase {
         assertThat(field.getDataType(), equalTo(DataType.INTEGER));
         assertThat(field.types(), equalTo(Set.of(DataType.SHORT)));
         assertThat(field.getTypesToIndices(), equalTo(Map.of("short", Set.of("index-1"))));
+    }
+
+    @Override
+    protected PotentiallyUnmappedSingleTypeEsField createTestInstance() {
+        return new PotentiallyUnmappedSingleTypeEsField(randomMappedField(), randomMappedIndices());
+    }
+
+    @Override
+    protected PotentiallyUnmappedSingleTypeEsField copyInstance(PotentiallyUnmappedSingleTypeEsField instance, TransportVersion version) {
+        // writeContent throws UnsupportedOperationException; copy directly without going through the wire.
+        return new PotentiallyUnmappedSingleTypeEsField(
+            instance.mappedField(),
+            EsqlTestUtils.singleValue(instance.getTypesToIndices().values())
+        );
+    }
+
+    @Override
+    protected PotentiallyUnmappedSingleTypeEsField mutateInstance(PotentiallyUnmappedSingleTypeEsField instance) throws IOException {
+        var mappedField = instance.mappedField();
+        var mappedIndices = instance.mappedIndices();
+
+        if (randomBoolean()) {
+            mappedField = randomValueOtherThan(mappedField, PotentiallyUnmappedSingleTypeEsFieldTests::randomMappedField);
+        } else {
+            mappedIndices = randomValueOtherThan(mappedIndices, PotentiallyUnmappedSingleTypeEsFieldTests::randomMappedIndices);
+        }
+        return new PotentiallyUnmappedSingleTypeEsField(mappedField, mappedIndices);
+    }
+
+    private static EsField randomMappedField() {
+        return EsFieldTestUtils.randomEsField(4);
+    }
+
+    private static Set<String> randomMappedIndices() {
+        return randomSet(0, 3, () -> randomAlphaOfLength(3));
     }
 }

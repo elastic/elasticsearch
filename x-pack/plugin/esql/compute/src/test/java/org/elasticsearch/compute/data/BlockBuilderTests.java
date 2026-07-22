@@ -9,11 +9,13 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -205,10 +207,112 @@ public class BlockBuilderTests extends ESTestCase {
         }
     }
 
+    public void testCancelPositionEntryNullsPosition() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        try (Block.Builder builder = elementType.newBlockBuilder(3, blockFactory)) {
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));   // position 0
+            builder.beginPositionEntry();
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
+            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.appendNull();                                                       // position 1 = null
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));   // position 2
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(3));
+                assertThat(block.isNull(0), is(false));
+                assertThat(block.isNull(1), is(true));
+                assertThat(block.isNull(2), is(false));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCancelPositionEntryThenRetry() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object good = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            builder.beginPositionEntry();
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
+            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.beginPositionEntry();
+            BlockTestUtils.append(builder, good);
+            builder.endPositionEntry();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(block.isNull(0), is(false));
+                assertThat(BlockUtils.toJavaObject(block, 0), equalTo(good));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Verifies that {@code cancelPositionEntry} resets {@code hasNonNullValue} when the rollback
+     * brings {@code valueCount} back to zero. Without the reset, {@code build()} takes the
+     * constant-vector fast path and ignores the nullsMask, producing a non-null block instead of
+     * a null block.
+     */
+    public void testCancelFirstPositionEntryResetsHasNonNullValue() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            builder.beginPositionEntry();
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
+            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.appendNull();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(block.isNull(0), is(true));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Verifies that {@code BytesRefBlockBuilder.cancelPositionEntry} truncates the underlying
+     * {@code BytesRefArray} so that values appended after the cancel land at the correct offsets.
+     * Without the truncation, the offset table retains stale entries from the cancelled values
+     * and subsequent reads return the wrong bytes.
+     */
+    public void testCancelPositionEntryBytesRefRollsBackArray() {
+        assumeTrue("Only applicable to BytesRef", elementType == ElementType.BYTES_REF);
+        BytesRef alpha = new BytesRef("alpha");
+        BytesRef bad1 = new BytesRef("bad1_value");
+        BytesRef bad2 = new BytesRef("bad2_value_longer");
+        BytesRef gamma = new BytesRef("gamma");
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(alpha);           // position 0
+            builder.beginPositionEntry();
+            builder.appendBytesRef(bad1);
+            builder.appendBytesRef(bad2);
+            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.appendNull();                    // position 1 = null
+            builder.appendBytesRef(gamma);           // position 2
+            try (BytesRefBlock block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(3));
+                assertThat(block.isNull(0), is(false));
+                assertThat(block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()), equalTo(alpha));
+                assertThat(block.isNull(1), is(true));
+                assertThat(block.isNull(2), is(false));
+                assertThat(block.getBytesRef(block.getFirstValueIndex(2), new BytesRef()), equalTo(gamma));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     private void assumeMultiValued() {
         assumeTrue(
             "Type must support multi-values",
             elementType != ElementType.AGGREGATE_METRIC_DOUBLE && elementType != ElementType.LONG_RANGE
+        );
+    }
+
+    private void assumeAbstractBlockBuilder() {
+        assumeTrue(
+            "Type must use AbstractBlockBuilder",
+            elementType != ElementType.EXPONENTIAL_HISTOGRAM && elementType != ElementType.TDIGEST
         );
     }
 }

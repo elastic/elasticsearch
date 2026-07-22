@@ -59,10 +59,35 @@ public class DatasetResolver {
      * Completes {@code listener} with the rewritten plan (or the untouched plan when no relation qualifies).
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
      * dataset) propagate as-is.
+     *
+     * <p>When federation is suppressed (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
+     * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
+     * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      */
     public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        // Cheap short-circuit: no datasets registered → the CRUD layer (gated by the external-datasources feature flag)
-        // never put any into cluster state, so no FROM can target one. No dispatch, no walk cost on the common path.
+        replaceDatasets(parsed, projectMetadata, listener, Federation.isAvailable());
+    }
+
+    /**
+     * Package-private overload that accepts the federation-enabled state as a parameter, allowing unit tests to exercise
+     * the kill-switch branch without relying on the {@code static final} field in {@link Federation}.
+     */
+    void replaceDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        ActionListener<LogicalPlan> listener,
+        boolean federationEnabled
+    ) {
+        // Federation suppressed: do not attempt any dataset resolution, so the feature is indistinguishable from one
+        // that was never registered (the FROM <dataset> name resolves as an unknown index). The EsqlResolveDatasetAction
+        // is also unregistered in this mode, so dispatching it here would fail; skipping is both correct and required.
+        if (federationEnabled == false) {
+            listener.onResponse(parsed);
+            return;
+        }
+
+        // Cheap short-circuit: no datasets registered → no FROM can target one, so no dispatch and no walk cost on the
+        // common path.
         Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
         if (datasetNames.isEmpty()) {
             listener.onResponse(parsed);

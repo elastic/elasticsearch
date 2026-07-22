@@ -3,6 +3,9 @@
         "@timestamp": {
             "type": "date"
         },
+        "ingested": {
+            "type": "date"
+        },
         "category": {
             "type": "keyword"
         },

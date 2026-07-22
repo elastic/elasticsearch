@@ -42,10 +42,28 @@ public class EqlRequestsTests extends ESTestCase {
     public void testOptionalTuning() {
         EqlSearchRequest request = EqlRequests.build(
             "process where true",
-            Map.of("indices", "logs", "size", 42, "timestamp_field", "ts", "event_category_field", "cat", "result_position", "head")
+            Map.of(
+                "indices",
+                "logs",
+                "size",
+                42,
+                "fetch_size",
+                500,
+                "timestamp_field",
+                "ts",
+                "tiebreaker_field",
+                "seq",
+                "event_category_field",
+                "cat",
+                "result_position",
+                "head"
+            )
         );
         assertThat(request.size(), equalTo(42));
+        assertThat(request.fetchSize(), equalTo(500));
         assertThat(request.timestampField(), equalTo("ts"));
+        assertThat(request.tiebreakerField(), equalTo("seq"));
         assertThat(request.eventCategoryField(), equalTo("cat"));
+        assertThat(request.resultPosition(), equalTo("head"));
     }
 }

@@ -185,3 +185,18 @@ resolved by EQL's own cross-cluster support:
 ```esql
 EQL "process where process.name == \"regsvr32.exe\"" WITH { "indices": "my_remote:my-data-stream" }
 ```
+
+### Unsupported EQL search API options
+
+Some [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search)
+request parameters are not exposed as `WITH` options. Several have {{esql}} equivalents you can use
+instead:
+
+* `filter` (Query DSL) — filter with a downstream `WHERE` command.
+* `fields` — the whole document is available in `_source`; extract from it downstream.
+* async execution (`keep_alive`, `wait_for_completion_timeout`, `keep_on_completion`) — use the
+  {{esql}} [async query API](/reference/query-languages/esql/esql-rest.md).
+
+The following have no equivalent and are not currently supported: `runtime_mappings`,
+`max_samples_per_key`, `ccs_minimize_roundtrips`, and the partial-results parameters
+(`allow_partial_search_results`, `allow_partial_sequence_results`).

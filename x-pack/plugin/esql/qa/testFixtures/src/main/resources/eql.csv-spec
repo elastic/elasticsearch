@@ -25,6 +25,19 @@ count:long
 1
 ;
 
+eventQueryHonorsCustomTimestampAndTiebreakerFields
+required_capability: eql_command
+
+// Uses a non-default timestamp field (ingested) and a tiebreaker field (pid) to exercise those options
+// end to end against the EQL engine; the query still resolves the two process events correctly.
+EQL "process where true" WITH {"indices": "eql_test", "event_category_field": "category", "timestamp_field": "ingested", "tiebreaker_field": "pid"}
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
 sequenceQueryUnnestsToOneRowPerEvent
 required_capability: eql_command
 

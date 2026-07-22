@@ -961,13 +961,13 @@ public class IndexEngine extends InternalEngine {
     }
 
     private void onMergeEnqueued(OnGoingMerge merge) {
-        var count = queuedOrRunningMergesCount.incrementAndGet();
-        assert count > 0;
+        var queuedOrRunningMerges = queuedOrRunningMergesCount.incrementAndGet();
+        assert queuedOrRunningMerges > 0;
     }
 
     private void onMergeExecutedOrAborted(OnGoingMerge merge) {
-        var count = queuedOrRunningMergesCount.decrementAndGet();
-        assert count >= 0;
+        var remainingMerges = queuedOrRunningMergesCount.decrementAndGet();
+        assert remainingMerges >= 0;
     }
 
     public boolean hasQueuedOrRunningMerges() {

@@ -73,10 +73,6 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
         return (IbmWatsonxServiceSettings) super.getServiceSettings();
     }
 
-    public IbmWatsonxServiceSettings rateLimitServiceSettings() {
-        return getServiceSettings();
-    }
-
     public BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator() {
         return authHeaderDecorator;
     }

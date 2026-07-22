@@ -63,13 +63,7 @@ public abstract class IbmWatsonxServiceSettings extends FilteredXContentObject i
         parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareString(Builder::setProjectId, new ParseField(PROJECT_ID));
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
+        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
         // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
         parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
@@ -233,13 +227,7 @@ public abstract class IbmWatsonxServiceSettings extends FilteredXContentObject i
      * declared so that a strict update parser rejects attempts to change them.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        StatefulValue.declareNullable(
-            parser,
-            (update, value) -> update.rateLimitSettings = value,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME),
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
+        RateLimitSettings.declareUpdatableRateLimitSettings(parser, CommonUpdate::setRateLimitSettings);
     }
 
     /**
@@ -249,6 +237,10 @@ public abstract class IbmWatsonxServiceSettings extends FilteredXContentObject i
     public static class CommonUpdate {
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps

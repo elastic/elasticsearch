@@ -1481,6 +1481,15 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code SemiJoin}, {@code AntiJoin}, or {@code MarkJoin}
+         * nodes when their left side is an empty {@link org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation}.
+         * Without the fix, a {@code WHERE field IN (subquery) AND false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang because the remaining {@code match()} evaluator found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_IN_SUBQUERY,
+
         /**
          * Support for views in cluster state (and REST API).
          */

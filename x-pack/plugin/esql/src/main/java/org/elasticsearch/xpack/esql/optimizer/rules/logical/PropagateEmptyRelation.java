@@ -58,7 +58,12 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         }
         if (plan instanceof Join join && join.left() instanceof LocalRelation lr && lr.hasEmptySupplier()) {
             var type = join.config().type();
-            if (type == JoinTypes.LEFT || type == JoinTypes.INNER || type == JoinTypes.CROSS) {
+            if (type == JoinTypes.LEFT
+                || type == JoinTypes.INNER
+                || type == JoinTypes.CROSS
+                || type == JoinTypes.SEMI
+                || type == JoinTypes.ANTI
+                || type == JoinTypes.MARK) {
                 return new LocalRelation(join.source(), join.output(), EmptyLocalSupplier.EMPTY);
             }
         }

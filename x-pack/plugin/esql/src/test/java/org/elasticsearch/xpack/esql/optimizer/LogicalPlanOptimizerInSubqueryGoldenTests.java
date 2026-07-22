@@ -202,6 +202,91 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES, TransportVersion.current());
     }
 
+    // -- PropagateEmptyRelation through SEMI / ANTI / MARK join tests --
+
+    public void testPropagateEmptyRelationThroughSemiJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Empty right side (subquery itself produces nothing via WHERE false).
+    // PropagateEmptyRelation currently only handles the empty-left case.
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Both sides empty: left becomes LocalRelation(EMPTY) via PruneFilters(WHERE false), right via WHERE false in subquery.
+    // PropagateEmptyRelation fires on the left and collapses the join.
+
+    public void testPropagateEmptyRelationThroughSemiJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Empty left side cascading through downstream operators.
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithDownstreamKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | KEEP emp_no, first_name
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithDownstreamStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
     // -- IN / NOT IN subqueries referencing views --
 
     public void testInSubqueryReferencingView() {

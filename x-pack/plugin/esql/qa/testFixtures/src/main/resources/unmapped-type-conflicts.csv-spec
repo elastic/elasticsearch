@@ -171,6 +171,51 @@ sample_data    | Connection error
 sample_data    | Connection error
 ;
 
+typeConflictWithUnmappedToTextAndMatchPhrase
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+required_capability: fn_match_phrase_runtime_filter
+required_capability: match_phrase_function
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL message_text = TO_TEXT(message)
+| WHERE MATCH_PHRASE(message_text, "Connection error")
+| KEEP _index, message, message_text
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword   | message_text:text
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+;
+
+typeConflictWithUnmappedKeywordAndMatchPhrase
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_match_phrase_unmapped_fields_pushdown_fix
+required_capability: match_phrase_function
+
+// match_phrase on a keyword expression requires the exact value; the value only exists in the unmapped index, so a
+// pushed-down Lucene query (which cannot see unmapped fields) would wrongly return no rows at all
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE MATCH_PHRASE(message, "Connection error?")
+| KEEP _index, message
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+;
+
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
@@ -779,6 +824,31 @@ SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
 | EVAL gender_text = TO_TEXT(gender)
 | WHERE gender_text:"f"
+| KEEP emp_no, gender_text, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | gender_text:text | _index:keyword
+10002          | F                | employees_gender_text
+10002          | F                | employees_no_gender
+10006          | F                | employees_gender_text
+10006          | F                | employees_no_gender
+10007          | F                | employees_gender_text
+10007          | F                | employees_no_gender
+;
+
+typeConflictPartiallyUnmappedTextFieldToTextAndMatchPhrase
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
+required_capability: fn_match_phrase_runtime_filter
+required_capability: match_phrase_function
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| WHERE MATCH_PHRASE(gender_text, "f")
 | KEEP emp_no, gender_text, _index
 | SORT emp_no, _index
 | LIMIT 6

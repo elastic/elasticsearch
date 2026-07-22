@@ -3,10 +3,10 @@
 #
 # elasticsearch-agentic-workflow
 #
-# On-demand agentic CI workflows powered by the self-contained pi-agent CLI
-# (https://github.com/elastic/rene-bk-experiments). pi runs directly on the
-# agent — no remote pipeline trigger and no .pi/ config in this repo. The
-# pre-command hook bootstraps pi-agent and injects secrets when USE_PI_AGENT=true.
+# On-demand agentic CI workflows powered by the self-contained archimedes CLI
+# (https://github.com/elastic/rene-bk-experiments). archimedes runs directly on
+# the agent — no remote pipeline trigger and no agent config in this repo. The
+# pre-command hook bootstraps archimedes and injects secrets when USE_ARCHIMEDES=true.
 #
 # Supported workflows:
 #   test-analysis          — analyse a test-failure issue        (needs ISSUE_URL)
@@ -29,63 +29,30 @@ env:
   PR_URL:    "${PR_URL:-}"
 
 steps:
-  # ── Optional input (skipped when WORKFLOW + a URL are already set) ───────────
-  - input: ":pencil: Pi — configure workflow"
-    key: pi-input
-    if: build.env("WORKFLOW") == null || build.env("WORKFLOW") == ""
-    fields:
-      - select: "Workflow"
-        key:     WORKFLOW
-        default: "test-analysis"
-        options:
-          - { label: "Test failure analysis", value: "test-analysis"         }
-          - { label: "Fix a pull request",    value: "pull-request-fix"       }
-          - { label: "Create a pull request", value: "pull-request-creation"  }
-      - text: "Issue URL"
-        key:  ISSUE_URL
-        hint: "https://github.com/elastic/elasticsearch/issues/N (test-analysis / pull-request-creation)"
-        required: false
-      - text: "Pull request URL"
-        key:  PR_URL
-        hint: "https://github.com/elastic/elasticsearch/pull/N (pull-request-fix)"
-        required: false
-
-  # ── Run pi-agent ─────────────────────────────────────────────────────────────
-  - label: ":robot_face: Pi — :workflow:"
-    key: pi-run
-    depends_on: pi-input
+  # ── Run archimedes ───────────────────────────────────────────────────────────
+  - label: ":robot_face: Archimedes — :workflow:"
+    key: archimedes-run
     timeout_in_minutes: 60
     env:
-      USE_PI_AGENT: "true"
+      USE_ARCHIMEDES: "true"
+      ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
     agents:
       provider:       gcp
       image:          family/elasticsearch-ubuntu-2404
-      machineType:    n4-standard-16
+      # The archimedes-run agent is an I/O-bound orchestrator (LLM/gh/git calls); it does
+      # NOT build Elasticsearch — reproduction runs on its own n4-standard-64 job.
+      # 4 vCPU is plenty; the full-history mirror checkout is the only heavy step.
+      machineType:    n4-standard-4
       diskType:       hyperdisk-balanced
       buildDirectory: /dev/shm/bk
     retry:
       automatic:
         - exit_status: "*"
           limit: 1
-    command: |
-      set -euo pipefail
-
-      case "${WORKFLOW}" in
-        test-analysis)
-          [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for test-analysis" >&2; exit 1; }
-          pi-agent analyze --issue-url "${ISSUE_URL}"
-          ;;
-        pull-request-fix)
-          [[ -n "${PR_URL:-}" ]] || { echo "PR_URL is required for pull-request-fix" >&2; exit 1; }
-          pi-agent fix-pr --pr-url "${PR_URL}"
-          ;;
-        pull-request-creation)
-          [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for pull-request-creation" >&2; exit 1; }
-          pi-agent create --issue-url "${ISSUE_URL}"
-          ;;
-        *)
-          echo "Unknown or unset WORKFLOW: '${WORKFLOW:-}'" >&2
-          echo "Expected one of: test-analysis, pull-request-fix, pull-request-creation" >&2
-          exit 1
-          ;;
-      esac
+    # Single entry point: `archimedes ci` owns the whole CI envelope — input
+    # validation, session download/upload (spot-preemption resume), the in-process
+    # sandbox, dispatch to the analyze/fix-pr/create workflow, and the start/finish
+    # progress annotations. It reads WORKFLOW/ISSUE_URL/PR_URL from the step env
+    # (set above), so no YAML interpolation is needed. This is all a consuming
+    # repo (e.g. elasticsearch-serverless) needs beyond bootstrapping archimedes.
+    command: archimedes ci

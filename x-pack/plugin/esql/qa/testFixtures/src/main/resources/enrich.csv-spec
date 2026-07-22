@@ -530,6 +530,7 @@ Very Tall      | 2.0        | 2.1        | 20
 
 enrichDecadesStats
 required_capability: enrich_load
+required_capability: date_range_field_type_v6
 
 FROM employees
 | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description

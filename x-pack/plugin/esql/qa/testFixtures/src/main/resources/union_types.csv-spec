@@ -264,6 +264,32 @@ emp_no:integer | _index:keyword        | gender_text:text
 10007          | employees_gender_text | F
 ;
 
+multiIndexKeywordTextToTextAndMatchPhrase
+required_capability: fn_to_text
+required_capability: union_types
+required_capability: index_metadata_field
+required_capability: fn_match_phrase_runtime_filter
+required_capability: match_phrase_function
+
+// the lowercase query only matches the uppercase values through the analyzed runtime path: a query pushed down to
+// the keyword-mapped index would look for the exact term "f" and miss them
+FROM employees, employees_gender_text METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| WHERE MATCH_PHRASE(gender_text, "f")
+| KEEP emp_no, _index, gender_text
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | _index:keyword        | gender_text:text
+10002          | employees             | F
+10002          | employees_gender_text | F
+10006          | employees             | F
+10006          | employees_gender_text | F
+10007          | employees             | F
+10007          | employees_gender_text | F
+;
+
 
 // client_ip is ip in sample_data and keyword in sample_data_str. TO_TEXT only accepts
 // keyword/text, so applying it directly to this union fails to resolve (see

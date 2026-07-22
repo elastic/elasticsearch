@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Strings;
@@ -99,14 +100,18 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         );
 
         // All nodes are above the high watermark, but the feature is disabled — no reroute should be triggered.
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         randNodeIds(between(1, 3)).forEach(
-            nodeId -> estimatedHeapUsages.put(
+            nodeId -> nodeHeapMetrics.put(
                 nodeId,
-                new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
+                new NodeHeapMetrics(
+                    nodeId,
+                    totalBytesPerNode,
+                    validHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
+                )
             )
         );
-        monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(estimatedHeapUsages).build());
+        monitor.onNewInfo(ClusterInfo.builder().nodeHeapMetrics(nodeHeapMetrics).build());
 
         verifyNoInteractions(rerouteService);
     }
@@ -129,35 +134,39 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 Level.DEBUG,
                 Strings.format(
                     "estimated heap usages exceeded the high watermark [%.2f] for nodes * triggering reroute",
-                    (highWatermarkPercentage * 100 / 100.0)
+                    (double) highWatermarkPercentage
                 )
             );
             mockLog.addExpectation(expectation);
 
             // Initially all nodes are below the high watermark — no reroute.
-            final Map<String, EstimatedHeapUsage> initialUsages = new HashMap<>();
+            final Map<String, NodeHeapMetrics> initialUsages = new HashMap<>();
             final var nodeIds = randNodeIds(between(2, 3));
             nodeIds.forEach(
                 nodeId -> initialUsages.put(
                     nodeId,
-                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                    new NodeHeapMetrics(
+                        nodeId,
+                        totalBytesPerNode,
+                        validHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage - 1) / 100)
+                    )
                 )
             );
-            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(initialUsages).build());
+            monitor.onNewInfo(ClusterInfo.builder().nodeHeapMetrics(initialUsages).build());
             mockLog.assertAllExpectationsMatched();
 
             // One node exceeds the high watermark — reroute should fire.
-            final Map<String, EstimatedHeapUsage> updatedUsages = new HashMap<>(initialUsages);
+            final Map<String, NodeHeapMetrics> updatedUsages = new HashMap<>(initialUsages);
             updatedUsages.put(
                 nodeIds.get(0),
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeIds.get(0),
                     totalBytesPerNode,
-                    totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100
+                    validHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
                 )
             );
             expectation.setExpectSeen();
-            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(updatedUsages).build());
+            monitor.onNewInfo(ClusterInfo.builder().nodeHeapMetrics(updatedUsages).build());
             mockLog.assertAllExpectationsMatched();
 
             // An additional node exceeds the high watermark — reroute should fire again.
@@ -168,20 +177,20 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     Level.DEBUG,
                     Strings.format(
                         "estimated heap usages exceeded the high watermark [%.2f] for nodes * triggering reroute",
-                        (highWatermarkPercentage * 100 / 100.0)
+                        (double) highWatermarkPercentage
                     )
                 )
             );
-            final Map<String, EstimatedHeapUsage> moreUsages = new HashMap<>(updatedUsages);
+            final Map<String, NodeHeapMetrics> moreUsages = new HashMap<>(updatedUsages);
             moreUsages.put(
                 nodeIds.get(1),
-                new EstimatedHeapUsage(
+                new NodeHeapMetrics(
                     nodeIds.get(1),
                     totalBytesPerNode,
-                    totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100
+                    validHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
                 )
             );
-            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(moreUsages).build());
+            monitor.onNewInfo(ClusterInfo.builder().nodeHeapMetrics(moreUsages).build());
             mockLog.assertAllExpectationsMatched();
 
             // One node drops below the high watermark — no reroute (set shrank, not grew).
@@ -193,12 +202,16 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     "estimated heap usages exceeded the high watermark * triggering reroute"
                 )
             );
-            final Map<String, EstimatedHeapUsage> reducedUsages = new HashMap<>(moreUsages);
+            final Map<String, NodeHeapMetrics> reducedUsages = new HashMap<>(moreUsages);
             reducedUsages.put(
                 nodeIds.get(0),
-                new EstimatedHeapUsage(nodeIds.get(0), totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                new NodeHeapMetrics(
+                    nodeIds.get(0),
+                    totalBytesPerNode,
+                    validHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                )
             );
-            monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(reducedUsages).build());
+            monitor.onNewInfo(ClusterInfo.builder().nodeHeapMetrics(reducedUsages).build());
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -214,7 +227,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 Level.DEBUG,
                 Strings.format(
                     "estimated heap usages dropped below the low watermark [%.2f] for nodes * triggering reroute",
-                    (lowWatermarkPercentage * 100 / 100.0)
+                    (double) lowWatermarkPercentage
                 )
             );
             mockLog.addExpectation(expectation);
@@ -227,23 +240,20 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             // Heap usages from one or more nodes drop below the low watermark, triggering reroute
             final AtomicBoolean heapUsageReduced = new AtomicBoolean(false);
             final var updatedClusterInfo = ClusterInfo.builder()
-                .estimatedHeapUsages(
-                    clusterInfo.getEstimatedHeapUsages()
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-                            final EstimatedHeapUsage estimatedHeapUsage = entry.getValue();
-                            if (estimatedHeapUsage.estimatedUsageAsPercentage() > lowWatermarkPercentage
-                                && (heapUsageReduced.compareAndSet(false, true) || randomBoolean())) {
-                                return new EstimatedHeapUsage(
-                                    estimatedHeapUsage.nodeId(),
-                                    estimatedHeapUsage.totalBytes(),
-                                    estimatedHeapUsage.totalBytes() * between(0, lowWatermarkPercentage) / 100
-                                );
-                            } else {
-                                return estimatedHeapUsage;
-                            }
-                        }))
+                .nodeHeapMetrics(
+                    clusterInfo.getNodeHeapMetrics().entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
+                        final NodeHeapMetrics nodeHeapMetrics = entry.getValue();
+                        if (nodeHeapMetrics.estimatedUsageAsPercentage() > lowWatermarkPercentage
+                            && (heapUsageReduced.compareAndSet(false, true) || randomBoolean())) {
+                            return new NodeHeapMetrics(
+                                nodeHeapMetrics.nodeId(),
+                                nodeHeapMetrics.totalBytes(),
+                                validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage) / 100)
+                            );
+                        } else {
+                            return nodeHeapMetrics;
+                        }
+                    }))
                 )
                 .build();
             expectation.setExpectSeen();
@@ -292,25 +302,33 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
 
     private ClusterInfo createClusterInfo(int lowWatermarkPercentage, int numNodesAboveLowWatermark) {
         assert lowWatermarkPercentage >= 0 && lowWatermarkPercentage < 100 : lowWatermarkPercentage;
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         final var nodeIdsAboveLowWatermark = randNodeIds(numNodesAboveLowWatermark);
         nodeIdsAboveLowWatermark.forEach(nodeId -> {
-            estimatedHeapUsages.put(
+            nodeHeapMetrics.put(
                 nodeId,
-                new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(lowWatermarkPercentage + 1, 100) / 100)
+                new NodeHeapMetrics(
+                    nodeId,
+                    totalBytesPerNode,
+                    validHeapEstimate(totalBytesPerNode * between(lowWatermarkPercentage + 1, 100) / 100)
+                )
             );
         });
 
         if (nodeIdsAboveLowWatermark.isEmpty() || randomBoolean()) {
             randOtherNodeIds(between(1, 3)).forEach(nodeId -> {
-                estimatedHeapUsages.put(
+                nodeHeapMetrics.put(
                     nodeId,
-                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, lowWatermarkPercentage) / 100)
+                    new NodeHeapMetrics(
+                        nodeId,
+                        totalBytesPerNode,
+                        validHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage) / 100)
+                    )
                 );
             });
         }
 
-        return ClusterInfo.builder().estimatedHeapUsages(estimatedHeapUsages).build();
+        return ClusterInfo.builder().nodeHeapMetrics(nodeHeapMetrics).build();
     }
 
     private List<String> randNodeIds(int n) {
@@ -319,5 +337,9 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
 
     private List<String> randOtherNodeIds(int n) {
         return IntStream.range(0, n).mapToObj(id -> "other-node-" + id).toList();
+    }
+
+    private NodeHeapEstimates validHeapEstimate(long totalHeapUsageBytes) {
+        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes));
     }
 }

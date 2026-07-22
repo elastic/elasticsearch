@@ -99,19 +99,16 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final int highlighterNumberOfFragments;
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
-    // The memory index, its reader, and one highlighter per ON field are all built once and reused across every row
-    // (and every page) processed by this operator instance. This is safe because the operator is single-threaded per
-    // driver and process(Page) is called serially: no two rows are ever "in flight" on this state at once. Reusing
-    // them removes per-row allocation of a MemoryIndex/BytesRefHash and a UnifiedHighlighter.Builder, mirroring
-    // Lucene's own MemoryIndexOffsetStrategy, which resets a single MemoryIndex per document rather than recreating
-    // it (see that class's constructor comment: "appears to be re-usable").
+    // Built once and reused across every row and page processed by this operator instance, since the operator is
+    // single-threaded per driver and process(Page) runs serially: no two rows are ever in flight at once. Reuse
+    // avoids allocating a new MemoryIndex/BytesRefHash and UnifiedHighlighter.Builder per row, mirroring Lucene's
+    // own MemoryIndexOffsetStrategy, which resets a single MemoryIndex per document instead of recreating it.
     private final MemoryIndex memoryIndex;
     private final LeafReader memoryIndexReader;
     private final CustomUnifiedHighlighter[] highlighters;
     // Matcher for tokens the query could possibly match, or null when filtering is disabled for this query (see
-    // buildKeepWordMatcher). Restricting indexing to only these tokens is the Phase 2 optimization: hashing and
-    // sorting inside MemoryIndex.storeTerms/createSearcher scale with the number of distinct terms in the row, but
-    // the highlighter only ever looks up query terms, so indexing everything else is pure waste.
+    // buildKeepWordMatcher). Hashing and sorting inside MemoryIndex.storeTerms/createSearcher scale with the number
+    // of distinct terms in a row, but the highlighter only ever looks up query terms, so indexing the rest is waste.
     private final CharArrayMatcher keepWordMatcher;
 
     public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
@@ -168,26 +165,25 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Matcher for tokens the query could possibly need — either to highlight, or to correctly decide whether a row
-     * matches at all — or {@code null} when the query contains clauses whose terms cannot be enumerated
-     * (multi-term/automaton queries, unknown leaves) — in that case every token is indexed, as before.
+     * Matcher for tokens the query needs, either to highlight or to decide whether a row matches at all. Returns
+     * {@code null} when the query contains clauses whose terms cannot be enumerated (multi-term/automaton queries,
+     * unknown leaves), in which case every token is indexed, as before.
      * <p>
      * Union across ON fields is intentional: one matcher is built from all query terms regardless of field. Keeping
-     * a token in field B's postings that only field A's query mentions is harmless — the highlighter looks up
-     * {@code field:term} postings, so it can never produce a false highlight from an over-kept token. Splitting the
-     * matcher per field is a possible later micro-optimization, not needed here.
+     * a token in field B's postings that only field A's query mentions is harmless: the highlighter looks up
+     * {@code field:term} postings, so an over-kept token can never produce a false highlight. Splitting the matcher
+     * per field is a possible later micro-optimization, not needed here.
      * <p>
      * {@code MUST_NOT} terms are deliberately kept, even though the highlighter never wraps them in tags. Unlike
-     * Lucene's {@code MemoryIndexOffsetStrategy} (which only ever runs highlighting on a document some outer query
-     * engine has already confirmed matches, against the real index), this operator's per-row memory index is the
-     * *only* thing that decides whether the row matches — {@link CustomUnifiedHighlighter#highlightField}
-     * re-evaluates the query against it. Dropping a {@code MUST_NOT} term from the index would erase the evidence
-     * needed to exclude the row, turning a real non-match into a false highlight. Keeping it costs nothing extra in
-     * the common case (prohibited terms are rare) and preserves exact parity with the unfiltered behavior.
+     * Lucene's {@code MemoryIndexOffsetStrategy}, which only highlights a document some outer query engine has
+     * already confirmed matches against the real index, this operator's per-row memory index is the only thing
+     * that decides whether the row matches: {@link CustomUnifiedHighlighter#highlightField} re-evaluates the query
+     * against it. Dropping a {@code MUST_NOT} term from the index would erase the evidence needed to exclude the
+     * row, turning a real non-match into a false highlight. Keeping it costs nothing extra in the common case
+     * (prohibited terms are rare) and preserves exact parity with the unfiltered behavior.
      * <p>
-     * Any other non-enumerable leaf disables filtering entirely (conservative): a dropped token can never be
-     * highlighted, so under-keeping would cause wrong results, while over-keeping (i.e. not filtering at all) only
-     * costs performance.
+     * Any other non-enumerable leaf disables filtering entirely, since under-keeping a token would break
+     * highlighting while over-keeping (not filtering at all) only costs performance.
      */
     private static CharArrayMatcher buildKeepWordMatcher(Query query) {
         List<BytesRef> terms = new ArrayList<>();
@@ -202,18 +198,18 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
             @Override
             public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
-                unfilterable[0] = true; // wildcard/prefix/regexp etc. — cannot enumerate safely
+                unfilterable[0] = true; // wildcard/prefix/regexp etc., cannot enumerate safely
             }
 
             @Override
             public void visitLeaf(Query q) {
-                unfilterable[0] = true; // leaf that reported no terms — we don't know what it matches
+                unfilterable[0] = true; // leaf that reported no terms, we don't know what it matches
             }
 
             @Override
             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                // QueryVisitor's own default implementation returns EMPTY_VISITOR for MUST_NOT, skipping its terms
-                // entirely. That default is wrong for us (see this method's Javadoc on MUST_NOT above), so every
+                // QueryVisitor's default implementation returns EMPTY_VISITOR for MUST_NOT, skipping its terms
+                // entirely. That default is wrong here (see this method's Javadoc on MUST_NOT above), so every
                 // occur, including MUST_NOT, must keep recursing into this same visitor.
                 return this;
             }
@@ -329,7 +325,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
         if (fillRowIndex(fields)) {
             // The query can't match anything kept from this row and no_match_size == 0, so every field's output is
-            // null by definition — skip building highlighters' passages entirely.
+            // null by definition. Skip building highlighters' passages entirely.
             appendNulls(fields);
             return;
         }
@@ -349,11 +345,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     // Refills the shared memory index for the current row. reset() clears previously indexed fields/terms so each
     // row starts from an empty index; the index, its reader, and the highlighters below are otherwise untouched.
-    // When keepWordMatcher is non-null, only tokens the query could match are indexed (Phase 2): the rest are
-    // dropped before they ever reach MemoryIndex.addField, so hashing and sorting only ever see query terms.
-    // Returns true when the caller can short-circuit straight to nulls: nothing was kept anywhere in the row *and*
-    // no_match_size is 0 (with no_match_size > 0 a miss must still return leading text, which requires running the
-    // highlighter — this guard must not skip that case).
+    // When keepWordMatcher is non-null, only tokens the query could match are indexed: the rest are dropped before
+    // they ever reach MemoryIndex.addField, so hashing and sorting only ever see query terms.
+    // Returns true when the caller can short-circuit straight to nulls: nothing was kept anywhere in the row and
+    // no_match_size is 0. With no_match_size > 0 a miss must still return leading text, which requires running the
+    // highlighter, so this guard must not skip that case.
     private boolean fillRowIndex(HighlightField[] fields) {
         memoryIndex.reset();
         int keptTokens = 0;
@@ -363,7 +359,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             }
             if (keepWordMatcher == null) {
                 memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
-                keptTokens = -1; // unknown — never short-circuit without filtering
+                keptTokens = -1; // unknown, never short-circuit without filtering
             } else {
                 TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
                 KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepWordMatcher);

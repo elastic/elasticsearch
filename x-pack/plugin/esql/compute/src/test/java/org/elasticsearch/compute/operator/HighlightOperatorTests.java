@@ -329,9 +329,9 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    // Phase 1 reuse tests: the memory index, its reader, and the per-field highlighters are now built once in the
-    // constructor and reused across rows/pages (see HighlightOperator's field comment). Each test below targets a
-    // specific stale-state bug that kind of reuse could introduce if reset() or highlighter caching were wrong.
+    // The memory index, its reader, and the per-field highlighters are built once in the constructor and reused
+    // across rows and pages (see HighlightOperator's field comment). Each test below targets a specific stale-state
+    // bug that reuse could introduce if reset() or highlighter caching were wrong.
 
     public void testReusedIndexDoesNotLeakTermsBetweenRows() {
         // Row 2's vocabulary is completely disjoint from "fox"; if the reused index kept row 1's terms around after
@@ -433,9 +433,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    // Phase 2 filtering tests: only tokens the query can match are indexed (see HighlightOperator#buildKeepWordMatcher
-    // and #fillRowIndex). Each test below targets a specific correctness risk that dropping non-query tokens could
-    // introduce.
+    // Only tokens the query can match are indexed (see HighlightOperator#buildKeepWordMatcher and #fillRowIndex).
+    // Each test below targets a specific correctness risk that dropping non-query tokens could introduce.
 
     public void testFilteredIndexPreservesPositionsForPhrases() {
         // Row 1: "fox" and "jumps" are adjacent (positions 0,1) -> the slop-0 phrase matches.
@@ -493,8 +492,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testMultiTermQueryDisablesFiltering() {
         // PrefixQuery triggers consumeTermsMatching, which cannot be enumerated into a keep-word matcher, so
-        // filtering must be silently disabled (every token indexed, as before Phase 2) and highlighting must still
-        // produce the same output it would without filtering, including a plain miss row yielding null.
+        // filtering must be silently disabled (every token indexed) and highlighting must still produce the same
+        // output it would without filtering, including a plain miss row yielding null.
         Query prefixQuery = new PrefixQuery(new Term(CONTENT_FIELD, "fo"));
         BytesRefBlock result = highlight(
             config("fo*", 5, 0, 0),
@@ -513,7 +512,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         // MUST_NOT terms are kept in the filtered index (see buildKeepWordMatcher's Javadoc): unlike Lucene's
         // MemoryIndexOffsetStrategy, this operator's memory index is the only thing that decides whether a row
         // matches, so dropping "dog" would erase the evidence needed to correctly exclude row 1. Row 2 has no
-        // prohibited term, matches, and highlights only "fox" — "dog" never gets wrapped in tags even when kept,
+        // prohibited term, matches, and highlights only "fox". "dog" never gets wrapped in tags even when kept,
         // because the highlighter never produces spans for MUST_NOT clauses.
         Query query = new BooleanQuery.Builder().add(termQuery(CONTENT_FIELD, "fox"), BooleanClause.Occur.MUST)
             .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
@@ -533,7 +532,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testCustomAnalyzerMatchesThroughSynonyms() throws IOException {
         // The keep-word matcher compares post-analysis tokens against post-analysis query terms, so filtering must
-        // compose with whatever a custom analyzer emits — including tokens that never appear in the original text.
+        // compose with whatever a custom analyzer emits, including tokens that never appear in the original text.
         // Here the analyzer injects "automobile" as a synonym of "car": the query term can only match through the
         // injected token, so if filtering compared raw text (or dropped injected tokens) row 1 would wrongly yield
         // null. The snippet must wrap the original "car", whose offsets the injected token carries. Row 2 keeps no

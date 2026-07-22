@@ -1,6 +1,7 @@
-area: Infra/Stats
+area: Infra/Metrics
 issues:
- - 154461
+- 154461
 pr: 154646
-summary: "Fix(stats): avoid NPE in index mode stats for unknown mode on coordinator"
+summary: Fix NPE in index-mode stats aggregation when coordinator map lacks a mode
+  reported by a node
 type: bug

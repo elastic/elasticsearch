@@ -2699,6 +2699,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5) // so that relocations are fast in case of replaying translog
+            // Disable merge backlog throttling so the ForceMerge thread cannot cause indexing threads to block indefinitely
+            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), Integer.MAX_VALUE)
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
         startSearchNode();
@@ -3027,17 +3029,55 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             logger.info("exiting");
         }, "Snapshot"));
 
+        // Capture uncaught exceptions from all threads so they appear clearly in logs even when the
+        // test framework reports only "(No message provided)" for the test failure.
+        var uncaughtExceptions = new CopyOnWriteArrayList<Throwable>();
         for (Thread thread : threads) {
+            thread.setUncaughtExceptionHandler((t, e) -> {
+                logger.error("Thread [{}] died with uncaught exception", t.getName(), e);
+                uncaughtExceptions.add(e);
+            });
             thread.start();
         }
 
-        logger.info("Waiting for hollowRelocationsLatch");
-        safeAwait(hollowRelocationsLatch, TimeValue.timeValueMinutes(10));
-        logger.info("Waited for hollowRelocationsLatch");
-
-        stopThreads.set(true);
-        for (Thread thread : threads) {
-            thread.join();
+        logger.info("Waiting for hollowRelocationsLatch ({} relocations needed)", hollowRelocationsLatch.getCount());
+        try {
+            safeAwait(hollowRelocationsLatch, TimeValue.timeValueMinutes(10));
+            logger.info("Waited for hollowRelocationsLatch");
+        } finally {
+            // Always stop threads even if the latch wait times out, to avoid threads holding cluster resources
+            // during test teardown and causing a suite-level timeout.
+            stopThreads.set(true);
+            if (hollowRelocationsLatch.getCount() > 0) {
+                logger.warn(
+                    "hollowRelocationsLatch timed out with {} relocations remaining; dumping thread stack traces and cluster state",
+                    hollowRelocationsLatch.getCount()
+                );
+                for (Thread thread : threads) {
+                    logger.warn(
+                        "Thread [{}] state [{}]:\n\tat {}",
+                        thread.getName(),
+                        thread.getState(),
+                        Arrays.stream(thread.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\tat "))
+                    );
+                }
+                logger.warn(
+                    "cluster state at latch timeout:\n{}",
+                    client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
+                );
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            if (uncaughtExceptions.isEmpty() == false) {
+                var first = uncaughtExceptions.get(0);
+                AssertionError ae = new AssertionError(
+                    "One or more stress threads died with an uncaught exception: " + first.getMessage(),
+                    first
+                );
+                uncaughtExceptions.stream().skip(1).forEach(ae::addSuppressed);
+                throw ae;
+            }
         }
 
         logger.info("Waiting for ensureGreen");
@@ -3446,16 +3486,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
     }
 
     private void ensureGreenViaMasterNode(String masterNode, String index, boolean waitForEvents) {
-        var healthRequest = client(masterNode).admin()
-            .cluster()
-            .prepareHealth(TEST_REQUEST_TIMEOUT, index)
-            .setWaitForStatus(ClusterHealthStatus.GREEN)
-            .setWaitForNoInitializingShards(true)
-            .setWaitForNoRelocatingShards(true);
-        if (waitForEvents) {
-            healthRequest = healthRequest.setWaitForEvents(Priority.LANGUID);
-        }
-        final var future = healthRequest.execute();
+        // Use assertBusy to retry health checks rather than relying on a single health request window.
+        // A single ~30-second health-request timeout is not always enough when the cluster is recovering
+        // from injected failures (e.g. object-store faults), which would kill the calling thread.
         long start = System.currentTimeMillis();
         try {
             assertBusy(() -> {
@@ -3485,12 +3518,19 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             .toList()
                     );
                 }
-                assertThat(future.isDone(), equalTo(true));
-            }, 1, TimeUnit.MINUTES);
-            assertThat(future.get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+                var healthRequest = client(masterNode).admin()
+                    .cluster()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT, index)
+                    .setWaitForStatus(ClusterHealthStatus.GREEN)
+                    .setWaitForNoInitializingShards(true)
+                    .setWaitForNoRelocatingShards(true);
+                if (waitForEvents) {
+                    healthRequest = healthRequest.setWaitForEvents(Priority.LANGUID);
+                }
+                assertThat(healthRequest.get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            }, 5, TimeUnit.MINUTES);
         } catch (Exception e) {
-            assert false : "unexpected exception: " + e;
-            throw new RuntimeException(e);
+            throw new AssertionError("cluster did not become GREEN within 5 minutes", e);
         }
     }
 

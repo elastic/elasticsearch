@@ -66,6 +66,10 @@ public class APMAgentSettings {
             OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             apmTracer::setRecordExceptionStacks
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
+            apmMeterService.getMeterRegistry()::setInstrumentTimingEnabled
+        );
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }
 

@@ -1573,6 +1573,28 @@ rate_bytes_in:double | step:datetime
 8.942                | 2024-05-10T00:21:00.000Z
 ;
 
+rate_small_window_no_set_operator
+required_capability: promql_command_v0
+required_capability: promql_implicit_type_coercion
+required_capability: fix_promql_round_to_nearest
+required_capability: rate_with_interpolation_v2
+required_capability: fix_esql_small_windows
+PROMQL index=k8s step=1m rate_bytes_in=(round(avg(rate(network.bytes_in[30s])), 0.001))
+| SORT rate_bytes_in DESC, step DESC | LIMIT 10;
+
+rate_bytes_in:double | step:datetime
+38.694               | 2024-05-10T00:20:00.000Z
+33.592               | 2024-05-10T00:12:00.000Z
+31.967               | 2024-05-10T00:01:00.000Z
+25.398               | 2024-05-10T00:10:00.000Z
+16.285               | 2024-05-10T00:19:00.000Z
+15.875               | 2024-05-10T00:03:00.000Z
+15.35                | 2024-05-10T00:16:00.000Z
+14.667               | 2024-05-10T00:08:00.000Z
+7.214                | 2024-05-10T00:14:00.000Z
+7.1                  | 2024-05-10T00:09:00.000Z
+;
+
 rate_on_plain_numeric_gauge
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
@@ -1771,6 +1793,21 @@ set_union:double | step:datetime            | cluster:keyword
 7403.0           | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// Same union query on a date_nanos @timestamp index (datenanos-k8s loads the same k8s.csv). The step column must
+// still be exposed as datetime (epoch-millis), matching the plain-date variant above.
+set_operator_union_combines_series_date_nanos
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_date_nanos_step
+PROMQL index=datenanos-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
 // Left precedence: prod appears in both operands with the same grouping, so the left (max) value wins
 // over the right (sum) value.
 set_operator_union_left_precedence
@@ -1811,6 +1848,19 @@ rate_or_irate:double | step:datetime
 7.434                | 2024-05-10T00:03:00.000Z
 5.03                 | 2024-05-10T00:04:00.000Z
 14.16                | 2024-05-10T00:05:00.000Z
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152658
+set_operator_union_rate_or_irate_small_window-Ignore
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v3
+required_capability: time_series_window_smaller_than_bucket
+PROMQL index=k8s step=1m rate_or_irate=(round(avg(rate(network.bytes_in[30s])), 0.001) or round(avg(irate(network.bytes_in[5m])), 0.001))
+| SORT step | LIMIT 5;
+
+rate_or_irate:double | step:datetime
 ;
 
 // Heterogeneous groupings: the operands group by different labels (cluster vs pod), so their label sets never

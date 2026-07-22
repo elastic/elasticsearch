@@ -664,4 +664,126 @@ public class LogsdbRestIT extends ESRestTestCase {
             containsString("mapping-level runtime fields are not allowed in index using [logsdb_columnar] index mode")
         );
     }
+
+    public void testSubobjectsFalseAtRootAcceptedAsNoOpOnStandaloneIndex() throws IOException {
+        var createRequest = new Request("PUT", "/test-subobjects-root-standalone");
+        createRequest.setJsonEntity("""
+            {
+                "settings": { "index.mode": "logsdb_columnar" },
+                "mappings": {
+                    "subobjects": false,
+                    "properties": {
+                        "@timestamp": { "type": "date" },
+                        "log.level": { "type": "keyword" }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(createRequest));
+    }
+
+    public void testSubobjectsFalseOnObjectFieldAcceptedAsNoOpOnStandaloneIndex() throws IOException {
+        var createRequest = new Request("PUT", "/test-subobjects-object-standalone");
+        createRequest.setJsonEntity("""
+            {
+                "settings": { "index.mode": "logsdb_columnar" },
+                "mappings": {
+                    "properties": {
+                        "@timestamp": { "type": "date" },
+                        "host": {
+                            "type": "object",
+                            "subobjects": false,
+                            "properties": {
+                                "name": { "type": "keyword" }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(createRequest));
+    }
+
+    public void testSubobjectsFalseAtRootAcceptedAsNoOpOnDataStream() throws IOException {
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-subobjects-root-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-subobjects-root-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": { "index.mode": "logsdb_columnar" },
+                    "mappings": {
+                        "subobjects": false,
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "log.level": { "type": "keyword" }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(templateRequest));
+        assertOK(client().performRequest(new Request("PUT", "/_data_stream/logs-test-subobjects-root-dev")));
+    }
+
+    public void testSubobjectsFalseOnObjectFieldAcceptedAsNoOpOnDataStream() throws IOException {
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-subobjects-object-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-subobjects-object-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": { "index.mode": "logsdb_columnar" },
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "host": {
+                                "type": "object",
+                                "subobjects": false,
+                                "properties": {
+                                    "name": { "type": "keyword" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(templateRequest));
+        assertOK(client().performRequest(new Request("PUT", "/_data_stream/logs-test-subobjects-object-dev")));
+    }
+
+    public void testSubobjectsFalseViaComponentTemplateAcceptedAsNoOpOnDataStream() throws IOException {
+        var componentRequest = new Request("PUT", "/_component_template/test-subobjects-component");
+        componentRequest.setJsonEntity("""
+            {
+                "template": {
+                    "mappings": {
+                        "subobjects": false,
+                        "properties": {
+                            "log.level": { "type": "keyword" }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(componentRequest));
+
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-subobjects-component-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-subobjects-component-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "composed_of": ["test-subobjects-component"],
+                "template": {
+                    "settings": { "index.mode": "logsdb_columnar" }
+                }
+            }
+            """);
+        assertOK(client().performRequest(templateRequest));
+        assertOK(client().performRequest(new Request("PUT", "/_data_stream/logs-test-subobjects-component-dev")));
+    }
 }

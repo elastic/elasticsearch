@@ -509,7 +509,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
-≈    /**
+    /**
      * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
      * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
      */

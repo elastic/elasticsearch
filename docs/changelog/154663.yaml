@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154663
+summary: Pass timestamp filters to field-caps
+type: bug

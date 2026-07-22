@@ -146,11 +146,11 @@ Note that if you return both the original `location` and the extracted `x` and `
 
 {{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to compute fields at query time, the built-in equivalent of runtime fields.
 
-Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive. To learn more, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive. Loading unmapped fields from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with `SET unmapped_fields="load"` is slower than querying mapped fields, and filters or sorts on loaded fields can force a full scan. To learn more, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
 ## _source availability [esql-_source-availability]
 
-{{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
+{{esql}} does not support configurations where the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
 ## Full-text search [esql-limitations-full-text-search]
 

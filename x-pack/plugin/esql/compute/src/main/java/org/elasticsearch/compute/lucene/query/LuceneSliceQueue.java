@@ -42,6 +42,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -244,7 +245,7 @@ public final class LuceneSliceQueue {
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
-        Function<Query, PartitioningStrategy> autoStrategy,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
         int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction
@@ -265,7 +266,7 @@ public final class LuceneSliceQueue {
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
-        Function<Query, PartitioningStrategy> autoStrategy,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
         int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction,
@@ -288,7 +289,7 @@ public final class LuceneSliceQueue {
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
-        Function<Query, PartitioningStrategy> autoStrategy,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
         int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction,
@@ -600,7 +601,7 @@ public final class LuceneSliceQueue {
 
         private static PartitioningStrategy pick(
             DataPartitioning dataPartitioning,
-            Function<Query, PartitioningStrategy> autoStrategy,
+            BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
             int docThresholdForAutoStrategy,
             ShardContext ctx,
             Query query
@@ -614,7 +615,7 @@ public final class LuceneSliceQueue {
         }
 
         private static PartitioningStrategy forAuto(
-            Function<Query, PartitioningStrategy> autoStrategy,
+            BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
             ShardContext ctx,
             Query query,
             int docThresholdForAutoStrategy
@@ -622,7 +623,7 @@ public final class LuceneSliceQueue {
             if (ctx.searcher().getIndexReader().maxDoc() < docThresholdForAutoStrategy) {
                 return PartitioningStrategy.SHARD;
             }
-            return autoStrategy.apply(query);
+            return autoStrategy.apply(ctx, query);
         }
     }
 

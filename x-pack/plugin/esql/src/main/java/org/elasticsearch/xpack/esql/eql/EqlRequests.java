@@ -33,6 +33,11 @@ public final class EqlRequests {
                 Arrays.stream(indicesString.split(",")).map(String::trim).filter(s -> s.isEmpty() == false).toArray(String[]::new)
             );
             request.query(query);
+            // Fail loud rather than silently truncate: the cluster default for allow_partial_search_results is true,
+            // so a shard failure would otherwise return a clean, incomplete table. A security detection command must
+            // not present partial results as complete. Pin both to false until ESQL surfaces partial-results warnings.
+            request.allowPartialSearchResults(false);
+            request.allowPartialSequenceResults(false);
             applyOptional(request, options);
             return request;
         }

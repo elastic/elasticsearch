@@ -53,6 +53,9 @@ public class EqlSourceOperator extends SourceOperator {
     private SubscribableListener<Void> blocked;
     private volatile Page page;
     private volatile Exception failure;
+    // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
+    // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
+    private boolean closed;
 
     public EqlSourceOperator(DriverContext driverContext, Client client, EqlSearchRequest request, EqlRelation.Mode mode) {
         this.driverContext = driverContext;
@@ -74,7 +77,16 @@ public class EqlSourceOperator extends SourceOperator {
                 // response into blocks. We do not own a reference here — the EQL transport action delivers the
                 // response via respondAndRelease and releases it once this listener returns — so we must not
                 // decRef it ourselves (doing so over-releases).
-                page = EqlPageConverter.toPage(response, mode, driverContext.blockFactory());
+                Page built = EqlPageConverter.toPage(response, mode, driverContext.blockFactory());
+                synchronized (this) {
+                    if (closed) {
+                        // The operator was closed (cancellation / sibling-operator failure) before the response
+                        // arrived; release the freshly-built page here or its breaker-accounted blocks leak.
+                        built.releaseBlocks();
+                    } else {
+                        page = built;
+                    }
+                }
             } catch (Exception e) {
                 failure = e;
             } finally {
@@ -127,9 +139,12 @@ public class EqlSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        if (page != null) {
-            page.releaseBlocks();
-            page = null;
+        synchronized (this) {
+            closed = true;
+            if (page != null) {
+                page.releaseBlocks();
+                page = null;
+            }
         }
     }
 }

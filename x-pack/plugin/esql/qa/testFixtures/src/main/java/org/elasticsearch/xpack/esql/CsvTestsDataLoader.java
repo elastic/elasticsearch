@@ -406,9 +406,8 @@ public class CsvTestsDataLoader {
      * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
      * deduplicates an alias and its backing index into a single logical source.
      */
-    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(
-        new AliasConfig("employees_alias", "employees")
-    ).collect(toMap(AliasConfig::aliasName, Function.identity()));
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
+        .collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>

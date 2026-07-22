@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
@@ -490,7 +491,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
         settings.put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false);
-        settings.put(MachineLearning.NLP_ENABLED.getKey(), false);
+        settings.put(XPackSettings.NLP_ENABLED.getKey(), false);
 
         // This test works by setting up a mocks that imply trained models exist, then checking
         // that the usage stats don't mention them. This proves that the trained model APIs

@@ -111,6 +111,25 @@ public class FileSplitProvider implements SplitProvider {
     static final String FIRST_SPLIT_KEY = "_first_split";
     static final String LAST_SPLIT_KEY = "_last_split";
 
+    /**
+     * Config for a split that covers an entire file, so it is both the first and the last split of that file.
+     * <p>
+     * Readers run a split-boundary protocol off these flags: a non-first split drops its leading partial
+     * record and a non-last split drops its trailing one, because the neighbouring split owns those bytes.
+     * A whole-file split has no neighbours, so leaving the flags unstamped makes a reader discard a final
+     * record that is not newline-terminated — no other split will read it. Multi-split paths stamp the same
+     * keys on their edge splits, so after this every line-oriented split states its own position rather than
+     * leaving a whole-file read to be inferred from an absent key. Range splits are the exception: they share
+     * one config across all ranges and carry no position keys, because byte ranges are not a record-boundary
+     * protocol and their readers never consult these flags.
+     */
+    private static Map<String, Object> wholeFileSplitConfig(Map<String, Object> config) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(FIRST_SPLIT_KEY, "true");
+        splitConfig.put(LAST_SPLIT_KEY, "true");
+        return splitConfig;
+    }
+
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
     public static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
@@ -241,6 +260,10 @@ public class FileSplitProvider implements SplitProvider {
 
         // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
         // build the list of FileTask items that need I/O (footer reads, boundary scans).
+        // Tracks whether any file was dropped by the row-count-unsafe no-column-overlap heuristic:
+        // such a file still contributes rows to COUNT(*), so an all-dropped result driven by it is
+        // NOT an exhaustive prune and must fall back to a full read (see SplitDiscoveryResult).
+        boolean droppedByColumnOverlap = false;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
@@ -265,6 +288,10 @@ public class FileSplitProvider implements SplitProvider {
 
             if (fileBackedQuerySchema.isEmpty() == false && fileSchemaInfo != null) {
                 if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), fileBackedQuerySchema)) {
+                    // Row-count-unsafe: the file's rows still exist (they would be all-NULL for the query's
+                    // columns), so COUNT(*) and other row-count-sensitive queries need them. Skipping is a
+                    // best-effort optimization that relies on a full-read fallback when it empties the plan.
+                    droppedByColumnOverlap = true;
                     continue;
                 }
             }
@@ -310,8 +337,10 @@ public class FileSplitProvider implements SplitProvider {
                     if (mapping != null && mapping.isIdentity() == false) {
                         columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
                     }
-                    // Pin the reader to the coordinator's per-file inference so it doesn't re-infer
-                    // at runtime and disagree with the planner's view of this file.
+                    // Pin the reader to the coordinator's reconciled per-file read schema so it
+                    // doesn't re-infer at runtime and disagree with the planner's view of this file.
+                    // For text formats this schema already carries each widened column's reconciled
+                    // type (see SchemaReconciliation), so the reader reads at that type directly.
                     readSchema = info.fileSchema().attributes();
                 }
             }
@@ -338,7 +367,11 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         if (tasks.isEmpty()) {
-            return SplitDiscoveryResult.EMPTY;
+            // Every file was dropped. Only a resolved, non-empty file list whose files were all removed by
+            // row-count-preserving filter contradictions (no no-overlap heuristic among them) is a true
+            // exhaustive prune the phase may trust to read nothing; otherwise fall back to a full read.
+            boolean exhaustivelyPruned = fileList.fileCount() > 0 && droppedByColumnOverlap == false;
+            return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
         }
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
@@ -439,8 +472,14 @@ public class FileSplitProvider implements SplitProvider {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
-        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently.
+        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
+        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
+        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
+        if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
+            configuredReader = configuredReader.withDeclaredPathBinding(true);
+        }
 
         // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
         // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
@@ -455,7 +494,7 @@ public class FileSplitProvider implements SplitProvider {
                     0,
                     task.fileLength(),
                     task.format(),
-                    task.config(),
+                    wholeFileSplitConfig(task.config()),
                     task.partitionValues(),
                     task.columnMapping(),
                     task.readSchema()
@@ -527,7 +566,17 @@ public class FileSplitProvider implements SplitProvider {
 
         // Whole-file split when macro splitting does not apply (small files, unsupported formats, or single aligned span).
         fileSplits.add(
-            FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
+            FileSplit.withReadSchema(
+                "file",
+                filePath,
+                0,
+                fileLength,
+                format,
+                wholeFileSplitConfig(config),
+                partitionValues,
+                columnMapping,
+                readSchema
+            )
         );
         return fileSplits;
     }
@@ -573,6 +622,10 @@ public class FileSplitProvider implements SplitProvider {
     private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
         if (reader == null) {
             return false;
+        }
+        if (reader.declaredNameBindingNeedsFileStart()) {
+            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+            return true;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
         if (seg == null) {
@@ -668,7 +721,17 @@ public class FileSplitProvider implements SplitProvider {
 
             if (boundaries.length == 0) {
                 splits.add(
-                    FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
+                    FileSplit.withReadSchema(
+                        "file",
+                        filePath,
+                        0,
+                        fileLength,
+                        format,
+                        wholeFileSplitConfig(config),
+                        partitionValues,
+                        columnMapping,
+                        readSchema
+                    )
                 );
                 return true;
             }
@@ -930,6 +993,51 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Whether this split covers the start of its file, and so owns the file's leading bytes (a header line,
+     * a leading partial record that belongs to no predecessor).
+     * <p>
+     * Position — where a split sits in its file — is stamped by this class on every split it produces and read
+     * back through this method and {@link #isLastInFile}. Deriving it anywhere else risks the two answers
+     * drifting apart, which is precisely how a whole-file read came to be treated as "not the last split" and
+     * discarded its final record.
+     */
+    public static boolean isFirstInFile(FileSplit split) {
+        return split != null && ("true".equals(split.config().get(FIRST_SPLIT_KEY)) || split.offset() == 0);
+    }
+
+    /**
+     * Whether this split covers the end of its file, and so owns the file's trailing bytes. Readers key their
+     * record-boundary protocol off this: a split that is not last drops its trailing partial record because the
+     * next split re-reads those bytes, while a last split must keep it — nothing else will read it.
+     * <p>
+     * See {@link #isFirstInFile} on why position is derived here and nowhere else.
+     */
+    public static boolean isLastInFile(FileSplit split) {
+        return split != null && ("true".equals(split.config().get(LAST_SPLIT_KEY)) || legacyUnstampedWholeFile(split));
+    }
+
+    /**
+     * Recognises a whole-file split produced before this class stamped position keys, so a data node still reads
+     * such a split correctly during a rolling upgrade. Splits are built on the coordinator and sent to data nodes,
+     * so an older coordinator emits no position keys at all.
+     * <p>
+     * This is the only place an absent LAST-position key is interpreted, and it is BWC-only: delete it once no
+     * supported coordinator predates the stamping. (An absent FIRST key is read from {@code offset() == 0}
+     * permanently and by design — range splits carry no position keys at all and rely on it.) It recognises
+     * legacy shapes by ruling out every protocol that
+     * implies a split covers part of a file, which is sound only because that list is closed over the producers
+     * in this class as of the stamping change — <b>a new split shape must stamp its position keys</b> rather than
+     * rely on being absent from this list.
+     */
+    private static boolean legacyUnstampedWholeFile(FileSplit split) {
+        Map<String, Object> config = split.config();
+        return split.offset() == 0
+            && "true".equals(config.get(RECORD_ALIGNED_MACRO_SPLIT_KEY)) == false
+            && "true".equals(config.get(COMPRESSED_OFFSET_SPLIT_KEY)) == false
+            && "true".equals(config.get(RANGE_SPLIT_KEY)) == false;
+    }
+
+    /**
      * Absolute byte offsets where each macro-split starts (always begins with {@code 0}), mirroring
      * {@link ParallelParsingCoordinator#computeSegments} stride semantics with {@code targetStrideBytes}.
      */
@@ -1049,7 +1157,17 @@ public class FileSplitProvider implements SplitProvider {
             List<FrameIndex.FrameEntry> frames = index.frames();
             if (frames.isEmpty()) {
                 splits.add(
-                    FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
+                    FileSplit.withReadSchema(
+                        "file",
+                        filePath,
+                        0,
+                        fileLength,
+                        format,
+                        wholeFileSplitConfig(config),
+                        partitionValues,
+                        columnMapping,
+                        readSchema
+                    )
                 );
                 return true;
             }

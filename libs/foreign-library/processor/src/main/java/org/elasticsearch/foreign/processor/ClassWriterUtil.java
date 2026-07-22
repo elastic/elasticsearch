@@ -38,9 +38,9 @@ final class ClassWriterUtil {
     private static final ClassDesc CD_ValueLayout = ClassDesc.of("java.lang.foreign.ValueLayout");
 
     // org.elasticsearch.foreign types
-    static final ClassDesc CD_MemorySegmentAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.MemorySegmentAdapter");
-    static final ClassDesc CD_ArenaAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.ArenaAdapter");
-    static final ClassDesc CD_Addressable = ClassDesc.of("org.elasticsearch.foreign.Addressable");
+    static final ClassDesc CD_MemorySegmentAdapter = ClassDesc.of(org.elasticsearch.foreign.adapter.MemorySegmentAdapter.class.getName());
+    static final ClassDesc CD_ArenaAdapter = ClassDesc.of(org.elasticsearch.foreign.adapter.ArenaAdapter.class.getName());
+    static final ClassDesc CD_Addressable = ClassDesc.of(org.elasticsearch.foreign.Addressable.class.getName());
 
     // Widely-used java.lang.foreign method type descriptors
     static final MethodTypeDesc MTD_structLayout = MethodTypeDesc.of(CD_StructLayout, CD_MemoryLayoutArray);

@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSett
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -1494,7 +1493,7 @@ public class SearchEngine extends Engine {
 
     public void acquireSearcherForCommit(
         String segmentsFileName,
-        Map<String, BlobLocation> metadata,
+        Map<String, BlobFileRanges> metadata,
         Function<Searcher, Searcher> wrapper,
         IndexReshardingMetadata relocatedReshardingMetadata,
         SplitShardCountSummary relocatedSplitShardCountSummary,
@@ -1522,7 +1521,7 @@ public class SearchEngine extends Engine {
                 currentReaderRef = () -> readerManager.release(currentReader);
 
                 // merging metadata is necessary to allow opening an old commit from SearchDirectory
-                // TODO: transfer replicated headers/footers and pre-warm to speed up recoveries
+                // TODO: pre-warm to speed up recoveries
                 searchDirectory.mergePITReaderMetadata(metadata);
                 // The current reader directory has a reference to the store directory (directory variable)
                 // and it does a reference comparison to see if the directory is the same. Therefore we have
@@ -1553,8 +1552,8 @@ public class SearchEngine extends Engine {
                 var pitReaderManager = wrapForAssertions(new ElasticsearchReaderManager(relocatedPitReader), config());
                 relocatedPitReaderRef = () -> pitReaderManager.release(relocatedPitReader);
                 Set<PrimaryTermAndGeneration> bccDeps = new HashSet<>();
-                for (BlobLocation blobLocation : metadata.values()) {
-                    bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
+                for (BlobFileRanges blobFileRanges : metadata.values()) {
+                    bccDeps.add(blobFileRanges.getBatchedCompoundCommitTermAndGeneration());
                 }
                 // Account the PIT-relocated reader against the node's reader-heap budget so its segments
                 // participate in reservation tracking and metrics; uses the no-break path because relocation

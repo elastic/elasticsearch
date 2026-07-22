@@ -1,3 +1,8 @@
+```{applies_to}
+stack: ga
+serverless: ga
+```
+
 The only unary operator is negation (`-`):
 
 **Syntax**

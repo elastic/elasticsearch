@@ -21,7 +21,7 @@ public class RowCountPreservingTests extends ESTestCase {
     public void testRowCountPreservingExecsAreMarked() {
         assertMarked(FilterExec.class);   // only removes rows; a filter below is still sound
         assertMarked(EvalExec.class);     // adds columns, one row in one row out
-        assertMarked(ProjectExec.class);  // column selection — the lowered form of KEEP/DROP/RENAME/INSIST
+        assertMarked(ProjectExec.class);  // column selection — the lowered form of KEEP/DROP/RENAME
         assertMarked(RegexExtractExec.class);
         assertMarked(DissectExec.class);  // extends RegexExtractExec
         assertMarked(GrokExec.class);     // extends RegexExtractExec

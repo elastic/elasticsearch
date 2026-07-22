@@ -11,12 +11,11 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
-
-import java.util.Arrays;
 
 /**
  * An Elasticsearch Column Format batch: a column-major {@link SourceBatch} backed by an array
@@ -30,24 +29,44 @@ public final class EscfBatch implements SourceBatch {
 
     private final SourceSchema schema;
     private final int docCount;
-    private final EscfColumnData[] columns;
-    private final EscfColumn[] columnCache;
+    /** Original column data, kept for RAM accounting. {@code null} for slice views. */
+    @Nullable
+    private final EscfColumnData[] columnData;
+    private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
-    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columns, Releasable releasable) {
-        this(schema, docCount, columns, null, releasable);
+    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
+        this(schema, docCount, columnData, null, releasable);
     }
 
     /** Full construction path, used by {@link EscfBatchCodec#parse} once the serialized bytes are already in hand. */
-    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columns, BytesReference serialized, Releasable releasable) {
+    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, BytesReference serialized, Releasable releasable) {
         this.schema = schema;
         this.docCount = docCount;
-        this.columns = columns;
-        this.columnCache = new EscfColumn[columns.length];
+        this.columnData = columnData;
+        this.columns = buildColumns(columnData);
         this.releasable = releasable;
         this.serialized = serialized;
+    }
+
+    /** Slice construction — shares backing data with the parent via adjusted column bases. */
+    private EscfBatch(SourceSchema schema, int docCount, EscfColumn[] columns, @Nullable BytesReference serialized) {
+        this.schema = schema;
+        this.docCount = docCount;
+        this.columnData = null; // slice views share the parent's RAM; no separate accounting
+        this.columns = columns;
+        this.releasable = () -> {};
+        this.serialized = serialized;
+    }
+
+    private static EscfColumn[] buildColumns(EscfColumnData[] data) {
+        EscfColumn[] cols = new EscfColumn[data.length];
+        for (int i = 0; i < data.length; i++) {
+            cols[i] = EscfColumn.from(data[i]);
+        }
+        return cols;
     }
 
     /** Serialized construction path: parse a batch from its wire/translog bytes via {@link EscfBatchCodec}. */
@@ -67,8 +86,13 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
-            serialized = EscfBatchCodec.serialize(schema, docCount, columns);
+            EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
+            for (int i = 0; i < columns.length; i++) {
+                dataForSerialize[i] = columns[i].toColumnData();
+            }
+            serialized = EscfBatchCodec.serialize(schema, docCount, dataForSerialize);
         }
         return serialized;
     }
@@ -86,36 +110,25 @@ public final class EscfBatch implements SourceBatch {
         return new EscfRow(this, docIndex);
     }
 
-    /** The typed view for {@code columnIndex}, lazily built and cached. Package-private: used by {@link EscfRow}. */
+    /** The typed view for {@code columnIndex}. Package-private: used by {@link EscfRow}. */
     EscfColumn column(int columnIndex) {
-        EscfColumn cached = columnCache[columnIndex];
-        if (cached != null) {
-            return cached;
-        }
-        EscfColumn built = EscfColumn.from(columns[columnIndex]);
-        columnCache[columnIndex] = built;
-        return built;
+        return columns[columnIndex];
     }
 
-    /**
-     * Returns a view of this batch containing rows in {@code [from, to)}. Column data is shared with
-     * the parent via {@link BytesReference#slice}, not copied. The returned batch holds no ownership
-     * over the parent's underlying buffers — closing it is a no-op; the parent must be closed instead.
-     */
     @Override
     public SourceBatch slice(int from, int to) {
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
-        if (from == 0 && to == docCount) {
-            return new EscfBatch(schema, docCount, columns, () -> {});
-        }
         int newDocCount = to - from;
-        EscfColumnData[] newColumns = new EscfColumnData[columns.length];
+        EscfColumn[] slicedColumns = new EscfColumn[columns.length];
         for (int c = 0; c < columns.length; c++) {
-            newColumns[c] = sliceColumn(columns[c], from, newDocCount);
+            slicedColumns[c] = columns[c].sliceInternal(from, newDocCount);
         }
-        return new EscfBatch(schema, newDocCount, newColumns, () -> {});
+        // Preserve the cached serialized bytes only for a full-range slice; partial slices must be
+        // re-serialized at their new base (slices must not inherit mismatched wire bytes).
+        BytesReference slicedSerialized = (from == 0 && to == docCount) ? serialized : null;
+        return new EscfBatch(schema, newDocCount, slicedColumns, slicedSerialized);
     }
 
     @Override
@@ -128,16 +141,20 @@ public final class EscfBatch implements SourceBatch {
         if (serialized != null) {
             return serialized.length() + 64L;
         }
-        long total = 64L;
-        for (EscfColumnData col : columns) {
-            total += columnRamBytes(col);
+        if (columnData != null) {
+            long total = 64L;
+            for (EscfColumnData col : columnData) {
+                total += columnRamBytes(col);
+            }
+            return total;
         }
-        return total;
+        // Slice views share the parent's backing; the parent already accounts for all RAM.
+        return 64L;
     }
 
     /** Sums a column's own live storage plus, for ARRAY, its nested {@code child} column's storage. */
     private static long columnRamBytes(EscfColumnData col) {
-        long total = bitsetRam(col.absent()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
+        long total = bitsetRam(col.validity()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
             .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         if (col.child() != null) {
             total += columnRamBytes(col.child());
@@ -151,58 +168,5 @@ public final class EscfBatch implements SourceBatch {
 
     private static long refLen(BytesReference ref) {
         return ref == null ? 0L : ref.length();
-    }
-
-    private static EscfColumnData sliceColumn(EscfColumnData col, int from, int newCount) {
-        FixedBitSet absent = col.absent() != null ? sliceBitset(col.absent(), from, newCount) : null;
-        if (col.kind() == EscfColumnKind.ARRAY) {
-            int[] rowOffsets = col.offsets();
-            int elemFrom = rowOffsets[from];
-            int elemTo = rowOffsets[from + newCount];
-            int[] newRowOffsets = rebasedOffsets(rowOffsets, from, newCount, elemFrom);
-            // The child is a native EscfColumnData (STRING or LONG/DOUBLE), so it slices via the
-            // same generic paths below rather than hand-parsed bytes.
-            EscfColumnData childSlice = sliceColumn(col.child(), elemFrom, elemTo - elemFrom);
-            return EscfColumnData.ofArray(newCount, absent, newRowOffsets, childSlice);
-        }
-        if (col.offsets() != null) {
-            byte[] typeVector = col.typeVector() != null ? Arrays.copyOfRange(col.typeVector(), from, from + newCount) : null;
-            int[] srcOffsets = col.offsets();
-            int byteFrom = srcOffsets[from];
-            int byteTo = srcOffsets[from + newCount];
-            BytesReference data = col.data().slice(byteFrom, byteTo - byteFrom);
-            int[] offsets = rebasedOffsets(srcOffsets, from, newCount, byteFrom);
-            return typeVector != null
-                ? EscfColumnData.ofUnion(newCount, absent, typeVector, offsets, data)
-                : EscfColumnData.ofVarWidth(col.kind(), newCount, absent, offsets, data);
-        }
-        if (col.kind() == EscfColumnKind.BOOL) {
-            FixedBitSet values = col.values() != null ? sliceBitset(col.values(), from, newCount) : null;
-            return EscfColumnData.ofBool(newCount, absent, values);
-        }
-        // LONG / DOUBLE: 8-byte slots
-        BytesReference data = col.data().slice(from * 8, newCount * 8);
-        return EscfColumnData.ofFixed64(col.kind(), newCount, absent, data);
-    }
-
-    // TODO Zero copy with Lucene IntsRef
-    private static int[] rebasedOffsets(int[] offsets, int from, int newCount, int rebase) {
-        int[] out = new int[newCount + 1];
-        for (int i = 0; i <= newCount; i++) {
-            out[i] = offsets[from + i] - rebase;
-        }
-        return out;
-    }
-
-    private static FixedBitSet sliceBitset(FixedBitSet src, int from, int count) {
-        FixedBitSet out = new FixedBitSet(Math.max(1, count));
-        int cap = src.length();
-        for (int i = 0; i < count; i++) {
-            int idx = from + i;
-            if (idx < cap && src.get(idx)) {
-                out.set(i);
-            }
-        }
-        return out;
     }
 }

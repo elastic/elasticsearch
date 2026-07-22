@@ -25,7 +25,7 @@ public final class AllocationGuard {
     private AllocationGuard() {}
 
     /**
-     * Clamps an {@code @allocates_dynamic} estimator's result to {@code [0, Long.MAX_VALUE / 2]} before it is charged: a
+     * Clamps an {@code @allocates} estimator's result to {@code [0, Long.MAX_VALUE / 2]} before it is charged: a
      * negative result (an estimator bug) must not credit the running total, and a huge one must trip any configurable limit
      * without overflowing it (so estimators may return {@code Long.MAX_VALUE} for "definitely over"). Estimators must not
      * throw; a thrown exception propagates and fails the script.

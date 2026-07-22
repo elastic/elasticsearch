@@ -51,7 +51,7 @@ public class DirectAccessIndexInput extends FilterIndexInput implements DirectAc
         long[] offsets,
         int length,
         int count,
-        MemorySegment addrsOut,
+        MemorySegment addressesScratch,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
@@ -62,9 +62,9 @@ public class DirectAccessIndexInput extends FilterIndexInput implements DirectAc
             for (int i = 0; i < count; i++) {
                 MemorySegment seg = arena.allocate(length);
                 MemorySegment.copy(data, (int) offsets[i], seg, ValueLayout.JAVA_BYTE, 0L, length);
-                addrsOut.setAtIndex(ValueLayout.JAVA_LONG, i, seg.address());
+                addressesScratch.setAtIndex(ValueLayout.JAVA_LONG, i, seg.address());
             }
-            action.accept(addrsOut);
+            action.accept(addressesScratch);
         }
         return true;
     }

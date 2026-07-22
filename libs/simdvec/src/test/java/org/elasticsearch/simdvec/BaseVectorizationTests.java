@@ -104,11 +104,11 @@ public abstract class BaseVectorizationTests extends ESTestCase {
             long[] offsets,
             int length,
             int count,
-            MemorySegment addrsOut,
+            MemorySegment addressesScratch,
             CheckedConsumer<MemorySegment, IOException> action
         ) throws IOException {
             assertEquals("unexpected slice length", expectedSliceLength, length);
-            return delegate.withSliceAddresses(offsets, length, count, addrsOut, action);
+            return delegate.withSliceAddresses(offsets, length, count, addressesScratch, action);
         }
 
         @Override

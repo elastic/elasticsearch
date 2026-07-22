@@ -104,11 +104,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         long[] offsets,
         int length,
         int count,
-        MemorySegment addrsOut,
+        MemorySegment addressesScratch,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withSliceAddresses(offsets, length, count, addrsOut, action);
+            return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
         }
         return false;
     }

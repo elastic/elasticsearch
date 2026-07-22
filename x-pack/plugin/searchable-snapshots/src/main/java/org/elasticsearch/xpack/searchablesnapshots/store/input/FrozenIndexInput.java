@@ -118,7 +118,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
         long[] offsets,
         int length,
         int count,
-        MemorySegment addrsOut,
+        MemorySegment addressesScratch,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
@@ -131,7 +131,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFile.withSliceAddresses(adjusted, length, count, addrsOut, action);
+        return cacheFile.withSliceAddresses(adjusted, length, count, addressesScratch, action);
     }
 
     @Override

@@ -297,7 +297,7 @@ public class ZstdDecompressorTests extends ESTestCase {
             long[] offsets,
             int length,
             int count,
-            MemorySegment addrsOut,
+            MemorySegment addressesScratch,
             CheckedConsumer<MemorySegment, IOException> action
         ) {
             throw new AlreadyClosedException("no free region found");
@@ -334,7 +334,7 @@ public class ZstdDecompressorTests extends ESTestCase {
             long[] offsets,
             int length,
             int count,
-            MemorySegment addrsOut,
+            MemorySegment addressesScratch,
             CheckedConsumer<MemorySegment, IOException> action
         ) {
             return false;

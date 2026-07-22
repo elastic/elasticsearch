@@ -31,12 +31,6 @@ import java.util.function.Function;
  */
 public class ResolvingProject extends Project {
     private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
-    /**
-     * The unmapped-fields glob pattern describing which additional source fields survive
-     * the KEEP/DROP/RENAME that created this node. Pre-computed at creation time so it
-     * remains available in the Finish Analysis batch (after {@code ResolveRefs} has already
-     * discarded the original wildcard expressions).
-     */
     private final UnmappedFieldsPattern unmappedFieldsPattern;
 
     public ResolvingProject(
@@ -93,40 +87,12 @@ public class ResolvingProject extends Project {
     }
 
     /**
-     * Computes the unmapped-fields pattern for the sub-plan rooted at this node.
-     * <ul>
-     *   <li>DROP or RENAME (node includes = {@code ["*"]}): no new include constraint; the child's
-     *       includes are inherited unchanged so an upstream KEEP still restricts the field set.</li>
-     *   <li>KEEP over an unconstrained child (child includes = {@code ["*"]}): the node's explicit
-     *       patterns become the effective includes.</li>
-     *   <li>KEEP over an already-constrained child: includes from both levels are combined — a field
-     *       must satisfy <em>all</em> include patterns (AND semantics), mirroring what chained KEEP
-     *       commands do to mapped columns.</li>
-     * </ul>
-     * Excludes from both levels are always merged (union).
+     * The KEEP/DROP/RENAME pattern captured when this node was created, before {@code ResolveRefs}
+     * discards the original wildcard expressions. The analyzer's {@code DetermineUnmappedFieldsToKeep}
+     * rule combines it with the child's pattern.
      */
-    @Override
-    public UnmappedFieldsPattern unmappedFieldsToKeep() {
-        UnmappedFieldsPattern childPattern = child().unmappedFieldsToKeep();
-        if (childPattern.includes().isEmpty()) {
-            return UnmappedFieldsPattern.NONE;
-        }
-        List<String> effectiveIncludes;
-        if (unmappedFieldsPattern.includes().equals(List.of("*"))) {
-            // DROP or RENAME: no new include constraint; inherit child's.
-            effectiveIncludes = childPattern.includes();
-        } else if (childPattern.includes().equals(List.of("*"))) {
-            // Child is unconstrained (e.g., wraps EsRelation); use this node's explicit patterns.
-            effectiveIncludes = unmappedFieldsPattern.includes();
-        } else {
-            // Both levels have explicit constraints: combine so a field must satisfy all of them.
-            List<String> combined = new ArrayList<>(unmappedFieldsPattern.includes());
-            combined.addAll(childPattern.includes());
-            effectiveIncludes = combined;
-        }
-        List<String> allExcludes = new ArrayList<>(unmappedFieldsPattern.excludes());
-        allExcludes.addAll(childPattern.excludes());
-        return new UnmappedFieldsPattern(effectiveIncludes, allExcludes);
+    public UnmappedFieldsPattern unmappedFieldsPattern() {
+        return unmappedFieldsPattern;
     }
 
     /**
@@ -134,7 +100,7 @@ public class ResolvingProject extends Project {
      * property. This lets {@link org.elasticsearch.xpack.esql.core.tree.NodeInfo#transform} visit
      * expressions inside the projections (needed by ResolveRefs).
      */
-    static ResolvingProject create(
+    private static ResolvingProject create(
         Source source,
         LogicalPlan child,
         List<? extends NamedExpression> projections,

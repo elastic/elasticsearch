@@ -73,7 +73,6 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
         this.pattern = pattern;
     }
 
-    /** The unmapped-fields pattern this attribute carries. */
     public UnmappedFieldsPattern pattern() {
         return pattern;
     }

@@ -1672,8 +1672,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testUnmappedFieldsPatternKeepWildcardThenEvalShadow() {
         // EVAL introduces first_name which is the same name as a mapped field.
-        // Eval.unmappedFieldsToKeep() adds it to excludes first; then esr.output() names are merged
-        // (first_name deduplicated to stay at front via LinkedHashSet).
+        // The EVAL branch of DetermineUnmappedFieldsToKeep adds it to excludes first; then esr.output()
+        // names are merged (first_name deduplicated to stay at front via LinkedHashSet).
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first* | EVAL first_name = to_upper(first_name)"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first*"), excl("first_name")));
     }

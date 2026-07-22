@@ -23,8 +23,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -40,30 +38,10 @@ import java.util.TreeMap;
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 
-    private final List<String> includes;
-    private final List<String> excludes;
+    private final UnmappedFieldsPattern pattern;
 
     UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern) {
-        this.includes = pattern.includes();
-        this.excludes = pattern.excludes();
-    }
-
-    /**
-     * Creates a loader that additionally excludes all names in {@code mappedFieldNames}.
-     *
-     * <p>This is used to suppress mapped fields that are absent from the field-caps response
-     * (e.g. counter-type metrics in time-series queries, where the {@code +dimension} filter
-     * omits them) so they are never surfaced in {@code _unmapped_fields}.
-     */
-    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern, List<String> mappedFieldNames) {
-        this.includes = pattern.includes();
-        if (mappedFieldNames.isEmpty()) {
-            this.excludes = pattern.excludes();
-        } else {
-            List<String> allExcludes = new ArrayList<>(pattern.excludes());
-            allExcludes.addAll(mappedFieldNames);
-            this.excludes = List.copyOf(allExcludes);
-        }
+        this.pattern = pattern;
     }
 
     @Override
@@ -78,7 +56,7 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new UnmappedFields(breaker, includes, excludes);
+        return new UnmappedFields(breaker, pattern);
     }
 
     @Override
@@ -102,13 +80,11 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
     }
 
     private static class UnmappedFields extends BlockStoredFieldsReader {
-        private final List<String> includes;
-        private final List<String> excludes;
+        private final UnmappedFieldsPattern pattern;
 
-        UnmappedFields(CircuitBreaker breaker, List<String> includes, List<String> excludes) {
+        UnmappedFields(CircuitBreaker breaker, UnmappedFieldsPattern pattern) {
             super(breaker);
-            this.includes = includes;
-            this.excludes = excludes;
+            this.pattern = pattern;
         }
 
         @Override
@@ -128,15 +104,15 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         }
 
         private boolean included(String fieldName) {
-            for (String exclude : excludes) {
+            if (pattern.includes().isEmpty()) {
+                return false;
+            }
+            for (String exclude : pattern.excludes()) {
                 if (Regex.simpleMatch(exclude, fieldName)) {
                     return false;
                 }
             }
-            if (includes.isEmpty()) {
-                return false;
-            }
-            for (String include : includes) {
+            for (String include : pattern.includes()) {
                 if (Regex.simpleMatch(include, fieldName) == false) {
                     return false;
                 }

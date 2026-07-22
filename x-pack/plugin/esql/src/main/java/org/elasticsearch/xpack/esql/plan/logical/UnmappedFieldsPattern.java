@@ -30,7 +30,7 @@ import java.util.List;
  * {@link #NONE} means no additional source field survives (e.g., when the upstream
  * plan is not an {@link EsRelation}).
  *
- * @see LogicalPlan#unmappedFieldsToKeep()
+ * <p>The pattern for a plan is computed by the analyzer's {@code DetermineUnmappedFieldsToKeep} rule.
  */
 public record UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
 
@@ -45,9 +45,16 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
         excludes = List.copyOf(excludes);
     }
 
+    /** True if the includes impose no restriction (the wildcard {@code "*"}, as in {@link #ALL}). */
+    public boolean includesAllFields() {
+        return includes.equals(List.of("*"));
+    }
+
     /** Returns a new pattern with {@code names} appended to the excludes list, deduplicating. */
     public UnmappedFieldsPattern withAdditionalExcludes(List<String> names) {
-        if (names.isEmpty()) return this;
+        if (names.isEmpty()) {
+            return this;
+        }
         LinkedHashSet<String> merged = new LinkedHashSet<>(excludes.size() + names.size());
         merged.addAll(excludes);
         merged.addAll(names);

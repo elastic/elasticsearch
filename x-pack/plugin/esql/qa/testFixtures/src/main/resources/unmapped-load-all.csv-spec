@@ -8,9 +8,7 @@
 # Baseline: all unmapped fields expanded
 ############################
 
-// Bare FROM with no projection: all mapped columns appear, followed by one keyword column per
-// unique unmapped source field, in alphabetical order. No _unmapped_fields JSON column is emitted.
-fromNoProjectionExpand
+fromNoProjection
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -28,9 +26,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// KEEP * — identical result to fromNoProjectionExpand: KEEP * retains all mapped columns and
-// all expanded unmapped field columns.
-keepStarExpand
+keepStar
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -49,11 +45,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// EVAL shadows an unmapped field: unmapped_message is demand-loaded by EVAL and uppercased.
-// DetermineUnmappedFieldsToKeep excludes unmapped_message from the block loader pattern.
-// After expansion the remaining 3 unmapped fields are emitted as columns; the EVAL-produced
-// unmapped_message column (keyword, uppercased) appears before the expanded columns.
-evalShadowsUnmappedFieldExpand
+evalShadowsUnmappedField
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -72,11 +64,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | DISCONNECTED FROM 10.1.0.1      | 1                     | a                       | 1756468
 ;
 
-// KEEP @timestamp, unmapped_message: demand-loads unmapped_message; the block loader pattern
-// excludes it. The expansion of the remaining unmapped fields yields nothing because all other
-// unmapped fields are also excluded by the narrow KEEP. Since every row's _unmapped_fields is
-// "{}", expansion produces no extra columns.
-keepUnmappedFieldByNameExpand
+keepUnmappedFieldByName
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -99,8 +87,7 @@ FROM partial_mapping_sample_data
 # More command coverage
 ############################
 
-// DROP a mapped column: unmapped field set unchanged; the dropped column disappears.
-dropMappedColumnExpand
+dropMappedColumn
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -119,8 +106,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// WHERE reduces the document set; unmapped field content identical for the matching rows.
-whereReducesDocumentSetExpand
+whereReducesDocumentSet
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -135,9 +121,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error? | 2                     | b                       | 5033756                         | Disconnection error
 ;
 
-// WHERE on an unmapped field: unmapped_message is demand-loaded and excluded from the block loader
-// pattern; the remaining 3 unmapped fields are expanded into columns.
-whereOnUnmappedFieldExpand
+whereOnUnmappedField
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -152,8 +136,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error? | Disconnection error      | 2                     | b                       | 5033756
 ;
 
-// RENAME a mapped column: the renamed attribute (msg) replaces message; unmapped field set unchanged.
-renameMappedFieldExpand
+renameMappedField
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -172,9 +155,8 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// RENAME message AS language_code conflicts with the unmapped source field language_code:
-// patternForRename adds "language_code" to the exclude list. Only 3 unmapped fields are expanded.
-renameMappedFieldConflictsWithUnmappedExpand
+// RENAME's target name shadows the unmapped source field of the same name, so it is not expanded.
+renameMappedFieldConflictsWithUnmapped
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -193,8 +175,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// Complex pipeline: EVAL + DROP mapped cols + RENAME. Unmapped field set is unchanged.
-complexDropRenameEvalExpand
+complexDropRenameEval
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -213,15 +194,12 @@ FROM partial_mapping_sample_data
 ;
 
 ############################
-# Gap coverage: user-reported issues
+# Gap coverage: known-failing tests documenting intended behaviour
 ############################
 
-// (gap): LOAD_ALL on an index with no mapping at all crashes with an internal plan
-// error: "optimized incorrectly due to missing references [<no-fields>{r$}#...]". With no
-// mapped fields, the EsRelation output is empty, leaving a phantom attribute unresolved.
-// Intended: all source fields are expanded into keyword columns. This test documents the
-// correct intended behaviour; it will fail until the production gap is fixed.
-allFieldsUnmappedExpand
+// (gap): an index with no mapping at all fails with "missing references [<no-fields>...]" because
+// the EsRelation output is empty. Intended: expand every source field into a keyword column.
+allFieldsUnmapped
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -234,14 +212,10 @@ FROM no_mapping_sample_data
 2024-10-23T12:15:03.360Z  | 173.21.2.162      | 3450232                | 4                     | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
 ;
 
-// (gap): LOAD_ALL does not handle multi-value JSON arrays stored in unmapped source
-// fields. ExpandUnmappedFieldsPostProcessor encounters a Java List and falls through to
-// String.valueOf(), producing the List.toString() representation "[web, api]" (with space)
-// instead of a multi-value ES|QL keyword block. Note: single-element CSV arrays ([web]) are
-// collapsed to scalar source values by the data loader, so only multi-element arrays trigger
-// this bug. This test documents the correct intended behaviour; it will fail until the
-// production gap is fixed.
-arraysExpandGap
+// (gap): multi-value JSON arrays are rendered via List.toString() ("[web, api]") instead of a
+// multi-value keyword block. Only multi-element arrays trigger this: single-element CSV arrays
+// are collapsed to scalars by the data loader.
+arraysGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -255,12 +229,8 @@ id:keyword | tags:keyword
 3          | web
 ;
 
-// (gap): LOAD_ALL does not handle JSON object values stored in unmapped source
-// fields. ExpandUnmappedFieldsPostProcessor encounters a Java Map and falls through to
-// String.valueOf(), producing the Map.toString() representation "{baz=world}" (with = not :,
-// no quoting) instead of a valid JSON string. This test documents the correct intended
-// behaviour; it will fail until the production gap is fixed.
-objectsExpandGap
+// (gap): JSON object values are rendered via Map.toString() ("{baz=world}") instead of valid JSON.
+objectsGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -273,13 +243,9 @@ id:keyword | extra:keyword
 2          | "{""baz"":""world""}"
 ;
 
-// (gap): same cross-index source-value loss as crossMappingLosesSourceValues (LOAD_ALL),
-// but in LOAD_ALL mode there is no _unmapped_fields column to fall back to. Fields
-// that are mapped on at least one shard appear as regular columns; shards where the field is
-// not indexed return null for that column, and the source value is silently discarded with no
-// representation in the output. This test documents the correct intended behaviour; it will
-// fail until the production gap is fixed.
-crossMappingExpandGap
+// (gap): for a field mapped on only some shards, the source value from the shards where it is
+// unmapped is silently dropped, with no representation in the output.
+crossMappingGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;

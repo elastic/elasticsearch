@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
@@ -1724,7 +1725,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * fully-mapped index), it defaults to {@code ["*"]} so all unmapped source fields pass
          * through.
          */
-        static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
+        private static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
             Set<String> childOutputNames = new HashSet<>(projections.size());
             for (Attribute attr : childOutput) {
                 childOutputNames.add(attr.name());
@@ -1735,10 +1736,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     includes.add("*");
                 } else if (proj instanceof UnresolvedNamePattern up) {
                     includes.add(up.pattern());
-                } else if (UnmappedFieldsAttribute.ATTRIBUTE_NAME.equals(proj.name())) {
-                    // _unmapped_fields in KEEP means "retain all surviving unmapped source fields";
-                    // translate to "*" so the block loader includes any field not otherwise excluded.
-                    includes.add("*");
                 } else if (childOutputNames.contains(proj.name()) == false) {
                     // Named field absent from the child's mapped output: it will be demand-loaded
                     // from _source as an unmapped field, so restrict includes to this name.
@@ -1828,7 +1825,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /** Computes the {@link UnmappedFieldsPattern} for a DROP command from its removal list. */
-        static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
+        private static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
             List<String> excludes = new ArrayList<>();
             for (NamedExpression removal : removals) {
                 if (removal instanceof UnresolvedNamePattern up) {
@@ -1887,7 +1884,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /** Computes the {@link UnmappedFieldsPattern} for a RENAME command from its alias list. */
-        static UnmappedFieldsPattern patternForRename(List<Alias> renamings) {
+        private static UnmappedFieldsPattern patternForRename(List<Alias> renamings) {
             List<String> excludes = new ArrayList<>();
             for (Alias renaming : renamings) {
                 excludes.add(renaming.name()); // target name shadows any source field with that name
@@ -2228,19 +2225,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            UnmappedResolution resolution = context.unmappedResolution();
-            if (resolution != UnmappedResolution.LOAD_ALL) {
+            if (context.unmappedResolution() != UnmappedResolution.LOAD_ALL) {
                 return plan;
             }
-            UnmappedFieldsPattern pattern;
-            try {
-                pattern = plan.unmappedFieldsToKeep();
-            } catch (UnsupportedOperationException e) {
-                // Complex plans (e.g. with binary union nodes) may not yet support this;
-                // fall back to ALL so we never accidentally suppress fields.
-                pattern = UnmappedFieldsPattern.ALL;
+            return annotate(plan, new UnmappedFieldsAttribute(Source.EMPTY, computeUnmappedFieldsToKeep(plan)));
+        }
+
+        /**
+         * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
+         * source fields would survive to the output of {@code plan}, by walking down the plan tree.
+         *
+         * <p>Only the commands supported by {@code unmapped_fields="LOAD_ALL"} affect field visibility:
+         * KEEP/DROP/RENAME (as {@link ResolvingProject}) restrict the include/exclude patterns, and EVAL
+         * shadows source fields with the names it introduces. Every other unary node is transparent.
+         * Unsupported plans fall back to {@link UnmappedFieldsPattern#ALL} so no field is ever accidentally
+         * suppressed; those queries are rejected by the {@code Verifier}'s LOAD_ALL command allow-list.
+         */
+        private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
+            return switch (plan) {
+                case ResolvingProject project -> patternForProject(project);
+                case Eval eval -> computeUnmappedFieldsToKeep(eval.child()).withAdditionalExcludes(
+                    eval.fields().stream().map(Alias::name).toList()
+                );
+                case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
+                default -> UnmappedFieldsPattern.ALL;
+            };
+        }
+
+        /**
+         * Combines a KEEP/DROP/RENAME node's own pattern with its child's: a field must satisfy the
+         * include constraints of both levels (AND semantics) and the excludes of both are merged.
+         */
+        private static UnmappedFieldsPattern patternForProject(ResolvingProject project) {
+            UnmappedFieldsPattern childPattern = computeUnmappedFieldsToKeep(project.child());
+            if (childPattern.includes().isEmpty()) {
+                return UnmappedFieldsPattern.NONE;
             }
-            return annotate(plan, new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+            UnmappedFieldsPattern nodePattern = project.unmappedFieldsPattern();
+            List<String> effectiveIncludes;
+            if (nodePattern.includesAllFields()) {
+                // DROP or RENAME: no new include constraint; inherit the child's.
+                effectiveIncludes = childPattern.includes();
+            } else if (childPattern.includesAllFields()) {
+                // Child is unconstrained (e.g. wraps EsRelation): use this node's explicit patterns.
+                effectiveIncludes = nodePattern.includes();
+            } else {
+                effectiveIncludes = CollectionUtils.combine(nodePattern.includes(), childPattern.includes());
+            }
+            return new UnmappedFieldsPattern(effectiveIncludes, CollectionUtils.combine(nodePattern.excludes(), childPattern.excludes()));
         }
 
         /**
@@ -2269,21 +2301,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             if (changed == false) {
                 return plan;
-            }
-            // Fork plans (UnionAll, ViewUnionAll) carry a fixed output attribute list that does not
-            // automatically reflect changes in their children. When a branch gains _unmapped_fields,
-            // add it to the fork's output so the enclosing plan (e.g. a KEEP or a Sort) can see it.
-            if (plan instanceof Fork fork) {
-                List<Attribute> newOutput = new ArrayList<>(fork.output());
-                if (newOutput.stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)) {
-                    for (LogicalPlan newChild : newChildren) {
-                        if (newChild.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute)) {
-                            newOutput.add(attr);
-                            break;
-                        }
-                    }
-                }
-                return fork.replaceSubPlansAndOutput(newChildren, newOutput);
             }
             return plan.replaceChildren(newChildren);
         }

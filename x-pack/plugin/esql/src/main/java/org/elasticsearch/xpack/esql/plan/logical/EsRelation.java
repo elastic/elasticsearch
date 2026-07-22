@@ -132,16 +132,6 @@ public class EsRelation extends LeafPlan {
         return attrs;
     }
 
-    /**
-     * The base case: {@link EsRelation} itself does not filter additional source fields.
-     * Any field present in {@code _source} but not already in {@link #output()} would
-     * survive to the output if loaded — so the pattern is {@link UnmappedFieldsPattern#ALL}.
-     */
-    @Override
-    public UnmappedFieldsPattern unmappedFieldsToKeep() {
-        return UnmappedFieldsPattern.ALL;
-    }
-
     public Set<String> concreteQualifiedIndices() {
         return indexNameWithModes.keySet();
     }

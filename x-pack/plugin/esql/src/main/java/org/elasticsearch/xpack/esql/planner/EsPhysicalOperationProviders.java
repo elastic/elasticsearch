@@ -253,7 +253,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             for (Mapper mapper : shardContext.mappingLookup().fieldMappers()) {
                 mappedFieldNames.add(mapper.fullPath());
             }
-            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), mappedFieldNames));
+            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern().withAdditionalExcludes(mappedFieldNames)));
         }
 
         // Apply any block loader function if present

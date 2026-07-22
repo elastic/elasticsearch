@@ -56,6 +56,39 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         this.current = new LongIntVectorOnlyBlockHash(blockFactory);
     }
 
+    /**
+     * Returns a {@link Router} that computes partition hashes for (LONG, INT) key pairs
+     * without any hash-table insertion. Uses the same mixing function as
+     * {@code LongLongSwissHash.hash(key1, key2)} so that the partition assignment is stable
+     * and well-distributed.
+     *
+     * <p>Only {@link Router#partitionHashOfRow} is supported; {@link Router#addRow} is not
+     * implemented because callers that use this router for partition routing insert rows
+     * through the partition table's own {@link BlockHash#add} rather than through this router.
+     */
+    @Override
+    public Router router() {
+        return new Router() {
+            @Override
+            public int partitionHashOfRow(Page page, int position) {
+                long k1 = ((LongBlock) page.getBlock(longChannel)).getLong(position);
+                long k2 = ((IntBlock) page.getBlock(intChannel)).getInt(position);
+                // Same mixing as LongLongSwissHash.hash(key1, key2):
+                long h = k1 * 0x9E3779B97F4A7C15L ^ k2;
+                h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
+                h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
+                return (int) (h ^ (h >>> 32));
+            }
+
+            @Override
+            public int addRow(Page page, int position, int hash) {
+                throw new UnsupportedOperationException(
+                    "LongIntAdaptiveBlockHash router is routing-only; use blockHash.add() for insertion"
+                );
+            }
+        };
+    }
+
     @Override
     protected void prepareAddInput(Page page) {
         if (current instanceof LongIntVectorOnlyBlockHash vectorHash) {

@@ -104,7 +104,14 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
 
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            return parser.apply(xParser, context).build();
+            var builder = parser.apply(xParser, context);
+            // TODO: remove once all elastic service settings are parser-based and usesParserForServiceSettings can be enabled on
+            // ElasticInferenceService. The object parser reads the map through an XContent view without consuming its entries, so
+            // the parsed fields must be removed explicitly to satisfy the caller's check that no unknown settings remain in the map.
+            map.remove(MODEL_ID);
+            map.remove(MAX_INPUT_TOKENS);
+            map.remove(MAX_BATCH_SIZE);
+            return builder.build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
@@ -254,7 +261,12 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     @Override
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
-            return Update.PARSER.apply(xParser, null).mergeInto(this);
+            var update = Update.PARSER.apply(xParser, null);
+            // TODO: remove once all elastic service settings are parser-based and usesParserForServiceSettings can be enabled on
+            // ElasticInferenceService. The object parser reads the map through an XContent view without consuming its entries, so
+            // the parsed field must be removed explicitly to satisfy the caller's check that no unknown settings remain in the map.
+            serviceSettings.remove(MAX_BATCH_SIZE);
+            return update.mergeInto(this);
         } catch (XContentParseException e) {
             if (e.getCause() instanceof IllegalArgumentException iae) {
                 throw new ValidationException().addValidationError(iae.getMessage());

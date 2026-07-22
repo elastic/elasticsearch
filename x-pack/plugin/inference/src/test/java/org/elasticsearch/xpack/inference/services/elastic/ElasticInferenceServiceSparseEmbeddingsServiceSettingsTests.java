@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -86,13 +87,12 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
 
     public void testFromMap() {
         var modelId = "my-model-id";
+        var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, modelId));
 
-        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-            ConfigurationParseContext.REQUEST
-        );
+        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
+        assertThat(map, is(anEmptyMap()));
     }
 
     public void testFromMap_ThrowsIllegalArgumentException_WhenModelIdIsMissing() {
@@ -191,12 +191,14 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
         );
 
-        ServiceSettings updated = original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)));
+        var map = new HashMap<String, Object>(Map.of("max_batch_size", newBatchSize));
+        ServiceSettings updated = original.updateServiceSettings(map);
 
         assertThat(
             updated,
             is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(original.modelId(), original.maxInputTokens(), newBatchSize))
         );
+        assertThat(map, is(anEmptyMap()));
     }
 
     public void testUpdateServiceSettings_GivenInvalidMaxBatchSize() {

@@ -68,6 +68,7 @@ public class MvMap extends EsqlScalarFunction implements LambdaAccepting {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "integer",
@@ -107,7 +108,7 @@ public class MvMap extends EsqlScalarFunction implements LambdaAccepting {
             name = "transform",
             type = { "lambda" },
             description = "A lambda transforming each element.",
-            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+            lambda = @Param.Lambda(paramTypes = { "field" })
         ) Expression lambda
     ) {
         super(source, List.of(field, lambda));

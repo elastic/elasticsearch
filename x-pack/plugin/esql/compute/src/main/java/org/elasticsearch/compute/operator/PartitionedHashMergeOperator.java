@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -289,6 +290,13 @@ public class PartitionedHashMergeOperator implements Operator {
     private Table noneTable;
     /** One FINAL-mode table per partition; created eagerly in the constructor. */
     private Table[] workerTables;
+    /**
+     * One child block factory per logical worker (worker {@code w} uses {@code workerBlockFactories[w]}).
+     * Workers run concurrently on separate threads; each needs its own {@code LocalCircuitBreaker}
+     * so that block allocation/release inside {@link BlockHash#add} does not trigger the
+     * single-thread assertion that the driver's shared factory carries.
+     */
+    private final BlockFactory[] workerBlockFactories;
 
     private ReleasableIterator<Page> output;
 
@@ -324,10 +332,14 @@ public class PartitionedHashMergeOperator implements Operator {
 
         boolean success = false;
         try {
-            this.noneTable = newTable(noneAggFactories);
+            this.workerBlockFactories = new BlockFactory[workerCount];
+            for (int w = 0; w < workerCount; w++) {
+                workerBlockFactories[w] = driverContext.createChildBlockFactory();
+            }
+            this.noneTable = newTable(noneAggFactories, driverContext.blockFactory());
             this.workerTables = new Table[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
-                workerTables[p] = newTable(workerAggFactories);
+                workerTables[p] = newTable(workerAggFactories, workerBlockFactories[p % workerCount]);
             }
             this.workerBuffers = new ExchangeBuffer[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
@@ -518,9 +530,9 @@ public class PartitionedHashMergeOperator implements Operator {
                         // at most one task is ever submitted for this worker at a time.
                         for (int p = workerIndex; p < partitionCount; p += workerCount) {
                             if (workerBuffers[p].isFinished() == false) {
-                                workerBuffers[p].waitForReading().listener().addListener(
-                                    ActionListener.running(() -> maybeScheduleWorker(workerIndex))
-                                );
+                                workerBuffers[p].waitForReading()
+                                    .listener()
+                                    .addListener(ActionListener.running(() -> maybeScheduleWorker(workerIndex)));
                             }
                         }
                     }
@@ -530,8 +542,7 @@ public class PartitionedHashMergeOperator implements Operator {
                     workerSubmitted[workerIndex].set(false);
                     if (anyUnfinished) {
                         for (int p = workerIndex; p < partitionCount; p += workerCount) {
-                            if (workerBuffers[p].isFinished() == false
-                                && workerBuffers[p].waitForReading() == NOT_BLOCKED) {
+                            if (workerBuffers[p].isFinished() == false && workerBuffers[p].waitForReading() == NOT_BLOCKED) {
                                 maybeScheduleWorker(workerIndex);
                                 break;
                             }
@@ -622,7 +633,8 @@ public class PartitionedHashMergeOperator implements Operator {
 
     /**
      * Distributes a single intermediate page across {@link #workerBuffers} by partition hash.
-     * Creates filtered sub-pages (owning their own blocks) and enqueues them; the caller is
+     * Uses an O(N+P) bucket-sort pass to collect each partition's positions, then creates a
+     * filtered sub-page per partition (physically reordered rows) and enqueues it; the caller is
      * responsible for closing the original {@code intermediatePage}.
      */
     private void distributeIntermediatePageToBuffers(Page intermediatePage) {
@@ -641,6 +653,7 @@ public class PartitionedHashMergeOperator implements Operator {
             return;
         }
         int[] partitionOf = new int[positions];
+        int[] counts = new int[partitionCount];
         for (int i = 0; i < positions; i++) {
             boolean anyNull = false;
             for (int k = 0; k < keyCount; k++) {
@@ -650,25 +663,23 @@ public class PartitionedHashMergeOperator implements Operator {
                 }
             }
             partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(intermediatePage, i), partitionCount);
+            counts[partitionOf[i]]++;
+        }
+        int[] offsets = new int[partitionCount + 1];
+        for (int p = 0; p < partitionCount; p++) {
+            offsets[p + 1] = offsets[p] + counts[p];
+        }
+        int[] cursor = offsets.clone();
+        int[] sortedPositions = new int[positions];
+        for (int i = 0; i < positions; i++) {
+            sortedPositions[cursor[partitionOf[i]]++] = i;
         }
         for (int p = 0; p < partitionCount; p++) {
-            int count = 0;
-            for (int i = 0; i < positions; i++) {
-                if (partitionOf[i] == p) {
-                    count++;
-                }
-            }
-            if (count == 0) {
+            int start = offsets[p], end = offsets[p + 1];
+            if (start == end) {
                 continue;
             }
-            int[] filterPositions = new int[count];
-            int idx = 0;
-            for (int i = 0; i < positions; i++) {
-                if (partitionOf[i] == p) {
-                    filterPositions[idx++] = i;
-                }
-            }
-            Page subPage = intermediatePage.filter(false, filterPositions);
+            Page subPage = intermediatePage.filter(false, Arrays.copyOfRange(sortedPositions, start, end));
             subPage.allowPassingToDifferentDriver();
             workerBuffers[p].addPage(subPage);
         }
@@ -770,8 +781,8 @@ public class PartitionedHashMergeOperator implements Operator {
         return new Page(blocks);
     }
 
-    private Table newTable(List<GroupingAggregator.Factory> factories) {
-        BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false);
+    private Table newTable(List<GroupingAggregator.Factory> factories, BlockFactory blockFactory) {
+        BlockHash blockHash = BlockHash.build(internalGroupSpecs, blockFactory, aggregationBatchSize, false);
         boolean success = false;
         try {
             List<GroupingAggregator> aggregators = new ArrayList<>(factories.size());
@@ -810,6 +821,13 @@ public class PartitionedHashMergeOperator implements Operator {
     private void closeWorkerResources() {
         if (workerTables != null) {
             Releasables.close(workerTables);
+        }
+        if (workerBlockFactories != null) {
+            for (BlockFactory wf : workerBlockFactories) {
+                if (wf != null) {
+                    driverContext.releaseChildBlockFactory(wf);
+                }
+            }
         }
     }
 

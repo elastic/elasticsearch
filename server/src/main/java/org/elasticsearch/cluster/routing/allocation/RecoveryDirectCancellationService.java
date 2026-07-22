@@ -164,7 +164,11 @@ public class RecoveryDirectCancellationService {
         }
     }
 
-    /// Removes cancellations that were already sent recently and updates the cache.
+    /// Removes cancellations that were already sent recently and updates the cache. A cached entry can be bypassed and
+    /// the cancellation re-sent in two cases:
+    /// - the cluster term has changed since the entry was written (the data node may have discarded the request from
+    ///   the previous term)
+    /// - the new request escalates `cancelIfStarted` from `false` to `true`
     private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateAndUpdateCache(
         Map<DiscoveryNode, CancelRecoveriesAction.Request> requests
     ) {
@@ -214,7 +218,7 @@ public class RecoveryDirectCancellationService {
                         sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
                     }
                 }
-                logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
+                logger.warn("failed to cancel recoveries on [{}]", node, e);
             }), CancelRecoveriesAction.Response::new, genericExecutor)
         );
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -251,34 +252,107 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             long bytesBefore = breaker.getUsed();
             assertThat(bytesBefore, equalTo(0L));
 
-            FetchPhaseResponseChunk chunk1 = createChunkWithSourceSize(0, 5, 0, 1024);
-            long chunk1Bytes = chunk1.getBytesLength();
-            writeChunk(stream, chunk1);
+            long chunk1Bytes = estimatedRetainedBytesForSourceSize(0, 5, 1024);
+            writeChunk(stream, createChunkWithSourceSize(0, 5, 0, 1024));
 
             long bytesAfterChunk1 = breaker.getUsed();
-            assertThat("Circuit breaker should track chunk1 bytes", bytesAfterChunk1, equalTo(chunk1Bytes));
+            assertThat("Circuit breaker should track chunk1 retained bytes", bytesAfterChunk1, equalTo(chunk1Bytes));
 
-            FetchPhaseResponseChunk chunk2 = createChunkWithSourceSize(5, 5, 5, 1024);
-            long chunk2Bytes = chunk2.getBytesLength();
-            writeChunk(stream, chunk2);
+            long chunk2Bytes = estimatedRetainedBytesForSourceSize(5, 5, 1024);
+            writeChunk(stream, createChunkWithSourceSize(5, 5, 5, 1024));
 
             long bytesAfterChunk2 = breaker.getUsed();
-            assertThat("Circuit breaker should track both chunks' bytes", bytesAfterChunk2, equalTo(chunk1Bytes + chunk2Bytes));
+            assertThat("Circuit breaker should track both chunks' retained bytes", bytesAfterChunk2, equalTo(chunk1Bytes + chunk2Bytes));
         } finally {
             stream.decRef();
         }
+    }
+
+    public void testBreakerChargesRetainedFieldGraphNotSerializedSize() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        int fieldsPerHit = 500;
+        SearchHit[] hits = new SearchHit[5];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = createHitWithManyFields(i, fieldsPerHit);
+        }
+        long serializedBytes;
+        long expectedRetained;
+        try {
+            expectedRetained = 0L;
+            for (SearchHit hit : hits) {
+                expectedRetained += hit.ramBytesUsed();
+            }
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, 0), hits.length, 100, 0);
+            serializedBytes = chunk.getBytesLength();
+            writeChunk(stream, chunk);
+        } finally {
+            decRefSearchHits(hits);
+        }
+
+        try {
+            assertThat("Breaker should be charged the retained-heap estimate", breaker.getUsed(), equalTo(expectedRetained));
+            assertThat(
+                "Retained estimate must exceed the serialized size that previously priced the breaker",
+                breaker.getUsed(),
+                greaterThan(serializedBytes)
+            );
+        } finally {
+            stream.decRef();
+        }
+        assertThat("All breaker bytes should be released after close", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testRetainedEstimateTripsBreakerWhereSerializedSizeWouldNot() throws IOException {
+        int fieldsPerHit = 500;
+        SearchHit[] hits = new SearchHit[5];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = createHitWithManyFields(i, fieldsPerHit);
+        }
+
+        long serializedBytes;
+        long retainedBytes;
+        FetchPhaseResponseChunk chunk;
+        try {
+            retainedBytes = 0L;
+            for (SearchHit hit : hits) {
+                retainedBytes += hit.ramBytesUsed();
+            }
+            chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, 0), hits.length, 100, 0);
+            serializedBytes = chunk.getBytesLength();
+        } finally {
+            decRefSearchHits(hits);
+        }
+
+        assertThat("retained estimate must exceed serialized size", retainedBytes, greaterThan(serializedBytes));
+
+        long limit = retainedBytes - 1;
+
+        CircuitBreaker serializedBasis = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
+        serializedBasis.addEstimateBytesAndMaybeBreak(serializedBytes, "serialized_basis");
+        assertThat("serialized-size accounting would not have tripped at this limit", serializedBasis.getUsed(), equalTo(serializedBytes));
+        serializedBasis.addWithoutBreaking(-serializedBytes); // release the throwaway breaker used only for the comparison
+
+        CircuitBreaker retainedBasis = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, hits.length, retainedBasis);
+        try {
+            expectThrows(CircuitBreakingException.class, () -> writeChunk(stream, chunk));
+            assertThat("no bytes tracked after trip", retainedBasis.getUsed(), equalTo(0L));
+        } finally {
+            stream.decRef();
+        }
+        assertThat("all breaker bytes released after close", retainedBasis.getUsed(), equalTo(0L));
     }
 
     public void testCircuitBreakerBytesReleasedOnClose() throws IOException {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
-        FetchPhaseResponseChunk chunk1 = createChunkWithSourceSize(0, 5, 0, 1024);
-        FetchPhaseResponseChunk chunk2 = createChunkWithSourceSize(5, 5, 5, 1024);
-        long expectedBytes = chunk1.getBytesLength() + chunk2.getBytesLength();
+        long expectedBytes = estimatedRetainedBytesForSourceSize(0, 5, 1024) + estimatedRetainedBytesForSourceSize(5, 5, 1024);
 
-        writeChunk(stream, chunk1);
-        writeChunk(stream, chunk2);
+        writeChunk(stream, createChunkWithSourceSize(0, 5, 0, 1024));
+        writeChunk(stream, createChunkWithSourceSize(5, 5, 5, 1024));
 
         long bytesBeforeClose = breaker.getUsed();
         assertThat("Should have bytes tracked", bytesBeforeClose, equalTo(expectedBytes));
@@ -290,11 +364,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testCircuitBreakerTrips() throws IOException {
-        FetchPhaseResponseChunk testChunk = createChunkWithSourceSize(0, 5, 0, 2048);
-        long chunkSize = testChunk.getBytesLength();
+        long estimatedBytes = estimatedRetainedBytesForSourceSize(0, 5, 2048);
 
-        // Set limit smaller than chunk size
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(chunkSize - 1));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(estimatedBytes - 1));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         try {
@@ -306,10 +378,8 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testCircuitBreakerTripsOnSecondChunk() throws IOException {
-        FetchPhaseResponseChunk chunk1 = createChunkWithSourceSize(0, 5, 0, 1024);
-        FetchPhaseResponseChunk chunk2 = createChunkWithSourceSize(5, 5, 5, 1024);
-        long chunk1Size = chunk1.getBytesLength();
-        long chunk2Size = chunk2.getBytesLength();
+        long chunk1Size = estimatedRetainedBytesForSourceSize(0, 5, 1024);
+        long chunk2Size = estimatedRetainedBytesForSourceSize(5, 5, 1024);
 
         // Set limit to allow first chunk but not second
         long limit = chunk1Size + (chunk2Size / 2);
@@ -533,11 +603,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testReleasableNotClosedOnFailure() throws IOException {
-        FetchPhaseResponseChunk testChunk = createChunkWithSourceSize(0, 5, 0, 10000);
-        long chunkSize = testChunk.getBytesLength();
+        long estimatedBytes = estimatedRetainedBytesForSourceSize(0, 5, 10000);
 
-        // Set limit smaller than chunk size to guarantee trip
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(chunkSize / 2));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(estimatedBytes / 2));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
         try {
@@ -559,9 +627,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
     public void testWriteChunkWithCircuitBreakerTripPreservesAccountingAndPropagates() throws IOException {
         FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 4096);
-        long chunkSize = chunk.getBytesLength();
+        long estimatedBytes = estimatedRetainedBytesForSourceSize(0, 5, 4096);
 
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(chunkSize - 1));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(estimatedBytes - 1));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
         AtomicBoolean releasableClosed = new AtomicBoolean(false);
 
@@ -725,6 +793,22 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
     }
 
+    private long estimatedRetainedBytesForSourceSize(int startId, int hitCount, int sourceSize) {
+        SearchHit[] hits = new SearchHit[hitCount];
+        for (int i = 0; i < hitCount; i++) {
+            hits[i] = createHitWithSourceSize(startId + i, sourceSize);
+        }
+        try {
+            long total = 0L;
+            for (SearchHit hit : hits) {
+                total += hit.ramBytesUsed();
+            }
+            return total;
+        } finally {
+            decRefSearchHits(hits);
+        }
+    }
+
     private SearchHit createHit(int id) {
         SearchHit hit = new SearchHit(id);
         hit.sourceRef(new BytesArray("{\"id\":" + id + "}"));
@@ -741,6 +825,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
         sb.append("\"}");
         hit.sourceRef(new BytesArray(sb.toString()));
+        return hit;
+    }
+
+    private SearchHit createHitWithManyFields(int id, int fieldCount) {
+        SearchHit hit = new SearchHit(id);
+        hit.sourceRef(new BytesArray("{\"id\":" + id + "}"));
+        for (int f = 0; f < fieldCount; f++) {
+            hit.setDocumentField(new DocumentField("field_" + f, List.of("value_" + f)));
+        }
         return hit;
     }
 

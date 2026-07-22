@@ -14,9 +14,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredValue;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,6 +47,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -317,6 +321,25 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     @Override
     public boolean isColumnarMode() {
         return mode == Mode.COLUMNAR;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
+        // is indexed + stored.
+        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
+        context.addColumn(MappedColumns.binaryColumn(context.uids(), NAME, idFieldType));
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: Need to implement the id propagation to non-root documents when we support nested fields.
     }
 
     @Override

@@ -309,7 +309,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Match(source, field, query, null, queryBuilder);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+
+        return new Match(source, field, query, options, queryBuilder);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -319,6 +323,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -413,6 +420,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
             return true;
         }
 

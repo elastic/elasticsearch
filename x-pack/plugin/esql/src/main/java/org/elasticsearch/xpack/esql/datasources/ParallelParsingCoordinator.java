@@ -482,6 +482,13 @@ public final class ParallelParsingCoordinator {
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
             .firstSplit(splitIncludesFileLeader)
+            // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
+            // This context is used two ways: as the single-threaded fallback below, which reads the whole
+            // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
+            // contexts, which each set lastSplit themselves from their segment index. Setting it here from
+            // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
+            // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
+            // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
             .splitStartByte(baseFileOffset)

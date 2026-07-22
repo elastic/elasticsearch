@@ -495,6 +495,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
             threadPool.generic()
         );
+        logger.info(
+            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}], eviction policy=[{}]",
+            ByteSizeValue.ofBytes(cacheSize),
+            ByteSizeValue.ofBytes(regionSize),
+            numRegions,
+            evictionPolicy.getClass().getSimpleName()
+        );
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {

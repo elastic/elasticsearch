@@ -532,9 +532,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 offsets.add(offset);
                 if (vectorValues instanceof ByteVectorValues) {
                     byte[] centroid = centroidSupplier.byteCentroid(c);
-                    postingsOutput.writeInt(
-                        Float.floatToIntBits(ESVectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c)))
-                    );
+                    postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
                 } else {
                     float[] centroid = centroidSupplier.centroid(c);
                     postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));

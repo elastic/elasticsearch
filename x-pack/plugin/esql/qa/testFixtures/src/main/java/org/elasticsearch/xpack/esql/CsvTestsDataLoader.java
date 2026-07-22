@@ -406,9 +406,8 @@ public class CsvTestsDataLoader {
      * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
      * deduplicates an alias and its backing index into a single logical source.
      */
-    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(
-        new AliasConfig("employees_alias", "employees")
-    ).collect(toMap(AliasConfig::aliasName, Function.identity()));
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
+        .collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>
@@ -668,7 +667,7 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicies(client);
             }
         }
-        loadAliasesIntoEs(client);
+        loadAliasesIntoEs(client, indicesToLoad);
     }
 
     /**
@@ -767,8 +766,21 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadAliasesIntoEs(RestClient client) throws IOException {
+        loadAliasesIntoEs(client, null);
+    }
+
+    /**
+     * Creates index aliases from {@link #ALIAS_CONFIGS}. When {@code indicesToLoad} is non-null,
+     * only aliases whose backing index is in that list are created — aliases for indices that were
+     * not loaded in this run are skipped to avoid {@code index_not_found_exception}.
+     */
+    private static void loadAliasesIntoEs(RestClient client, @Nullable List<String> indicesToLoad) throws IOException {
         logger.info("Loading aliases");
         for (var alias : ALIAS_CONFIGS.values()) {
+            if (indicesToLoad != null && indicesToLoad.contains(alias.indexName()) == false) {
+                logger.debug("Skipping alias [{}] -> [{}]: backing index not in indicesToLoad", alias.aliasName(), alias.indexName());
+                continue;
+            }
             Request request = new Request("POST", "/_aliases");
             request.setJsonEntity(
                 "{\"actions\":[{\"add\":{\"index\":\"" + alias.indexName() + "\",\"alias\":\"" + alias.aliasName() + "\"}}]}"

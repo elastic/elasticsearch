@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
+
 /**
  * Compacts the nested plan produced by {@link ViewResolver} into the form expected by the rest
  * of the query pipeline. The work is split into two phases so that {@link ViewShadowRelation}
@@ -372,14 +374,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                     && Regex.isSimpleMatchPattern(mainPattern) == false
                     && Regex.isSimpleMatchPattern(otherPattern) == false
                     && RemoteClusterAware.isRemoteIndexName(mainPattern) == false
-                    && RemoteClusterAware.isRemoteIndexName(otherPattern) == false) {
-                    Set<String> mainConcrete = aliasResolver.apply(mainPattern);
-                    Set<String> otherConcrete = aliasResolver.apply(otherPattern);
-                    for (String idx : mainConcrete) {
-                        if (otherConcrete.contains(idx)) {
-                            return null;
-                        }
-                    }
+                    && RemoteClusterAware.isRemoteIndexName(otherPattern) == false
+                    && haveNonEmptyIntersection(aliasResolver.apply(mainPattern), aliasResolver.apply(otherPattern))) {
+                    return null;
                 }
             }
         }
@@ -393,7 +390,16 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         );
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names. */
+    /**
+     * Merge the unresolved relation unless the index patterns contain matching index names.
+     * Alias resolution is intentionally skipped here. This overload is only called from
+     * {@link #mergeUnresolvedRelationEntries}, which itself is called exclusively from
+     * {@link #compactNestedViewUnionAlls} inside {@link #postIndexResolution}. By the time
+     * {@code postIndexResolution} runs, {@code ResolveTable} has already converted every
+     * {@link UnresolvedRelation} to an {@code EsRelation}, so {@code mergeUnresolvedRelationEntries}
+     * finds no {@link UnresolvedRelation} entries in the map and returns immediately — alias
+     * checking is therefore moot.
+     */
     static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
         return mergeIfPossible(main, other, null);
     }

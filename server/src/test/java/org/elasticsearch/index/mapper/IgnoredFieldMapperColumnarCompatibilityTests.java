@@ -9,87 +9,69 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.sourcebatch.MappedColumns;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Compatibility tests for {@link IgnoredFieldMapper}'s columnar batch path
  * ({@link IgnoredFieldMapper#postColumnarParse}) against its row-major path
  * ({@link IgnoredFieldMapper#postParse}).
  *
- * <p>Unlike the metadata mappers exercised through {@link #assertColumnarMatchesXContent}, the
- * {@code _ignored} values originate in field mappers (via {@link DocumentParserContext#addIgnoredField},
- * e.g. keyword {@code ignore_above}), which have no columnar driver yet, and under synthetic source
- * a real ignored value also emits {@code _ignored_source}/fallback fields the columnar path cannot
- * yet produce. So instead of the full x-content harness we drive the two {@code IgnoredFieldMapper}
- * halves directly with the same per-document ignored-name sets and assert the resulting Lucene
- * fields match, via {@link #assertColumnsMatchRowFields}.
+ * <p>Uses keyword fields with {@code ignore_above} to naturally populate {@code _ignored}
+ * entries via {@link KeywordFieldMapper#mapColumnBatch}, which also emits the single-valued
+ * synthetic-source fallback column ({@code f._original} + {@code f._original.counts}).
  */
 public class IgnoredFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
-    /** A single ignored name per document. */
+    private static Settings columnarSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    /** Single doc where the keyword value exceeds {@code ignore_above}: {@code _ignored} and the fallback column are emitted. */
     public void testSingleIgnoredField() throws IOException {
-        assertIgnoredParity(List.of(List.of("field_a")));
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject("f").field("type", "keyword").field("ignore_above", 5).endObject()),
+            columnarSettings(),
+            batch("single ignored", 1L, doc("d1", 1L, "{\"f\":\"toolong\"}"))
+        );
     }
 
-    /** No ignored fields: the accumulator stays empty and no {@code _ignored} column is attached. */
+    /** Two docs where no values are ignored: the {@code _ignored} accumulator stays empty. */
     public void testNoIgnoredFields() throws IOException {
-        assertIgnoredParity(List.of(List.of(), List.of()));
-    }
-
-    /**
-     * Multiple documents with overlapping and multi-name sets. Overlapping names across documents
-     * exercise the accumulator's value interning (one shared {@link org.apache.lucene.util.BytesRef}),
-     * and a document with several distinct names exercises the multi-valued array column.
-     */
-    public void testOverlappingAndMultiValued() throws IOException {
-        assertIgnoredParity(
-            List.of(List.of("field_a", "field_b"), List.of(), List.of("field_a"), List.of("field_b", "field_c", "field_a"))
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject("f").field("type", "keyword").field("ignore_above", 5).endObject()),
+            columnarSettings(),
+            batch("no ignored", 1L, doc("d1", 1L, "{\"f\":\"ok\"}"), doc("d2", 2L, "{\"f\":\"fine\"}"))
         );
     }
 
     /**
-     * Drives {@link IgnoredFieldMapper#postParse} (row) and {@link IgnoredFieldMapper#postColumnarParse}
-     * (columnar) with the same per-document ignored-name sets and asserts the emitted {@code _ignored}
-     * Lucene fields match. Index version defaults to {@code current} (modern), matching the
-     * columnar-only, doc-values shape of {@code _ignored}.
+     * Four docs with three keyword fields at {@code ignore_above=5}: per-doc ignored sets vary,
+     * one doc is absent entirely, and doc 4 has all three fields ignored — exercising value
+     * interning and the multi-valued {@code _ignored} array column.
      */
-    private void assertIgnoredParity(List<List<String>> ignoredPerDoc) throws IOException {
-        final int docCount = ignoredPerDoc.size();
-        final MapperService mapperService = createMapperService(topMapping(b -> {}));
-        final IgnoredFieldMapper mapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(IgnoredFieldMapper.class);
-
-        // Row path: seed each document's ignored fields and collect the _ignored fields postParse emits.
-        final List<List<IndexableField>> expectedPerDoc = new ArrayList<>(docCount);
-        for (List<String> names : ignoredPerDoc) {
-            final TestDocumentParserContext rowContext = new TestDocumentParserContext(mapperService.mappingLookup(), null);
-            for (String name : names) {
-                rowContext.addIgnoredField(name);
-            }
-            mapper.postParse(rowContext);
-            expectedPerDoc.add(new ArrayList<>(rowContext.doc().getFields(IgnoredFieldMapper.NAME)));
-        }
-
-        // Columnar path: record the same ignored fields into the batch context and drain via postColumnarParse.
-        final IndexRequest[] requests = new IndexRequest[docCount];
-        for (int i = 0; i < docCount; i++) {
-            requests[i] = new IndexRequest("test-index").id("id-" + i).source("{}", XContentType.JSON);
-        }
-        final BatchMappingContext ctx = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
-        for (int doc = 0; doc < docCount; doc++) {
-            for (String name : ignoredPerDoc.get(doc)) {
-                ctx.addIgnoredFieldColumnar(doc, name);
-            }
-        }
-        mapper.postColumnarParse(ctx);
-        final MappedColumns columnar = ctx.columns();
-
-        assertColumnsMatchRowFields(expectedPerDoc, columnar, "_ignored columnar vs row parity");
+    public void testOverlappingAndMultiValued() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("field_a").field("type", "keyword").field("ignore_above", 5).endObject();
+            b.startObject("field_b").field("type", "keyword").field("ignore_above", 5).endObject();
+            b.startObject("field_c").field("type", "keyword").field("ignore_above", 5).endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "overlapping multi-valued",
+                1L,
+                doc("d1", 1L, "{\"field_a\":\"toolong1\",\"field_b\":\"toolong2\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"field_a\":\"toolong3\"}"),
+                doc("d4", 4L, "{\"field_b\":\"toolong4\",\"field_c\":\"toolong5\",\"field_a\":\"toolong6\"}")
+            )
+        );
     }
 }

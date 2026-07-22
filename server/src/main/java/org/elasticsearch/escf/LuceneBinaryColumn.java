@@ -74,6 +74,34 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         return new LuceneBinaryColumn(EscfColumn.from(data), name, fieldType, Density.SPARSE);
     }
 
+    /**
+     * Creates a {@link LuceneBinaryColumn} from a STRING, BINARY, or ARRAY ESCF column, dispatching
+     * to the correct density. Use this in preference to the individual factories when the column
+     * kind is determined at runtime (e.g. a builder that may promote to ARRAY).
+     *
+     * <p>STRING and BINARY columns: {@link Density#DENSE} when every document is present
+     * ({@code data.validity() == null}); {@link Density#SPARSE} otherwise, so that Lucene's
+     * {@code addBatch} path uses {@link #tuples()} rather than {@link #values()} and correctly
+     * skips absent documents.
+     *
+     * <p>ARRAY columns are always {@link Density#SPARSE} (absent rows are empty ranges).
+     *
+     * @param data      the ESCF column data; must have kind STRING, BINARY, or ARRAY
+     * @param name      Lucene field name
+     * @param fieldType Lucene field type
+     */
+    public static LuceneBinaryColumn of(EscfColumnData data, String name, IndexableFieldType fieldType) {
+        return switch (data.kind()) {
+            case EscfColumnKind.STRING, EscfColumnKind.BINARY -> {
+                // Use SPARSE when validity is non-null so absent docs are skipped by tuples().
+                Density density = data.validity() == null ? Density.DENSE : Density.SPARSE;
+                yield new LuceneBinaryColumn(EscfColumn.from(data), name, fieldType, density);
+            }
+            case EscfColumnKind.ARRAY -> arrayColumn(data, name, fieldType);
+            default -> throw new AssertionError("unexpected column kind: " + EscfColumnKind.name(data.kind()));
+        };
+    }
+
     @Override
     public LuceneBinaryColumn slice(int from, int count) {
         return new LuceneBinaryColumn(data.sliceInternal(from, count), name(), fieldType(), density());

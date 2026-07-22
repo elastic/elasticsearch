@@ -35,11 +35,13 @@ import java.util.Map;
 public class LuceneBinaryColumnTests extends ESTestCase {
 
     private static LuceneBinaryColumn buildArrayColumn(int docCount, int[] docs, String[] values) {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         for (int i = 0; i < docs.length; i++) {
             builder.setString(docs[i], new BytesRef(values[i]));
         }
-        return LuceneBinaryColumn.arrayColumn(builder.finish(docCount), "_field_names", StringField.TYPE_NOT_STORED);
+        // Use of() so that single-valued output (STRING scalar) and multi-valued output (ARRAY) are
+        // both handled correctly: sparse when absent docs exist, dense when all docs are present.
+        return LuceneBinaryColumn.of(builder.finish(docCount), "_field_names", StringField.TYPE_NOT_STORED);
     }
 
     private static LuceneBinaryColumn buildStringColumn(String... values) {

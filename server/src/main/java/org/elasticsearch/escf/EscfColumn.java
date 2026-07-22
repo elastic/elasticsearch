@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.Text;
  * the column's native, possibly-paged {@link BytesReference} (plus {@link IntsRef} offsets /
  * {@link BytesRef} type vector / {@link FixedBitSet} metadata).
  */
-abstract class EscfColumn implements SliceableColumn {
+public abstract class EscfColumn implements SliceableColumn {
 
     final int docCount;
 
@@ -49,10 +49,10 @@ abstract class EscfColumn implements SliceableColumn {
     }
 
     /** The column kind (see {@link EscfColumnKind}). */
-    abstract byte kind();
+    public abstract byte kind();
 
     /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
-    static EscfColumn from(EscfColumnData col) {
+    public static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();
         FixedBitSet validity = windowValidity(col.validity(), 0, docCount);
         return switch (col.kind()) {
@@ -157,7 +157,7 @@ abstract class EscfColumn implements SliceableColumn {
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
      * row. Subtypes that hold byte-string values override this; the default throws.
      */
-    ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public ObjectTupleCursor<BytesRef> bytesRefCursor() {
         throw notA("binary");
     }
 

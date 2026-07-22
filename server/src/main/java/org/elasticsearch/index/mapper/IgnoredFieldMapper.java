@@ -169,9 +169,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             : "columnar _ignored requires a modern index version";
         // Drain the accumulator once, then back both Lucene fields the row path emits per ignored
         // name (SortedSetDocValuesField + indexed StringField) with the same immutable column data:
-        // each arrayColumn call builds an independent read-only view, so sharing the data is safe.
+        // each LuceneBinaryColumn.of call builds an independent read-only view, so sharing is safe.
+        // The column may be scalar (all-single-valued) or ARRAY (multi-valued); of() dispatches.
         final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        context.addColumn(LuceneBinaryColumn.arrayColumn(data, NAME, SortedSetDocValuesField.TYPE));
-        context.addColumn(LuceneBinaryColumn.arrayColumn(data, NAME, StringField.TYPE_NOT_STORED));
+        context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
+        context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));
     }
 }

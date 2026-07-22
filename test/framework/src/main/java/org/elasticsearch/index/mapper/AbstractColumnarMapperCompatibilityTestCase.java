@@ -26,7 +26,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -131,6 +135,28 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         for (MetadataFieldMapper m : supportedMappers) {
             m.preColumnarParse(ctx);
         }
+
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            final SourceSchema schema = escfBatch.schema();
+            final IndexSettings indexSettings = mapperService.getIndexSettings();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    if (fm.supportsColumnarParse(indexSettings) == false) {
+                        throw new AssertionError(
+                            "field ["
+                                + path
+                                + "] has mapper ["
+                                + fm.typeName()
+                                + "] that does not support columnar parse; "
+                                + "test data must only include fields whose mappers support columnar"
+                        );
+                    }
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                }
+            }
+        }
         for (MetadataFieldMapper m : supportedMappers) {
             m.postColumnarParse(ctx);
         }
@@ -184,17 +210,6 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
-    /**
-     * Directly asserts that the columns a metadata mapper attached to {@code columnar} (via its
-     * {@code postColumnarParse}) reproduce, per document, the Lucene fields its row-major
-     * {@code postParse} produced (supplied as {@code expectedPerDoc}, one list per document). Uses
-     * the same order-independent descriptor comparison and both cursor families (row cursor and
-     * column batch) as the full {@link #assertScenario} parity check.
-     *
-     * <p>This is for metadata fields that cannot be triggered through the full x-content harness
-     * because their values originate in field mappers that have no columnar driver yet (e.g.
-     * {@code _ignored}). The caller drives the two paths itself and passes the row-path fields here.
-     */
     protected void assertColumnsMatchRowFields(List<List<IndexableField>> expectedPerDoc, MappedColumns columnar, String message) {
         final int docCount = expectedPerDoc.size();
         final List<List<FieldDescriptor>> expected = new ArrayList<>(docCount);

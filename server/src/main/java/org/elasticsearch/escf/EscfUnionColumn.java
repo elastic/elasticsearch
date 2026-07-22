@@ -41,7 +41,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.UNION;
     }
 

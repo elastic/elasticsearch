@@ -73,10 +73,10 @@ final class DeduplicatingStringColumnAccumulator {
         return true;
     }
 
-    /** Drains into an {@code ARRAY[STRING]} {@link EscfColumnData} and releases all state. */
+    /** Drains into a STRING {@link EscfColumnData} (scalar if every doc has at most one value, ARRAY otherwise) and releases all state. */
     EscfColumnData finish(Recycler<BytesRef> recycler) {
         final int docCount = docOrds.length;
-        final EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(recycler);
+        final EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(recycler);
         for (int doc = 0; doc < docCount; doc++) {
             final int[] ords = docOrds[doc];
             if (ords == null) {

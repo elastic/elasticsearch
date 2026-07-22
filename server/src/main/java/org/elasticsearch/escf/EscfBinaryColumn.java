@@ -25,7 +25,7 @@ final class EscfBinaryColumn extends AbstractVarColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.BINARY;
     }
 

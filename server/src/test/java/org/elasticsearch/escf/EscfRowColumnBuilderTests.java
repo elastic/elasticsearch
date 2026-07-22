@@ -16,133 +16,312 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Unit tests for {@link EscfRowColumnBuilder}: array assembly, row addressing, multi-value
- * per-doc, absent (empty) rows, and output equivalence with the existing {@link EscfColumnBuilder}
- * array path.
+ * Unit tests for {@link EscfRowColumnBuilder}: typed factories, scalar/ARRAY promotion,
+ * per-kind setters, absent-row handling, and output shape for all supported kinds.
  */
 public class EscfRowColumnBuilderTests extends ESTestCase {
 
-    private static EscfColumnData buildArrayOfString(int docCount, int[] rows, String[] values) {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        for (int i = 0; i < rows.length; i++) {
-            builder.setString(rows[i], bytesRef(values[i]));
-        }
-        return builder.finish(docCount);
-    }
+    // -- helpers --
 
     private static BytesRef bytesRef(String s) {
-        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
-        return new BytesRef(bytes);
+        return new BytesRef(s.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static String readElem(EscfColumnData data, int row, int elemPos) {
+    /** Reads element {@code elemIdx} from the child of an ARRAY column. */
+    private static String readArrayElem(EscfColumnData data, int row, int elemPos) {
         int elemIdx = data.offsets()[row] + elemPos;
         return EscfColumn.from(data.child()).getBinaryValue(elemIdx).utf8ToString();
     }
 
+    /** Number of elements in row {@code row} of an ARRAY column. */
     private static int elemCount(EscfColumnData data, int row) {
         return data.offsets()[row + 1] - data.offsets()[row];
     }
 
-    /** An empty builder (no elements) produces an all-absent array. */
-    public void testEmptyBuilderAllAbsent() {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        assertTrue("isEmpty() before any setString", builder.isEmpty());
+    /** Reads a string value from a scalar (STRING) column at row {@code row}. */
+    private static String readScalarString(EscfColumnData data, int row) {
+        return EscfColumn.from(data).getBinaryValue(row).utf8ToString();
+    }
+
+    /** Reads a long value from a scalar (LONG) column at row {@code row}. */
+    private static long readScalarLong(EscfColumnData data, int row) {
+        return ((EscfLongColumn) EscfColumn.from(data)).getLongValue(row);
+    }
+
+    /** Reads a double value from a scalar (DOUBLE) column at row {@code row}. */
+    private static double readScalarDouble(EscfColumnData data, int row) {
+        return ((EscfDoubleColumn) EscfColumn.from(data)).getDoubleValue(row);
+    }
+
+    // -- STRING builder --
+
+    /** An empty STRING builder produces an all-absent scalar STRING column. */
+    public void testStringsEmptyBuilder() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        assertTrue(builder.isEmpty());
         EscfColumnData data = builder.finish(3);
-        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(EscfColumnKind.STRING, data.kind());
         assertEquals(3, data.docCount());
+        // All absent: validity should be a zero-filled bitset (or null only if zero docs, not here).
+        assertNotNull("should have validity for all-absent column", data.validity());
         for (int r = 0; r < 3; r++) {
-            assertEquals("row " + r + " should be empty (absent)", 0, elemCount(data, r));
+            assertTrue("doc " + r + " should be absent", EscfColumn.from(data).isAbsent(r));
         }
     }
 
-    /** Single element for one doc, others absent. */
-    public void testSingleValueSingleDoc() {
-        EscfColumnData data = buildArrayOfString(3, new int[] { 1 }, new String[] { "alpha" });
+    /** docCount == 0 and no writes produces a valid empty STRING column. */
+    public void testStringsZeroDocCount() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        EscfColumnData data = builder.finish(0);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        assertEquals(0, data.docCount());
+    }
+
+    /** A single write → scalar STRING, that doc is present, others absent. */
+    public void testStringsSingleValueSingleDoc() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setString(1, bytesRef("alpha"));
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        assertTrue("doc 0 absent", EscfColumn.from(data).isAbsent(0));
+        assertFalse("doc 1 present", EscfColumn.from(data).isAbsent(1));
+        assertEquals("alpha", readScalarString(data, 1));
+        assertTrue("doc 2 absent", EscfColumn.from(data).isAbsent(2));
+    }
+
+    /** All docs present, single value each → dense scalar STRING with no validity. */
+    public void testStringsDenseAllPresent() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setString(0, bytesRef("a"));
+        builder.setString(1, bytesRef("b"));
+        builder.setString(2, bytesRef("c"));
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        assertNull("dense column should have null validity", data.validity());
+        assertEquals("a", readScalarString(data, 0));
+        assertEquals("b", readScalarString(data, 1));
+        assertEquals("c", readScalarString(data, 2));
+    }
+
+    /** Two values for one doc → ARRAY[STRING], multi-valued doc has two elements. */
+    public void testStringsMultiValuePromotesToArray() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setString(0, bytesRef("x"));
+        builder.setString(0, bytesRef("y")); // second element for doc 0
+        builder.setString(1, bytesRef("z"));
+        EscfColumnData data = builder.finish(2);
         assertEquals(EscfColumnKind.ARRAY, data.kind());
-        assertEquals(0, elemCount(data, 0)); // absent
-        assertEquals(1, elemCount(data, 1));
-        assertEquals("alpha", readElem(data, 1, 0));
-        assertEquals(0, elemCount(data, 2)); // absent
-    }
-
-    /** All rows have exactly one element. */
-    public void testDenseSingleValueAllDocs() {
-        EscfColumnData data = buildArrayOfString(3, new int[] { 0, 1, 2 }, new String[] { "a", "b", "c" });
-        assertEquals(1, elemCount(data, 0));
-        assertEquals("a", readElem(data, 0, 0));
-        assertEquals(1, elemCount(data, 1));
-        assertEquals("b", readElem(data, 1, 0));
-        assertEquals(1, elemCount(data, 2));
-        assertEquals("c", readElem(data, 2, 0));
-    }
-
-    /** Same row supplied twice → multi-value for that doc. */
-    public void testMultiValueSingleDoc() {
-        EscfColumnData data = buildArrayOfString(2, new int[] { 0, 0, 1 }, new String[] { "x", "y", "z" });
         assertEquals(2, elemCount(data, 0));
-        assertEquals("x", readElem(data, 0, 0));
-        assertEquals("y", readElem(data, 0, 1));
+        assertEquals("x", readArrayElem(data, 0, 0));
+        assertEquals("y", readArrayElem(data, 0, 1));
         assertEquals(1, elemCount(data, 1));
-        assertEquals("z", readElem(data, 1, 0));
+        assertEquals("z", readArrayElem(data, 1, 0));
     }
 
-    /** Rows supplied out of order are tested to trigger the assertion. */
-    public void testNonDecreasingRowAssertion() {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    /** Rows supplied out of order must trigger the non-decreasing assertion. */
+    public void testStringsNonDecreasingRowAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.setString(2, bytesRef("a"));
         expectThrows(AssertionError.class, () -> builder.setString(1, bytesRef("b")));
     }
 
-    /** Trailing absent rows are filled correctly when the last row written is less than docCount - 1. */
-    public void testTrailingAbsentRows() {
-        EscfColumnData data = buildArrayOfString(5, new int[] { 0, 2 }, new String[] { "foo", "bar" });
-        assertEquals(1, elemCount(data, 0));
-        assertEquals("foo", readElem(data, 0, 0));
-        assertEquals(0, elemCount(data, 1)); // absent
-        assertEquals(1, elemCount(data, 2));
-        assertEquals("bar", readElem(data, 2, 0));
-        assertEquals(0, elemCount(data, 3)); // absent
-        assertEquals(0, elemCount(data, 4)); // absent
+    /** Leading absent rows are correctly reflected in the scalar output. */
+    public void testStringsLeadingAbsentRows() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setString(2, bytesRef("last"));
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        assertTrue(EscfColumn.from(data).isAbsent(0));
+        assertTrue(EscfColumn.from(data).isAbsent(1));
+        assertFalse(EscfColumn.from(data).isAbsent(2));
+        assertEquals("last", readScalarString(data, 2));
     }
 
-    /** Leading absent rows (first element written to a non-zero doc). */
-    public void testLeadingAbsentRows() {
-        EscfColumnData data = buildArrayOfString(3, new int[] { 2 }, new String[] { "last" });
-        assertEquals(0, elemCount(data, 0));
-        assertEquals(0, elemCount(data, 1));
-        assertEquals(1, elemCount(data, 2));
-        assertEquals("last", readElem(data, 2, 0));
+    /** Trailing absent rows are correctly reflected in the scalar output. */
+    public void testStringsTrailingAbsentRows() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setString(0, bytesRef("foo"));
+        builder.setString(2, bytesRef("bar"));
+        EscfColumnData data = builder.finish(5);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        assertFalse(EscfColumn.from(data).isAbsent(0));
+        assertEquals("foo", readScalarString(data, 0));
+        assertTrue(EscfColumn.from(data).isAbsent(1));
+        assertFalse(EscfColumn.from(data).isAbsent(2));
+        assertEquals("bar", readScalarString(data, 2));
+        assertTrue(EscfColumn.from(data).isAbsent(3));
+        assertTrue(EscfColumn.from(data).isAbsent(4));
     }
 
-    /** docCount = 0 → empty array, no elements. */
-    public void testZeroDocCount() {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        EscfColumnData data = builder.finish(0);
-        assertEquals(EscfColumnKind.ARRAY, data.kind());
-        assertEquals(0, data.docCount());
-        // No assertion needed beyond not throwing; the column is validly empty.
-    }
-
-    public void testOutputMatchesXContentBasedArrayBuilder() {
-        // Build via EscfRowColumnBuilder: rows [0, 1, 1, 2] → values ["a", "b", "c", "d"]
-        EscfColumnData rowData = buildArrayOfString(3, new int[] { 0, 1, 1, 2 }, new String[] { "a", "b", "c", "d" });
-
-        // Verify element layout directly.
-        assertEquals(1, elemCount(rowData, 0));
-        assertEquals("a", readElem(rowData, 0, 0));
-        assertEquals(2, elemCount(rowData, 1));
-        assertEquals("b", readElem(rowData, 1, 0));
-        assertEquals("c", readElem(rowData, 1, 1));
-        assertEquals(1, elemCount(rowData, 2));
-        assertEquals("d", readElem(rowData, 2, 0));
-    }
-
-    /** isEmpty() transitions from true to false when the first element is written. */
-    public void testIsEmpty() {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.arrayOfString(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    /** isEmpty() transitions from true to false on the first write. */
+    public void testStringsIsEmpty() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         assertTrue(builder.isEmpty());
         builder.setString(0, bytesRef("hello"));
         assertFalse(builder.isEmpty());
+    }
+
+    /** setString on a non-STRING builder triggers an AssertionError. */
+    public void testStringsWrongSetterAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        expectThrows(AssertionError.class, () -> builder.setString(0, bytesRef("x")));
+    }
+
+    // -- ARRAY of STRING (via multi-value) verification --
+
+    /**
+     * Verifies the element layout in an ARRAY output matches expectations, corresponding to the
+     * old {@code testOutputMatchesXContentBasedArrayBuilder} test.
+     */
+    public void testArrayStringElementLayout() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setString(0, bytesRef("a"));
+        builder.setString(1, bytesRef("b"));
+        builder.setString(1, bytesRef("c")); // second element → ARRAY
+        builder.setString(2, bytesRef("d"));
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(1, elemCount(data, 0));
+        assertEquals("a", readArrayElem(data, 0, 0));
+        assertEquals(2, elemCount(data, 1));
+        assertEquals("b", readArrayElem(data, 1, 0));
+        assertEquals("c", readArrayElem(data, 1, 1));
+        assertEquals(1, elemCount(data, 2));
+        assertEquals("d", readArrayElem(data, 2, 0));
+    }
+
+    // -- BINARY builder --
+
+    /** Single BINARY write → scalar BINARY. */
+    public void testBinarySingleValue() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.binaries(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setBinary(0, new BytesRef(new byte[] { 1, 2, 3 }));
+        EscfColumnData data = builder.finish(1);
+        assertEquals(EscfColumnKind.BINARY, data.kind());
+        assertNull("dense", data.validity());
+        assertEquals(new BytesRef(new byte[] { 1, 2, 3 }), EscfColumn.from(data).getBinaryValue(0));
+    }
+
+    /** Multi-value BINARY → ARRAY[BINARY]. */
+    public void testBinaryMultiValuePromotesToArray() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.binaries(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setBinary(0, new BytesRef(new byte[] { 0xA }));
+        builder.setBinary(0, new BytesRef(new byte[] { 0xB }));
+        EscfColumnData data = builder.finish(1);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(2, elemCount(data, 0));
+    }
+
+    /** setBinary on a non-BINARY builder triggers an AssertionError. */
+    public void testBinaryWrongSetterAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        expectThrows(AssertionError.class, () -> builder.setBinary(0, new BytesRef(new byte[] { 1 })));
+    }
+
+    // -- LONG builder --
+
+    /** Single long write → dense scalar LONG column. */
+    public void testLongSingleValueDense() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setLong(0, 42L);
+        builder.setLong(1, -1L);
+        builder.setLong(2, Long.MAX_VALUE);
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.LONG, data.kind());
+        assertNull("dense", data.validity());
+        assertEquals(42L, readScalarLong(data, 0));
+        assertEquals(-1L, readScalarLong(data, 1));
+        assertEquals(Long.MAX_VALUE, readScalarLong(data, 2));
+    }
+
+    /** Absent LONG docs carry validity; present docs return correct values. */
+    public void testLongWithAbsentDocs() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setLong(1, 99L);
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.LONG, data.kind());
+        assertNotNull("should have validity for absent docs", data.validity());
+        assertTrue("doc 0 absent", EscfColumn.from(data).isAbsent(0));
+        assertFalse("doc 1 present", EscfColumn.from(data).isAbsent(1));
+        assertEquals(99L, readScalarLong(data, 1));
+        assertTrue("doc 2 absent", EscfColumn.from(data).isAbsent(2));
+    }
+
+    /** Multi-value LONG → ARRAY[LONG]. */
+    public void testLongMultiValuePromotesToArray() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setLong(0, 1L);
+        builder.setLong(0, 2L);
+        EscfColumnData data = builder.finish(1);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(EscfColumnKind.LONG, data.child().kind());
+        assertEquals(2, elemCount(data, 0));
+    }
+
+    /** setLong on a non-LONG builder triggers an AssertionError. */
+    public void testLongWrongSetterAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        expectThrows(AssertionError.class, () -> builder.setLong(0, 0L));
+    }
+
+    /** Non-decreasing assertion also applies to setLong. */
+    public void testLongNonDecreasingRowAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setLong(2, 0L);
+        expectThrows(AssertionError.class, () -> builder.setLong(1, 0L));
+    }
+
+    // -- DOUBLE builder --
+
+    /** Single double write → dense scalar DOUBLE column. */
+    public void testDoubleSingleValueDense() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.doubles(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setDouble(0, 1.5);
+        builder.setDouble(1, -0.0);
+        builder.setDouble(2, Double.NaN);
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.DOUBLE, data.kind());
+        assertNull("dense", data.validity());
+        assertEquals(1.5, readScalarDouble(data, 0), 0.0);
+        assertEquals(-0.0, readScalarDouble(data, 1), 0.0);
+        // NaN equality via raw bits
+        assertEquals(Double.doubleToRawLongBits(Double.NaN), Double.doubleToRawLongBits(readScalarDouble(data, 2)));
+    }
+
+    /** Absent DOUBLE docs carry validity; present docs return correct values. */
+    public void testDoubleWithAbsentDocs() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.doubles(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setDouble(2, 3.14);
+        EscfColumnData data = builder.finish(3);
+        assertEquals(EscfColumnKind.DOUBLE, data.kind());
+        assertNotNull("should have validity for absent docs", data.validity());
+        assertTrue("doc 0 absent", EscfColumn.from(data).isAbsent(0));
+        assertTrue("doc 1 absent", EscfColumn.from(data).isAbsent(1));
+        assertFalse("doc 2 present", EscfColumn.from(data).isAbsent(2));
+        assertEquals(3.14, readScalarDouble(data, 2), 1e-9);
+    }
+
+    /** Multi-value DOUBLE → ARRAY[DOUBLE]. */
+    public void testDoubleMultiValuePromotesToArray() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.doubles(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setDouble(0, 1.0);
+        builder.setDouble(0, 2.0);
+        EscfColumnData data = builder.finish(1);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(EscfColumnKind.DOUBLE, data.child().kind());
+        assertEquals(2, elemCount(data, 0));
+    }
+
+    /** setDouble on a non-DOUBLE builder triggers an AssertionError. */
+    public void testDoubleWrongSetterAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        expectThrows(AssertionError.class, () -> builder.setDouble(0, 0.0));
+    }
+
+    /** Non-decreasing assertion also applies to setDouble. */
+    public void testDoubleNonDecreasingRowAssertion() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.doubles(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setDouble(3, 0.0);
+        expectThrows(AssertionError.class, () -> builder.setDouble(2, 0.0));
     }
 }

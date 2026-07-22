@@ -30,7 +30,7 @@ final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.LONG;
     }
 

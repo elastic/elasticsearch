@@ -213,9 +213,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (acc == null || acc.isEmpty()) {
             return;
         }
-        ctx.addColumn(
-            LuceneBinaryColumn.arrayColumn(acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE), NAME, StringField.TYPE_NOT_STORED)
-        );
+        ctx.addColumn(LuceneBinaryColumn.of(acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE), NAME, StringField.TYPE_NOT_STORED));
     }
 
     @Override

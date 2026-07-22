@@ -353,7 +353,7 @@ public final class DatafeedManager {
                             current,
                             update,
                             state,
-                            ActionListener.wrap(v -> executeUpdate.run(), l::onFailure)
+                            l.delegateFailureAndWrap((v, ll) -> executeUpdate.run())
                         );
                     } else {
                         executeUpdate.run();

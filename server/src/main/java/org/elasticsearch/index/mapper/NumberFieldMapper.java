@@ -2779,7 +2779,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSyntheticSource) {
                     // Save a copy of the field so synthetic source can load it
-                    FallbackStorageRouter.storeMalformedValue(context, fullPath(), context.parser());
+                    FallbackStorageRouter.write(context, fullPath(), FallbackStorageRouter.Reason.MALFORMED);
                 }
                 return;
             } else {

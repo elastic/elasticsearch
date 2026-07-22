@@ -838,7 +838,7 @@ public class IpFieldMapper extends FieldMapper {
                 context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    FallbackStorageRouter.storeMalformedValue(context, fullPath(), context.parser());
+                    FallbackStorageRouter.write(context, fullPath(), FallbackStorageRouter.Reason.MALFORMED);
                 }
                 return;
             } else {

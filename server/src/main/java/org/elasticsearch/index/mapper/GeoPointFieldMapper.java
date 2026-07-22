@@ -663,7 +663,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         throws IOException {
         super.onMalformedValue(context, malformedDataForSyntheticSource, cause);
         if (malformedDataForSyntheticSource != null) {
-            FallbackStorageRouter.storeMalformedValue(context, fullPath(), malformedDataForSyntheticSource);
+            FallbackStorageRouter.write(context, fullPath(), FallbackStorageRouter.Reason.MALFORMED, malformedDataForSyntheticSource);
         }
     }
 

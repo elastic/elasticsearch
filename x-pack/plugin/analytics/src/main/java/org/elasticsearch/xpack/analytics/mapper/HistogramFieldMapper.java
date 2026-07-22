@@ -423,7 +423,7 @@ public class HistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                FallbackStorageRouter.storeMalformedValue(context, fullPath(), malformedDataForSyntheticSource);
+                FallbackStorageRouter.write(context, fullPath(), FallbackStorageRouter.Reason.MALFORMED, malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());

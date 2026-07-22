@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.xcontent.XContentParser;
-
 import java.io.IOException;
 import java.util.Optional;
 
@@ -240,23 +238,33 @@ public final class FallbackStorageRouter {
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Malformed-value storage — field mappers call these instead of
-    // IgnoreMalformedStoredValues directly so the write path stays in the router
-    // -------------------------------------------------------------------------
-
-    /** Stores a malformed field value (from a parser) for synthetic source reconstruction. */
-    public static void storeMalformedValue(DocumentParserContext context, String fieldPath, XContentParser parser) throws IOException {
-        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, parser);
-    }
-
-    /** Stores a malformed field value (from a pre-built XContentBuilder) for synthetic source reconstruction. */
-    public static void storeMalformedValue(
+    /**
+     * Writes a field value captured in an explicit {@link org.elasticsearch.xcontent.XContentBuilder} to the
+     * appropriate fallback destination. Use this overload when the mapper has already copied the raw value
+     * into a builder before the exception was thrown (e.g. via {@code CopyingXContentParser}).
+     * <p>
+     * For cases where the value is still at the current parser position, use {@link #write(DocumentParserContext, String, Reason)}
+     * instead — it reads from {@code context.parser()} automatically.
+     */
+    public static boolean write(
         DocumentParserContext context,
         String fieldPath,
+        Reason reason,
         org.elasticsearch.xcontent.XContentBuilder builder
     ) throws IOException {
-        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, builder);
+        return switch (route(reason)) {
+            case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath);
+            case IGNORE_MALFORMED -> {
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, builder);
+                yield true;
+            }
+            case ON_FAILURE -> {
+                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                    OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, context.parser());
+                }
+                yield true;
+            }
+        };
     }
 
     // -------------------------------------------------------------------------

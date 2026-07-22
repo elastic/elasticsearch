@@ -661,7 +661,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        FallbackStorageRouter.storeMalformedValue(context, fullPath(), context.parser());
+                        FallbackStorageRouter.write(context, fullPath(), FallbackStorageRouter.Reason.MALFORMED);
                     }
                     return;
                 } else {

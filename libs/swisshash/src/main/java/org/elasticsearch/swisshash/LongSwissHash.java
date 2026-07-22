@@ -513,23 +513,14 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             int group = hash & mask;
             for (;;) {
                 ByteVector vec = ByteVector.fromArray(BS, controlData, group);
-                // anyTrue() is cheap relative to toLong() (no native movemask on AArch64), and
-                // for a well spread hash + a table under its fill factor, a group rarely
-                // contains a byte equal to our control value, so this short-circuits the
-                // expensive mask-to-bitmask conversion (and the now-pointless scan loop) in the
-                // common case. Semantics are unchanged: when a match could exist we fall through
-                // to the exact same toLong()-driven scan as before.
-                var matchMask = vec.eq(control);
-                if (matchMask.anyTrue()) {
-                    long matches = matchMask.toLong();
-                    while (matches != 0) {
-                        final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
-                        final int id = id(checkSlot);
-                        if (key(id) == key) {
-                            return -1 - id;
-                        }
-                        matches &= matches - 1; // clear the first set bit and try again
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
+                    final int id = id(checkSlot);
+                    if (key(id) == key) {
+                        return -1 - id;
                     }
+                    matches &= matches - 1; // clear the first set bit and try again
                 }
                 long empty = vec.eq(EMPTY).toLong();
                 if (empty != 0) {

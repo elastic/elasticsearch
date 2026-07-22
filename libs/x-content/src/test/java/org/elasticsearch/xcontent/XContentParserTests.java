@@ -12,6 +12,7 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -133,6 +134,31 @@ public class XContentParserTests extends ESTestCase {
                 assertFieldWithValue("maxNegativeExp", 0L, parser);
 
                 assertFieldWithInvalidLongValue("tooNegativeExp", parser);
+            }
+        }
+    }
+
+    public void testNumericCoercionRejectsOversizedString() throws IOException {
+        // Every numeric accessor bounds the length of a quoted string before coercing it, avoiding unbounded
+        // (and, for long, super-linear) parsing work on an attacker-sized value.
+        String oversized = "1" + "0".repeat(5000);
+        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::shortValue);
+        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::intValue);
+        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::longValue);
+        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::floatValue);
+        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::doubleValue);
+    }
+
+    private void assertNumericAccessorRejectsOversizedString(String value, CheckedConsumer<XContentParser, IOException> accessor)
+        throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject().field("n", value).endObject();
+            try (XContentParser parser = decorateParser(createParser(xContentType.xContent(), BytesReference.bytes(builder)))) {
+                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+                expectThrows(IllegalArgumentException.class, () -> accessor.accept(parser));
             }
         }
     }

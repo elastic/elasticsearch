@@ -40,7 +40,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private final Settings settings;
     private final Supplier<MeterProvider> meterProvider;
     private final Object mutex = new Object();
-    private volatile OTelTracerResources resources;
+    private volatile OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         this.settings = settings;
@@ -50,33 +50,33 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     @Override
     public OpenTelemetry get() {
         synchronized (mutex) {
-            if (resources == null) {
-                resources = createResources();
+            if (openTelemetrySdk == null) {
+                openTelemetrySdk = createOpenTelemetrySdk();
             }
-            return resources.openTelemetrySdk();
+            return openTelemetrySdk;
         }
     }
 
     @Override
     public CompletableResultCode attemptFlushTraces() {
-        OTelTracerResources resources;
+        OpenTelemetrySdk openTelemetrySdk;
         synchronized (mutex) {
-            resources = this.resources;
+            openTelemetrySdk = this.openTelemetrySdk;
         }
-        return resources == null ? CompletableResultCode.ofSuccess() : resources.tracerProvider().forceFlush();
+        return openTelemetrySdk == null ? CompletableResultCode.ofSuccess() : openTelemetrySdk.getSdkTracerProvider().forceFlush();
     }
 
     @Override
     public void close() {
         synchronized (mutex) {
-            if (resources != null) {
-                resources.tracerProvider().close();
-                resources = null;
+            if (openTelemetrySdk != null) {
+                openTelemetrySdk.getSdkTracerProvider().close();
+                openTelemetrySdk = null;
             }
         }
     }
 
-    private OTelTracerResources createResources() {
+    private OpenTelemetrySdk createOpenTelemetrySdk() {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
@@ -122,13 +122,9 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .addSpanProcessor(processor)
             .build();
 
-        OpenTelemetrySdk openTelemetrySdk = OpenTelemetrySdk.builder()
+        return OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .build();
-
-        return new OTelTracerResources(tracerProvider, openTelemetrySdk);
     }
-
-    record OTelTracerResources(SdkTracerProvider tracerProvider, OpenTelemetrySdk openTelemetrySdk) {}
 }

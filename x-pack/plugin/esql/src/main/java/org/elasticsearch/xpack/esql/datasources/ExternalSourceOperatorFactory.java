@@ -307,8 +307,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             if (split instanceof FileSplit fileSplit) {
                 currentSplitPath = fileSplit.path();
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
-                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                boolean firstSplit = FileSplitProvider.isFirstInFile(fileSplit);
+                boolean lastSplit = FileSplitProvider.isLastInFile(fileSplit);
 
                 ColumnMapping columnMapping = fileSplit.columnMapping();
                 List<String> effectiveProjection = projectedColumns;

@@ -182,18 +182,19 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return shardHeapUsageBuilder;
     }
 
-    private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
+    private static Map<String, NodeHeapMetrics> randomNodeHeapUsage() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, EstimatedHeapUsage> nodeHeapUsage = new HashMap<>(numEntries);
+        Map<String, NodeHeapMetrics> nodeHeapUsage = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
-            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
-            final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+            final int maxHeapSize = randomIntBetween(0, Integer.MAX_VALUE);
+            final long totalHeapUsage = randomLongBetween(0, maxHeapSize);
+            final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
-                totalBytes,
-                randomIntBetween(0, totalBytes)
+                maxHeapSize,
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
             );
-            nodeHeapUsage.put(key, estimatedHeapUsage);
+            nodeHeapUsage.put(key, nodeHeapMetrics);
         }
         return nodeHeapUsage;
     }

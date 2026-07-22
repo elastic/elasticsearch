@@ -58,6 +58,15 @@ public class RecoveryDirectCancellationService {
 
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
 
+    /// This limit is conservative (compared to [org.elasticsearch.indices.ShardLimitValidator] limits), but it should
+    /// still capture all "still in use" cancellations for the majority of clusters. Each entry is expected to be ~32 bytes.
+    /// The max cache size is then ~1.6MB which is less than 0.1% of a 2GB heap.
+    private static final int MAX_CANCELLATIONS_CACHE_SIZE = 50_000;
+
+    /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures entries
+    /// are eventually evicted and further reduces cache size in clusters where the size bound is rarely reached.
+    private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
+
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations",
         false,
@@ -71,7 +80,7 @@ public class RecoveryDirectCancellationService {
     private final Executor genericExecutor;
     private volatile boolean enableDirectRecoveryCancellations;
 
-    /// Time-based cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
+    /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
     /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
     /// have taken effect on the data nodes.
     final Cache<String, SentCancellation> sentCancellations;
@@ -90,7 +99,10 @@ public class RecoveryDirectCancellationService {
             Priority.HIGH,
             new ShardFailedTaskExecutor(allocationService, rerouteService)
         );
-        this.sentCancellations = CacheBuilder.<String, SentCancellation>builder().setExpireAfterWrite(TimeValue.timeValueHours(3)).build();
+        this.sentCancellations = CacheBuilder.<String, SentCancellation>builder()
+            .setMaximumWeight(MAX_CANCELLATIONS_CACHE_SIZE)
+            .setExpireAfterWrite(CANCELLATION_CACHE_TTL)
+            .build();
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
@@ -179,14 +191,17 @@ public class RecoveryDirectCancellationService {
                 final SentCancellation cached = sentCancellations.get(cancellation.allocationId());
                 if (cached == null) {
                     dedupedCancellations.add(cancellation);
-                    sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
+                    sentCancellations.put(
+                        cancellation.allocationId(),
+                        new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
+                    );
                 } else {
-                    final ShardRecoveryCancellation cachedCancellation = cached.cancellation();
-                    assert cachedCancellation.shardId().equals(cancellation.shardId());
-                    if ((cachedCancellation.cancelIfStarted() == false && cancellation.cancelIfStarted())
-                        || cached.term() != request.term()) {
+                    if ((cached.cancelIfStarted() == false && cancellation.cancelIfStarted()) || cached.term() != request.term()) {
                         dedupedCancellations.add(cancellation);
-                        sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
+                        sentCancellations.put(
+                            cancellation.allocationId(),
+                            new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
+                        );
                     }
                 }
             }
@@ -213,7 +228,10 @@ public class RecoveryDirectCancellationService {
                 // were waiting for it to respond. That should be fine, as in all likelihood, this subsequent request
                 // would have faced the same transport error and direct cancellation is best-effort anyway.
                 for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-                    sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
+                    sentCancellations.invalidate(
+                        cancellation.allocationId(),
+                        new SentCancellation(request.term(), cancellation.allocationId(), cancellation.cancelIfStarted())
+                    );
                 }
                 logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
             }), CancelRecoveriesAction.Response::new, genericExecutor)
@@ -301,5 +319,5 @@ public class RecoveryDirectCancellationService {
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 
-    record SentCancellation(long term, ShardRecoveryCancellation cancellation) {}
+    record SentCancellation(long term, String allocationId, boolean cancelIfStarted) {}
 }

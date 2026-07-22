@@ -1,17 +1,22 @@
 // Tests for lambda-accepting multi-value functions: any_match, map, filter.
-// The whole lambda feature is snapshot-only while under development, gated by
-// the lambda_syntax capability.
+// Each test is gated on the implicit per-function capability (fn_any_match,
+// fn_map, fn_filter) so mixed-version clusters only run tests for functions
+// that are actually registered on every node.
 
 anyMatchTrue
-required_capability: lambda_syntax
+required_capability: fn_any_match
+// tag::any_match[]
 ROW a = [1, 2, 3] | EVAL r = any_match(a, x -> x > 2);
+// end::any_match[]
 
+// tag::any_match-result[]
 a:integer | r:boolean
 [1, 2, 3] | true
+// end::any_match-result[]
 ;
 
 anyMatchFalse
-required_capability: lambda_syntax
+required_capability: fn_any_match
 ROW a = [1, 2, 3] | EVAL r = any_match(a, x -> x > 5);
 
 a:integer | r:boolean
@@ -19,7 +24,7 @@ a:integer | r:boolean
 ;
 
 anyMatchKeyword
-required_capability: lambda_syntax
+required_capability: fn_any_match
 ROW s = ["foo", "bar"] | EVAL r = any_match(s, x -> x == "bar");
 
 s:keyword  | r:boolean
@@ -27,7 +32,7 @@ s:keyword  | r:boolean
 ;
 
 anyMatchSingleValue
-required_capability: lambda_syntax
+required_capability: fn_any_match
 ROW a = 5 | EVAL r = any_match(a, x -> x > 1);
 
 a:integer | r:boolean
@@ -35,7 +40,7 @@ a:integer | r:boolean
 ;
 
 anyMatchNullField
-required_capability: lambda_syntax
+required_capability: fn_any_match
 ROW a = null | EVAL r = any_match(a, x -> x == 1);
 
 a:null | r:boolean
@@ -43,7 +48,7 @@ null   | null
 ;
 
 anyMatchUpstreamReference
-required_capability: lambda_syntax
+required_capability: fn_any_match
 ROW a = [1, 2, 3], b = 2 | EVAL r = any_match(a, x -> x > b);
 
 a:integer | b:integer | r:boolean
@@ -51,7 +56,7 @@ a:integer | b:integer | r:boolean
 ;
 
 anyMatchNestedLambdas
-required_capability: lambda_syntax
+required_capability: fn_any_match
 ROW a = [1, 2], b = [3, 4]
 | EVAL r = any_match(a, x -> any_match(b, y -> y > x + 2)), r2 = any_match(a, x -> any_match(b, y -> y > x + 3));
 
@@ -60,7 +65,7 @@ a:integer | b:integer | r:boolean | r2:boolean
 ;
 
 anyMatchOnIndex
-required_capability: lambda_syntax
+required_capability: fn_any_match
 FROM employees
 | WHERE emp_no <= 10010
 | EVAL r = any_match(job_positions, x -> x == "Tech Lead")
@@ -81,7 +86,7 @@ emp_no:integer | r:boolean
 ;
 
 anyMatchInWhere
-required_capability: lambda_syntax
+required_capability: fn_any_match
 FROM employees
 | WHERE emp_no <= 10010 AND any_match(job_positions, x -> x == "Tech Lead")
 | KEEP emp_no
@@ -94,15 +99,19 @@ emp_no:integer
 ;
 
 mapInts
-required_capability: lambda_syntax
+required_capability: fn_map
+// tag::map[]
 ROW a = [1, 2, 3] | EVAL r = map(a, x -> x * 10);
+// end::map[]
 
+// tag::map-result[]
 a:integer | r:integer
 [1, 2, 3] | [10, 20, 30]
+// end::map-result[]
 ;
 
 mapStrings
-required_capability: lambda_syntax
+required_capability: fn_map
 ROW s = ["foo", "bar"] | EVAL r = map(s, x -> to_upper(x));
 
 s:keyword  | r:keyword
@@ -110,7 +119,7 @@ s:keyword  | r:keyword
 ;
 
 mapBooleans
-required_capability: lambda_syntax
+required_capability: fn_map
 ROW b = [true, false] | EVAL r = map(b, x -> NOT x);
 
 b:boolean     | r:boolean
@@ -118,7 +127,7 @@ b:boolean     | r:boolean
 ;
 
 mapLongs
-required_capability: lambda_syntax
+required_capability: fn_map
 ROW l = [1000000000000, 2000000000000] | EVAL r = map(l, x -> x + 1);
 
 l:long                          | r:long
@@ -126,7 +135,7 @@ l:long                          | r:long
 ;
 
 mapTypeChange
-required_capability: lambda_syntax
+required_capability: fn_map
 ROW a = [1, 2] | EVAL r = map(a, x -> x + 0.5);
 
 a:integer | r:double
@@ -134,7 +143,7 @@ a:integer | r:double
 ;
 
 mapFlattensMultivalueResults
-required_capability: lambda_syntax
+required_capability: fn_map
 ROW a = [1, 2] | EVAL r = map(a, x -> mv_append(x, x * 10));
 
 a:integer | r:integer
@@ -142,7 +151,7 @@ a:integer | r:integer
 ;
 
 mapUpstreamReference
-required_capability: lambda_syntax
+required_capability: fn_map
 ROW a = [1, 2, 3], b = 10 | EVAL r = map(a, x -> x * b);
 
 a:integer | b:integer | r:integer
@@ -150,7 +159,7 @@ a:integer | b:integer | r:integer
 ;
 
 mapOnIndex
-required_capability: lambda_syntax
+required_capability: fn_map
 FROM employees
 | WHERE emp_no <= 10004
 | EVAL r = map(job_positions, x -> length(x))
@@ -165,15 +174,19 @@ emp_no:integer | r:integer
 ;
 
 filterInts
-required_capability: lambda_syntax
+required_capability: fn_filter
+// tag::filter[]
 ROW a = [1, 2, 3, 4] | EVAL r = filter(a, x -> x > 2);
+// end::filter[]
 
+// tag::filter-result[]
 a:integer    | r:integer
 [1, 2, 3, 4] | [3, 4]
+// end::filter-result[]
 ;
 
 filterSingleResult
-required_capability: lambda_syntax
+required_capability: fn_filter
 ROW a = [1, 2, 3] | EVAL r = filter(a, x -> x > 2);
 
 a:integer | r:integer
@@ -181,7 +194,7 @@ a:integer | r:integer
 ;
 
 filterNoneMatchIsNull
-required_capability: lambda_syntax
+required_capability: fn_filter
 ROW a = [1, 2] | EVAL r = filter(a, x -> x > 5);
 
 a:integer | r:integer
@@ -189,7 +202,7 @@ a:integer | r:integer
 ;
 
 filterKeyword
-required_capability: lambda_syntax
+required_capability: fn_filter
 ROW s = ["foo", "bar", "baz"] | EVAL r = filter(s, x -> starts_with(x, "ba"));
 
 s:keyword       | r:keyword
@@ -197,7 +210,7 @@ s:keyword       | r:keyword
 ;
 
 filterDoubles
-required_capability: lambda_syntax
+required_capability: fn_filter
 ROW d = [1.5, 2.5, 3.5] | EVAL r = filter(d, x -> x > 2.0);
 
 d:double        | r:double
@@ -205,7 +218,7 @@ d:double        | r:double
 ;
 
 filterUpstreamReferenceOnIndex
-required_capability: lambda_syntax
+required_capability: fn_filter
 FROM employees
 | WHERE emp_no <= 10004
 | EVAL r = filter(salary_change.int, x -> x >= languages)
@@ -220,7 +233,8 @@ emp_no:integer | languages:integer | r:integer
 ;
 
 composedLambdaFunctions
-required_capability: lambda_syntax
+required_capability: fn_map
+required_capability: fn_filter
 ROW a = [1, 2, 3, 4] | EVAL r = map(filter(a, x -> x > 1), y -> y * 2);
 
 a:integer    | r:integer

@@ -334,15 +334,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsTests is missing")
-                // TODO: the function test framework can't supply lambda arguments yet; snapshot-only lambda
-                // functions (any_match/map/filter) are covered by lambda.csv-spec and AnalyzerTests instead
+                // TODO: ErrorTests for lambda functions require framework support for lambda-typed invalid arguments
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilterErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilterTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMapErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMapTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")

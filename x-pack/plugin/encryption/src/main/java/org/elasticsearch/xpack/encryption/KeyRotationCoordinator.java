@@ -133,7 +133,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     private volatile Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
-    private final AtomicBoolean rotating = new AtomicBoolean(false);
+    private final AtomicBoolean reEncrypting = new AtomicBoolean(false);
     private final AtomicBoolean installInFlight = new AtomicBoolean(false);
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
@@ -221,7 +221,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (closed) {
             return;
         }
-        rotating.set(false);
+        reEncrypting.set(false);
         stopSchedule();
     }
 
@@ -308,9 +308,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         long now = threadPool.absoluteTimeInMillis();
-        var rotationInProgress = rotate(metadata);
+        var reEncryptionInProgress = reEncrypt(metadata);
         // In-flight ReEncryptApplyTasks would lose their CAS check if the active key rotated now.
-        if (rotationInProgress) {
+        if (reEncryptionInProgress) {
             logger.debug("project encryption key: deferring lifecycle advancement; re-encryption still in progress");
             return;
         }
@@ -318,13 +318,13 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         advanceKeyLifecycle(metadata, now);
     }
 
-    private boolean rotate(ProjectEncryptionKeyMetadata metadata) {
+    private boolean reEncrypt(ProjectEncryptionKeyMetadata metadata) {
         String activeKeyId = metadata.getActiveKeyId();
         List<EncryptedDataHandler<?>> pending = handlers.stream().filter(h -> metadata.isHandlerOnActive(h.customName()) == false).toList();
         if (pending.isEmpty()) {
             return false;
         }
-        if (rotating.compareAndSet(false, true) == false) {
+        if (reEncrypting.compareAndSet(false, true) == false) {
             logger.warn("re-encryption already in progress, skipping this tick");
             return true;
         }
@@ -332,7 +332,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             var listeners = new RefCountingListener(
                 ActionListener.runAfter(
                     ActionListener.wrap(unused -> {}, e -> logger.warn("re-encryption failed; will retry on next tick", e)),
-                    () -> rotating.set(false)
+                    () -> reEncrypting.set(false)
                 )
             )
         ) {

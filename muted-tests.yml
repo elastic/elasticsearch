@@ -29,15 +29,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/153507
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testClusterState {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/143800
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testOperationBasedRecovery {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/143801
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testOperationBasedRecovery {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/143802
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -83,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
-  method: testQuantizedXY
-  issue: https://github.com/elastic/elasticsearch/issues/150782
 - class: org.elasticsearch.test.apmintegration.OtelAuditLogsIT
   method: testAuditEventArrivesAsOtlpLogRecord
   issue: https://github.com/elastic/elasticsearch/issues/154330
@@ -343,12 +331,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
-  method: testConjunctionOfRangeFiltersMatchesBruteForce
-  issue: https://github.com/elastic/elasticsearch/issues/152886
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testConjunctionOfRangeFiltersMatchesBruteForce
-  issue: https://github.com/elastic/elasticsearch/issues/152887
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/152913

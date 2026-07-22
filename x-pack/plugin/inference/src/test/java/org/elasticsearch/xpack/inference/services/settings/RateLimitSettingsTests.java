@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -346,6 +347,52 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
                 )
             )
         );
+    }
+
+    public void testDeclareUnsupportedRateLimitField_RequestContext_ThrowsValidationException() {
+        var taskType = randomFrom(TaskType.values());
+        var json = Strings.format("""
+            {"%s": {"%s": %d}}""", RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE);
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> parseWithRejectDeclare(json, taskType, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getCause(), instanceOf(ValidationException.class));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                Strings.format(
+                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
+                    TEST_SCOPE,
+                    TEST_SERVICE_NAME,
+                    taskType.toString()
+                )
+            )
+        );
+    }
+
+    public void testDeclareUnsupportedRateLimitField_PersistentContext_IgnoresRateLimitField() throws IOException {
+        var json = Strings.format("""
+            {"%s": {"%s": %d}}""", RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE);
+
+        var holder = parseWithRejectDeclare(json, randomFrom(TaskType.values()), ConfigurationParseContext.PERSISTENT);
+
+        assertThat(holder.rateLimitSettings, nullValue());
+    }
+
+    private RateLimitHolder parseWithRejectDeclare(String json, TaskType taskType, ConfigurationParseContext ctx) throws IOException {
+        // Mirrors production usage: the request parser is strict, the persistent parser tolerates unknown fields.
+        var parser = new ObjectParser<RateLimitHolder, ConfigurationParseContext>(
+            "test",
+            ctx == ConfigurationParseContext.PERSISTENT,
+            RateLimitHolder::new
+        );
+        RateLimitSettings.declareUnsupportedRateLimitField(parser, TEST_SCOPE, TEST_SERVICE_NAME, taskType, ctx);
+        try (var xParser = createParser(JsonXContent.jsonXContent, json)) {
+            return parser.parse(xParser, ctx);
+        }
     }
 
     private static class RateLimitHolder {

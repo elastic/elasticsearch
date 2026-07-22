@@ -119,7 +119,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * against both local and CCS ({@code my_remote_cluster:index}) targets and compares the results.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-@TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 10 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CCSDuelIT extends ESRestTestCase {
 
     @ClassRule

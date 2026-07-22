@@ -19,6 +19,10 @@
           "meta": { "unit": "bytes" }
         }
       }
+    },
+    "bytes_per_request": {
+      "type": "exponential_histogram",
+      "time_series_metric": "histogram"
     }
   }
 }

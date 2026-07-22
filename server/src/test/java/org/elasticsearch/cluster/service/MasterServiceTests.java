@@ -1956,7 +1956,7 @@ public class MasterServiceTests extends ESTestCase {
      */
     public void testStarvationMetrics() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
-        deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(0, 10_000));
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(1, 10_000));
         deterministicTaskQueue.scheduleAtAndRunUpTo(randomLongBetween(0, 100_000), () -> {});
 
         final var meterRegistry = new RecordingMeterRegistry();

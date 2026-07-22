@@ -17,7 +17,7 @@
 # To use:
 #   docker run --rm -v $(pwd):/workspace -w /workspace <image> make all
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -36,8 +36,10 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
+ARG VERSION=stable
+
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain stable --profile minimal \
+    | sh -s -- -y --default-toolchain $VERSION --profile minimal \
     && rustup target add \
         aarch64-apple-darwin \
         aarch64-unknown-linux-gnu \

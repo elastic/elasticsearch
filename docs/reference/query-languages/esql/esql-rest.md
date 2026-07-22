@@ -101,9 +101,14 @@ Query results only, without metadata. Useful for quick and manual data previews.
 | `csv` | `text/csv` | [Comma-separated values](https://en.wikipedia.org/wiki/Comma-separated_values) |
 | `tsv` | `text/tab-separated-values` | [Tab-separated values](https://en.wikipedia.org/wiki/Tab-separated_values) |
 | `txt` | `text/plain` | CLI-like representation |
+| `md` | `text/markdown` | Markdown/GitHub-flavored pipe table |
 
 ::::{tip}
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used. Use the `tsv` format instead.
+::::
+
+::::{tip}
+The `md` format always includes a header row. Requesting `header=absent` (for example, via `Accept: text/markdown; header=absent`) returns a `400` error, unlike `csv`, `tsv`, and `txt`, which support both `header=present` and `header=absent`.
 ::::
 
 ### Binary formats
@@ -213,6 +218,8 @@ Which returns:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 5,
+  "values_loaded": 20,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},
@@ -265,6 +272,8 @@ Will return:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 2,
   "columns": [
     {"name": "date_string", "type": "keyword"},
     {"name": "date", "type": "date"},
@@ -299,6 +308,30 @@ POST /_query
 % TEST[setup:library]
 % TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
+### Enabling query approximation [esql-approximation-param]
+
+```{applies_to}
+stack: preview 9.4, ga 9.5
+serverless: ga
+```
+
+Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
+If not specified, defaults to `false`.
+
+For example:
+```console
+POST /_query
+{
+  "approximation": true,
+  "query": """
+    FROM web_traffic
+    | STATS total_hits = COUNT(), avg_load_time = AVG(page_load_ms)
+  """
+}
+```
+
+For more advanced settings, use a [query approximation settings](directives/set.md#esql-approximation) object.
+
 ## Pass parameters to a query [esql-rest-params]
 
 Instead of embedding values directly in a query string, you can use parameters to separate the query logic from its data. This approach prevents injection attacks when queries include user input and makes queries reusable with different values.
@@ -320,7 +353,7 @@ Don't mix parameter styles in the same query. For example, you cannot use named 
 
 ### Value parameters (`?`) [esql-rest-value-params]
 
-::::{tip} 
+::::{tip}
 :applies_to: stack: ga 9.1.0
 We recommend using the [`??`](#esql-rest-identifier-params) syntax instead in 9.1 and above.
 ::::
@@ -567,6 +600,18 @@ The query will be stopped and the response will contain the results computed so 
 This API can be used to retrieve results even if the query has already completed, as long as it's within the `keep_alive` window.
 The `is_partial` field indicates result completeness. A value of `true` means the results are potentially incomplete.
 
+<!--
+### Stopping or cancelling queries against external sources [esql-rest-async-external-stop-cancel]
+
+When a query reads from an external source (for example, a query that begins with the `EXTERNAL` command, or any query routed to a {{esql}} data source you registered), the three ways to end the read have distinct semantics:
+
+* **Async stop** (`POST /_query/async/{id}/stop`) signals the running query to wind down without discarding what it has already produced. Rows already accepted into the response pipeline at the moment stop arrives are returned with `is_partial: true`; rows that the source is still in the middle of delivering are dropped. If async stop races with the natural completion of a fast query, the response is returned as-is with `is_partial: false`.
+* **Async delete** (`DELETE /_query/async/{id}`) cancels the underlying task before deleting the saved entry. The running query fails with a task-cancelled error; no partial body is returned.
+* **Task cancel or client disconnect** (cancellation via the [task management API](esql-task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
+
+In other words, only async stop is a partial-result path for external queries — task cancel, client disconnect, and async delete all fall on the hard-fail side. This matches the behaviour for queries against {{es}} indices, with one nuance specific to external sources: a query that touches no {{es}} index has no per-cluster status to flip, so the `is_partial` flag is set directly on the response when async stop fires.
+-->
+
 Use the [{{esql}} async query delete API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-delete) to delete an async query before the `keep_alive` period ends. If the query is still running, {{es}} cancels it.
 
 ```console
@@ -578,3 +623,29 @@ DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJ
 You will also receive the async ID and running status in the `X-Elasticsearch-Async-Id` and `X-Elasticsearch-Async-Is-Running` HTTP headers of the response, respectively.
 Useful if you use a tabular text format like `txt`, `csv` or `tsv`, as you won't receive those fields in the body there.
 ::::
+
+## `documents_found` and `values_loaded` [esql-rest-documents-found]
+
+```{applies_to}
+stack: ga 9.1
+```
+
+In addition to {{es}}'s traditional `took` time, {{esql}} returns `documents_found` and `values_loaded` which you can think
+of as rough proxies for how much effort Elasticsearch had to expend to run the query. Generally, bigger numbers mean the
+query took more effort.
+
+`documents_found` are the number of documents that we had to find to run the query. If this is low, Elasticsearch was able
+to effectively use its search index to return results. A few queries, like `FROM idx | STATS COUNT(*)` can run without
+looking at documents at all. They cheekily report one "found" document per count.
+
+`values_loaded` are the number of values loaded to run the query. If Elasticsearch must load one value per
+document, like it would for `FROM idx | STATS BY DATE_TRUNC(1 hour, @timestamp)`, this will be the same as `documents_found`.
+If Elasticsearch had to load many fields for each document, it will be many times `documents_found`. Again, bigger numbers
+*generally* mean the query took more effort.
+
+Plenty of queries will still be fast even though `documents_found` and `values_loaded` are high. Some queries will be slow
+even with a low `documents_found` and `values_loaded` for various reasons:
+* The query was super fast or slow.
+* Some values load very fast, like `@timestamp`, and other values load much more slowly, like `text` fields.
+* Some functions are quite fast, like `+`, `DATE_TRUNC`, `BUCKET`, etc.
+* Some commands are quite heavy, like `GROK`.

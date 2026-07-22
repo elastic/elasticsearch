@@ -431,3 +431,14 @@ aaaaa        | 1.2.3.4
 hhhhh        | 1.2.3.4
 iiiii        | bad
 ;
+
+mvInRangeVersionSemanticOrder
+required_capability: fn_mv_in_range
+// semantic version order, not lexical: 1.9.0 < 1.10.0, so 1.9.0 is NOT in [1.10.0, 2.0.0]
+ROW v = ["1.9.0"]::version
+| EVAL in_range = mv_in_range(v, "1.10.0"::version, "2.0.0"::version)
+;
+
+v:version | in_range:boolean
+1.9.0     | false
+;

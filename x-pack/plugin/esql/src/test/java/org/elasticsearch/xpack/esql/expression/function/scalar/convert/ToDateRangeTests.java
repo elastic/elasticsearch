@@ -15,8 +15,9 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
+public class ToDateRangeTests extends AbstractConfigurationFunctionTestCase {
     public ToDateRangeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -55,7 +56,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), stringType, "field")),
-                    "ToDateRangeFromStringEvaluator[field=" + read + "]",
+                    "ToDateRangeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
                     DataType.DATE_RANGE,
                     equalTo(expectedRange)
                 );
@@ -76,7 +77,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
                 "from bigger than to",
                 "2021-01-01T00:00:00.000Z..2020-01-01T00:00:00.000Z",
                 "java.lang.IllegalArgumentException: date range 'from' [2021-01-01T00:00:00.000Z] "
-                    + "must be less than or equal to 'to' [2020-01-01T00:00:00.000Z]"
+                    + "must be less than 'to' [2020-01-01T00:00:00.000Z]"
             )
         );
         suppliers.add(
@@ -84,7 +85,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
                 "from same as to",
                 "2020-01-01T00:00:00.000Z..2020-01-01T00:00:00.000Z",
                 "java.lang.IllegalArgumentException: date range 'from' [2020-01-01T00:00:00.000Z] "
-                    + "must be less than or equal to 'to' [2020-01-01T00:00:00.000Z]"
+                    + "must be less than 'to' [2020-01-01T00:00:00.000Z]"
             )
         );
         suppliers.add(
@@ -99,6 +100,23 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
                 "to unparseable (invalid to)",
                 "2020-01-01T00:00:00.000Z..not-a-date",
                 "java.lang.IllegalArgumentException: failed to parse date field [not-a-date] with format [strict_date_optional_time]"
+            )
+        );
+        // No range separator: parseDateRange used to assert (which degraded to ArrayIndexOutOfBoundsException
+        // with assertions disabled in production); now throws IllegalArgumentException, surfaced as a warning.
+        suppliers.add(
+            caseForKeywordInvalid(
+                "no range separator",
+                "not-a-range",
+                "java.lang.IllegalArgumentException: expected date range in the form 'from..to', got [not-a-range]"
+            )
+        );
+        suppliers.add(
+            caseForKeywordInvalid(
+                "too many separators",
+                "2020-01-01..2021-01-01..2022-01-01",
+                "java.lang.IllegalArgumentException: expected date range in the form 'from..to', "
+                    + "got [2020-01-01..2021-01-01..2022-01-01]"
             )
         );
         suppliers.addAll(
@@ -126,7 +144,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
                 List.of(DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
-                    "ToDateRangeFromStringEvaluator[field=" + read + "]",
+                    "ToDateRangeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
                     DataType.DATE_RANGE,
                     equalTo(expectedRange)
                 )
@@ -146,7 +164,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.KEYWORD),
             () -> new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
-                "ToDateRangeFromStringEvaluator[field=" + read + "]",
+                "ToDateRangeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
                 DataType.DATE_RANGE,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -155,8 +173,8 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new ToDateRange(source, args.get(0));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new ToDateRange(source, args.get(0), configuration);
     }
 
     private static org.hamcrest.Matcher<Object> equalTo(LongRangeBlockBuilder.LongRange expected) {

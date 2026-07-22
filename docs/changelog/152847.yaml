@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152847
+summary: Fix multi-file range-split schema reconciliation
+type: bug

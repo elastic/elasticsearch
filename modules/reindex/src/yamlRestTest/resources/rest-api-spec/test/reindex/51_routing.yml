@@ -1,0 +1,77 @@
+---
+"Set routing":
+  - requires:
+      cluster_features: [ "mapper.routing_as_doc_values" ]
+      reason: "Requires routing to be stored as doc values"
+
+  - do:
+      indices.create:
+        index:    src
+        body:
+          mappings:
+            _routing:
+              doc_values: true
+
+  - do:
+      index:
+        index:        src
+        id:           "1"
+        body:         { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index:   src
+          dest:
+            index:   dest
+            routing: =cat
+
+  - do:
+      get:
+        index:   dest
+        id:      "1"
+        routing: cat
+  - match: { _routing: cat }
+
+---
+"Discard routing":
+  - requires:
+      cluster_features: [ "mapper.routing_as_doc_values" ]
+      reason: "Requires routing to be stored as doc values"
+
+  - do:
+      indices.create:
+        index:    src
+        body:
+          mappings:
+            _routing:
+              doc_values: true
+
+  - do:
+      index:
+        index:        src
+        id:           "1"
+        body:         { "company": "cat" }
+        routing:      null
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index:   src
+          dest:
+            index:   dest
+            routing: discard
+
+  - do:
+      get:
+        index:   dest
+        id:      "1"
+  - is_false: _routing

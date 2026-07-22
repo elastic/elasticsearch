@@ -12,7 +12,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ public class AlibabaCloudSearchRerankResponseEntityTests extends ESTestCase {
 
     public void testFromResponse_CreatesResultsForASingleItem() throws IOException {
         InferenceServiceResults parsedResults = AlibabaCloudSearchRerankResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseLiteral.getBytes(StandardCharsets.UTF_8))
         );
 

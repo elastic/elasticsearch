@@ -78,7 +78,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
     );
 
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
-    private static final SearchStats searchStats = searchStats();
+    private static final SearchStats searchStats = searchStats("hire_date", 1697804103360L, 1698069301543L);
 
     public void testSubstituteDateTruncInEvalWithRoundTo() {
         for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
@@ -275,9 +275,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
         }
     }
 
-    private static SearchStats searchStats() {
-        Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
-        Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
-        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+    private static SearchStats searchStats(String field, long min, long max) {
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(field, min), Map.of(field, max));
     }
+
 }

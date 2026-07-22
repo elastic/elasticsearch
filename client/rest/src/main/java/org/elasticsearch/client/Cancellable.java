@@ -22,6 +22,7 @@ import org.apache.http.client.methods.AbstractExecutionAwareRequest;
 import org.apache.http.client.methods.HttpRequestBase;
 
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Represents an operation that can be cancelled.
@@ -43,12 +44,23 @@ public abstract class Cancellable {
      */
     abstract void runIfNotCancelled(Runnable runnable);
 
+    /**
+     * Throws {@link CancellationException} iff the on-going request has been cancelled.
+     * Useful to re-check cancellation state at any point after {@link Cancellable#runIfNotCancelled} has been called.
+     */
+    abstract void throwIfCancelled();
+
     static final Cancellable NO_OP = new Cancellable() {
         @Override
         public void cancel() {}
 
         @Override
         void runIfNotCancelled(Runnable runnable) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        void throwIfCancelled() {
             throw new UnsupportedOperationException();
         }
     };
@@ -60,12 +72,14 @@ public abstract class Cancellable {
     private static class RequestCancellable extends Cancellable {
 
         private final HttpRequestBase httpRequest;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
         private RequestCancellable(HttpRequestBase httpRequest) {
             this.httpRequest = httpRequest;
         }
 
-        public synchronized void cancel() {
+        public void cancel() {
+            cancelled.set(true);
             this.httpRequest.abort();
         }
 
@@ -73,21 +87,30 @@ public abstract class Cancellable {
          * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
          * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
          * attempts of the same request. The low-level client reuses the same instance of the {@link AbstractExecutionAwareRequest} by
-         * calling
-         * {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
-         * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
-         * the subsequent attempt has not been started yet.
+         * calling {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at
+         * anytime, and we need to handle the case where it gets called while there is no request being executed as one attempt may have
+         * failed and the subsequent attempt has not been started yet.
          * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
          * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next
          * attempt.
-         * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
-         * when there is no future to cancel, which would make cancelling the request a no-op.
+         * <p>
+         * This method is intentionally not synchronized to avoid a potential deadlock between this object's monitor and Apache HC4's
+         * internal connection pool lock (see <a href="https://github.com/elastic/elasticsearch/issues/141558">#141558</a>).
+         * Instead, cancellation state is tracked via a separate {@link AtomicBoolean} that is never cleared by
+         * {@link AbstractExecutionAwareRequest#reset()}. Callers can re-check the cancellation state via
+         * {@link #throwIfCancelled()} before dispatching the underlying request, to catch a {@link #cancel()} that races
+         * with the start of a new attempt.
          */
-        synchronized void runIfNotCancelled(Runnable runnable) {
-            if (this.httpRequest.isAborted()) {
+        void runIfNotCancelled(Runnable runnable) {
+            throwIfCancelled();
+            runnable.run();
+        }
+
+        @Override
+        void throwIfCancelled() {
+            if (cancelled.get()) {
                 throw newCancellationException();
             }
-            runnable.run();
         }
     }
 

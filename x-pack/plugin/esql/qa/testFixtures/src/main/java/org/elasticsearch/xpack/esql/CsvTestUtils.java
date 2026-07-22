@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
@@ -74,6 +75,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -81,6 +83,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -124,7 +127,7 @@ public final class CsvTestUtils {
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
-            if (value == null || value instanceof List) {
+            if (value == null || "null".equals(value) || value instanceof List) {
                 return false;
             }
             return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
@@ -300,6 +303,26 @@ public final class CsvTestUtils {
         );
     }
 
+    /**
+     * The inverse of {@link #checkTestCapabilities}: skips the test unless none of {@code missingCapabilities} are
+     * enabled. Used for {@code missing_capability_coordinator}/{@code missing_capability_data_node} directives, which
+     * assert behavior for a node that lacks a capability; in single-version test runners that always run current code,
+     * this cannot be satisfied (unless a capability was actively removed, which we generally don't do).
+     * <p>
+     * Unlike {@link #checkTestCapabilities}, this doesn't assert the capability name is still known: a capability
+     * that's been fully removed (e.g. superseded by a {@code _v2}) trivially satisfies "missing" too.
+     */
+    public static void checkMissingTestCapabilities(EsqlCapabilities enabledCapabilities, List<String> missingCapabilities) {
+        assumeTrueLogging(
+            format("Capability unexpectedly supported in this build: {}", missingCapabilities),
+            Collections.disjoint(enabledCapabilities.capabilities(), missingCapabilities)
+        );
+    }
+
+    public static void checkPragma(Map<String, String> pragmaSettings) {
+        assertThat("Pragma not found, spelling mistake?", pragmaSettings.keySet(), everyItem(in(QueryPragmas.VALID_PRAGMA_NAMES)));
+    }
+
     public static void assumeTrueLogging(String message, boolean condition) {
         assumeFalseLogging(message, condition == false);
     }
@@ -331,6 +354,8 @@ public final class CsvTestUtils {
         return pairs;
     }
 
+    private static final Set<String> SKIP_UPPER_SENTINELS = Set.of("9.99.99", "999.0.0");
+
     public static Tuple<Version, Version> skipVersionRange(String testName, String instructions) {
         Map<String, String> pairs = parseInstructions(instructions);
         String versionRange = pairs.get("skip");
@@ -341,6 +366,13 @@ public final class CsvTestUtils {
             }
             String lower = skipVersions[0].trim();
             String upper = skipVersions[1].trim();
+            if (upper.isEmpty() == false && SKIP_UPPER_SENTINELS.contains(upper) == false) {
+                throw new IllegalArgumentException(
+                    "skip version upper bound must be a sentinel value (9.99.99 or 999.0.0), got: "
+                        + upper
+                        + ". Use required_capability instead."
+                );
+            }
             return Tuple.tuple(
                 lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
                 upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
@@ -728,6 +760,7 @@ public final class CsvTestUtils {
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
+        FLATTENED(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -839,6 +872,7 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
+                case FLATTENED -> FLATTENED;
                 default -> KEYWORD;
             };
         }

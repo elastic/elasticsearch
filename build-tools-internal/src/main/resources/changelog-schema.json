@@ -308,7 +308,8 @@
         "Rollup",
         "Search",
         "System requirement",
-        "Transform"
+        "Transform",
+        "TSDB"
       ]
     },
     "additionalProperties": false

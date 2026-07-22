@@ -82,6 +82,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
             assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertThat(b.block().valueMaxByteSize(), equalTo(b.valueMaxByteSize()));
             assertInsertNulls(b.block());
         } finally {
             b.block().close();

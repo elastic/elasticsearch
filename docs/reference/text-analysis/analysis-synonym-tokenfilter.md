@@ -60,7 +60,7 @@ s(100000002,3,'approach',v,1,0).""";
 
 Synonyms can be configured using the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [store your synonyms set](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
 
-Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:
+Use `synonyms_set` configuration option to provide one or more synonym sets created through the [Synonyms Management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-synonyms):
 
 ```JSON
   "filter": {
@@ -71,6 +71,25 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
     }
   }
 ```
+
+{applies_to}`stack: ga 9.5+` To combine rules from multiple synonym sets, provide them as an array:
+
+```JSON
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms_set": ["my-synonym-set", "my-other-synonym-set"],
+      "updateable": true
+    }
+  }
+```
+
+A maximum of 100 synonym sets may be specified per filter.
+
+::::{note}
+:applies_to: stack: ga 9.5+
+Synonym sets are limited to 100,000 rules per set by default. This limit is configurable using the `synonyms.max_synonym_rules` cluster setting.
+::::
 
 ::::{warning}
 Synonyms sets must exist before they can be added to indices. If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state. The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.

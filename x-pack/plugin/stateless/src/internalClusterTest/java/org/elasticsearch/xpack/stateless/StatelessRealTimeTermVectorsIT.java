@@ -27,6 +27,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -168,7 +170,7 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
 
         final int numDocs = randomIntBetween(1, 20);
         createIndexWithTermVectorMappings(1, 1);
-        indexTestDocuments(numDocs);
+        List<String> indexedDocumentIds = indexTestDocuments(numDocs);
 
         // If true, we test that the term vectors API will refresh appropriately depending on whether the second (not the first) version
         // of the updated documents is in the live version map (i.e., not yet searchable) of the indexing shard.
@@ -197,6 +199,10 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
                 // No additional refreshes are expected in the test.
                 refresh(INDEX_NAME);
                 refresh(INDEX_NAME);
+                // Ensure that version map archive is empty because the test relies on this fact to assert there is no refreshes.
+                // The archive is cleared asynchronously via `IndexEngine.commitSuccess()`
+                // and can race with `TransportEnsureDocsSearchableAction` performed in scope of term vectors operation.
+                assertDocumentNotInLiveVersionMapArchive(indexedDocumentIds.getLast());
             }
         }
 
@@ -236,14 +242,7 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
                     // After the expected number of refreshes from the first docs, wait to ensure that the async
                     // IndexEngine.commitSuccess() has been called to move out the docs from the live version map archive.
                     // That way, the next term request should not do any other refreshes.
-                    assertBusy(() -> assertTrue(findIndexShard(INDEX_NAME).withEngine(e -> {
-                        assertThat(e, instanceOf(IndexEngine.class));
-                        final var indexEngine = (IndexEngine) e;
-                        final var archive = getArchive(indexEngine.getLiveVersionMap());
-                        assertNotNull(archive);
-                        assertNull(archive.get(uid(termVectorsResponse.getId())));
-                        return true;
-                    })));
+                    assertDocumentNotInLiveVersionMapArchive(termVectorsResponse.getId());
                 }
             }
         }
@@ -270,6 +269,77 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
                 // The term vector requests did not need to trigger a refresh
                 assertThat(testCounters.unpromotableRefreshesSent().get(), equalTo(0));
             }
+        }
+    }
+
+    public void testRoutingsPropagatedToEnsureDocsSearchable() throws Exception {
+        startMasterAndIndexNode();
+        startSearchNode();
+
+        createIndexWithTermVectorMappings(1, 1);
+
+        // Index two docs with distinct custom routing values and one without routing, so the realtime term vectors path has to
+        // carry per-document routing through to the EnsureDocsSearchableRequest (entry i is the routing of docIds[i]).
+        prepareIndex(INDEX_NAME).setId("1").setRouting("r1").setSource("field", "foo bar 1").get();
+        prepareIndex(INDEX_NAME).setId("2").setRouting("r2").setSource("field", "foo bar 2").get();
+        prepareIndex(INDEX_NAME).setId("3").setSource("field", "foo bar 3").get();
+
+        // Capture the routings carried by each EnsureDocsSearchableRequest the index node handles.
+        final List<String[]> capturedRoutings = java.util.Collections.synchronizedList(new ArrayList<>());
+        final List<String[]> capturedDocIds = java.util.Collections.synchronizedList(new ArrayList<>());
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addRequestHandlingBehavior(
+                EnsureDocsSearchableAction.TYPE.name() + "[s]",
+                (handler, request, channel, task) -> {
+                    var edsRequest = (EnsureDocsSearchableAction.EnsureDocsSearchableRequest) request;
+                    capturedDocIds.add(edsRequest.docIds());
+                    capturedRoutings.add(edsRequest.routings());
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+
+        boolean multiTermVectorRequest = randomBoolean();
+        if (multiTermVectorRequest) {
+            var multiTermVectorsBuilder = client().prepareMultiTermVectors();
+            multiTermVectorsBuilder.add(new TermVectorsRequest(INDEX_NAME, "1").routing("r1"));
+            multiTermVectorsBuilder.add(new TermVectorsRequest(INDEX_NAME, "2").routing("r2"));
+            multiTermVectorsBuilder.add(new TermVectorsRequest(INDEX_NAME, "3"));
+            MultiTermVectorsResponse response = multiTermVectorsBuilder.get();
+            assertThat(response.getResponses().length, equalTo(3));
+
+            // A single EnsureDocsSearchableRequest batches all three docs; routings line up with docIds positionally.
+            assertThat(capturedDocIds.size(), equalTo(1));
+            assertRoutingsForIds(capturedDocIds.getFirst(), capturedRoutings.getFirst(), "1", "r1", "2", "r2", "3", null);
+        } else {
+            client().termVectors(new TermVectorsRequest(INDEX_NAME, "1").routing("r1")).actionGet();
+            client().termVectors(new TermVectorsRequest(INDEX_NAME, "2").routing("r2")).actionGet();
+            client().termVectors(new TermVectorsRequest(INDEX_NAME, "3")).actionGet();
+
+            // Each single term vectors request sends its own EnsureDocsSearchableRequest with a one-element routings array.
+            assertThat(capturedDocIds.size(), equalTo(3));
+            for (int i = 0; i < 3; i++) {
+                assertThat(capturedDocIds.get(i).length, equalTo(1));
+                assertThat(capturedRoutings.get(i).length, equalTo(1));
+            }
+        }
+    }
+
+    private static void assertRoutingsForIds(String[] docIds, String[] routings, String... idRoutingPairs) {
+        assertThat(routings.length, equalTo(docIds.length));
+        for (int p = 0; p < idRoutingPairs.length; p += 2) {
+            final String expectedId = idRoutingPairs[p];
+            final String expectedRouting = idRoutingPairs[p + 1];
+            boolean found = false;
+            for (int i = 0; i < docIds.length; i++) {
+                if (expectedId.equals(docIds[i])) {
+                    assertThat("routing for id [" + expectedId + "]", routings[i], equalTo(expectedRouting));
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("expected to find id [" + expectedId + "] in " + java.util.Arrays.toString(docIds), found);
         }
     }
 
@@ -383,11 +453,17 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
         );
     }
 
-    protected void indexTestDocuments(int numDocs) {
+    protected List<String> indexTestDocuments(int numDocs) {
+        var indexedDocumentIds = new ArrayList<String>();
+
         for (int i = 0; i < numDocs; i++) {
-            final var response = prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("field", "foo bar " + i).get();
+            String id = String.valueOf(i);
+            final var response = prepareIndex(INDEX_NAME).setId(id).setSource("field", "foo bar " + i).get();
             assertEquals(1, response.getVersion());
+            indexedDocumentIds.add(id);
         }
+
+        return indexedDocumentIds;
     }
 
     protected void updateTestDocuments(int numDocs) {
@@ -395,5 +471,16 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
             final var response = client().prepareUpdate(INDEX_NAME, String.valueOf(i)).setDoc("field", "foo bar " + (i + 1)).get();
             assertEquals(2, response.getVersion());
         }
+    }
+
+    private void assertDocumentNotInLiveVersionMapArchive(String documentId) throws Exception {
+        assertBusy(() -> assertTrue(findIndexShard(INDEX_NAME).withEngine(e -> {
+            assertThat(e, instanceOf(IndexEngine.class));
+            final var indexEngine = (IndexEngine) e;
+            final var archive = getArchive(indexEngine.getLiveVersionMap());
+            assertNotNull(archive);
+            assertNull(archive.get(uid(documentId)));
+            return true;
+        })));
     }
 }

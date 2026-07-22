@@ -78,7 +78,7 @@ public class SampledAggregateExec extends AggregateExec {
     }
 
     @Override
-    protected NodeInfo<AggregateExec> info() {
+    protected NodeInfo<SampledAggregateExec> info() {
         return NodeInfo.create(
             this,
             SampledAggregateExec::new,

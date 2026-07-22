@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.is;
 public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

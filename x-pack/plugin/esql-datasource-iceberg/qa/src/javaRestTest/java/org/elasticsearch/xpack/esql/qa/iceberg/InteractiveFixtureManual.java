@@ -214,13 +214,13 @@ public class InteractiveFixtureManual extends ESRestTestCase {
         if (SHOW_BLOBS) {
             messages.print("fixtures_show_all");
             blobs.keySet().stream().sorted().forEach(key -> {
-                long size = blobs.get(key).length();
+                long size = blobs.get(key).contents().length();
                 out.printf(Locale.ROOT, "  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
             });
         } else {
             messages.print("fixtures_show_key");
             blobs.keySet().stream().filter(key -> key.contains("employees") || key.contains("standalone")).sorted().forEach(key -> {
-                long size = blobs.get(key).length();
+                long size = blobs.get(key).contents().length();
                 out.printf(Locale.ROOT, "  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
             });
             messages.print("fixtures_footer");

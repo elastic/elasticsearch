@@ -91,7 +91,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         writer.close();
 
         int[] docs = randomDocIds(docCount - 1);
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
 
             LeafReaderContext ctx = null;
             int[] docsInLeaf = null;
@@ -149,7 +149,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         int[] docs = randomDocIds(docCount - 1);
         int badDoc = docs[randomInt(docs.length - 1)];
 
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -214,6 +214,42 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         Settings customSettings = Settings.builder().put(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getKey(), 7).build();
         assertThat(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(customSettings), equalTo(7));
         assertThat(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(Settings.EMPTY), equalTo(3));
+    }
+
+    public void testFetchPhaseTargetChunkBytesSettingIsReadCorrectly() {
+        Settings customSettings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "2mb").build();
+        assertThat(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(customSettings), equalTo(ByteSizeValue.ofMb(2)));
+        assertThat(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(Settings.EMPTY), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
+    public void testResolveMaxInFlightChunksPrefersExplicitOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getKey(), 7).build();
+        assertThat(FetchPhase.resolveMaxInFlightChunks(2, settings), equalTo(2));
+    }
+
+    public void testResolveMaxInFlightChunksFallsBackToClusterSettingWhenNoOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getKey(), 7).build();
+        assertThat(FetchPhase.resolveMaxInFlightChunks(null, settings), equalTo(7));
+    }
+
+    public void testResolveMaxInFlightChunksFallsBackToDefaultWhenNoOverrideAndNoClusterSetting() {
+        int expectedDefault = SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getDefault(Settings.EMPTY);
+        assertThat(FetchPhase.resolveMaxInFlightChunks(null, Settings.EMPTY), equalTo(expectedDefault));
+    }
+
+    public void testResolveTargetChunkBytesPrefersExplicitOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "4mb").build();
+        assertThat(FetchPhase.resolveTargetChunkBytes(123_456, settings), equalTo(123_456));
+    }
+
+    public void testResolveTargetChunkBytesFallsBackToClusterSettingWhenNoOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "4mb").build();
+        assertThat(FetchPhase.resolveTargetChunkBytes(null, settings), equalTo(Math.toIntExact(ByteSizeValue.ofMb(4).getBytes())));
+    }
+
+    public void testResolveTargetChunkBytesFallsBackToDefaultWhenNoOverrideAndNoClusterSetting() {
+        int expectedDefault = Math.toIntExact(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getDefault(Settings.EMPTY).getBytes());
+        assertThat(FetchPhase.resolveTargetChunkBytes(null, Settings.EMPTY), equalTo(expectedDefault));
     }
 
     public void testIterateAsyncSingleDocument() throws Exception {
@@ -502,7 +538,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         // Iterator that cancels after processing some docs
         AtomicInteger processedDocs = new AtomicInteger(0);
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -556,7 +592,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
         // Iterator that throws after processing some docs
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(null) {
             private int count = 0;
 
             @Override
@@ -722,7 +758,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         List<int[]> setNextReaderDocsInLeaf = new CopyOnWriteArrayList<>();
         List<Integer> nextDocCalls = new CopyOnWriteArrayList<>();
 
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
                 setNextReaderLeafOrdinals.add(ctx.ord);
@@ -824,7 +860,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         // in doc-id order: 10, 50, 100, 150, 200, ... timeout at doc 200
         final int timeoutAfterDocId = 200;
 
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1102,7 +1138,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     private static StreamingFetchPhaseDocsIterator createStreamingIterator() {
-        return new StreamingFetchPhaseDocsIterator() {
+        return new StreamingFetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1153,6 +1189,10 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     private static class RecordingStreamingIterator extends StreamingFetchPhaseDocsIterator {
         private final List<SetupEvent> setups = new CopyOnWriteArrayList<>();
+
+        RecordingStreamingIterator() {
+            super(null);
+        }
 
         @Override
         protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {

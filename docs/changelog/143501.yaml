@@ -1,6 +1,0 @@
-pr: 143501
-summary: Expose byte offsets on XContentParser via getCurrentLocation()
-area: Infra/Core
-type: enhancement
-issues:
-  - 142873

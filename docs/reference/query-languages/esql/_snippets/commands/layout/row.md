@@ -28,17 +28,17 @@ The following examples demonstrate common `ROW` patterns.
 
 ### Create a row with literal values
 
-:::{include} ../examples/row.csv-spec/example.md
+:::{include} ../../generated/x-pack-esql/commands/examples/row.csv-spec/example.md
 :::
 
 ### Create multivalued columns
 
 Use square brackets to create a column with multiple values:
 
-:::{include} ../examples/row.csv-spec/multivalue.md
+:::{include} ../../generated/x-pack-esql/commands/examples/row.csv-spec/multivalue.md
 :::
 
 ### Use functions as values
 
-:::{include} ../examples/row.csv-spec/function.md
+:::{include} ../../generated/x-pack-esql/commands/examples/row.csv-spec/function.md
 :::

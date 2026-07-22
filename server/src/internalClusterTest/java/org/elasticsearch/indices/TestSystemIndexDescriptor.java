@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -151,7 +152,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             {
                 builder.startObject("_meta");
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, NEW_MAPPINGS_VERSION);
-                builder.field("version", Version.CURRENT.toString());
+                builder.field("version", Build.current().version());
                 builder.endObject();
 
                 builder.startObject("properties");

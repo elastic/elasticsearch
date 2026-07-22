@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -70,6 +71,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 switch (unparsedModel.taskType()) {
                     case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, l);
                     case EMBEDDING -> sendEmbeddingRequest(request, l);
+                    case RERANK -> sendRerankRequest(request, l);
                     default -> sendInferenceActionRequest(request, l);
                 }
             });
@@ -79,6 +81,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 case ANY -> modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
                 case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, listener);
                 case EMBEDDING -> sendEmbeddingRequest(request, listener);
+                case RERANK -> sendRerankRequest(request, listener);
                 default -> sendInferenceActionRequest(request, listener);
             }
         } catch (Exception e) {
@@ -128,6 +131,21 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         }
 
         execute(EmbeddingAction.INSTANCE, embeddingRequest, listener);
+    }
+
+    private void sendRerankRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        RerankAction.Request rerankRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            rerankRequest = RerankAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(RerankAction.INSTANCE, rerankRequest, listener);
     }
 
     private void sendInferenceActionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)

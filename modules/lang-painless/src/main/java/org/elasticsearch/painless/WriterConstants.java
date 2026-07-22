@@ -173,6 +173,56 @@ public final class WriterConstants {
         false
     );
 
+    /**
+     * Allocation-charging variant of {@link #LAMBDA_BOOTSTRAP_HANDLE}: adds the {@code @allocates} estimator's
+     * owner/name/descriptor (three Strings before the injections varargs) so the generated lambda charges per invocation.
+     * Used only for annotated references under tracking; normal references use the plain handle.
+     */
+    public static final MethodType LAMBDA_ALLOC_BOOTSTRAP_TYPE = MethodType.methodType(
+        CallSite.class,
+        MethodHandles.Lookup.class,
+        String.class,
+        MethodType.class,
+        MethodType.class,
+        String.class,
+        int.class,
+        String.class,
+        MethodType.class,
+        int.class,
+        int.class,
+        String.class,
+        String.class,
+        String.class,
+        Object[].class
+    );
+    public static final Handle LAMBDA_ALLOC_BOOTSTRAP_HANDLE = new Handle(
+        Opcodes.H_INVOKESTATIC,
+        Type.getInternalName(LambdaBootstrap.class),
+        "lambdaBootstrapWithAllocation",
+        LAMBDA_ALLOC_BOOTSTRAP_TYPE.toMethodDescriptorString(),
+        false
+    );
+
+    /**
+     * Bootstrap for the per-invocation allocation charge inside a charging lambda's interface method (see
+     * {@code LambdaBootstrap.chargeBootstrap}). Static arg: the estimator method handle; call-site type
+     * {@code (scriptType, samArgs...) -> void}.
+     */
+    public static final MethodType CHARGE_BOOTSTRAP_TYPE = MethodType.methodType(
+        CallSite.class,
+        MethodHandles.Lookup.class,
+        String.class,
+        MethodType.class,
+        MethodHandle.class
+    );
+    public static final Handle CHARGE_BOOTSTRAP_HANDLE = new Handle(
+        Opcodes.H_INVOKESTATIC,
+        Type.getInternalName(LambdaBootstrap.class),
+        "chargeBootstrap",
+        CHARGE_BOOTSTRAP_TYPE.toMethodDescriptorString(),
+        false
+    );
+
     public static final MethodType MAKE_CONCAT_TYPE = MethodType.methodType(
         CallSite.class,
         MethodHandles.Lookup.class,
@@ -196,6 +246,84 @@ public final class WriterConstants {
 
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
+
+    public static final Type RUNNABLE_TYPE = Type.getType(Runnable.class);
+    public static final Method RUNNABLE_RUN = getAsmMethod(void.class, "run");
+
+    /**
+     * Decrement interval for the persistent cancellation poll counter.  The counter is stored in
+     * {@link #CANCEL_POLL_FIELD} on the generated script instance and is decremented at every
+     * function entry and loop back-edge.  The cancellation runnable fires (and the counter resets)
+     * once every {@code CANCELLATION_POLL_INTERVAL} decrements, amortising the check cost.
+     */
+    public static final int CANCELLATION_POLL_INTERVAL = 1000;
+
+    /** Name of the synthetic {@code int} field added to opted-in generated script classes. */
+    public static final String CANCEL_POLL_FIELD = "$cancelPoll";
+
+    public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
+
+    /**
+     * Method generated on opted-in script classes that performs one decrement-and-check against
+     * {@link #CANCEL_POLL_FIELD}, letting {@code @script_aware} augmentations poll the script's
+     * persistent counter directly instead of maintaining their own — so the count is shared with the
+     * compiler's inline loop/entry decrements and stays amortised across all script work.
+     */
+    public static final Method POLL_CANCELLATION = getAsmMethod(void.class, "_pollCancellation");
+
+    /**
+     * Name of the synthetic {@code long} field added to generated script classes when allocation tracking is enabled
+     * (a positive per-context limit). Holds the running heuristic allocation total, reset at every {@code execute} entry.
+     */
+    public static final String ALLOC_BYTES_FIELD = "$allocBytes";
+
+    /** Generated override of {@link org.elasticsearch.painless.PainlessScript#$incAllocBytes(long)}. */
+    public static final Method INC_ALLOC_BYTES = getAsmMethod(long.class, "$incAllocBytes", long.class);
+
+    /** Generated override of {@link org.elasticsearch.painless.PainlessScript#getAllocBytes()}. */
+    public static final Method GET_ALLOC_BYTES = getAsmMethod(long.class, "getAllocBytes");
+
+    /**
+     * {@link org.elasticsearch.painless.PainlessScript#$checkAllocBytes(long)} — invoked (via the script interface) at every
+     * compile-time-known allocation site to charge and check the running total against the per-context limit.
+     */
+    public static final Method CHECK_ALLOC_BYTES = getAsmMethod(void.class, "$checkAllocBytes", long.class);
+
+    /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
+    public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
+
+    /** {@link AllocationGuard#allocationLimitExceeded(long, long, long)} — called from {@code $checkAllocBytes} on breach. */
+    public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
+        void.class,
+        "allocationLimitExceeded",
+        long.class,
+        long.class,
+        long.class
+    );
+
+    /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
+    public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);
+
+    /** {@link AllocationGuard#checkDefConcatAlloc(PainlessScript, Object, Object)} — charges a {@code def} {@code +} string concat. */
+    public static final Method CHECK_DEF_CONCAT_ALLOC = getAsmMethod(
+        void.class,
+        "checkDefConcatAlloc",
+        PainlessScript.class,
+        Object.class,
+        Object.class
+    );
+
+    /** ASM {@link Type} for {@link AllocSizes}, the sizing helpers invoked from generated bytecode for runtime-sized arrays. */
+    public static final Type ALLOC_SIZES_TYPE = Type.getType(AllocSizes.class);
+
+    /** {@link AllocSizes#mulSat(long, long)} — saturating multiply folding multi-dim array extents into one element count. */
+    public static final Method ALLOC_MUL_SAT = getAsmMethod(long.class, "mulSat", long.class, long.class);
+
+    /** {@link AllocSizes#arrayBytes(long, int)} — saturating {@code pad8(ARRAY_HEADER + fieldSize * length)} for an array. */
+    public static final Method ALLOC_ARRAY_BYTES = getAsmMethod(long.class, "arrayBytes", long.class, int.class);
+
+    /** {@link AllocSizes#stringConcatOperandBytes(Object)} — runtime byte cost of a reference operand in a string concat. */
+    public static final Method ALLOC_STRING_CONCAT_OPERAND_BYTES = getAsmMethod(long.class, "stringConcatOperandBytes", Object.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

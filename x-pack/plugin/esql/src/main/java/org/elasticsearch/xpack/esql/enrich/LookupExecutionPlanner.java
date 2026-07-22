@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -27,6 +29,8 @@ import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
+import org.elasticsearch.compute.operator.lookup.BulkLookupSingleValued;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.core.Nullable;
@@ -47,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -69,6 +74,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Plans the execution of a lookup physical plan
@@ -155,11 +161,18 @@ public class LookupExecutionPlanner {
     private final BlockFactory blockFactory;
     private final BigArrays bigArrays;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final LongSupplier directoryBytesRead;
 
-    public LookupExecutionPlanner(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+    public LookupExecutionPlanner(
+        BlockFactory blockFactory,
+        BigArrays bigArrays,
+        LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        LongSupplier directoryBytesRead
+    ) {
         this.blockFactory = blockFactory;
         this.bigArrays = bigArrays;
         this.localBreakerSettings = localBreakerSettings;
+        this.directoryBytesRead = directoryBytesRead;
     }
 
     /**
@@ -272,6 +285,8 @@ public class LookupExecutionPlanner {
                 queryListFromPlanFactory,
                 lookupSource
             );
+        } else if (node instanceof BulkLookupMvFilterExec bulkFilterExec) {
+            return planBulkLookupMvFilterExec(bulkFilterExec, source, lookupSource);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
         } else if (node instanceof EvalExec evalExec) {
@@ -310,10 +325,41 @@ public class LookupExecutionPlanner {
             parameterizedQueryExec.query(),
             lookupSource,
             queryListFromPlanFactory,
-            parameterizedQueryExec.emptyResult()
+            parameterizedQueryExec.emptyResult(),
+            parameterizedQueryExec.bulkLookupLeft(),
+            parameterizedQueryExec.bulkLookupRight(),
+            directoryBytesRead
         );
 
         return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
+    }
+
+    private PhysicalOperation planBulkLookupMvFilterExec(
+        BulkLookupMvFilterExec bulkFilterExec,
+        PhysicalOperation source,
+        Source lookupSource
+    ) {
+        Attribute rightAttribute = bulkFilterExec.field();
+        int channelOffset = source.layout().get(rightAttribute.id()).channel();
+
+        OperatorFactory mvBulkLookupMvFilterOperatorFactory = new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupSource);
+                return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
+            }
+
+            @Override
+            public String describe() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("BulkLookupMvFilterOperator[field = ");
+                sb.append(rightAttribute.name());
+                sb.append("]");
+                return sb.toString();
+            }
+        };
+
+        return source.with(mvBulkLookupMvFilterOperatorFactory, source.layout());
     }
 
     private PhysicalOperation planFieldExtractExec(
@@ -387,7 +433,8 @@ public class LookupExecutionPlanner {
                     true,
                     docChannel,
                     PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
-                    PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+                    PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+                    directoryBytesRead
                 );
             }
 
@@ -425,10 +472,28 @@ public class LookupExecutionPlanner {
     }
 
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
-        return source.with(
-            new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
-            source.layout()
-        );
+        Expression condition = filterExec.condition();
+        Layout layout = source.layout();
+        /*
+         * Defer evaluator creation so we have the real lookup shard context because
+         * MATCH needs real shard contexts, but the bulk-lookup optimization runs before
+         */
+        OperatorFactory factory = new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                LookupDriverContext lookupCtx = (LookupDriverContext) driverContext;
+                EsPhysicalOperationProviders.ShardContext esShardCtx = lookupCtx.lookupShardContext().context();
+                IndexedByShardId<EsPhysicalOperationProviders.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(esShardCtx);
+                ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(foldCtx, condition, layout, shardContexts);
+                return new FilterOperator(evalFactory.get(driverContext));
+            }
+
+            @Override
+            public String describe() {
+                return "FilterOperator[condition=" + condition + "]";
+            }
+        };
+        return source.with(factory, layout);
     }
 
     private PhysicalOperation planProjectExec(ProjectExec projectExec, PhysicalOperation source) {
@@ -458,7 +523,10 @@ public class LookupExecutionPlanner {
         @Nullable QueryBuilder query,
         Source planSource,
         QueryListFromPlanFactory queryListFromPlanFactory,
-        boolean emptyResult
+        boolean emptyResult,
+        Attribute bulkLookupLeft,
+        Attribute bulkLookupRight,
+        LongSupplier directoryBytesRead
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -469,14 +537,18 @@ public class LookupExecutionPlanner {
 
             Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, planSource);
             QueryBuilder rewrittenQuery = rewriteQuery(query, searchExecutionContext);
-            LookupEnrichQueryGenerator queryList = queryListFromPlanFactory.create(
-                matchFields,
-                joinOnConditions,
-                rewrittenQuery,
-                searchExecutionContext,
-                lookupDriverContext.aliasFilter(),
-                warnings
-            );
+
+            LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(warnings);
+            if (queryList == null) {
+                queryList = queryListFromPlanFactory.create(
+                    matchFields,
+                    joinOnConditions,
+                    rewrittenQuery,
+                    searchExecutionContext,
+                    lookupDriverContext.aliasFilter(),
+                    warnings
+                );
+            }
 
             return new LookupQueryOperator(
                 driverContext.blockFactory(),
@@ -486,13 +558,69 @@ public class LookupExecutionPlanner {
                 shardId,
                 searchExecutionContext,
                 warnings,
-                emptyResult
+                emptyResult,
+                directoryBytesRead
             );
+        }
+
+        @Nullable
+        private LookupEnrichQueryGenerator getBulkKeywordQueryGenerator(Warnings warnings) {
+
+            if (bulkLookupLeft != null) {
+                int matchChannelOffset = -1;
+                for (int i = 0; i < matchFields.size(); i++) {
+                    if (matchFields.get(i).fieldName().equals(bulkLookupLeft.name())) {
+                        matchChannelOffset = i;
+                        break;
+                    }
+                }
+                if (matchChannelOffset != -1) {
+                    return new BulkLookupQueryGenerator(bulkLookupRight.name(), matchChannelOffset, warnings);
+                }
+            }
+            return null;
         }
 
         @Override
         public String describe() {
-            return "LookupQueryOperator[maxPageSize=" + maxPageSize + ", emptyResult=" + emptyResult + "]";
+            return "LookupQueryOperator[maxPageSize="
+                + maxPageSize
+                + ", emptyResult="
+                + emptyResult
+                + ", bulkLookupLeft="
+                + bulkLookupLeft
+                + ", bulkLookupRight="
+                + bulkLookupRight
+                + "]";
+        }
+    }
+
+    /**
+     * LookupEnrichQueryGenerator used when BulkKeywordLookup optimization applies.
+     */
+    private record BulkLookupQueryGenerator(
+        String rightFieldName,
+        int matchChannelOffset,
+        Warnings warnings,
+        BulkKeywordLookup bulkKeywordLookup
+    ) implements LookupEnrichQueryGenerator {
+        BulkLookupQueryGenerator(String rightFieldName, int matchChannelOffset, Warnings warnings) {
+            this(rightFieldName, matchChannelOffset, warnings, new BulkKeywordLookup(rightFieldName, matchChannelOffset, -1, warnings));
+        }
+
+        @Override
+        public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
+            throw new UnsupportedOperationException("BulkLookupQueryGenerator does not support getQuery");
+        }
+
+        @Override
+        public int getPositionCount(Page inputPage) {
+            return bulkKeywordLookup.getPositionCount(inputPage);
+        }
+
+        @Override
+        public BulkKeywordLookup getBulkKeywordLookup() {
+            return bulkKeywordLookup;
         }
     }
 

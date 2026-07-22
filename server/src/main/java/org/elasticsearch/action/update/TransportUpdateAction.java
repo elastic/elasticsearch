@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
@@ -145,16 +146,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             .map(state.metadata()::index)
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
-        if (sliceEnabled == false && request.isRoutingFromSlice()) {
-            throw new IllegalArgumentException(
-                "[_slice] is not allowed when [index.slice.enabled] is false for request targeting [" + request.index() + "]"
-            );
-        }
-        if (sliceEnabled && request.routing() == null) {
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
-            );
-        }
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            request.isRoutingFromSlice(),
+            request.routing(),
+            "update request",
+            request.index()
+        );
     }
 
     @Override
@@ -236,7 +234,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         var executor = executor(indexService);
         assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);
 
-        SubscribableListener.<Void>newForked((l) -> indexShard.ensureMutable(l, false))
+        SubscribableListener.<Void>newForked((l) -> indexShard.ensureMutable(l, false, EsExecutors.DIRECT_EXECUTOR_SERVICE))
         // Make sure to fork back to a `write` thread pool if necessary
         .<UpdateHelper.Result>andThen(executor, threadPool.getThreadContext(), (l, unused) -> ActionListener.completeWith(l, () -> {
             assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);

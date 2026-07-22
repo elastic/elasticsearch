@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `E` function [esql-e]
 
-:::{include} ../../_snippets/functions/layout/e.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/e.md
 :::

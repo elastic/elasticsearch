@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
  */
-public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Increase",
@@ -56,10 +57,17 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         .ternary(Increase::createWithImplicitTemporality)
         .name("increase");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(Increase::createWithImplicitTemporality)
+        .withinSeries(
+            (source, field, window, timestamp) -> field.resolved() && field.dataType().isHistogram()
+                ? new HistogramMergeOverTime(source, field, window, timestamp)
+                : createWithImplicitTemporality(source, field, window, timestamp)
+        )
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the increase in the time series in the range vector, adjusting for counter resets.")
+        .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("increase(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.RATE_INCREASE_NOTE)
         .name("increase");
 
     private final Expression timestamp;
@@ -68,6 +76,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the absolute increase of a counter field in a time window.",
         description = "Calculates the absolute increase of a counter field in a time window.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

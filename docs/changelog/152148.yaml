@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 152148
+summary: Improve authorization for the simulate bulk action
+type: bug

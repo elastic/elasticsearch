@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -21,15 +22,17 @@ import java.util.function.Supplier;
  * Holds context information for the construction of FieldData
  *
  * @param fullyQualifiedIndexName the index name with any remote index information added
- * @param lookupSupplier a supplier for a SearchLookup to be used by runtime scripts
- * @param sourcePathsLookup a function to get source paths for a specific field
- * @param fielddataOperation the operation used to determine data structures to generate fielddata from
+ * @param lookupSupplier          a supplier for a SearchLookup to be used by runtime scripts
+ * @param sourcePathsLookup       a function to get source paths for a specific field
+ * @param idFieldDataEnabled      a supplier that can be used to check whether loading field data from _id field's inverted index is allowed
+ * @param fielddataOperation      the operation used to determine data structures to generate fielddata from
  */
 public record FieldDataContext(
     String fullyQualifiedIndexName,
     IndexSettings indexSettings,
     Supplier<SearchLookup> lookupSupplier,
     Function<String, Set<String>> sourcePathsLookup,
+    BooleanSupplier idFieldDataEnabled,
     MappedFieldType.FielddataOperation fielddataOperation
 ) {
 
@@ -42,8 +45,21 @@ public record FieldDataContext(
      * @param reason    the reason that runtime fields are not supported
      */
     public static FieldDataContext noRuntimeFields(String indexName, String reason) {
+        return noRuntimeFields(() -> false, indexName, reason);
+    }
+
+    /**
+     * A context to use when runtime fields are not available
+     * <p>
+     * Used for validating index sorts, eager global ordinal loading, etc
+     *
+     * @param idFieldDataEnabled a supplier that indicates whether loading field data for _id field is allowed
+     * @param indexName the name of the current index
+     * @param reason    the reason that runtime fields are not supported
+     */
+    public static FieldDataContext noRuntimeFields(BooleanSupplier idFieldDataEnabled, String indexName, String reason) {
         return new FieldDataContext(indexName, null, () -> {
             throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]");
-        }, Set::of, MappedFieldType.FielddataOperation.SEARCH);
+        }, Set::of, idFieldDataEnabled, MappedFieldType.FielddataOperation.SEARCH);
     }
 }

@@ -63,10 +63,10 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
         GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(
-            rerankInput.getQuery(),
-            rerankInput.getChunks(),
+            rerankInput.getQueryAsString(),
+            rerankInput.getDocsAsStrings(),
             rerankInput.getReturnDocuments(),
             rerankInput.getTopN(),
             model

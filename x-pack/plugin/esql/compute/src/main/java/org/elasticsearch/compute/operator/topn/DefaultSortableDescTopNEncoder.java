@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class DefaultSortableDescTopNEncoder extends SortableDescTopNEncoder {
@@ -15,6 +16,11 @@ class DefaultSortableDescTopNEncoder extends SortableDescTopNEncoder {
 
     DefaultSortableDescTopNEncoder(DefaultSortableAscTopNEncoder ascEncoder) {
         this.ascEncoder = ascEncoder;
+    }
+
+    @Override
+    protected int maxBytesRefValueSize(Block b) {
+        throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }
 
     @Override

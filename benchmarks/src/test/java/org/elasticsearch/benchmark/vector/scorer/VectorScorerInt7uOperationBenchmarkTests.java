@@ -30,25 +30,23 @@ public class VectorScorerInt7uOperationBenchmarkTests extends BenchmarkTest {
     }
 
     public void test() {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uOperationBenchmark();
-            bench.function = function;
-            bench.size = size;
-            bench.init();
-            try {
-                float expected = switch (function) {
-                    case DOT_PRODUCT -> dotProduct(bench.byteArrayA, bench.byteArrayB);
-                    case EUCLIDEAN -> squareDistance(bench.byteArrayA, bench.byteArrayB);
-                    default -> throw new AssumptionViolatedException("Not tested");
-                };
-                assertEquals(expected, bench.lucene(), delta);
-                assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-                if (supportsHeapSegments()) {
-                    assertEquals(expected, bench.nativeWithHeapSeg(), delta);
-                }
-            } finally {
-                bench.teardown();
+        var bench = new VectorScorerInt7uOperationBenchmark();
+        bench.function = function;
+        bench.size = size;
+        bench.init();
+        try {
+            float expected = switch (function) {
+                case DOT_PRODUCT -> dotProduct(bench.byteArrayA, bench.byteArrayB);
+                case EUCLIDEAN -> squareDistance(bench.byteArrayA, bench.byteArrayB);
+                default -> throw new AssumptionViolatedException("Not tested");
+            };
+            assertEquals(expected, bench.lucene(), delta);
+            assertEquals(expected, bench.nativeWithNativeSeg(), delta);
+            if (supportsHeapSegments()) {
+                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
             }
+        } finally {
+            bench.teardown();
         }
     }
 

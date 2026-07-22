@@ -50,7 +50,7 @@ public class NdJsonSchemaInferrer {
     // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
     // Use the string part of this default for schema inference (we cannot assume that a number
     // is a date)
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
@@ -61,13 +61,18 @@ public class NdJsonSchemaInferrer {
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -120,7 +125,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -135,7 +140,7 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -143,39 +148,61 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageIterator.Decoder
-            case START_OBJECT -> inferObjectSchema(parser, field);
-            case VALUE_STRING -> {
-                String text = parser.getText();
-                // All-digit strings (e.g. book ids) must not be inferred as years / partial dates.
-                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && DATE_FORMATTER.tryParse(text) != null) {
-                    field.addType(DataType.DATETIME);
+            // Keep in sync with NdJsonPageDecoder.BlockDecoder.decodeValue. A field seen as both a
+            // scalar and an object across sampled records resolves to whichever shape was observed
+            // first (mirrors core ES dynamic mapping's first-writer-wins); the other shape is ignored
+            // here for schema-inference purposes so buildSchema never emits both a scalar attribute
+            // and nested children for the same name (elastic/esql-planning#1028). The decoder applies
+            // ErrorPolicy to the actual conflicting value at read time.
+            case START_OBJECT -> {
+                if (field.types.isEmpty() == false) {
+                    parser.skipChildren();
                 } else {
-                    field.addType(DataType.KEYWORD);
+                    inferObjectSchema(parser, field);
+                }
+            }
+            case VALUE_STRING -> {
+                if (field.children == null) {
+                    String text = parser.getText();
+                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
+                        field.addType(DataType.DATETIME);
+                    } else {
+                        field.addType(DataType.KEYWORD);
+                    }
                 }
             }
             case VALUE_NUMBER_INT -> {
-                switch (parser.getNumberType()) {
-                    case INT:
-                        field.addType(DataType.INTEGER);
-                        return;
-                    case LONG:
-                        field.addType(DataType.LONG);
-                        return;
-                    case BIG_INTEGER: {
-                        field.addType(DataType.DOUBLE);
-                        var location = parser.getTokenLocation();
-                        logger.debug(
-                            "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
-                            parser.getText(),
-                            location.getLineNr(),
-                            location.getColumnNr()
-                        );
+                if (field.children == null) {
+                    switch (parser.getNumberType()) {
+                        case INT:
+                            field.addType(DataType.INTEGER);
+                            return;
+                        case LONG:
+                            field.addType(DataType.LONG);
+                            return;
+                        case BIG_INTEGER: {
+                            field.addType(DataType.DOUBLE);
+                            var location = parser.getTokenLocation();
+                            logger.debug(
+                                "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                                parser.getText(),
+                                location.getLineNr(),
+                                location.getColumnNr()
+                            );
+                        }
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
+            case VALUE_NUMBER_FLOAT -> {
+                if (field.children == null) {
+                    field.addType(DataType.DOUBLE); // conservative size
+                }
+            }
+            case VALUE_TRUE, VALUE_FALSE -> {
+                if (field.children == null) {
+                    field.addType(DataType.BOOLEAN);
+                }
+            }
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
@@ -291,19 +318,16 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
-     * {@code strict_date_optional_time} accepts year-only forms that collide with numeric identifiers
-     * (e.g. book numbers). Skip date inference for all-ASCII-digit tokens.
+     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
      */
-    private static boolean isLikelyDateString(String text) {
-        if (text.isEmpty()) {
-            return false;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c < '0' || c > '9') {
-                return true;
+    private boolean isDateTimeString(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return false;
             }
         }
-        return false;
+        return dateFormatter.tryParse(text) != null;
     }
 }

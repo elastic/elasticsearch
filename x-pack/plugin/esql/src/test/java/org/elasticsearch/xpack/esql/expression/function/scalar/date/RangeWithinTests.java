@@ -67,7 +67,7 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
             List.of(dateType, DataType.DATE_RANGE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(dateVal, dateType, "date"), typedDateRange(rangeFrom, rangeTo)),
-                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinPointEvaluator[point=Attribute[channel=0], range=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )
@@ -80,7 +80,7 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.DATE_RANGE, DataType.DATE_RANGE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(typedDateRange(aFrom, aTo), typedDateRange(bFrom, bTo)),
-                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinRangeEvaluator[a=Attribute[channel=0], b=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )

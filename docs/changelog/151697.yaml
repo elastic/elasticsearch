@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149681
+pr: 151697
+summary: Call `Project.output()` only when `Project.expressionsResolved()` is true
+type: bug

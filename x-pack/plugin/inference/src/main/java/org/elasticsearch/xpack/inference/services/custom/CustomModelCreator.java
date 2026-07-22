@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -73,7 +74,7 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
             // createHttpRequest() takes a listener, but we don't need to do anything with the HttpRequest here, so use a no-op listener
             ActionListener<HttpRequest> listener = ActionListener.noop();
             request.createHttpRequest(listener);
-        } catch (IllegalStateException e) {
+        } catch (Exception e) {
             var validationException = new ValidationException();
             validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
             throw validationException;
@@ -82,7 +83,9 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
 
     private static RequestParameters createParameters(CustomModel model) {
         return switch (model.getTaskType()) {
-            case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
+            case RERANK -> RerankParameters.of(
+                new QueryAndDocsInputs(InferenceString.ofText("test query"), List.of(InferenceString.ofText("test input")))
+            );
             case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
                 new EmbeddingsInput(() -> List.of(new InferenceStringGroup("test input")), null),

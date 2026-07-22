@@ -1,0 +1,5 @@
+ProjectExec[[$$Positions$${r}#0, language_code{f}#1]]
+\_FieldExtractExec[language_code{f}#1]<[],[],[]>
+  \_BulkLookupMvFilterExec[language_name{f}#2]
+    \_FieldExtractExec[language_name{f}#2]<[],[],[]>
+      \_ParameterizedQueryExec[[_doc{f}#3, $$Positions$${r}#0],[MatchConfig[fieldName=language_name, channel=0, type=KEYWORD]],null,null,false,language_name{r}#4,language_name{f}#2]

@@ -20,7 +20,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -276,6 +276,15 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> deleting index {}", indexName);
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
+        // Index into a throwaway index to advance the node-level TranslogReplicator maxUploadedGeneration.
+        // This ensures we always get expected commit in afterFilesRestoredFromRepository when totalDocs > 0.
+        if (totalDocs > 0) {
+            var tempIndex = "advance-translog";
+            createIndex(tempIndex, indexSettings(1, 0).build());
+            ensureGreen(tempIndex);
+            indexDocs(tempIndex, 10);
+        }
+
         logger.info("--> restoring snapshot of {}", indexName);
         var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "snapshots", "snapshot").setWaitForCompletion(true).get();
         assertThat(restore.getRestoreInfo().successfulShards(), equalTo(getNumShards(indexName).numPrimaries));
@@ -369,7 +378,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
             var excludedNode = indexNode;
             updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", excludedNode), indexName);
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(excludedNode))));
+            internalCluster().awaitNodeVacated(indexName, excludedNode);
             assertNodeHasNoCurrentRecoveries(newIndexNode);
             internalCluster().stopNode(excludedNode);
             indexNode = newIndexNode;
@@ -928,7 +937,12 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> generating {} commit(s) for index [{}] with {} upload max. commits", numCommits, indexName, uploadMaxCommits);
         for (int i = 0; i < numCommits; i++) {
             int numDocs = randomIntBetween(25, 50);
-            indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+            // Refresh all shards explicitly to ensure each shard creates a new commit per iteration. Using
+            // RefreshPolicy.IMMEDIATE on the bulk only refreshes shards that received documents, so when a
+            // multi-shard bulk happens to skip a shard (e.g. all docs route to other shards), that shard
+            // would otherwise miss a generation increment and the per-shard commit assertions would fail.
+            indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE));
+            refresh(indexName);
             totalDocs += numDocs;
         }
         return new DocsAndCommits(totalDocs, numCommits);

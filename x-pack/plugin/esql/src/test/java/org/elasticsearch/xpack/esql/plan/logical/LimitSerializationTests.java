@@ -10,15 +10,16 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class LimitSerializationTests extends AbstractLogicalPlanSerializationTests<Limit> {
     @Override
     protected Limit createTestInstance() {
         Source source = randomSource();
-        Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression limit = createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
         return new Limit(source, limit, child, randomBoolean(), randomBoolean());
     }
@@ -30,7 +31,7 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         boolean duplicated = instance.duplicated();
         boolean local = instance.local();
         switch (randomIntBetween(0, 3)) {
-            case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 0 -> limit = randomValueOtherThan(limit, () -> createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 2 -> duplicated = duplicated == false;
             case 3 -> local = local == false;

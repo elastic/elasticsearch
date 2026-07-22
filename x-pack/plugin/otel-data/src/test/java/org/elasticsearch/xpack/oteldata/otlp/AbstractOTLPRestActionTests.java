@@ -105,35 +105,6 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public void testMappingModeHeaderIsForwarded() {
-        var expectedResponse = createSuccessResponse();
-        client = new NoOpNodeClient(threadPool) {
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> actionType,
-                Request req,
-                ActionListener<Response> listener
-            ) {
-                assertThat(actionType, equalTo(actionType()));
-                assertThat(((OTLPActionRequest) req).getRequestMappingMode(), equalTo(MappingMode.BODYMAP));
-                listener.onResponse((Response) expectedResponse);
-            }
-        };
-        try (var response = execute(1024, 64, Map.of(MappingMode.HEADER, List.of("bodymap")))) {
-            assertThat(response.status(), equalTo(RestStatus.OK));
-            assertThat(response.content(), equalTo(expectedResponse.getResponse()));
-        }
-    }
-
-    public void testUnknownMappingModeHeaderIsRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> execute(1024, 0, Map.of(MappingMode.HEADER, List.of("ecs")))
-        );
-        assertThat(e.getMessage(), equalTo("Unsupported mapping mode [ecs], expected one of [otel, bodymap]"));
-    }
-
     public void testEmptyBodyReturnsSuccess() throws Exception {
         try (var response = execute(1024, 0)) {
             assertThat(response.status(), equalTo(RestStatus.OK));

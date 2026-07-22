@@ -82,10 +82,17 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     private final DriverContext ctx;
     private final ExpressionEvaluator evaluator;
+    /**
+     * Cached {@link #toString()} representation. The evaluator tree is immutable after construction,
+     * so its string form is deterministic. {@link Driver} reads this on every status update; caching
+     * avoids walking the evaluator tree per call.
+     */
+    private final String description;
 
     public EvalOperator(DriverContext ctx, ExpressionEvaluator evaluator) {
         this.ctx = ctx;
         this.evaluator = evaluator;
+        this.description = getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
         ctx.breaker().addEstimateBytesAndMaybeBreak(BASE_RAM_BYTES_USED + evaluator.baseRamBytesUsed(), "ESQL");
     }
 
@@ -97,7 +104,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
+        return description;
     }
 
     @Override

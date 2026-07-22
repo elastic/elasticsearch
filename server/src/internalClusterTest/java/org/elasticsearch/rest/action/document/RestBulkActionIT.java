@@ -78,6 +78,35 @@ public class RestBulkActionIT extends ESIntegTestCase {
         );
     }
 
+    public void testBulkIndexWithSourceOnErrorDisabledWithPipeline() throws Exception {
+        var source = "{\"field\": NaN}";
+        var sourceEscaped = "{\\\"field\\\": NaN}";
+        var pipeline = randomAlphaOfLength(12);
+
+        var putPipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipeline);
+        putPipelineRequest.setJsonEntity("{\"processors\":[]}");
+        getRestClient().performRequest(putPipelineRequest);
+
+        var request = new Request("PUT", "/test_index/_bulk");
+        request.addParameter("pipeline", pipeline);
+        request.setJsonEntity(Strings.format("{\"index\":{\"_id\":\"1\"}}\n%s\n", source));
+
+        Response response = getRestClient().performRequest(request);
+        String responseContent = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), UTF_8));
+        assertThat(responseContent, containsString(sourceEscaped));
+
+        request.addParameter(RestUtils.INCLUDE_SOURCE_ON_ERROR_PARAMETER, "false");
+
+        response = getRestClient().performRequest(request);
+        responseContent = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), UTF_8));
+        assertThat(
+            responseContent,
+            both(not(containsString(sourceEscaped))).and(
+                containsString("REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled)")
+            )
+        );
+    }
+
     public void testBulkSliceRequiredWhenIndexSettingEnabled() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "bulk-slice-required";
@@ -132,6 +161,47 @@ public class RestBulkActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testBulkRoutingRejectedWhenSliceSettingEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "bulk-slice-routing-rejected";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request topLevelRouting = new Request("POST", "/" + index + "/_bulk");
+        topLevelRouting.addParameter("routing", "r1");
+        topLevelRouting.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException topLevelRoutingException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(topLevelRouting)
+        );
+        String topLevelRoutingResponse = Streams.copyToString(
+            new InputStreamReader(topLevelRoutingException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(topLevelRoutingResponse, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(topLevelRoutingResponse, containsString("use [_slice] instead"));
+
+        Request itemRouting = new Request("POST", "/" + index + "/_bulk");
+        itemRouting.setJsonEntity("""
+            {"index":{"_id":"2","routing":"r2"}}
+            {"field":"value2"}
+            """);
+        ResponseException itemRoutingException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(itemRouting));
+        String itemRoutingResponse = Streams.copyToString(
+            new InputStreamReader(itemRoutingException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(itemRoutingResponse, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(itemRoutingResponse, containsString("use [_slice] instead"));
     }
 
     public void testBulkSliceRequiredWhenWritingViaAlias() throws Exception {

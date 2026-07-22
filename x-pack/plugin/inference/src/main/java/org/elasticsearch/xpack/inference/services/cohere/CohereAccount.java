@@ -22,7 +22,7 @@ public record CohereAccount(URI baseUri, SecureString apiKey) {
 
     public static CohereAccount of(CohereModel model) {
         try {
-            var uri = model.baseUri() != null ? model.baseUri() : new URIBuilder().setScheme("https").setHost(CohereUtils.HOST).build();
+            var uri = model.testUri() != null ? model.testUri() : new URIBuilder().setScheme("https").setHost(CohereUtils.HOST).build();
             return new CohereAccount(uri, model.apiKey());
         } catch (URISyntaxException e) {
             // using bad request here so that potentially sensitive URL information does not get logged

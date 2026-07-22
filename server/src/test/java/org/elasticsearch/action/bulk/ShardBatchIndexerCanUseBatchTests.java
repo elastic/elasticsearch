@@ -13,6 +13,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,13 +46,13 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
     }
 
     private static BulkShardRequest requestWithBatch(BulkItemRequest[] items, EirfBatch batch) {
-        BulkShardRequest request = new BulkShardRequest(SHARD_ID, RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(SHARD_ID, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
         request.setBulkShardBatch(new BulkShardBatch(batch));
         return request;
     }
 
     private static BulkShardRequest requestWithoutBatch(BulkItemRequest[] items) {
-        return new BulkShardRequest(SHARD_ID, RefreshPolicy.NONE, items);
+        return new BulkShardRequest(SHARD_ID, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
     }
 
     public void testCanUseBatchIndexingAllIndex() {

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +41,10 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
             // Tests below can set the other weights all to 0, resulting in 0 node weight, which is not currently supported. Therefore,
             // index balance will be set to a value >0 to ensure there is always some node weight balance.
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.55f)
+            .put(
+                DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING.getKey(),
+                DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS
+            )
             .put(StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(), true);
     }
 
@@ -127,6 +132,8 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         final boolean loosenSearchTier = randomBoolean();
         updateClusterSettings(
             Settings.builder()
+                // We rely on rebalancing being enabled in both tiers for this test
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.ALL)
                 .put(StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey(), loosenSearchTier ? 1.0f : 100.0f)
                 .put(StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey(), loosenSearchTier ? 100.0f : 1.0f)
                 .put(StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.45f)

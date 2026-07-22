@@ -41,6 +41,12 @@ querying. For supported inner (time series) functions per
 [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md). These functions also
 apply to downsampled data, with the same semantics as for raw data.
 
+::::{tip}
+To discover which metrics, metric types, and dimensions are available before writing a
+`TS` query, use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md)
+or [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md).
+::::
+
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
 [`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
@@ -55,6 +61,56 @@ You can also combine time series aggregation functions with regular [aggregation
 However, using a time series aggregation function in combination with an inner time series function causes an error. For an example, refer to [Invalid query: nested time series functions](#invalid-query-nested-time-series-functions).
 
 If there is no `STATS` command in the query, the output of the `TS` command gets sorted by `@timestamp` in descending order by default. This helps listing recent values across many time series, as opposed to listing the results based on index sort configuration that may just return data points for a single time series.
+
+## When to use TS vs FROM
+
+`TS` is the right choice for aggregating metrics. It's optimized for time series
+data and avoids correctness issues that
+[`FROM`](/reference/query-languages/esql/commands/from.md) `| STATS` runs into on
+raw metric data. The two most common examples where `FROM` silently produces
+wrong results that `TS` handles correctly are counter handling and uneven
+publish intervals for metrics.
+
+### Counters need deltas, not raw sums
+
+Counter metrics (such as a `request_count` that monotonically increases) record a
+running total, not per-interval events. Summing or averaging the raw counter column
+has no meaningful interpretation: the result reflects how many samples each series
+happened to publish, not the underlying rate. Counter resets on process restart make
+the problem worse by mixing pre-reset and post-reset values:
+
+```esql
+FROM metrics | STATS SUM(request_count) BY host
+```
+
+`TS` with [`RATE()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md)
+or [`INCREASE()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/increase.md)
+first computes the per-bucket delta for each time series (handling resets correctly
+along the way), then lets you aggregate those deltas across series:
+
+```esql
+TS metrics | STATS SUM(RATE(request_count)) BY host
+```
+
+### Uneven publish intervals for metrics
+
+Different hosts and agents publish at different cadences. A host emitting CPU samples
+every second contributes 120x more rows than one emitting every two minutes, so `AVG()`
+over the raw column weights the chatty host accordingly:
+
+```esql
+FROM metrics | STATS AVG(cpu_usage) BY cluster
+```
+
+`TS` first reduces each time series to a single value per time bucket (using
+[`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md)
+or another inner function), then aggregates across series. Each series contributes
+equally to the outer average:
+
+```esql
+TS metrics
+| STATS AVG(AVG_OVER_TIME(cpu_usage)) BY cluster, TBUCKET(1 minute)
+```
 
 ## Grouping time series [grouping-time-series]
 
@@ -91,22 +147,40 @@ query leads to an error.
 
 ## Best practices
 
+- [Prefer `TS` over `FROM`](#when-to-use-ts-vs-from) for time series aggregations.
+  `FROM` is still appropriate for non-aggregation uses such as listing document contents.
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
   For example, in `STATS max(rate(foo)) + rate(bar))`, if `foo` and `bar` don't share the same dimension values, the rate
   for one metric will be null for some dimension combinations. Because the + operator returns null when either input
   is null, the entire result becomes null for those dimensions. Additionally, queries that aggregate a single metric
   can filter out null values more efficiently.
-- Use the `TS` command for aggregations on time series data, rather than `FROM`. The `FROM` command is still available
-  (for example, for listing document contents), but it's not optimized for processing time series data and may produce
-  unexpected results.
-- The `TS` command can't be combined with certain operations (such as
-  [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
-  applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
 - Time series aggregations produce large result sets, especially if they involve many dimensions and small time buckets.
   The limits are updated accordingly, with the default result truncation size increased to 10,000 rows. For more
   information on the limits and how to adjust them, refer to
   [Result set size limitation](/reference/query-languages/esql/_snippets/common/result-set-size-limitation.md).
+
+## Limitations
+
+- **`COUNT(*)` under `TS`**: After the first `STATS` under `TS`, rows are grouped per
+  time series rather than counted as raw metric documents, so `COUNT(*)` does not have
+  the same meaning it does under `FROM`. To count samples for a specific metric, use
+  `COUNT(<field>)` or
+  [`COUNT_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/count_over_time.md)
+  against a named field.
+- **Commands that reorder rows**: Commands that change row order, such as
+  [`SORT`](/reference/query-languages/esql/commands/sort.md) or
+  [`FORK`](/reference/query-languages/esql/commands/fork.md), cannot appear between
+  `TS` and the first `STATS`. Time series aggregations rely on the natural `@timestamp`
+  ordering produced by `TS`. After the first `STATS`, results are tabular and these
+  commands are available again — see
+  [Process tabular results after the first STATS](#process-tabular-results-after-the-first-stats).
+- **Metric type compatibility**: Time series aggregation functions enforce the field's
+  `metric_type` mapping. For example,
+  [`RATE()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md)
+  requires a counter and rejects gauge fields. See
+  [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#metric-type-compatibility)
+  for the per-function mapping.
 
 ## Examples
 
@@ -168,6 +242,22 @@ Use `AVG_OVER_TIME` to compute per-time-series averages, then group the results 
 TS metrics
 | WHERE @timestamp >= now() - 1 day
 | STATS SUM(AVG_OVER_TIME(memory_usage)) BY host, TBUCKET(1 hour)
+```
+
+### Process tabular results after the first STATS
+
+Once the first `STATS` under `TS` completes, the pipeline becomes a regular ES|QL table.
+Chain additional `STATS`, `EVAL`, `SORT`, and similar commands to derive secondary
+aggregations or computed columns. For example, take per-minute rates per cluster, then
+compute the 95th-percentile and maximum rate per cluster and rank clusters by headroom:
+
+```esql
+TS k8s
+| WHERE @timestamp >= now() - 1 hour
+| STATS rate = MAX(RATE(network.total_bytes_in)) BY cluster, TBUCKET(1 minute)
+| STATS p95 = PERCENTILE(rate, 95), peak = MAX(rate) BY cluster
+| EVAL headroom = peak - p95
+| SORT headroom DESC
 ```
 
 ### Group by all dimensions implicitly

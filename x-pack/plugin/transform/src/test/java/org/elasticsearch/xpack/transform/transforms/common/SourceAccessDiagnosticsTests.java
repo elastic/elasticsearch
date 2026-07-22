@@ -247,7 +247,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
         ShardSearchFailure[] shardFailures
     ) {
         return new SearchResponse(
-            SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),
             null, // null aggregations -- simulates the scenario we are diagnosing
             new Suggest(Collections.emptyList()),
             false,

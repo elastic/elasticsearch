@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -473,6 +476,20 @@ public class IndexEngine extends InternalEngine {
             logger.trace("flush sets max generation of {} to generation [{}]", shardId, generation);
             statelessCommitService.ensureMaxGenerationToUploadForFlush(shardId, generation);
         }
+    }
+
+    /**
+     * Returns {@code true} if the current flush was initiated by a refresh (e.g. an external refresh API call or a
+     * scheduled periodic refresh), {@code false} for standalone flushes (e.g. the relocation pre-flush or an explicit
+     * flush API call).
+     * <p>
+     * This is only meaningful when called from within {@link #afterFlush} — the value is stored in a thread-local and
+     * reflects the flush context of the calling thread, which is guaranteed to be the same thread that initiated the
+     * flush.
+     */
+    // protected for testing override
+    protected boolean isFlushByRefresh() {
+        return IS_FLUSH_BY_REFRESH.get();
     }
 
     @Override
@@ -949,9 +966,38 @@ public class IndexEngine extends InternalEngine {
         lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
     }
 
+    @Override
     public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
         long lastLookup = lastDocIdAndVersionLookupMillis.get();
         return lastLookup > 0 && (engineConfig.getThreadPool().relativeTimeInMillis() - lastLookup) <= recencyThreshold.getMillis();
+    }
+
+    @Override
+    protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
+        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
+            @Override
+            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+                return oneMerge.wrapForMerge(reader);
+            }
+
+            @Override
+            public boolean isAborted() {
+                if (super.isAborted()) {
+                    return true;
+                }
+
+                if (shouldSkipMerge()) {
+                    // If a merge is considered to be aborted due to running relocation, we want to keep that for
+                    // the entire merge lifecycle even if the relocation is canceled to avoid any inconsistencies.
+                    setAborted();
+                }
+                return super.isAborted();
+            }
+        });
+    }
+
+    private boolean shouldSkipMerge() {
+        return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
     }
 
     private final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
@@ -1003,7 +1049,7 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected boolean shouldSkipMerge() {
-            return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
+            return IndexEngine.this.shouldSkipMerge();
         }
 
         @Override

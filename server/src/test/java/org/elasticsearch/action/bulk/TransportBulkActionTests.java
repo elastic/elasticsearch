@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
@@ -151,6 +153,7 @@ public class TransportBulkActionTests extends ESTestCase {
                         return activeProjectId.get();
                     }
                 },
+                TransportBulkActionTests.this.threadPool::relativeTimeInNanos,
                 FailureStoreMetrics.NOOP,
                 DataStreamFailureStoreSettings.create(clusterSettings),
                 new FeatureService(List.of()) {
@@ -158,7 +161,9 @@ public class TransportBulkActionTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                }
+                },
+                new TimeSeriesEligibleWriteWindowLocator(),
+                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
 
@@ -192,8 +197,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
@@ -221,11 +225,10 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
@@ -348,6 +351,25 @@ public class TransportBulkActionTests extends ESTestCase {
     public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new IndexRequest("idx").id("1").routing("s1");
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
+    }
+
+    public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
         when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);

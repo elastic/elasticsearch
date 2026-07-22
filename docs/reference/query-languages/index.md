@@ -9,6 +9,7 @@ This section contains reference information for Elastic query languages, includi
 
 * [Query DSL](querydsl.md)
 * [ES|QL](esql.md)
+* [PromQL](promql.md)
 * [SQL](sql.md)
 * [EQL](eql.md)
 * [KQL](kql.md)

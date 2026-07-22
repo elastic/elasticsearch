@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.request;
 
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
-public abstract class AlibabaCloudSearchRequest implements Request {
+public abstract class AlibabaCloudSearchRequest implements OutboundRequest {
     private final long startTime;
 
     public AlibabaCloudSearchRequest() {

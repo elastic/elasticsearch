@@ -162,7 +162,7 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, () -> false, fdo)
                     ).build(null, null),
                     (ctx, doc) -> null
                 );
@@ -213,7 +213,7 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, () -> false, fdo)
                     ).build(null, null),
                     (ctx, doc) -> null
                 );

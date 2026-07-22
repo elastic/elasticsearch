@@ -1,6 +1,0 @@
-area: Search
-issues: []
-pr: 145452
-summary: Collapse pathological regex quantifier stacking to prevent NFA construction
-  OOM
-type: bug

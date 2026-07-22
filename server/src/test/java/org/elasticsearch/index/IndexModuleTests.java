@@ -103,6 +103,8 @@ import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -171,9 +173,8 @@ public class IndexModuleTests extends ESTestCase {
     private ClusterService clusterService;
     private IndexNameExpressionResolver indexNameExpressionResolver;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndexModuleTestFixtures() throws Exception {
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -217,11 +218,16 @@ public class IndexModuleTests extends ESTestCase {
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanupIndexModuleTestFixtures() throws Exception {
         IOUtils.close(nodeEnvironment, indicesQueryCache, clusterService);
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        // USE_THREAD_POOL_MERGE_SCHEDULER_SETTING is deprecated and used in setUp to exercise both enabled/disabled paths
+        return List.of(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey());
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
@@ -241,7 +247,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             null,
             indexDeletionListener,
             emptyMap()
@@ -555,6 +561,24 @@ public class IndexModuleTests extends ESTestCase {
         closeIndexService(indexService);
     }
 
+    public void testQueryCacheEnabledByDefaultForNonStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
+    public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
@@ -604,6 +628,11 @@ public class IndexModuleTests extends ESTestCase {
             @Override
             public AnalyzerScope scope() {
                 return AnalyzerScope.INDEX;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
             }
 
             @Override

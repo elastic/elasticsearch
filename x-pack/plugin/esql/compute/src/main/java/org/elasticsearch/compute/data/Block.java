@@ -157,6 +157,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     /**
      * {@return the index of the first value for the given position}
      * See class javadoc for the usual way to iterate these positions.
+     * For a non-null position other than the last, the first value index of the next position is the exclusive end index.
      * <p>
      *     For densely packed data this will return its parameter unchanged.
      *     For fields with {@code null} values or multivalued fields, this
@@ -218,6 +219,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     ElementType elementType();
 
+    /**
+     * {@return the maximum byte size of any single value in this block}
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
+     */
+    int valueMaxByteSize();
+
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
 
@@ -234,6 +242,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * @return true iff the block's reference count is zero.
      * */
     boolean isReleased();
+
+    /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this block's reference count
+     * reaches zero, immediately after its resources are released. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    void attachReleasable(Releasable releasable);
 
     /**
      * @param position the position
@@ -272,9 +287,21 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * Creates a new block that only exposes the positions provided.
      * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
+     * @param offset the start index in the positions array
+     * @param length the number of positions to use from the array
      * @return a filtered block
      */
-    Block filter(boolean mayContainDuplicates, int... positions);
+    Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    /**
+     * Creates a new block that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered block
+     */
+    default Block filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing
@@ -479,7 +506,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
                     blocks[b] = builders[b].build();
                 }
             } finally {
-                if (blocks[blocks.length - 1] == null) {
+                if (blocks.length > 0 && blocks[blocks.length - 1] == null) {
                     Releasables.closeExpectNoException(blocks);
                 }
             }

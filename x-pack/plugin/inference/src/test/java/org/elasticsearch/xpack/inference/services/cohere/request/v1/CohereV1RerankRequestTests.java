@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
@@ -26,7 +26,6 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -127,7 +126,9 @@ public class CohereV1RerankRequestTests extends ESTestCase {
     private CohereRerankModel createModel(String modelId, CohereRerankTaskSettings taskSettings) {
         return new CohereRerankModel(
             "inference_id",
-            new CohereRerankServiceSettings((URI) null, modelId, null, CohereServiceSettings.CohereApiVersion.V2),
+            new CohereRerankServiceSettings(
+                new CohereCommonServiceSettings(modelId, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+            ),
             taskSettings,
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );

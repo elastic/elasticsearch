@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `VARIANCE` function [esql-variance]
 
-:::{include} ../../_snippets/functions/layout/variance.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/variance.md
 :::

@@ -22,7 +22,7 @@ import java.io.IOException;
  * the additional ordinals block. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted implements BytesRefBlock {
+public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implements BytesRefBlock {
     private final IntBlock ordinals;
     private final BytesRefVector bytes;
 
@@ -107,17 +107,18 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
+    public BytesRefBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
         // may reappear when hashing the dictionary in BlockHash.
         // TODO: merge this BytesRefArrayBlock#filter
         final OrdinalBytesRefVector vector = asVector();
         if (vector != null) {
-            return vector.filter(mayContainDuplicates, positions).asBlock();
+            return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
         }
         BytesRef scratch = new BytesRef();
-        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;
@@ -216,12 +217,18 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return bytes.valueMaxByteSize();
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return ordinals.blockFactory();
     }
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }

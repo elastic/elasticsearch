@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 134512
-pr: 143544
-summary: Do not enable doc-partitioning for count
-type: bug

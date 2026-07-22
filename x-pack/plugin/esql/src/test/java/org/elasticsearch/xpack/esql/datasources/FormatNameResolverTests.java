@@ -127,6 +127,31 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals("csv", FormatNameResolver.resolveFormatName(Map.of("format", "csv"), "hits.parquet.gz", registry));
     }
 
+    /**
+     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format} override
+     * must still compose with the resource's outer compression suffix — the reader
+     * {@link FormatNameResolver#resolveReader} returns (not just the name
+     * {@link FormatNameResolver#resolveFormatName} reads back) must be wrapped in a
+     * {@link CompressionDelegatingFormatReader} so the returned reader actually decompresses at read time,
+     * rather than resolving the plain reader over compressed bytes.
+     */
+    public void testResolveReaderConfigOverrideComposesWithCompressionSuffix() {
+        FormatReaderRegistry registry = csvRegistry();
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits.csv.gz", registry);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "explicit format over a compressed resource must resolve a CompressionDelegatingFormatReader",
+            reader instanceof CompressionDelegatingFormatReader
+        );
+    }
+
+    /** An explicit {@code format} override over an uncompressed resource resolves the plain reader, unwrapped. */
+    public void testResolveReaderConfigOverrideWithoutCompressionSuffixIsUnwrapped() {
+        FormatReaderRegistry registry = csvRegistry();
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits.csv", registry);
+        assertFalse(reader instanceof CompressionDelegatingFormatReader);
+    }
+
     /** An extensionless, format-less strict resource fails loud at the registry rather than resolving null. */
     public void testResolveFormatNameThrowsOnExtensionless() {
         FormatReaderRegistry registry = csvRegistry();

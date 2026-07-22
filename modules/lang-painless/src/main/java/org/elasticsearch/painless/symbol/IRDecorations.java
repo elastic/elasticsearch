@@ -375,7 +375,7 @@ public class IRDecorations {
         }
     }
 
-    /** the resolved {@code @allocates_dynamic} estimator for a call or construction site; attached only when tracking is enabled */
+    /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
     public static class IRDAllocationEstimator extends IRDecoration<Method> {
 
         public IRDAllocationEstimator(Method value) {
@@ -398,6 +398,18 @@ public class IRDecorations {
     public static class IRCStaticCancellationCheck implements IRCondition {
 
         private IRCStaticCancellationCheck() {
+
+        }
+    }
+
+    /**
+     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter, whether for
+     * cancellation or allocation tracking. Decoupled from {@link IRCStaticCancellationCheck}, which additionally emits the
+     * poll; a static cancellation lambda carries both.
+     */
+    public static class IRCStaticScriptCapture implements IRCondition {
+
+        private IRCStaticScriptCapture() {
 
         }
     }

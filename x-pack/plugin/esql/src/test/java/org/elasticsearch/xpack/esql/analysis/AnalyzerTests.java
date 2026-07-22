@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -96,7 +96,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -176,7 +175,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -2796,6 +2794,26 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
+    public void testFirstWithNullSortAndDroppedTimestampFailsGracefully() {
+        // Dropping @timestamp before the STATS command makes the implicit timestamp sort parameter of first()/last()
+        // unresolvable; this must surface as a normal resolution failure rather than an internal exception (#153487).
+        tsdb().error(
+            "TS test | KEEP network.connections, host | STATS x = first(network.connections, null) by host",
+            containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+        );
+    }
+
+    public void testFirstWithNullSortAndTimestampPresent() {
+        // When @timestamp is still resolvable, first()/last() with a null sort should resolve without error.
+        var plan = tsdb().query("TS test | STATS x = first(network.connections, null) by host");
+        assertTrue(plan.resolved());
+    }
+
+    public void testNonTimeSeriesFirstWithNullSort() {
+        var plan = basic().query("FROM test | STATS x = first(last_name, null) by first_name");
+        assertTrue(plan.resolved());
+    }
+
     public void testNoImplicitTimestampSortForNotTsQuery() {
         // Not TS query should NOT have implicit sort
         var plan = tsdb().query("FROM test");
@@ -3295,111 +3313,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
-    }
-
-    public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 emp_no");
-
-        Attribute last = plan.output().getLast();
-        assertThat(last.name(), is("emp_no"));
-        assertThat(last.dataType(), is(INTEGER));
-        assertThat(
-            plan.output()
-                .stream()
-                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
-                .toList(),
-            is(empty())
-        );
-    }
-
-    public void testInsist_afterRowThrowsException() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        basic().error(
-            "ROW x = 1 | INSIST_🐔 x",
-            containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]")
-        );
-    }
-
-    public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 foo");
-
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        assertThat(insist.output(), hasSize(basic().query("FROM test").output().size() + 1));
-        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
-        assertThat(insist.insistedAttributes(), equalToIgnoringIds(List.of(expectedAttribute)));
-        assertThat(insist.output().getLast(), equalToIgnoringIds(expectedAttribute));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-
-        String query = "FROM foo, bar | INSIST_🐔 message";
-        var plan = analyzer().addIndex(resolution).query(query);
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("qux", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
     }
 
     public void testResolveDenseVector() {

@@ -452,7 +452,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     }
                     return super.isContentAlwaysEmpty(msg);
                 }
-            }).addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+            }).addLast(new Netty4HttpContentSizeHandler(handlingSettings.maxContentLength()));
 
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
@@ -477,7 +477,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline()
                 .addLast(
                     "pipelining",
-                    new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
+                    new Netty4HttpPipeliningHandler(
+                        transport.pipeliningMaxEvents,
+                        transport,
+                        threadWatchdogActivityTracker,
+                        tlsConfig.isTLSEnabled() ? "https" : "http"
+                    )
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
 

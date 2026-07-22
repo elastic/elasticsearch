@@ -379,6 +379,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             if (mergeTask.supportsIOThrottling()) {
                 mergeTask.setIORateLimit(targetIORateBytesPerSec.get());
             }
+            mergeEventListeners.forEach(l -> l.onMergeStarted(mergeTask.getOnGoingMerge()));
             mergeTask.run();
         } finally {
             boolean removed = runningMergeTasks.remove(mergeTask);
@@ -952,8 +953,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         return targetIORateBytesPerSec.get();
     }
 
-    // exposed for tests
-    int getMaxConcurrentMerges() {
+    public int getMaxConcurrentMerges() {
         return maxConcurrentMerges;
     }
 

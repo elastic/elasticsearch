@@ -340,12 +340,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
-  method: testConjunctionOfRangeFiltersMatchesBruteForce
-  issue: https://github.com/elastic/elasticsearch/issues/152886
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testConjunctionOfRangeFiltersMatchesBruteForce
-  issue: https://github.com/elastic/elasticsearch/issues/152887
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/152913

@@ -212,10 +212,8 @@ public class RecoveryDirectCancellationService {
                 // There is a possibility that a close-in-time subsequent request was deduplicated from this one while we
                 // were waiting for it to respond. That should be fine, as in all likelihood, this subsequent request
                 // would have faced the same transport error and direct cancellation is best-effort anyway.
-                synchronized (this) {
-                    for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-                        sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
-                    }
+                for (ShardRecoveryCancellation cancellation : request.cancellations()) {
+                    sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
                 }
                 logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
             }), CancelRecoveriesAction.Response::new, genericExecutor)

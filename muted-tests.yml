@@ -526,9 +526,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
-  issue: https://github.com/elastic/elasticsearch/issues/154341
+- class: org.elasticsearch.reindex.ReindexerTests
+  method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
+  issue: https://github.com/elastic/elasticsearch/issues/154237
 - class: org.elasticsearch.index.rankeval.RankEvalRequestIT
   method: testIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/154360
@@ -538,9 +538,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testClusterDetailsAfterCCSWithFailuresOnOneShardOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
   issue: https://github.com/elastic/elasticsearch/issues/154363
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
-  issue: https://github.com/elastic/elasticsearch/issues/154380
 - class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
   method: testControllerSpawnGatedBySettings
   issue: https://github.com/elastic/elasticsearch/issues/154291

@@ -22,14 +22,15 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.escf.EscfLuceneColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class MappedColumns {
 
-    private final int from;
+    private final int offset;
     private final int count;
 
     @Nullable
@@ -41,21 +42,21 @@ public final class MappedColumns {
     @Nullable
     private final byte[] versions;
 
-    private final List<SliceableColumn> columns;
+    private final List<LuceneColumn> columns;
 
     /**
-     * Constructs a {@code SliceableColumns} covering the window {@code [from, from + count)} of the
+     * Constructs a {@code MappedColumns} covering the window {@code [from, from + count)} of the
      * given backing arrays and columns.
      */
     public MappedColumns(
-        int from,
+        int offset,
         int count,
         @Nullable byte[] seqNos,
         @Nullable byte[] primaryTerms,
         @Nullable byte[] versions,
-        List<SliceableColumn> columns
+        List<LuceneColumn> columns
     ) {
-        this.from = from;
+        this.offset = offset;
         this.count = count;
         this.seqNos = seqNos;
         this.primaryTerms = primaryTerms;
@@ -68,39 +69,39 @@ public final class MappedColumns {
     }
 
     public void setSeqNo(int doc, long value) {
+        assert doc >= 0 && doc < count;
         if (seqNos != null) {
-            ByteUtils.writeLongLE(value, seqNos, (from + doc) * 8);
+            ByteUtils.writeLongLE(value, seqNos, (offset + doc) * 8);
         }
     }
 
     public void fillPrimaryTerm(long value) {
         if (primaryTerms != null) {
             for (int i = 0; i < count; i++) {
-                ByteUtils.writeLongLE(value, primaryTerms, (from + i) * 8);
+                ByteUtils.writeLongLE(value, primaryTerms, (offset + i) * 8);
             }
         }
     }
 
     public void setVersion(int doc, long value) {
+        assert doc >= 0 && doc < count;
         if (versions != null) {
-            ByteUtils.writeLongLE(value, versions, (from + doc) * 8);
+            ByteUtils.writeLongLE(value, versions, (offset + doc) * 8);
         }
     }
 
     public MappedColumns slice(int from, int to) {
-        if (from < 0 || to > this.count || from > to) {
-            throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + this.count + ")");
-        }
+        Objects.checkFromIndexSize(from, to - from, this.count);
         int newCount = to - from;
-        List<SliceableColumn> slicedColumns = new ArrayList<>(columns.size());
-        for (SliceableColumn c : columns) {
+        List<LuceneColumn> slicedColumns = new ArrayList<>(columns.size());
+        for (LuceneColumn c : columns) {
             slicedColumns.add(c.slice(from, newCount));
         }
-        return new MappedColumns(this.from + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
+        return new MappedColumns(this.offset + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
     }
 
     public ColumnBatch toColumnBatch() {
-        final List<Column> luceneColumns = columns.stream().map(SliceableColumn::toLuceneColumn).toList();
+        final List<Column> luceneColumns = columns.stream().map(LuceneColumn::toLuceneColumn).toList();
         return new SliceableColumnBatch(luceneColumns, count);
     }
 
@@ -116,17 +117,17 @@ public final class MappedColumns {
     /**
      * A forward-only cursor over all columns that assembles per-document {@link IndexableField} lists
      * for the row-oriented (soft-update / non-{@code addBatch}) indexing path. Encapsulates the
-     * per-column {@link SliceableColumn.RowFieldCursor} instances and their position tracking.
+     * per-column {@link LuceneColumn.RowFieldCursor} instances and their position tracking.
      */
     public static final class RowCursor {
-        private final List<SliceableColumn.RowFieldCursor> cursors;
+        private final List<LuceneColumn.RowFieldCursor> cursors;
         private final int[] heads;
         private final List<IndexableField> fields;
         private int currentDoc = 0;
 
-        private RowCursor(List<SliceableColumn> columns) {
+        private RowCursor(List<LuceneColumn> columns) {
             cursors = new ArrayList<>(columns.size());
-            for (SliceableColumn col : columns) {
+            for (LuceneColumn col : columns) {
                 cursors.add(col.rowFieldCursor());
             }
             heads = new int[cursors.size()];
@@ -182,19 +183,19 @@ public final class MappedColumns {
         }
     }
 
-    public static SliceableColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
-        return EscfLuceneColumn.longColumn(values, name, fieldType, kind);
+    public static LuceneColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
+        return LuceneLongColumn.longColumn(values, name, fieldType, kind);
     }
 
-    public static SliceableColumn binaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
+    public static LuceneColumn binaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
         return new WindowedBinaryColumn(values, name, fieldType, 0, values.length);
     }
 
-    private static final class WindowedBinaryColumn extends BinaryColumn implements SliceableColumn {
+    private static final class WindowedBinaryColumn extends BinaryColumn implements LuceneColumn {
+
         private final BytesRef[] values;
         private final int from;
         private final int count;
-        private final boolean dense;
         private final IndexableFieldType fieldType;
 
         WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count) {
@@ -202,7 +203,6 @@ public final class MappedColumns {
             this.values = values;
             this.from = from;
             this.count = count;
-            this.dense = allPresent(values, from, count);
             this.fieldType = fieldType;
         }
 
@@ -216,7 +216,8 @@ public final class MappedColumns {
         }
 
         @Override
-        public SliceableColumn slice(int from, int count) {
+        public WindowedBinaryColumn slice(int from, int count) {
+            Objects.checkFromIndexSize(from, count, this.count);
             return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
         }
 
@@ -226,7 +227,7 @@ public final class MappedColumns {
         }
 
         @Override
-        public RowFieldCursor rowFieldCursor() {
+        public LuceneColumn.RowFieldCursor rowFieldCursor() {
             // A reusable mutable field whose bytes value is updated per document. Using the public
             // Field(String, BytesRef, IndexableFieldType) constructor sets fieldsData to the given
             // BytesRef; subsequent setBytesValue calls update fieldsData in place. The IndexWriter
@@ -234,7 +235,7 @@ public final class MappedColumns {
             // to reuse across documents.
             final BytesRef sentinel = new BytesRef(); // placeholder; overwritten in appendCurrentFields
             final Field field = new Field(name(), sentinel, fieldType);
-            return new RowFieldCursor() {
+            return new LuceneColumn.RowFieldCursor() {
                 private int doc = DocIdSetIterator.NO_MORE_DOCS;
                 private int srcIdx = from - 1;
 
@@ -261,7 +262,6 @@ public final class MappedColumns {
         public ObjectTupleCursor<BytesRef> tuples() {
             // srcIdx tracks position in the full backing array; doc is the batch-local id.
             return new ObjectTupleCursor<>() {
-                private int doc = -1;
                 private int srcIdx = from - 1;
 
                 @Override
@@ -271,6 +271,7 @@ public final class MappedColumns {
                     while (srcIdx < end && values[srcIdx] == null) {
                         srcIdx++;
                     }
+                    int doc;
                     if (srcIdx >= end) {
                         doc = DocIdSetIterator.NO_MORE_DOCS;
                     } else {
@@ -288,7 +289,7 @@ public final class MappedColumns {
 
         @Override
         public BytesRefValuesCursor values() {
-            if (dense == false) {
+            if (density() == Density.SPARSE) {
                 return super.values(); // throws; never consulted for SPARSE columns
             }
             return new BytesRefValuesCursor(count) {

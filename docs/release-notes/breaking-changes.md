@@ -12,15 +12,21 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.4.4 [elasticsearch-9.4.4-breaking-changes]
+
+Inference:
+* [Inference API] Prevent overriding `secret_parameters` [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+
+## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
+
+Inference:
+* [Inference API] Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+
+## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
 ## 9.4.3 [elasticsearch-9.4.3-breaking-changes]
-
-There are no breaking changes associated with this release.
-
-## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
-
-There are no breaking changes associated with this release.
-
-## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
 
 There are no breaking changes associated with this release.
 
@@ -399,5 +405,4 @@ Vector Search:
 
 Watcher:
 * Removing support for types field in watcher search [#120748](https://github.com/elastic/elasticsearch/pull/120748)
-
 

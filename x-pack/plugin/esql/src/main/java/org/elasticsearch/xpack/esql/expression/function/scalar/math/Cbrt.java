@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -33,9 +35,15 @@ public class Cbrt extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cbrt", Cbrt::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Cbrt.class).unary(Cbrt::new).name("cbrt");
 
-    @FunctionInfo(returnType = "double", briefSummary = "Returns the cube root of a number.", description = """
-        Returns the cube root of a number. The input can be any numeric value, the return value is always a double.
-        Cube roots of infinities are null.""", examples = @Example(file = "math", tag = "cbrt"))
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = "double",
+        briefSummary = "Returns the cube root of a number.",
+        description = """
+            Returns the cube root of a number. The input can be any numeric value, the return value is always a double.
+            Cube roots of infinities are null.""",
+        examples = @Example(file = "math", tag = "cbrt")
+    )
     public Cbrt(
         Source source,
         @Param(

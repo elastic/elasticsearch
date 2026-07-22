@@ -144,6 +144,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Ignored-field recording is only triggered by field (non-metadata) mappers, and none
         // support columnar parsing yet in this first pass. postColumnarParse is therefore a no-op

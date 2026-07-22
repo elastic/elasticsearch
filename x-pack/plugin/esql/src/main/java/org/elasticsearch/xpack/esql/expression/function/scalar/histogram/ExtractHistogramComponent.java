@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -94,7 +96,11 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
      * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
      *                         as integer-expression, must be foldable
      */
-    @FunctionInfo(returnType = { "double" }, briefSummary = "Extracts a component value from a histogram.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double" },
+        briefSummary = "Extracts a component value from a histogram."
+    )
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,

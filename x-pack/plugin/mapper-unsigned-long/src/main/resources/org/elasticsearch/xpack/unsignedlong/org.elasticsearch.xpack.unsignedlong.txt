@@ -18,7 +18,7 @@ class org.elasticsearch.xpack.unsignedlong.UnsignedLongDocValuesField @dynamic_t
   long getValue(long)
   long getValue(int, long)
   List getValues()
-  BigInteger asBigInteger(BigInteger) @allocates_constant[bytes="48b"]
-  BigInteger asBigInteger(int, BigInteger) @allocates_constant[bytes="48b"]
+  BigInteger asBigInteger(BigInteger) @allocates[class="org.elasticsearch.xpack.unsignedlong.UnsignedLongAllocationEstimators", method="asBigIntegerBytes"]
+  BigInteger asBigInteger(int, BigInteger) @allocates[class="org.elasticsearch.xpack.unsignedlong.UnsignedLongAllocationEstimators", method="asBigIntegerBytes"]
   List asBigIntegers()
 }

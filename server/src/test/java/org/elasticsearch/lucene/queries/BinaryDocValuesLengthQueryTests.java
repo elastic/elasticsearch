@@ -17,7 +17,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -26,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class BinaryDocValuesLengthQueryTests extends ESTestCase {
 
@@ -166,6 +171,58 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                         long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len, false));
                         assertEquals(lengthToCount[len], numMatches);
                     }
+                }
+            }
+        }
+    }
+
+    public void testChecksCircuitBreakerWhenReaderOpened() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document document = new Document();
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    fieldName,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+                field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
+                document.add(field);
+                document.add(NumericDocValuesField.indexedField(fieldName + ".counts", 1));
+                writer.addDocument(document);
+                try (IndexReader reader = writer.getReader()) {
+                    // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit
+                    // test, so we substitute a breaker that always trips to verify the length query consults it and passes 0 bytes.
+                    AtomicLong checkpointedBytes = new AtomicLong(-1);
+                    CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+                        @Override
+                        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                            checkpointedBytes.set(bytes);
+                            throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                        }
+                    };
+                    ContextIndexSearcher searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
+                        true
+                    );
+                    searcher.setCircuitBreaker(breaker);
+
+                    Query present = new BinaryDocValuesLengthQuery(fieldName, 1, false);
+                    expectThrows(CircuitBreakingException.class, () -> searcher.count(present));
+                    // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
+                    assertEquals(0L, checkpointedBytes.get());
+
+                    // A field absent from the segment opens no binary doc values reader, so the checkpoint must not fire.
+                    checkpointedBytes.set(-1);
+                    Query absent = new BinaryDocValuesLengthQuery("missing", 1, false);
+                    assertEquals(0, searcher.count(absent));
+                    assertEquals(-1L, checkpointedBytes.get());
+
+                    // With no breaker configured the query runs normally.
+                    searcher.setCircuitBreaker(null);
+                    assertEquals(1, searcher.count(present));
                 }
             }
         }

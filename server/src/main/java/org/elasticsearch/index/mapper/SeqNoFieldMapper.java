@@ -292,23 +292,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    // Doc-values-only long field type: NUMERIC doc values, no indexed dimensions. Used for
-    // _primary_term unconditionally (never indexed, key-value lookup only) and for _seq_no when
-    // seqNoIndexOptions() is DOC_VALUES_ONLY (or sequence numbers are disabled outright).
-    private static final IndexableFieldType DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE = buildLongColumnFieldType(false);
-    // Points + doc values long field type, mirroring SingleValueLongField.FIELD_TYPE. Used for
-    // _seq_no when seqNoIndexOptions() is POINTS_AND_DOC_VALUES.
-    private static final IndexableFieldType POINTS_AND_DOC_VALUES_COLUMN_FIELD_TYPE = buildLongColumnFieldType(true);
-
-    private static IndexableFieldType buildLongColumnFieldType(boolean withPoints) {
-        FieldType ft = new FieldType();
-        if (withPoints) {
-            ft.setDimensions(1, Long.BYTES);
-        }
-        ft.setDocValuesType(DocValuesType.NUMERIC);
-        ft.freeze();
-        return ft;
-    }
+    private static final IndexableFieldType DV_ONLY_COLUMN_FIELD_TYPE = NumericDocValuesField.indexedField(
+        NAME,
+        SequenceNumbers.UNASSIGNED_SEQ_NO
+    ).fieldType();
+    private static final IndexableFieldType POINTS_AND_DV_COLUMN_FIELD_TYPE = SingleValueLongField.FIELD_TYPE;
+    private static final IndexableFieldType PRIMARY_TERM_COLUMN_FIELD_TYPE = NumericDocValuesField.TYPE;
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
@@ -320,19 +309,15 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // Engine-assigned: register array-backed columns over the context's mutable seq-no/primary
         // term arrays; the engine fills the real per-document values (see InternalEngine) after
         // mapping, just before requesting the ColumnBatch.
+        // Unlike the x-content pathway we do not need to handle tombstone. Tombstones are only ever used
+        // inside the engine for applying a no-op.
+        // TODO: We should eventually move tombstones to the columnar pathway for consistentcy
         final boolean withPoints = context.indexSettings().sequenceNumbersDisabled() == false
             && context.indexSettings().seqNoIndexOptions() == SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
-        final IndexableFieldType seqNoFieldType = withPoints
-            ? POINTS_AND_DOC_VALUES_COLUMN_FIELD_TYPE
-            : DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE;
+        final IndexableFieldType seqNoFieldType = withPoints ? POINTS_AND_DV_COLUMN_FIELD_TYPE : DV_ONLY_COLUMN_FIELD_TYPE;
         context.addColumn(MappedColumns.longColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
         context.addColumn(
-            MappedColumns.longColumn(
-                context.primaryTerms(),
-                PRIMARY_TERM_NAME,
-                DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            )
+            MappedColumns.longColumn(context.primaryTerms(), PRIMARY_TERM_NAME, PRIMARY_TERM_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
         );
     }
 

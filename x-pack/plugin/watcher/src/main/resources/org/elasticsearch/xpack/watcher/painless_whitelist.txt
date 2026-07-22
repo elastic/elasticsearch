@@ -6,9 +6,9 @@
 #
 
 class java.lang.String {
-  String org.elasticsearch.painless.api.Augmentation sha1() @allocates_constant[bytes="112b"]
-  String org.elasticsearch.painless.api.Augmentation sha256() @allocates_constant[bytes="160b"]
-  String org.elasticsearch.painless.api.Augmentation sha512() @allocates_constant[bytes="288b"]
+  String org.elasticsearch.painless.api.Augmentation sha1() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="sha1Bytes"]
+  String org.elasticsearch.painless.api.Augmentation sha256() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="sha256Bytes"]
+  String org.elasticsearch.painless.api.Augmentation sha512() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="sha512Bytes"]
 }
 
 class org.elasticsearch.painless.api.Json {

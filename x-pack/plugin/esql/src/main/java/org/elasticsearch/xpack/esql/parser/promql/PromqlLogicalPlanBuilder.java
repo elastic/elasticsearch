@@ -557,7 +557,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             List<String> groupingKeyNames = visitLabelList(labelListCtx);
             groupings = new ArrayList<>(groupingKeyNames.size());
             for (int i = 0; i < groupingKeyNames.size(); i++) {
-                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeyNames.get(i)));
+                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelListItem(i)), groupingKeyNames.get(i)));
             }
         }
         return new UnresolvedPromqlFunction(source, name, rawParams, grouping, groupings);

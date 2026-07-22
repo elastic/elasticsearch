@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -85,6 +86,21 @@ public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTe
         randomZoneCase(suppliers, "5m/1m random tz: 5m", 5, 1, minutes(5));
         randomZoneCase(suppliers, "5m/2m random tz: 3m", 5, 2, minutes(3));
 
+        // date_nanos timestamps: the left-open lower edge must be nudged by one nanosecond, not one millisecond,
+        // so a sample one nanosecond above the window's lower edge is already inside the window.
+        utcNanosCase(suppliers, "nanos 5m/1m: 4m excluded (window lower edge)", 5, 1, minuteNanos(4), false);
+        utcNanosCase(suppliers, "nanos 5m/1m: 4m plus 1ns included", 5, 1, minuteNanos(4) + 1, true);
+        utcNanosCase(suppliers, "nanos 5m/1m: 5m included (right edge)", 5, 1, minuteNanos(5), true);
+        // Bucket membership is decided on the truncated millisecond value, matching how TSTEP groups date_nanos rows
+        // (see DateTrunc#processDateNanos): a sample less than one millisecond above the right edge still belongs to
+        // this bucket and its trailing window, while a sample one millisecond above falls into the next bucket.
+        utcNanosCase(suppliers, "nanos 5m/1m: 5m plus 1ns included (truncated to right edge)", 5, 1, minuteNanos(5) + 1, true);
+        utcNanosCase(suppliers, "nanos 5m/1m: 5m plus 1ms excluded", 5, 1, minuteNanos(5) + TimeUnit.MILLISECONDS.toNanos(1), false);
+        utcNanosCase(suppliers, "nanos 5m/2m: 3m excluded (window lower edge)", 5, 2, minuteNanos(3), false);
+        utcNanosCase(suppliers, "nanos 5m/2m: 3m plus 1ns included", 5, 2, minuteNanos(3) + 1, true);
+        // The trailing minute of the final five-minute bucket starts after the date_nanos range.
+        utcNanosCase(suppliers, "nanos 5m/1m: maximum timestamp excluded", 5, 1, DateUtils.MAX_NANOSECOND, false);
+
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -107,6 +123,31 @@ public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTe
             return new TestCaseSupplier.TestCase(
                 args,
                 Matchers.startsWith("WindowFilterEvaluator[window=" + window.toMillis()),
+                DataType.BOOLEAN,
+                equalTo(expected)
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+        }));
+    }
+
+    private static void utcNanosCase(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        int bucketMinutes,
+        int windowMinutes,
+        long timestampNanos,
+        boolean expected
+    ) {
+        Duration window = Duration.ofMinutes(windowMinutes);
+        Duration bucket = Duration.ofMinutes(bucketMinutes);
+
+        suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, DataType.TIME_DURATION, DataType.DATE_NANOS), () -> {
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+            args.add(new TestCaseSupplier.TypedData(window, DataType.TIME_DURATION, "window").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(bucket, DataType.TIME_DURATION, "bucket").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(timestampNanos, DataType.DATE_NANOS, "@timestamp"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                Matchers.startsWith("WindowFilterDateNanosEvaluator[window=" + window.toMillis()),
                 DataType.BOOLEAN,
                 equalTo(expected)
             ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
@@ -175,5 +216,9 @@ public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTe
 
     private static long seconds(long s) {
         return TimeUnit.SECONDS.toMillis(s);
+    }
+
+    private static long minuteNanos(long m) {
+        return TimeUnit.MINUTES.toNanos(m);
     }
 }

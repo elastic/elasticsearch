@@ -328,6 +328,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the datenanos-k8s index with k8s-mappings-date_nanos.json in time series mode. It mirrors {@link #addK8s()}
+     * but carries a {@code date_nanos} {@code @timestamp}, so tests can exercise the date_nanos time-bucket/step path.
+     */
+    public TestAnalyzer addK8sDateNanos() {
+        return addIndex("datenanos-k8s", "k8s-mappings-date_nanos.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
      * Adds the otel-metrics index, built programmatically to mirror what IndexResolver produces for a real
      * OTel TSDB index. In a real OTel index both the root-level alias (e.g. {@code cpu}) and the concrete
      * passthrough field (e.g. {@code attributes.cpu}) have {@code isAlias=false}; the mapping here reflects

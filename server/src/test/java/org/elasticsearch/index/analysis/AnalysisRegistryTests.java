@@ -107,6 +107,225 @@ public class AnalysisRegistryTests extends ESTestCase {
         nonEmptyRegistry = module.getAnalysisRegistry();
     }
 
+    /**
+     * Skip a test whose assertions depend on cross-index analyzer sharing, which is only active when the feature flag
+     * is on (off in release builds, where every index builds its own analyzer).
+     */
+    private static void assumeAnalyzerSharingEnabled() {
+        assumeTrue("analyzer sharing feature flag must be enabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
+    }
+
+    /**
+     * Two indices built from the same registry with identical settings should share the same
+     * {@link NamedAnalyzer} instance for the default analyzer. The point of this dedup is to share
+     * the per-analyzer {@code CloseableThreadLocal} that Lucene's {@link Analyzer} maintains.
+     */
+    public void testDefaultAnalyzerIsSharedAcrossIndices() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        IndexSettings settingsA = indexSettingsOfCurrentVersion(Settings.builder());
+        IndexSettings settingsB = indexSettingsOfCurrentVersion(Settings.builder());
+        IndexAnalyzers a = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsA);
+        IndexAnalyzers b = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsB);
+        assertSame(a.getDefaultIndexAnalyzer(), b.getDefaultIndexAnalyzer());
+    }
+
+    /**
+     * Two custom analyzers with the same recipe but different local names should share. Sharing by
+     * recipe (not by name) is the explicit design — data streams routinely template the same
+     * analyzer into many indices with arbitrary names.
+     */
+    public void testCustomAnalyzerSharedAcrossDifferentLocalNames() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings sA = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.my_name_a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_name_a.filter", "lowercase")
+            .build();
+        Settings sB = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.my_name_b.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_name_b.filter", "lowercase")
+            .build();
+        IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
+        IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
+        // Sharing keys on the recipe, so the underlying analyzer is shared. Each index's wrapper keeps
+        // its own local name, so field-mapper serialization emits the name configured in that index.
+        assertSame(a.get("my_name_a").analyzer(), b.get("my_name_b").analyzer());
+        assertEquals("my_name_a", a.get("my_name_a").name());
+        assertEquals("my_name_b", b.get("my_name_b").name());
+    }
+
+    /**
+     * Two indices with the same user-defined custom filter (e.g. {@code index.analysis.filter.my_stop = {type: "stop"}})
+     * share their analyzer iff the filter factory's {@link TokenFilterFactory#sharingKey()} agrees.
+     * StopTokenFilterFactory overrides sharingKey to compare (stopWords, ignoreCase, removeTrailing).
+     */
+    public void testUserDefinedFilterSharesWhenSharingKeyMatches() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings sA = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.my_stop.type", "stop")
+            .put("index.analysis.analyzer.a1.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a1.filter", "my_stop")
+            .build();
+        Settings sB = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.my_other_stop.type", "stop")
+            .put("index.analysis.analyzer.a2.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a2.filter", "my_other_stop")
+            .build();
+        IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
+        IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
+        // Underlying analyzer shared by recipe; each index's wrapper keeps its own local name.
+        assertSame(a.get("a1").analyzer(), b.get("a2").analyzer());
+        assertEquals("a1", a.get("a1").name());
+        assertEquals("a2", b.get("a2").name());
+    }
+
+    /**
+     * Two indices with different stop-word lists must NOT share their analyzer.
+     */
+    public void testCustomFilterWithDifferentStopWordsDoesNotShare() throws IOException {
+        Settings sA = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.my_stop.type", "stop")
+            .putList("index.analysis.filter.my_stop.stopwords", "the", "and")
+            .put("index.analysis.analyzer.a1.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a1.filter", "my_stop")
+            .build();
+        Settings sB = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.my_stop.type", "stop")
+            .putList("index.analysis.filter.my_stop.stopwords", "completely", "different")
+            .put("index.analysis.analyzer.a1.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a1.filter", "my_stop")
+            .build();
+        IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
+        IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
+        assertNotSame(a.get("a1"), b.get("a1"));
+    }
+
+    /**
+     * Two indices with different filter chain lengths must NOT share — empty filter chain vs
+     * one-element chain produces different recipes.
+     */
+    public void testDifferentFilterChainsDoNotShare() throws IOException {
+        Settings sA = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .build();
+        Settings sB = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "lowercase")
+            .build();
+        IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
+        IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
+        assertNotSame(a.get("a"), b.get("a"));
+    }
+
+    /**
+     * computeAnalyzerKey produces stable equal keys for the same recipe so cache lookups succeed
+     * on a hot path.
+     */
+    public void testSharingKeyIsStableAcrossCalls() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings s = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "lowercase")
+            .build();
+        IndexAnalyzers analyzers = nonEmptyRegistry.build(
+            IndexCreationContext.CREATE_INDEX,
+            IndexSettingsModule.newIndexSettings("index", s)
+        );
+        // Repeated build calls on the same registry must return the SAME cached instance.
+        for (int i = 0; i < 5; i++) {
+            IndexAnalyzers again = nonEmptyRegistry.build(
+                IndexCreationContext.CREATE_INDEX,
+                IndexSettingsModule.newIndexSettings("index", s)
+            );
+            assertSame("iteration " + i, analyzers.get("a"), again.get("a"));
+        }
+    }
+
+    /**
+     * Custom analyzers re-tagged as GLOBAL scope so per-index close doesn't kill the shared
+     * underlying. After Index A closes, Index B's analyzer must remain functional.
+     */
+    public void testIndexCloseDoesNotKillSharedAnalyzer() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings s = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "lowercase")
+            .build();
+        IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", s));
+        IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", s));
+        NamedAnalyzer shared = a.get("a");
+        assertSame(shared, b.get("a"));
+        a.close();
+        // After A's close, B should still tokenize without throwing AlreadyClosedException.
+        try (var ts = b.get("a").tokenStream("field", "hello world")) {
+            ts.reset();
+            while (ts.incrementToken()) {
+                // pass
+            }
+            ts.end();
+        }
+    }
+
+    /**
+     * Version-invariant analyzers (the default {@link org.apache.lucene.analysis.standard.StandardAnalyzer})
+     * SHOULD share across {@link IndexVersion}s — there is no behavioral difference, and not
+     * sharing wastes the per-analyzer thread-local cost on mixed-version nodes. The composition-level
+     * key does not include the version; version-sensitive providers (Persian, Romanian, Unique)
+     * encode it in their own {@code sharingKey}, which {@code FactorySharingKeyTests} covers.
+     */
+    public void testVersionInvariantAnalyzersShareAcrossVersions() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings sA = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        Settings sB = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.getPreviousVersion(IndexVersion.current()))
+            .build();
+        IndexAnalyzers a = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
+        IndexAnalyzers b = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
+        assertSame(a.getDefaultIndexAnalyzer(), b.getDefaultIndexAnalyzer());
+    }
+
+    /**
+     * The default {@link TokenFilterFactory#sharingKey()} returns {@code this} — identity-equality,
+     * so two instances of a factory that hasn't opted in are unequal and the analyzer chain that
+     * uses them is unique per index. This guards plugin and not-yet-migrated factories against
+     * accidental incorrect sharing.
+     */
+    public void testDefaultSharingKeyIsIdentity() {
+        TokenFilterFactory a = new AbstractTokenFilterFactory("noop") {
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
+        };
+        TokenFilterFactory b = new AbstractTokenFilterFactory("noop") {
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
+        };
+        assertSame(a, a.sharingKey());
+        assertNotEquals(a.sharingKey(), b.sharingKey());
+    }
+
     public void testDefaultAnalyzers() throws IOException {
         IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
@@ -124,7 +343,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultAnalyzer() throws IOException {
         IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(
             IndexCreationContext.CREATE_INDEX,
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default", analyzerProvider("default")),
@@ -152,17 +371,27 @@ public class AnalysisRegistryTests extends ESTestCase {
             public TokenStream create(TokenStream tokenStream) {
                 return tokenStream;
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
         TokenizerFactory tokenizer = new AbstractTokenizerFactory("my_tokenizer") {
             @Override
             public Tokenizer create() {
                 return new StandardTokenizer();
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
         Analyzer analyzer = new CustomAnalyzer(tokenizer, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
         MapperException ex = expectThrows(
             MapperException.class,
-            () -> AnalysisRegistry.build(
+            () -> emptyRegistry.build(
                 IndexCreationContext.CREATE_INDEX,
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)),
@@ -204,7 +433,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         AnalyzerProvider<?> defaultIndex = new PreBuiltAnalyzerProvider("default_index", AnalyzerScope.INDEX, new EnglishAnalyzer());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> AnalysisRegistry.build(
+            () -> emptyRegistry.build(
                 IndexCreationContext.CREATE_INDEX,
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default_index", defaultIndex),
@@ -220,7 +449,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultSearchAnalyzer() {
         IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(
             IndexCreationContext.CREATE_INDEX,
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default_search", analyzerProvider("default_search")),
@@ -265,6 +494,11 @@ public class AnalysisRegistryTests extends ESTestCase {
                         return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
                     }
                     return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
+                }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
                 }
             }
 

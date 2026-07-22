@@ -1288,7 +1288,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        FallbackStorageRouter.storeMalformedValue(context, fullPath(), context.parser());
                     } else {
                         context.parser().skipChildren();
                     }
@@ -1305,7 +1305,7 @@ public final class DateFieldMapper extends FieldMapper {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             // Save a copy of the field so synthetic source can load it
-                            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                            FallbackStorageRouter.storeMalformedValue(context, fullPath(), context.parser());
                         }
                         return;
                     } else {

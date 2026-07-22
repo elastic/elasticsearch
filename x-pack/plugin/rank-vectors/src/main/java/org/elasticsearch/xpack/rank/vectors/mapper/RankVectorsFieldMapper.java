@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseResult;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -291,7 +292,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
             throw LicenseUtils.newComplianceException("Rank Vectors");
         }
@@ -305,7 +306,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             );
         }
         if (XContentParser.Token.VALUE_NULL == context.parser().currentToken()) {
-            return;
+            return new ParseResult.Indexed();
         }
         if (XContentParser.Token.START_ARRAY != context.parser().currentToken()) {
             throw new IllegalArgumentException(
@@ -327,7 +328,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
             context.addDynamicMapper(builder, fullPath());
-            return;
+            return new ParseResult.Indexed();
         }
         int dims = fieldType().dims;
         Element element = fieldType().element;
@@ -357,6 +358,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 vectorMagnitudeFieldName,
                 new BinaryDocValuesField(vectorMagnitudeFieldName, new BytesRef(magnitudeBuffer.array()))
             );
+        return new ParseResult.Indexed();
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -261,9 +262,14 @@ public abstract class FieldMapper extends Mapper {
 
     /**
      * Parse the field value using the provided {@link DocumentParserContext}.
+     *
+     * @return the outcome of the parse: {@link ParseResult.Indexed} on success,
+     *         {@link ParseResult.Malformed} when the value was malformed and {@code ignore_malformed} is enabled,
+     *         or {@link ParseResult.MultiValueViolation} when a {@code multi_value=false} constraint was violated
+     *         with {@code on_failure=ignore}.
      */
-    public void parse(DocumentParserContext context) throws IOException {
-        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown
+    public ParseResult parse(DocumentParserContext context) throws IOException {
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
@@ -277,7 +283,6 @@ public abstract class FieldMapper extends Mapper {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
-
                 parseCreateField(context);
             }
         } catch (Exception e) {
@@ -288,6 +293,14 @@ public abstract class FieldMapper extends Mapper {
         if (builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
+        BytesRef mvvStash = context.takePendingMultiValueViolation(fullPath());
+        if (mvvStash != null) {
+            return new ParseResult.MultiValueViolation(mvvStash);
+        }
+        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
+            return new ParseResult.Malformed(null);
+        }
+        return new ParseResult.Indexed();
     }
 
     protected void doParseMultiFields(DocumentParserContext context) throws IOException {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -217,28 +216,43 @@ public final class FallbackStorageRouter {
             precaptured = true;
         }
 
-        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fieldMapper.fullPath());
-        fieldMapper.parse(parseCtx);
-
-        // Multi-value violation: stash populated by enforceSingleValue — drain and route to ._on_failure
-        BytesRef mvvStash = context.takePendingMultiValueViolation(fieldMapper.fullPath());
-        if (mvvStash != null) {
-            if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
-            if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
-                OnFailureStoredValues.storeEncoded(context, fieldMapper.fullPath(), mvvStash);
+        ParseResult result = fieldMapper.parse(parseCtx);
+        return switch (result) {
+            case ParseResult.MultiValueViolation mvv -> {
+                if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
+                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                    OnFailureStoredValues.storeEncoded(context, fieldMapper.fullPath(), mvv.capturedValue());
+                }
+                yield result;
             }
-            return new ParseResult.MultiValueViolation(mvvStash);
-        }
+            case ParseResult.Malformed ignored -> {
+                if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
+                yield result;
+            }
+            case ParseResult.Indexed ignored -> {
+                if (precaptured) context.commitPendingPreCapture(fieldMapper.fullPath());
+                yield result;
+            }
+        };
+    }
 
-        // Malformed: mapper called addIgnoredField and already wrote to ._ignore_malformed
-        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fieldMapper.fullPath())) {
-            if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
-            return new ParseResult.Malformed(null);
-        }
+    // -------------------------------------------------------------------------
+    // Malformed-value storage — field mappers call these instead of
+    // IgnoreMalformedStoredValues directly so the write path stays in the router
+    // -------------------------------------------------------------------------
 
-        // Successfully indexed: commit the tentative pre-capture to _ignored_source
-        if (precaptured) context.commitPendingPreCapture(fieldMapper.fullPath());
-        return new ParseResult.Indexed();
+    /** Stores a malformed field value (from a parser) for synthetic source reconstruction. */
+    public static void storeMalformedValue(DocumentParserContext context, String fieldPath, XContentParser parser) throws IOException {
+        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, parser);
+    }
+
+    /** Stores a malformed field value (from a pre-built XContentBuilder) for synthetic source reconstruction. */
+    public static void storeMalformedValue(
+        DocumentParserContext context,
+        String fieldPath,
+        org.elasticsearch.xcontent.XContentBuilder builder
+    ) throws IOException {
+        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, builder);
     }
 
     // -------------------------------------------------------------------------

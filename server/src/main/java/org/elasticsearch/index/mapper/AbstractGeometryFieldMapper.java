@@ -319,7 +319,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    public final void parse(DocumentParserContext context) throws IOException {
+    public final ParseResult parse(DocumentParserContext context) throws IOException {
         if (builderParams.hasScript()) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
@@ -327,7 +327,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
+        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
+            return new ParseResult.Malformed(null);
+        }
+        return new ParseResult.Indexed();
     }
 
     protected void onMalformedValue(DocumentParserContext context, XContentBuilder malformedDataForSyntheticSource, Exception cause)

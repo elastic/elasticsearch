@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.ParseResult;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -161,7 +162,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException(
@@ -209,6 +210,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         } finally {
             context.path().setWithinLeafObject(false);
         }
+        return new ParseResult.Indexed();
     }
 
     @Override

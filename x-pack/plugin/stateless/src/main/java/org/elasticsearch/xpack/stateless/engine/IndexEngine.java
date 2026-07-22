@@ -111,6 +111,17 @@ public class IndexEngine extends InternalEngine {
         ByteSizeValue.ofMb(64),
         Setting.Property.NodeScope
     );
+    /**
+     * Multiplier applied to the merge thread count to derive the active-merge threshold above which indexing throttling kicks in.
+     * Throttling activates when {@code activeMerges > factor * mergeThreadCount} and deactivates when the count drops to or below the
+     * threshold. A higher value tolerates larger merge backlogs before slowing indexing; set to {@link Integer#MAX_VALUE} to disable.
+     */
+    public static final Setting<Integer> MERGE_BACKLOG_THROTTLE_FACTOR = Setting.intSetting(
+        "stateless.merge.backlog_throttle_factor",
+        10,
+        1,
+        Setting.Property.NodeScope
+    );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
 
@@ -135,6 +146,7 @@ public class IndexEngine extends InternalEngine {
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
+    private final int mergeBacklogThrottleFactor;
     private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
 
     @SuppressWarnings("this-escape")
@@ -203,6 +215,7 @@ public class IndexEngine extends InternalEngine {
             documentSizeAccumulator
         );
         this.shouldSkipMerges = shouldSkipMerges;
+        this.mergeBacklogThrottleFactor = MERGE_BACKLOG_THROTTLE_FACTOR.get(engineConfig.getIndexSettings().getNodeSettings());
         this.localReadersTracker = shardLocalReadersTracker;
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
@@ -961,6 +974,12 @@ public class IndexEngine extends InternalEngine {
         return queuedOrRunningMergesCount.get() > 0;
     }
 
+    // for testing
+    @Override
+    protected ElasticsearchMergeScheduler getMergeScheduler() {
+        return super.getMergeScheduler();
+    }
+
     @Override
     protected void notifyLastDocIdAndVersionLookup() {
         lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
@@ -1000,7 +1019,7 @@ public class IndexEngine extends InternalEngine {
         return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
     }
 
-    private final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
+    final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
         private final boolean prewarm;
 
         StatelessThreadPoolMergeScheduler(
@@ -1048,6 +1067,28 @@ public class IndexEngine extends InternalEngine {
         }
 
         @Override
+        protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            IndexEngine.this.activateThrottling();
+        }
+
+        @Override
+        protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            IndexEngine.this.deactivateThrottling();
+        }
+
+        @Override
         protected boolean shouldSkipMerge() {
             return IndexEngine.this.shouldSkipMerge();
         }
@@ -1059,7 +1100,10 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected int getMaxMergeCount() {
-            return Integer.MAX_VALUE;
+            return (int) Math.min(
+                (long) mergeBacklogThrottleFactor * getThreadPoolMergeExecutorService().getMaxConcurrentMerges(),
+                Integer.MAX_VALUE
+            );
         }
 
         @Override

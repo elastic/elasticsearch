@@ -677,11 +677,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public Expression timestamp(LogicalPlan fragment) {
         var offset = offset(fragment);
         var timestamp = timestamp();
-        if (offset.isZero() || timestamp == null || timestamp.resolved() == false) {
+        if (timestamp == null || timestamp.resolved() == false) {
+            return timestamp;
+        }
+        boolean normalizeToMillis = timestamp.dataType() == DataType.DATE_NANOS;
+        if (offset.isZero() && normalizeToMillis == false) {
             return timestamp;
         }
         // TODO: use unique names?
-        return new ReferenceAttribute(source(), null, TIMESTAMP_COLUMN, timestamp.dataType());
+        DataType type = normalizeToMillis ? DataType.DATETIME : timestamp.dataType();
+        return new ReferenceAttribute(source(), null, TIMESTAMP_COLUMN, type);
     }
 
     /**

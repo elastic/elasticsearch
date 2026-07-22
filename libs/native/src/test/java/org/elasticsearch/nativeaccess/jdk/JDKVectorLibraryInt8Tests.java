@@ -306,10 +306,12 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size);
+        var bTail = randomIntBetween(0, size);
+        similarity(segment.asSlice(0L, size + aTail), segment.asSlice(0L, size + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));

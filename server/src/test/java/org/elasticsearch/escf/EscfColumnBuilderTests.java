@@ -28,7 +28,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         b.addLong(3);
         EscfColumnData data = b.finish(3);
         assertEquals(EscfColumnKind.LONG, data.kind());
-        assertNull("dense column has no validity bitset", data.absent());
+        assertNull("dense column has no validity bitset", data.validity());
         EscfColumn col = EscfColumn.from(data);
         assertEquals(1L, col.getLongValue(0));
         assertEquals(2L, col.getLongValue(1));
@@ -43,7 +43,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         b.addLong(30);
         EscfColumnData data = b.finish(3);
         assertEquals(EscfColumnKind.LONG, data.kind());
-        assertNotNull("a column with an absent row carries a validity bitset", data.absent());
+        assertNotNull("a column with an absent row carries a validity bitset", data.validity());
         EscfColumn col = EscfColumn.from(data);
         assertFalse(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
@@ -116,6 +116,81 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertTrue(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
         assertEquals(SourceValueType.ABSENT, col.getTypeByte(0));
+    }
+
+    public void testDenseColumnKeepsNullValidity() {
+        EscfColumnBuilder b = new EscfColumnBuilder();
+        b.addLong(1);
+        b.addLong(2);
+        b.addLong(3);
+        EscfColumnData data = b.finish(3);
+        assertNull("dense column must have null validity (all-present shortcut)", data.validity());
+
+        EscfColumn col = EscfColumn.from(data);
+        assertNull("after from(), dense column still has null validity", col.validity);
+
+        // Slice a dense column: the window must also be null.
+        EscfColumn slice = col.sliceInternal(1, 2);
+        assertNull("slicing a dense column produces a null validity", slice.validity);
+
+        // Round-trip through codec; the validity stays null.
+        EscfColumnData sliceData = slice.toColumnData();
+        assertNull("dense column data after toColumnData() has null validity", sliceData.validity());
+        EscfColumn reparsed = EscfColumn.from(sliceData);
+        assertNull("reparsed dense column has null validity", reparsed.validity);
+    }
+
+    public void testValidityBitsetBackfillOnFirstAbsent() {
+        // Pattern: 3 present, 1 absent, 1 present.
+        EscfColumnBuilder b = new EscfColumnBuilder();
+        b.addLong(10);
+        b.addLong(20);
+        b.addLong(30);
+        b.addAbsent();
+        b.addLong(50);
+        EscfColumnData data = b.finish(5);
+
+        assertNotNull("validity must be set once an absent appears", data.validity());
+        // Under Arrow validity, bit set = present.
+        assertTrue("doc 0 (present before absent) must have its bit set", data.validity().get(0));
+        assertTrue("doc 1 (present before absent) must have its bit set", data.validity().get(1));
+        assertTrue("doc 2 (present before absent) must have its bit set", data.validity().get(2));
+        assertFalse("doc 3 (absent) must have its bit clear", data.validity().get(3));
+        assertTrue("doc 4 (present after absent) must have its bit set", data.validity().get(4));
+
+        // The column view must agree with the validity bitset.
+        EscfColumn col = EscfColumn.from(data);
+        assertFalse(col.isAbsent(0));
+        assertFalse(col.isAbsent(1));
+        assertFalse(col.isAbsent(2));
+        assertTrue(col.isAbsent(3));
+        assertFalse(col.isAbsent(4));
+    }
+
+    public void testTrailingAbsentRoundTrip() {
+        EscfColumnBuilder b = new EscfColumnBuilder();
+        b.addLong(100);
+        b.addLong(200);
+        b.addAbsent(); // last doc
+        EscfColumnData data = b.finish(3);
+
+        assertNotNull(data.validity());
+        assertTrue(data.validity().get(0));
+        assertTrue(data.validity().get(1));
+        assertFalse(data.validity().get(2));
+
+        // Round-trip via EscfColumn.from (which calls windowValidity) and back to EscfColumnData.
+        EscfColumn col = EscfColumn.from(data);
+        assertFalse(col.isAbsent(0));
+        assertFalse(col.isAbsent(1));
+        assertTrue(col.isAbsent(2));
+
+        EscfColumnData roundTripped = col.toColumnData();
+        assertNotNull("trailing-absent column must keep a validity bitset", roundTripped.validity());
+        EscfColumn reparsed = EscfColumn.from(roundTripped);
+        assertFalse(reparsed.isAbsent(0));
+        assertFalse(reparsed.isAbsent(1));
+        assertTrue(reparsed.isAbsent(2));
     }
 
     private static XContentString.UTF8Bytes utf8(String s) {

@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: PUT
           path: /{index}

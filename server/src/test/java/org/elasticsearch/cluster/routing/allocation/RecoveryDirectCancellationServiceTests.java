@@ -523,7 +523,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
             assertThat(sentRequests, hasSize(1));
             final var sentCancellations = sentRequests.getFirst().cancellations();
-            assertThat(sentRequests.getFirst().cancellations(), hasSize(1));
+            assertThat(sentCancellations, hasSize(1));
             assertThat(sentCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId2, allocationId2.getId(), false)));
         }
 
@@ -534,7 +534,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
     }
 
     public void testFailedRequestsAreInvalidated() {
-        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 3, 1)).build();
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
         final var allocationId = AllocationId.newInitializing(randomIdentifier("alloc-"));

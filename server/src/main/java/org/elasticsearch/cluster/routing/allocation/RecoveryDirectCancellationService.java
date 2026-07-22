@@ -173,15 +173,16 @@ public class RecoveryDirectCancellationService {
                 final SentCancellation cached = sentCancellations.get(cancellation.allocationId());
                 if (cached == null) {
                     dedupedCancellations.add(cancellation);
+                    sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
                 } else {
                     final ShardRecoveryCancellation cachedCancellation = cached.cancellation();
                     assert cachedCancellation.shardId().equals(cancellation.shardId());
                     if ((cachedCancellation.cancelIfStarted() == false && cancellation.cancelIfStarted())
                         || cached.term() != request.term()) {
                         dedupedCancellations.add(cancellation);
+                        sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
                     }
                 }
-                sentCancellations.put(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
             }
             if (dedupedCancellations.isEmpty() == false) {
                 final var updatedNodeRequest = new CancelRecoveriesAction.Request(
@@ -205,8 +206,10 @@ public class RecoveryDirectCancellationService {
                 // There is a possibility that another close-in-time request was deduplicated from this while we were waiting
                 // for it to respond. That should be fine, as in all likelihood, this subsequent request would have faced
                 // the same transport error and direct cancellation is best-effort anyway.
-                for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-                    sentCancellations.invalidate(cancellation.allocationId());
+                synchronized (this) {
+                    for (ShardRecoveryCancellation cancellation : request.cancellations()) {
+                        sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
+                    }
                 }
                 logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
             }), CancelRecoveriesAction.Response::new, genericExecutor)

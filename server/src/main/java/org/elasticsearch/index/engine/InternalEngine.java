@@ -994,10 +994,11 @@ public class InternalEngine extends Engine {
                     );
                 }
                 if (get.isReadFromTranslog()) {
-                    if (versionValue.getLocation() != null) {
+                    final Translog.OperationLocation opLoc = versionValue.getOperationLocation();
+                    if (opLoc != null) {
                         try {
-                            // Translog.Location will contain a non-negative rowIndex when reading from a batch
-                            final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                            // rowIndex >= 0 resolves a single row within a batch record; -1 reads a whole record
+                            final Translog.Operation operation = translog.readOperation(opLoc.location(), opLoc.rowIndex());
                             if (operation != null) {
                                 return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
                             }
@@ -1338,7 +1339,12 @@ public class InternalEngine extends Engine {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
-                        new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        new IndexVersionValue(
+                            translogLocation == null ? null : new Translog.OperationLocation(translogLocation),
+                            plan.versionForIndexing,
+                            index.seqNo(),
+                            index.primaryTerm()
+                        )
                     );
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
@@ -1632,21 +1638,14 @@ public class InternalEngine extends Engine {
                 }
 
                 if (plan.indexIntoLucene && isSuccess) {
-                    final Translog.Location location = (trackTranslogLocation.get() && batchLocation != null)
-                        ? new Translog.Location(
-                            batchLocation.generation(),
-                            batchLocation.translogLocation(),
-                            batchLocation.size(),
-                            // same rowIndex recorded in Translog.IndexBatch.IndexOp for this document in the write loop above
-                            // because batch data retains every row
-                            i
-                        )
+                    // batchLocation is the whole-record Location; the row index lives in the OperationLocation wrapper
+                    final Translog.OperationLocation operationLocation = (trackTranslogLocation.get() && batchLocation != null)
+                        ? new Translog.OperationLocation(batchLocation, i)
                         : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
-                        new IndexVersionValue(location, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        new IndexVersionValue(operationLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
                     );
-
                 }
                 // TODO: Batch Optimize the processed seqNo
                 localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
@@ -3530,6 +3529,11 @@ public class InternalEngine extends Engine {
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
+    }
+
+    // for testing
+    protected ElasticsearchMergeScheduler getMergeScheduler() {
+        return mergeScheduler;
     }
 
     private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {

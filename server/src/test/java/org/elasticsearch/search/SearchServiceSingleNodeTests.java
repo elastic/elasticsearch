@@ -2675,32 +2675,29 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(0, searchService.getActiveContexts());
         assertEquals(0, searchService.getRelocationMapSize());
 
-        shard.ensureShardSearchActive(ignored -> {
-            Engine.SearcherSupplier searcherSupplier = null;
-            ReaderContext readerContext = null;
-            long contextId = randomNonNegativeLong();
-            try {
-                searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
-                final ShardSearchContextId id = new ShardSearchContextId("otherSessionId", contextId, searcherSupplier.getSearcherId());
+        Engine.SearcherSupplier searcherSupplier = null;
+        ReaderContext readerContext = null;
+        long contextId = randomNonNegativeLong();
+        try {
+            searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+            final ShardSearchContextId id = new ShardSearchContextId("otherSessionId", contextId, searcherSupplier.getSearcherId());
 
-                readerContext = searchService.createAndPutRelocatedPitContext(
-                    id,
-                    indexService,
-                    indexService.getShard(0),
-                    searcherSupplier,
-                    TimeValue.timeValueMinutes(5).millis(),
-                    null,
-                    SplitShardCountSummary.IRRELEVANT
-                );
-                assertEquals(1, searchService.getActiveContexts());
-                assertEquals(1, searchService.getActiveContexts());
-                searchService.freeReaderContext(readerContext.id());
-                assertEquals(0, searchService.getActiveContexts());
-                assertEquals(0, searchService.getActiveContexts());
-            } catch (Exception exc) {
-                Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
-            }
-        });
+            readerContext = searchService.createAndPutRelocatedPitContext(
+                id,
+                indexService,
+                indexService.getShard(0),
+                searcherSupplier,
+                TimeValue.timeValueMinutes(5).millis(),
+                null,
+                SplitShardCountSummary.IRRELEVANT
+            );
+            assertEquals(1, searchService.getActiveContexts());
+            searchService.freeReaderContext(readerContext.id());
+            assertEquals(0, searchService.getActiveContexts());
+        } catch (Exception exc) {
+            Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
+            throw new RuntimeException(exc);
+        }
     }
 
     public void testCreateAndPutRelocatedPitContextConcurrently() {
@@ -2712,73 +2709,69 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(0, searchService.getActiveContexts());
         assertEquals(0, searchService.getRelocationMapSize());
 
-        shard.ensureShardSearchActive(ignored -> {
-            SetOnce<ReaderContext> readerContext1 = new SetOnce<>();
-            SetOnce<ReaderContext> readerContext2 = new SetOnce<>();
-            long contextId = randomNonNegativeLong();
+        SetOnce<ReaderContext> readerContext1 = new SetOnce<>();
+        SetOnce<ReaderContext> readerContext2 = new SetOnce<>();
+        long contextId = randomNonNegativeLong();
 
-            try {
-                final ShardSearchContextId id1 = new ShardSearchContextId("otherSessionId", contextId, null);
-                final ShardSearchContextId id2 = new ShardSearchContextId("otherSessionId", contextId, null);
+        try {
+            final ShardSearchContextId id1 = new ShardSearchContextId("otherSessionId", contextId, null);
+            final ShardSearchContextId id2 = new ShardSearchContextId("otherSessionId", contextId, null);
 
-                CountDownLatch latch = new CountDownLatch(1);
-                Thread t1 = new Thread(() -> {
-                    SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
-                    try {
-                        latch.await();
-                        readerContext1.set(
-                            searchService.createAndPutRelocatedPitContext(
-                                id1,
-                                indexService,
-                                indexService.getShard(0),
-                                searcherSupplier,
-                                TimeValue.timeValueMinutes(5).millis(),
-                                null,
-                                SplitShardCountSummary.IRRELEVANT
-                            )
-                        );
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-                Thread t2 = new Thread(() -> {
-                    SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
-                    try {
-                        latch.await();
-                        readerContext2.set(
-                            searchService.createAndPutRelocatedPitContext(
-                                id2,
-                                indexService,
-                                indexService.getShard(0),
-                                searcherSupplier,
-                                TimeValue.timeValueMinutes(5).millis(),
-                                null,
-                                SplitShardCountSummary.IRRELEVANT
-                            )
-                        );
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-                t1.start();
-                t2.start();
-                latch.countDown();
-                t1.join();
-                t2.join();
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread t1 = new Thread(() -> {
+                SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+                try {
+                    latch.await();
+                    readerContext1.set(
+                        searchService.createAndPutRelocatedPitContext(
+                            id1,
+                            indexService,
+                            indexService.getShard(0),
+                            searcherSupplier,
+                            TimeValue.timeValueMinutes(5).millis(),
+                            null,
+                            SplitShardCountSummary.IRRELEVANT
+                        )
+                    );
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread t2 = new Thread(() -> {
+                SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+                try {
+                    latch.await();
+                    readerContext2.set(
+                        searchService.createAndPutRelocatedPitContext(
+                            id2,
+                            indexService,
+                            indexService.getShard(0),
+                            searcherSupplier,
+                            TimeValue.timeValueMinutes(5).millis(),
+                            null,
+                            SplitShardCountSummary.IRRELEVANT
+                        )
+                    );
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            t1.start();
+            t2.start();
+            latch.countDown();
+            t1.join();
+            t2.join();
 
-                assertEquals(1, searchService.getActiveContexts());
-                assertEquals(1, searchService.getActiveContexts());
-                assertNotNull(readerContext1.get());
-                assertNotNull(readerContext2.get());
-                assertEquals(readerContext1.get(), readerContext2.get());
-                searchService.freeReaderContext(readerContext1.get().id());
-                assertEquals(0, searchService.getActiveContexts());
-                assertEquals(0, searchService.getActiveContexts());
-            } catch (Exception exc) {
-                Releasables.closeWhileHandlingException(readerContext1.get(), readerContext2.get());
-                throw new RuntimeException(exc);
-            }
-        });
+            assertEquals(1, searchService.getActiveContexts());
+            assertNotNull(readerContext1.get());
+            assertNotNull(readerContext2.get());
+            assertEquals(readerContext1.get(), readerContext2.get());
+            searchService.freeReaderContext(readerContext1.get().id());
+            assertEquals(0, searchService.getActiveContexts());
+        } catch (Exception exc) {
+            Releasables.closeWhileHandlingException(readerContext1.get(), readerContext2.get());
+            throw new RuntimeException(exc);
+        }
     }
 
     public void testMinimalSearchSourceInShardRequests() {

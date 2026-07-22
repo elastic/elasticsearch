@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -1430,6 +1431,24 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             // including data node plans from subplan execution. This is an improvement over the
             // previous limitation where subplans prevented data node plan capture.
             assertTrue("EXPLAIN with INLINE STATS should now include data node plans", hasDataNodePlans);
+        }
+    }
+
+    public void testDoubleClusterPrefix() throws IOException {
+        // We want to set up clusters to ensure rejections don't just come from clusters not being there
+        setupTwoClusters();
+        // Check some double-colon patterns. Note we have to quote them to sneak them past the lexer - otherwise it won't really test
+        // the deeper code.
+        var BAD_PATTERNS = List.of(
+            "\"cluster-a:cluster-a:logs-*\"",
+            "\"remote-b:cluster-a:logs\"",
+            "logs-*,\"cluster-b:cluster-b\":logs",
+            "cluster-b:\"cluster-a:logs\",logs-*",
+            "cluster-a:remote-b:logs",
+            "\"*:cluster-a:logs-*\""
+        );
+        for (String pattern : BAD_PATTERNS) {
+            assertThrows(ElasticsearchException.class, () -> runQuery("from " + pattern + " | stats sum (v)", randomBoolean()));
         }
     }
 

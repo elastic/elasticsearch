@@ -283,6 +283,23 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(List.of(404), ((Literal) ((MvIntersects) mixed).children().get(1)).value());
     }
 
+    /**
+     * A two-bound range on a KEYWORD field is a supported combination per the behavior table, and it takes the generic
+     * both-bounds path rather than the integral or date one. An exclusive bound there has no exact predecessor to
+     * normalize against (keyword is not whole-numbered), so it fails closed instead of silently shifting the interval.
+     */
+    public void testTwoBoundRangeOnKeyword() {
+        Expression e = translate(QueryBuilders.rangeQuery("tags").gte("t1").lte("t3"));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(DataType.KEYWORD, ((Literal) r.lower()).dataType());
+        assertEquals(new BytesRef("t1"), ((Literal) r.lower()).value());
+        assertEquals(new BytesRef("t3"), ((Literal) r.upper()).value());
+
+        // An exclusive bound on a non-whole-numbered type cannot be normalized to an inclusive one -> fail closed.
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("tags").gt("t1").lte("t3")));
+    }
+
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
     public void testTermsLookupIsUnsupported() {
         var lookup = new TermsQueryBuilder("status", new TermsLookup("idx", "1", "path"));

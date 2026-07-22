@@ -34,7 +34,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
@@ -745,110 +744,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 b.endObject();
             })));
             assertThat(e.getMessage(), containsString("is already used by another field"));
-        }
-    }
-
-    public void testUpdateInferenceId_GivenNoModelSettings() throws IOException {
-        for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
-            String fieldName = randomAlphaOfLengthBetween(5, 15);
-            String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
-
-            TestModel oldModel = null;
-            if (randomBoolean()) {
-                oldModel = createRandomSupportedModel();
-                givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
-            }
-
-            var mapperService = createSemanticMapperService(semanticMapping(fieldName, oldInferenceId));
-
-            assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-            assertSemanticField(mapperService, fieldName, false, null, null);
-            if (oldModel != null) {
-                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
-            }
-
-            String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
-            TestModel newModel = null;
-            if (randomBoolean()) {
-                newModel = createRandomSupportedModel();
-                givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
-            }
-
-            merge(mapperService, semanticMapping(fieldName, newInferenceId));
-
-            assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-            assertSemanticField(mapperService, fieldName, false, null, null);
-            if (newModel != null) {
-                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
-            }
-        }
-    }
-
-    public void testUpdateInferenceId_GivenModelSettings() throws IOException {
-        for (int randomizedRun = 0; randomizedRun < 20; randomizedRun++) {
-            final String fieldName = randomAlphaOfLengthBetween(5, 15);
-            final String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
-            final String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
-
-            final TestModel oldModel = createRandomSupportedModel();
-            final MinimalServiceSettings previousModelSettings = new MinimalServiceSettings(oldModel);
-            givenModelSettings(oldInferenceId, previousModelSettings);
-
-            final MapperService mapperService = createSemanticMapperService(
-                semanticMapping(fieldName, oldInferenceId, previousModelSettings)
-            );
-            final SemanticIndexOptions currentIndexOptions = extractCurrentIndexOptions(mapperService, fieldName);
-            assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-            assertSemanticField(mapperService, fieldName, true, null, currentIndexOptions);
-            assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
-
-            final CheckedRunnable<IOException> mergeRunner = () -> merge(mapperService, semanticMapping(fieldName, newInferenceId));
-
-            if (randomBoolean()) {
-                // Compatible: new endpoint has identical task type / dimensions / similarity / element type
-                TestModel newModel = createCompatibleModel(newInferenceId, oldModel);
-                MinimalServiceSettings newModelSettings = new MinimalServiceSettings(newModel);
-                givenModelSettings(newInferenceId, newModelSettings);
-
-                mergeRunner.run();
-                assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-                assertSemanticField(mapperService, fieldName, true, null, currentIndexOptions);
-                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
-            } else {
-                final TestModel incompatibleModel = createIncompatibleModel(newInferenceId, oldModel);
-                final String expectedErrorMessage;
-                if (incompatibleModel == null) {
-                    // Incompatible: new endpoint does not exist
-                    expectedErrorMessage = "Cannot update ["
-                        + SemanticTextFieldMapper.CONTENT_TYPE
-                        + "] field ["
-                        + fieldName
-                        + "] because inference endpoint ["
-                        + newInferenceId
-                        + "] does not exist.";
-                } else {
-                    // Incompatible: new endpoint exists but its model settings are incompatible
-                    MinimalServiceSettings incompatibleModelSettings = new MinimalServiceSettings(incompatibleModel);
-                    givenModelSettings(newInferenceId, incompatibleModelSettings);
-
-                    expectedErrorMessage = "Cannot update ["
-                        + SemanticTextFieldMapper.CONTENT_TYPE
-                        + "] field ["
-                        + fieldName
-                        + "] because inference endpoint ["
-                        + oldInferenceId
-                        + "] with model settings ["
-                        + previousModelSettings
-                        + "] is not compatible with new inference endpoint ["
-                        + newInferenceId
-                        + "] with model settings ["
-                        + incompatibleModelSettings
-                        + "]";
-                }
-
-                IllegalArgumentException exc = assertThrows(IllegalArgumentException.class, mergeRunner::run);
-                assertThat(exc.getMessage(), containsString(expectedErrorMessage));
-            }
         }
     }
 

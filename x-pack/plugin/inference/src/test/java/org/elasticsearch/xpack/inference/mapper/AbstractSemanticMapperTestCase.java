@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
@@ -83,6 +84,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -256,6 +258,110 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     /** Whether the field type under test uses the legacy {@code semantic_text} storage format. */
     protected boolean useLegacyFormat() {
         return false;
+    }
+
+    public void testUpdateInferenceId_GivenNoModelSettings() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
+            String fieldName = randomAlphaOfLengthBetween(5, 15);
+            String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
+
+            TestModel oldModel = null;
+            if (randomBoolean()) {
+                oldModel = createRandomSupportedModel();
+                givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
+            }
+
+            var mapperService = createSemanticMapperService(semanticMapping(fieldName, oldInferenceId));
+
+            assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
+            assertSemanticField(mapperService, fieldName, false, null, null);
+            if (oldModel != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
+            }
+
+            String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
+            TestModel newModel = null;
+            if (randomBoolean()) {
+                newModel = createRandomSupportedModel();
+                givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
+            }
+
+            merge(mapperService, semanticMapping(fieldName, newInferenceId));
+
+            assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
+            assertSemanticField(mapperService, fieldName, false, null, null);
+            if (newModel != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
+            }
+        }
+    }
+
+    public void testUpdateInferenceId_GivenModelSettings() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 20; randomizedRun++) {
+            final String fieldName = randomAlphaOfLengthBetween(5, 15);
+            final String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
+            final String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
+
+            final TestModel oldModel = createRandomSupportedModel();
+            final MinimalServiceSettings previousModelSettings = new MinimalServiceSettings(oldModel);
+            givenModelSettings(oldInferenceId, previousModelSettings);
+
+            final MapperService mapperService = createSemanticMapperService(
+                semanticMapping(fieldName, oldInferenceId, previousModelSettings)
+            );
+            final SemanticIndexOptions currentIndexOptions = extractCurrentIndexOptions(mapperService, fieldName);
+            assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
+            assertSemanticField(mapperService, fieldName, true, null, currentIndexOptions);
+            assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
+
+            final CheckedRunnable<IOException> mergeRunner = () -> merge(mapperService, semanticMapping(fieldName, newInferenceId));
+
+            if (randomBoolean()) {
+                // Compatible: new endpoint has identical task type / dimensions / similarity / element type
+                TestModel newModel = createCompatibleModel(newInferenceId, oldModel);
+                MinimalServiceSettings newModelSettings = new MinimalServiceSettings(newModel);
+                givenModelSettings(newInferenceId, newModelSettings);
+
+                mergeRunner.run();
+                assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
+                assertSemanticField(mapperService, fieldName, true, null, currentIndexOptions);
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
+            } else {
+                final TestModel incompatibleModel = createIncompatibleModel(newInferenceId, oldModel);
+                final String expectedErrorMessage;
+                if (incompatibleModel == null) {
+                    // Incompatible: new endpoint does not exist
+                    expectedErrorMessage = "Cannot update ["
+                        + contentType()
+                        + "] field ["
+                        + fieldName
+                        + "] because inference endpoint ["
+                        + newInferenceId
+                        + "] does not exist.";
+                } else {
+                    // Incompatible: new endpoint exists but its model settings are incompatible
+                    MinimalServiceSettings incompatibleModelSettings = new MinimalServiceSettings(incompatibleModel);
+                    givenModelSettings(newInferenceId, incompatibleModelSettings);
+
+                    expectedErrorMessage = "Cannot update ["
+                        + contentType()
+                        + "] field ["
+                        + fieldName
+                        + "] because inference endpoint ["
+                        + oldInferenceId
+                        + "] with model settings ["
+                        + previousModelSettings
+                        + "] is not compatible with new inference endpoint ["
+                        + newInferenceId
+                        + "] with model settings ["
+                        + incompatibleModelSettings
+                        + "]";
+                }
+
+                IllegalArgumentException exc = assertThrows(IllegalArgumentException.class, mergeRunner::run);
+                assertThat(exc.getMessage(), containsString(expectedErrorMessage));
+            }
+        }
     }
 
     protected XContentBuilder semanticMapping(String fieldName, String inferenceId) throws IOException {

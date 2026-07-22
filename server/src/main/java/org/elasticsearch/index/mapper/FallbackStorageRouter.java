@@ -228,7 +228,15 @@ public final class FallbackStorageRouter {
                 yield result;
             }
             case ParseResult.Malformed ignored -> {
-                if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
+                if (precaptured) {
+                    if (fc.syntheticFallback()) {
+                        // FALLBACK-mode fields reconstruct synthetic source from _ignored_source, so
+                        // commit the pre-capture even when the value was malformed (e.g. ignore_above).
+                        context.commitPendingPreCapture(fieldMapper.fullPath());
+                    } else {
+                        context.discardPendingPreCapture(fieldMapper.fullPath());
+                    }
+                }
                 yield result;
             }
             case ParseResult.Indexed ignored -> {

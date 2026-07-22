@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -349,7 +350,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
     }
 
-    public void testDeclareUnsupportedRateLimitField_RequestContext_ThrowsValidationException() {
+    public void testDeclareUnsupportedRateLimitField_RequestContext_ThrowsElasticsearchParseException() {
         var taskType = randomFrom(TaskType.values());
         var json = Strings.format("""
             {"%s": {"%s": %d}}""", RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE);
@@ -359,7 +360,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
             () -> parseWithRejectDeclare(json, taskType, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getCause(), instanceOf(ValidationException.class));
+        assertThat(exception.getCause(), instanceOf(ElasticsearchParseException.class));
         assertThat(
             exception.getCause().getMessage(),
             containsString(

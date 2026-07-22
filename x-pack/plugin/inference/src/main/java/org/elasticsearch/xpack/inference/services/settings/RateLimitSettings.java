@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -176,10 +177,10 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Declares a {@link #FIELD_NAME} field on the given parser that rejects the field with a {@link ValidationException} when parsing
-     * in the {@link ConfigurationParseContext#REQUEST} context. Intended for services that do not permit user-supplied rate limits, so
-     * that supplying the field produces a validation error rather than an unknown-field parse error. In any other context the field is
-     * not declared, leaving it to the parser's unknown-field handling.
+     * Declares a {@link #FIELD_NAME} field on the given parser that rejects the field with an {@link ElasticsearchParseException} when
+     * parsing in the {@link ConfigurationParseContext#REQUEST} context. Intended for services that do not permit user-supplied rate
+     * limits, so that supplying the field produces a descriptive error rather than an unknown-field parse error. In any other context
+     * the field is not declared, leaving it to the parser's unknown-field handling.
      * @param parser the parser on which to declare the field
      * @param scope the scope of the settings, used for error messaging
      * @param service the name of the service, used for error messaging
@@ -195,7 +196,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     ) {
         if (context == ConfigurationParseContext.REQUEST) {
             parser.declareObject((builder, v) -> {}, (p, c) -> {
-                throw new ValidationException().addValidationError(rateLimitNotPermittedError(scope, service, taskType));
+                throw new ElasticsearchParseException(rateLimitNotPermittedError(scope, service, taskType));
             }, new ParseField(FIELD_NAME));
         }
     }

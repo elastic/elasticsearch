@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.apache.http.HttpHeaders;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -284,7 +285,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var failureListener = ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
                 assertThat(e, Matchers.instanceOf(XContentParseException.class));
-                assertThat(e.getCause(), Matchers.instanceOf(ValidationException.class));
+                assertThat(e.getCause(), Matchers.instanceOf(ElasticsearchParseException.class));
                 assertThat(
                     e.getCause().getMessage(),
                     Matchers.containsString(

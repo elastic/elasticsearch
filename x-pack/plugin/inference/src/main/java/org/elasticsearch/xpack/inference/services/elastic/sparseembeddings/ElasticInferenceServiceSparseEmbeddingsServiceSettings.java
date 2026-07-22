@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -20,7 +19,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -267,11 +265,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             // the parsed field must be removed explicitly to satisfy the caller's check that no unknown settings remain in the map.
             serviceSettings.remove(MAX_BATCH_SIZE);
             return update.mergeInto(this);
-        } catch (XContentParseException e) {
-            if (e.getCause() instanceof IllegalArgumentException iae) {
-                throw new ValidationException().addValidationError(iae.getMessage());
-            }
-            throw e;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse Elastic Inference Sparse Embeddings service settings update", e);
         }

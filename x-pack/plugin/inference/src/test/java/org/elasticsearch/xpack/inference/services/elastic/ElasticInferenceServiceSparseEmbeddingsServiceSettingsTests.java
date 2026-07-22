@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
@@ -161,7 +161,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getCause(), instanceOf(ValidationException.class));
+        assertThat(exception.getCause(), instanceOf(ElasticsearchParseException.class));
         assertThat(
             exception.getCause().getMessage(),
             containsString(
@@ -205,22 +205,22 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
 
         {
-            ValidationException e = expectThrows(
-                ValidationException.class,
+            var e = expectThrows(
+                XContentParseException.class,
                 () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", 0)))
             );
-            assertThat(e.getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer;"));
+            assertThat(e.getCause().getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer"));
         }
 
         {
             final int newBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
-            ValidationException e = expectThrows(
-                ValidationException.class,
+            var e = expectThrows(
+                XContentParseException.class,
                 () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)))
             );
             assertThat(
-                e.getMessage(),
-                containsString("Invalid value [" + newBatchSize + "]. [max_batch_size] must be a positive integer;")
+                e.getCause().getMessage(),
+                containsString("Invalid value [" + newBatchSize + "]. [max_batch_size] must be a positive integer")
             );
         }
 
@@ -229,18 +229,18 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND + 1,
                 Integer.MAX_VALUE
             );
-            ValidationException e = expectThrows(
-                ValidationException.class,
+            var e = expectThrows(
+                XContentParseException.class,
                 () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)))
             );
             assertThat(
-                e.getMessage(),
+                e.getCause().getMessage(),
                 containsString(
                     "Invalid value ["
                         + Strings.format("%s", (double) newBatchSize)
                         + "]. [max_batch_size] must be less than or equal to ["
                         + (double) ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND
-                        + "];"
+                        + "]"
                 )
             );
         }

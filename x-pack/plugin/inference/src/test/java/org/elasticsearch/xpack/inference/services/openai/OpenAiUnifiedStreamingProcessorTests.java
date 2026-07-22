@@ -496,4 +496,29 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(cachedTokens, chunk.usage().cachedTokens());
         }
     }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "id": "1",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "id": "2",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var data = firstChunkData + "\n" + secondChunkData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunks = OpenAiUnifiedStreamingProcessor.parse(parserConfig, data).toList();
+        assertThat(chunks.size(), is(2));
+        assertThat(chunks.get(0).id(), is("1"));
+        assertThat(chunks.get(1).id(), is("2"));
+    }
 }

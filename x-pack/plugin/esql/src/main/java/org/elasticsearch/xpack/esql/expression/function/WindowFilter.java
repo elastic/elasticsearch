@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -115,6 +117,15 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         Duration foldedWindow = (Duration) window.fold(toEvaluator.foldCtx());
         Rounding.Prepared preparedRounding = bucketBucket.getDateRoundingOrNull(toEvaluator.foldCtx());
         var timestampFactory = toEvaluator.apply(timestamp);
+        if (timestamp.dataType() == DataType.DATE_NANOS) {
+            return new WindowFilterDateNanosEvaluator.Factory(
+                source(),
+                foldedWindow.toMillis(),
+                preparedRounding,
+                driverContext -> new LongLongHashMap(),
+                timestampFactory
+            );
+        }
         return new WindowFilterEvaluator.Factory(
             source(),
             foldedWindow.toMillis(),
@@ -162,5 +173,41 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         long nextBucketId = lo == bucketId ? hi - window : hi - window + 1;
         nextTimestamps.indexInsert(idx, bucketId, nextBucketId);
         return timestamp >= nextBucketId;
+    }
+
+    @Evaluator(extraName = "DateNanos")
+    static boolean processDateNanos(
+        @Fixed long window,
+        @Fixed Rounding.Prepared bucket,
+        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) LongLongHashMap nextTimestamps,
+        long timestamp
+    ) {
+        // The rounding operates on milliseconds while the timestamp is in nanoseconds. The bucket edges are whole
+        // milliseconds, so the boundary is derived exactly like in process() and only the comparison moves to the
+        // nanosecond domain. The map is keyed by the millisecond bucket label and stores the nanosecond boundary.
+        long timestampMillis = DateUtils.toMilliSeconds(timestamp);
+        long bucketId = bucket.round(timestampMillis);
+        int idx = nextTimestamps.indexOf(bucketId);
+        if (nextTimestamps.indexExists(idx)) {
+            return timestamp >= nextTimestamps.indexGet(idx);
+        }
+
+        long lo = bucket.roundingFloor(bucketId);
+        long hi = bucket.roundingCeiling(bucketId);
+        long windowStartMillis = hi - window;
+        // TimeUnit saturates an upper out-of-range boundary to Long.MAX_VALUE. That would incorrectly include the
+        // maximum date_nanos timestamp, so reject the bucket before converting the boundary to nanoseconds.
+        if (windowStartMillis > DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli()) {
+            return false;
+        }
+        long windowStartNanos = TimeUnit.MILLISECONDS.toNanos(windowStartMillis);
+        long nextTimestamp;
+        if (lo == bucketId) {
+            nextTimestamp = windowStartNanos;
+        } else {
+            nextTimestamp = windowStartNanos + 1;
+        }
+        nextTimestamps.indexInsert(idx, bucketId, nextTimestamp);
+        return timestamp >= nextTimestamp;
     }
 }

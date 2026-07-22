@@ -1,6 +1,6 @@
 version: 9.3.8
-released: false
-generated: 2026-07-17T00:10:14.774763011Z
+released: true
+generated: 2026-07-21T13:36:16.468159628Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination

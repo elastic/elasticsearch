@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,9 +71,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
-        .capabilities("unmapped_fields_pushdown_fix")
-        // in-development runtime search support; move to capabilities(...) when released
-        .snapshotCapabilities("runtime_filter")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -255,21 +252,12 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
-    /**
-     * Runtime search on non-index-mapped expressions is under development and enabled in snapshot builds only,
-     * advertised through the snapshot-only {@code fn_match_phrase_runtime_filter} function capability declared on
-     * {@link #DEFINITION}.
-     */
-    public static boolean runtimeSearchEnabled() {
-        return Build.current().isSnapshot();
-    }
-
     @Override
     public boolean isRuntimeSearch() {
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
         if (fieldAttribute == null) {
-            // Runtime search on expressions is currently snapshot-only.
-            return runtimeSearchEnabled();
+            // This isn't a field in the index, so the expression is evaluated at runtime, row by row.
+            return true;
         }
         // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
         // indices where the field is unmapped, so it is matched at runtime instead.

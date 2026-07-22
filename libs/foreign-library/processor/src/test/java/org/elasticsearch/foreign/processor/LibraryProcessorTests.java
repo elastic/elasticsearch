@@ -9,6 +9,11 @@
 
 package org.elasticsearch.foreign.processor;
 
+import java.lang.classfile.ClassFile;
+import java.lang.reflect.AccessFlag;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
  * Tests that {@link LibraryProcessor} emits the correct diagnostics for invalid inputs.
  */
@@ -153,7 +158,7 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
-     * A {@code @LibrarySpecification} annotation on a class (not an interface) should emit an error.
+     * A {@code @LibrarySpecification} annotation on a non-abstract class should emit an error.
      */
     public void testAnnotationOnClassEmitsError() {
         String source = """
@@ -169,6 +174,89 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         assertFalse("Expected compilation to fail", result.success());
         boolean hasProcessorError = result.errors().stream().anyMatch(msg -> msg.contains("@LibrarySpecification must be on an interface"));
         assertTrue("Expected error about @LibrarySpecification on non-interface but got: " + result.errors(), hasProcessorError);
+    }
+
+    /**
+     * A {@code @LibrarySpecification} abstract class with a single {@code public abstract @Function}
+     * method must compile successfully and produce a {@code $Impl} class file.
+     */
+    public void testAbstractClassGeneratesImpl() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib")
+            public abstract class AbstractLib {
+                @Function("native_add")
+                public abstract int add(int a, int b);
+            }
+            """;
+
+        CompilationResult result = compile("test.AbstractLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue(
+            "Expected AbstractLib$Impl.class to be generated",
+            Files.exists(result.outputDir().resolve("test/AbstractLib$Impl.class"))
+        );
+    }
+
+    /**
+     * A {@code @LibrarySpecification} abstract class lacking a no-arg constructor must emit a clear
+     * compile error.
+     */
+    public void testAbstractClassWithoutNoArgConstructorEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib")
+            public abstract class NoDefaultCtorLib {
+                public NoDefaultCtorLib(int x) {}
+
+                @Function("native_fn")
+                public abstract int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.NoDefaultCtorLib", source);
+
+        assertFalse("Expected compilation to fail due to missing no-arg constructor", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("no-arg constructor"));
+        assertTrue("Expected error about missing no-arg constructor but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code protected abstract @Function} method on an abstract-class spec must compile
+     * successfully and the generated {@code $Impl} must emit the method with {@code ACC_PROTECTED}
+     * (not {@code ACC_PUBLIC}). Verified by parsing the bytecode directly, since loading the
+     * {@code $Impl} class requires the Step 3 superclass change to be in place.
+     */
+    public void testProtectedAbstractMethodIsProtectedInImpl() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib")
+            public abstract class ProtectedLib {
+                @Function("native_fn")
+                protected abstract int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.ProtectedLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Path classFile = result.outputDir().resolve("test/ProtectedLib$Impl.class");
+        assertTrue("Generated ProtectedLib$Impl.class not found", Files.exists(classFile));
+
+        // Parse the bytecode and verify the 'fn' method carries ACC_PROTECTED (not ACC_PUBLIC)
+        var cm = ClassFile.of().parse(Files.readAllBytes(classFile));
+        var fnMethod = cm.methods().stream().filter(m -> m.methodName().equalsString("fn")).findFirst();
+        assertTrue("fn method not found in ProtectedLib$Impl bytecode", fnMethod.isPresent());
+        assertTrue("fn method must have ACC_PROTECTED in generated $Impl", fnMethod.get().flags().has(AccessFlag.PROTECTED));
+        assertFalse("fn method must not have ACC_PUBLIC in generated $Impl", fnMethod.get().flags().has(AccessFlag.PUBLIC));
     }
 
     /**

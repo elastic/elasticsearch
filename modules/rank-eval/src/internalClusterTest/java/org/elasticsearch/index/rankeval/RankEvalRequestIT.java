@@ -60,6 +60,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // add another index for testing closed indices etc...
         prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573).get();
         refresh();
+        ensureGreen();
 
         // set up an alias that can also be used in tests
         assertAcked(

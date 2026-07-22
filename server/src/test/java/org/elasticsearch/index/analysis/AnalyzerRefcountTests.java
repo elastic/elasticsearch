@@ -67,6 +67,9 @@ public class AnalyzerRefcountTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        // The whole class exercises the recipe cache and its reference counting, which only exist when analyzer
+        // sharing is on. Off (release builds) every index builds a fresh analyzer, so there is nothing to assert here.
+        assumeTrue("analyzer sharing feature flag must be enabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(nodeSettings),
@@ -79,12 +82,17 @@ public class AnalyzerRefcountTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         try {
-            // Opt-in strict leak check: every test in this class must drain the cache before
-            // teardown. Any IndexAnalyzers built without being closed shows up here, attributed
-            // to the offending test method.
-            registry.assertNoCachedEntries();
+            // registry is null when setUp skipped the test (analyzer sharing disabled) before building it.
+            if (registry != null) {
+                // Opt-in strict leak check: every test in this class must drain the cache before
+                // teardown. Any IndexAnalyzers built without being closed shows up here, attributed
+                // to the offending test method.
+                registry.assertNoCachedEntries();
+            }
         } finally {
-            registry.close();
+            if (registry != null) {
+                registry.close();
+            }
             super.tearDown();
         }
     }

@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -513,7 +512,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return Translatable.YES;
         }
         if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-            return Translatable.YES;
+            // Candidate terms query against the keyed sub-field; RECHECK keeps the predicate in the
+            // FilterOperator to null out multi-valued documents the candidate matched.
+            return Translatable.RECHECK;
         }
         return Translatable.NO;
     }
@@ -564,14 +565,15 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     /**
-     * Translate {@code field_extract(<flattened root>, "<key>") IN (<literals>)} into a
+     * Translate {@code field_extract(<flattened root>, "<key>") IN (<literals>)} into a candidate
      * {@link TermsQuery} against the keyed sub-field. The data node's {@code FieldTypeLookup}
      * resolves {@code <root>.<key>} to a {@code KeyedFlattenedFieldType} which prefixes each term
      * with the key separator at search time.
      * <p>
-     *     The result is wrapped in {@link SingleValueQuery} to preserve ES|QL's single-value-only
-     *     comparison semantics for multi-valued sub-keys (consistent with {@code field_extract}
-     *     used inside {@code Equals}/{@code NotEquals}).
+     *     The terms query is not wrapped in a {@code SingleValueQuery}: {@link #translatable} reports
+     *     {@code RECHECK} (consistent with {@code field_extract} used inside {@code Equals}/{@code NotEquals}),
+     *     so the FilterOperator re-applies the {@code IN} on the extracted keyword column and nulls out
+     *     multi-valued documents the candidate matched.
      * </p>
      */
     private Query translateFieldExtractIn(String keyedName) {
@@ -593,7 +595,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             // an IN to a constant false beforehand, so this branch is defensive.
             throw new EsqlIllegalArgumentException("field_extract IN with all-null list cannot be translated to a query");
         }
-        return new SingleValueQuery(new TermsQuery(source(), keyedName, terms), keyedName, false);
+        return new TermsQuery(source(), keyedName, terms);
     }
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {

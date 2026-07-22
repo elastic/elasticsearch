@@ -192,7 +192,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.19"]
+            BWC_VERSION: ["8.19.20"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

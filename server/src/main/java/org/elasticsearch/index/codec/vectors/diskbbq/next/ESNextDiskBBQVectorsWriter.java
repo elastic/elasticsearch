@@ -772,7 +772,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
         // TODO: teach the tiered strategy about slices and reuse per-slice priors.
         if (sliceField != null) {
-            return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
+            return calculateCentroidsFullRebuildSliced(floatVectorValues, mergeState);
         }
 
         // Gather prior segment statistics for tiered merge strategy selection
@@ -858,18 +858,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
     }
 
-    private CentroidInformation calculateCentroidsFullRebuildSliced(
-        KMeansFloatVectorValues floatVectorValues,
-        FieldInfo fieldInfo,
-        MergeState mergeState
-    ) throws IOException {
+    private CentroidInformation calculateCentroidsFullRebuildSliced(KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
+        throws IOException {
         final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
         assert slicedFieldInfo != null;
         assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
         final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
         final int numSlices = values.getValueCount();
-        if (floatVectorValues.size() / numSlices <= 4 * vectorPerCluster) {
-            // for small slices, we don't cluster
+        if (floatVectorValues.size() / numSlices <= 4 * flatVectorThreshold) {
+            // for small slices, don't cluster the slices. We allow for a bit more headroom than normal idices
+            // as flat representation of slices id more efficient as it does not require writting doc ids.
             float[][] centroid = new float[][] { CentroidOps.FLOAT.computeMeanCentroid(floatVectorValues, floatVectorValues.dimension()) };
             int[] assignments = new int[floatVectorValues.size()];
             return new CentroidInformation(floatVectorValues.dimension(), centroid, assignments, OverspillAssignments.NONE, null);

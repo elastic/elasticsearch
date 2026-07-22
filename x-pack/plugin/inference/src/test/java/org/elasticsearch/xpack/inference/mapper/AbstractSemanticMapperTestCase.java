@@ -726,9 +726,15 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                     );
                 }
 
-                yield denseDefaults == null
+                DenseVectorFieldMapper.ElementType elementTypeOverride = indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+                    && elementType == DenseVectorFieldMapper.ElementType.FLOAT ? DenseVectorFieldMapper.ElementType.BFLOAT16 : null;
+
+                yield denseDefaults == null && elementTypeOverride == null
                     ? null
-                    : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseDefaults);
+                    : new SemanticIndexOptions(
+                        SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                        new ExtendedDenseVectorIndexOptions(denseDefaults, elementTypeOverride)
+                    );
             }
             case SPARSE_EMBEDDING -> {
                 var sparseDefaults = SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion);

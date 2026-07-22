@@ -58,7 +58,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
-        Setting.Property.Dynamic,
+        Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
 

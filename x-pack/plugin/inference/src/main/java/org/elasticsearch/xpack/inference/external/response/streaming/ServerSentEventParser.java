@@ -32,12 +32,12 @@ import java.util.Optional;
  *
  * <h2>Retained deviations from the WHATWG spec (knowingly kept)</h2>
  * <ul>
- *   <li><b>Case-insensitive field names (#3)</b> — field names are lower-cased before matching;
+ *   <li><b>Case-insensitive field names</b> — field names are lower-cased before matching;
  *       the spec matches them case-sensitively, so {@code DATA:} should be an unknown field.</li>
- *   <li><b>No-colon lines only honored for {@code data} (#4)</b> — a bare {@code data} line
+ *   <li><b>No-colon lines only honored for {@code data}</b> — a bare {@code data} line
  *       (no colon) is treated as {@code data} with an empty value; any other bare field name is
  *       ignored. The spec treats any no-colon line as that field with an empty value.</li>
- *   <li><b>{@code id} and {@code retry} are not implemented (#5)</b> — intentionally omitted;
+ *   <li><b>{@code id} and {@code retry} are not implemented</b> — intentionally omitted;
  *       we do not use reconnect state.</li>
  * </ul>
  */

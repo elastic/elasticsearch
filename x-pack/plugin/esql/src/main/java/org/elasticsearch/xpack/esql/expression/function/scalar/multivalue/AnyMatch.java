@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.LambdaAccepting;
@@ -50,12 +51,38 @@ public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting {
     @FunctionInfo(
         returnType = { "boolean" },
         preview = true,
-        description = "Returns true if any element of a multi-value field satisfies the given predicate."
+        description = "Returns true if any element of a multi-value field satisfies the given predicate.",
+        examples = { @Example(file = "lambda", tag = "any_match") }
     )
     public AnyMatch(
         Source source,
-        @Param(name = "field", type = { "?" }, description = "A multi-value field.") Expression field,
-        @Param(name = "predicate", type = { "?" }, description = "A lambda predicate.") Expression lambda
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "A multi-value field."
+        ) Expression field,
+        @Param(
+            name = "predicate",
+            type = { "lambda" },
+            description = "A lambda predicate.",
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+        ) Expression lambda
     ) {
         super(source, List.of(field, lambda));
         this.field = field;

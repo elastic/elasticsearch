@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.LambdaAccepting;
@@ -58,14 +59,55 @@ public class MvFilter extends EsqlScalarFunction implements LambdaAccepting {
     private final Expression lambda;
 
     @FunctionInfo(
-        returnType = { "?" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "double",
+            "flattened",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "unsigned_long",
+            "version" },
         preview = true,
-        description = "Keeps the elements of a multi-value field that satisfy the given predicate."
+        description = "Keeps the elements of a multi-value field that satisfy the given predicate.",
+        examples = { @Example(file = "lambda", tag = "filter") }
     )
     public MvFilter(
         Source source,
-        @Param(name = "field", type = { "?" }, description = "A multi-value field.") Expression field,
-        @Param(name = "predicate", type = { "?" }, description = "A lambda predicate.") Expression lambda
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "A multi-value field."
+        ) Expression field,
+        @Param(
+            name = "predicate",
+            type = { "lambda" },
+            description = "A lambda predicate.",
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+        ) Expression lambda
     ) {
         super(source, List.of(field, lambda));
         this.field = field;
@@ -130,7 +172,7 @@ public class MvFilter extends EsqlScalarFunction implements LambdaAccepting {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 
     @Override

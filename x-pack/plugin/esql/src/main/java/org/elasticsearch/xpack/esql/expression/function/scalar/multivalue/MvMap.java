@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.LambdaAccepting;
@@ -59,11 +60,55 @@ public class MvMap extends EsqlScalarFunction implements LambdaAccepting {
     private final Expression field;
     private final Expression lambda;
 
-    @FunctionInfo(returnType = { "?" }, preview = true, description = "Applies a transformation to every element of a multi-value field.")
+    @FunctionInfo(
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "double",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "unsigned_long",
+            "version" },
+        preview = true,
+        description = "Applies a transformation to every element of a multi-value field.",
+        examples = { @Example(file = "lambda", tag = "map") }
+    )
     public MvMap(
         Source source,
-        @Param(name = "field", type = { "?" }, description = "A multi-value field.") Expression field,
-        @Param(name = "transform", type = { "?" }, description = "A lambda transforming each element.") Expression lambda
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "A multi-value field."
+        ) Expression field,
+        @Param(
+            name = "transform",
+            type = { "lambda" },
+            description = "A lambda transforming each element.",
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+        ) Expression lambda
     ) {
         super(source, List.of(field, lambda));
         this.field = field;
@@ -131,7 +176,7 @@ public class MvMap extends EsqlScalarFunction implements LambdaAccepting {
 
     @Override
     public DataType dataType() {
-        return lambda instanceof Lambda l ? l.body().dataType() : DataType.UNSUPPORTED;
+        return lambda instanceof Lambda l ? l.body().dataType().noText() : DataType.UNSUPPORTED;
     }
 
     @Override

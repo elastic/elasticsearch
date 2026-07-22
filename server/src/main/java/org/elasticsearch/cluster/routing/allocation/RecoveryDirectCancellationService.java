@@ -166,8 +166,7 @@ public class RecoveryDirectCancellationService {
 
     /// Removes cancellations that were already sent recently and updates the cache. A cached entry can be bypassed and
     /// the cancellation re-sent in two cases:
-    /// - the cluster term has changed since the entry was written (the data node may have discarded the request from
-    ///   the previous term)
+    /// - the cluster term has changed (the data node may have discarded the request from the previous term)
     /// - the new request escalates `cancelIfStarted` from `false` to `true`
     private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateAndUpdateCache(
         Map<DiscoveryNode, CancelRecoveriesAction.Request> requests
@@ -210,9 +209,9 @@ public class RecoveryDirectCancellationService {
             request,
             new ActionListenerResponseHandler<>(ActionListener.wrap(response -> failShardsCancelledInQueue(node, response), e -> {
                 // Request was unsuccessful, invalidate cached entries so another request can try again later.
-                // There is a possibility that another close-in-time request was deduplicated from this while we were waiting
-                // for it to respond. That should be fine, as in all likelihood, this subsequent request would have faced
-                // the same transport error and direct cancellation is best-effort anyway.
+                // There is a possibility that a close-in-time subsequent request was deduplicated from this one while we
+                // were waiting for it to respond. That should be fine, as in all likelihood, this subsequent request
+                // would have faced the same transport error and direct cancellation is best-effort anyway.
                 synchronized (this) {
                     for (ShardRecoveryCancellation cancellation : request.cancellations()) {
                         sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));

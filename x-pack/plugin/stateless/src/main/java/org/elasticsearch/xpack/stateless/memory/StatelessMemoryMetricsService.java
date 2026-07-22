@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.memory;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -186,6 +187,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /** Populated with the per-node heap estimate results from the last {@link #getPerNodeMemoryMetrics} call, consumed when the gauge is
      * read. Metric depends on that method being called regularly. */
     private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHeapSnapshots = new AtomicReference<>(List.of());
+    /** Same snapshots as {@link #lastPerNodeHeapSnapshots}, held in a separate reference so each gauge can consume independently. */
+    private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHostedShardsSnapshots = new AtomicReference<>(List.of());
     protected volatile int shardLimitPerNode;
     protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
@@ -221,14 +224,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      *  <li>Any shard missing {@link ShardMemoryMetrics} is given a default (non-zero) estimate</li>
      * </ul>
      * Called by {@link StatelessHeapUsageReader#collectClusterHeapUsage}, the node-level entry point into this service, whose results
-     * reach {@link org.elasticsearch.cluster.ClusterInfo#getEstimatedHeapUsages()} and are read from there by
+     * reach {@link org.elasticsearch.cluster.ClusterInfo#getNodeHeapMetrics()} and are read from there by
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider} and
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor}.
      *
      * @param clusterState The cluster state used to determine which shard is where
-     * @return A map of node id to heap usage estimate in bytes
+     * @return A map of node id to node-heap-estimate objects
      */
-    public Map<String, Long> getPerNodeMemoryMetrics(ClusterState clusterState) {
+    public Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(ClusterState clusterState) {
         final DiscoveryNodes discoveryNodes = clusterState.nodes();
         final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
         final long mergeMemoryEstimate = mergeMemoryEstimation();
@@ -261,22 +264,27 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             }
             heapUsageBuilders.put(nodeId, builderForNode);
         }
-        // Take the max postings memory across all nodes and apply that to all nodes.
+        // Take the max postings memory across all nodes and use that for all nodes' total heap estimate
         final long maxTotalPostingsInMemoryBytes = heapUsageBuilders.values()
             .stream()
             .mapToLong(builder -> builder.totalPostingsInMemoryBytes)
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        heapUsageBuilders.values().forEach(builder -> builder.totalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes);
-        final Map<String, Long> nodeIdToHeapUsage = Maps.transformValues(
+        final Map<String, NodeHeapEstimates> nodeIdToHeapUsage = Maps.transformValues(
             heapUsageBuilders,
-            EstimatedHeapUsageBuilder::getHeapUsageEstimate
+            builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)
         );
-        lastPerNodeHeapSnapshots.set(nodeIdToHeapUsage.entrySet().stream().filter(e -> discoveryNodes.get(e.getKey()) != null).map(e -> {
-            final DiscoveryNode node = discoveryNodes.get(e.getKey());
-            return new NodeHeapEstimateSnapshot(e.getKey(), node.getName(), e.getValue());
-        }).toList());
+        final List<NodeHeapEstimateSnapshot> snapshots = nodeIdToHeapUsage.entrySet()
+            .stream()
+            .filter(e -> discoveryNodes.get(e.getKey()) != null)
+            .map(e -> {
+                final DiscoveryNode node = discoveryNodes.get(e.getKey());
+                return new NodeHeapEstimateSnapshot(e.getKey(), node.getName(), e.getValue());
+            })
+            .toList();
+        lastPerNodeHeapSnapshots.set(snapshots);
+        lastPerNodeHostedShardsSnapshots.set(snapshots);
         return nodeIdToHeapUsage;
     }
 
@@ -340,7 +348,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return selfReportedShardMemoryOverheadEnabled;
     }
 
-    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, long heapBytes) {}
+    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimates nodeHeapEstimates) {}
 
     /**
      * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
@@ -381,7 +389,24 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     public List<LongWithAttributes> getPerNodeHeapAndReset() {
         final List<NodeHeapEstimateSnapshot> snapshot = lastPerNodeHeapSnapshots.getAndSet(List.of());
         return snapshot.stream()
-            .map(s -> new LongWithAttributes(s.heapBytes(), Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())))
+            .map(
+                s -> new LongWithAttributes(
+                    s.nodeHeapEstimates().totalHeapUsage(),
+                    Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
+                )
+            )
+            .toList();
+    }
+
+    public List<LongWithAttributes> getPerNodeHostedShardsHeapAndReset() {
+        final List<NodeHeapEstimateSnapshot> snapshot = lastPerNodeHostedShardsSnapshots.getAndSet(List.of());
+        return snapshot.stream()
+            .map(
+                s -> new LongWithAttributes(
+                    s.nodeHeapEstimates().hostedShardsHeapUsage(),
+                    Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
+                )
+            )
             .toList();
     }
 
@@ -844,17 +869,30 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 totalShardsWithSelfReportedOverhead++;
             } else {
                 // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
-                // getPerNodeMemoryMetrics later overrides totalPostingsInMemoryBytes with the max across all nodes.
+                // getPerNodeMemoryMetrics later uses the maximum totalPostingsInMemoryBytes across all nodes.
                 shardMemoryUsageInBytes += estimateShardOverheadExcludingPostings(shardMemoryMetrics);
                 totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
             }
             totalShards++;
         }
 
-        long getHeapUsageEstimate() {
+        /**
+         * Calculate the heap estimates for this node
+         *
+         * @param postingsForTotalEstimate The postings value to use for the total heap estimate
+         * @return The heap usage estimate for this node
+         */
+        NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
+            final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
+            final long hostedShardsHeapEstimateInBytes = totalShardMemoryOverheadBytes + shardMemoryUsageInBytes
+                + totalPostingsInMemoryBytes;
+            return new NodeHeapEstimates(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
+        }
+
+        long getHeapUsageEstimate(long effectivePostingsValue) {
             assert totalShards >= totalShardsWithSelfReportedOverhead;
             return totalShardMemoryOverheadBytes + shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate
-                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + totalPostingsInMemoryBytes;
+                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + effectivePostingsValue;
         }
     }
 

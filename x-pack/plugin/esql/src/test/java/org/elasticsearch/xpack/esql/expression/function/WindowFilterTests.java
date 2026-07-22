@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -102,6 +103,24 @@ public class WindowFilterTests extends AbstractConfigurationFunctionTestCase {
         randomZoneCase(suppliers, "1m/5m random tz: 6m", 1, 5, minutes(6));
         randomZoneCase(suppliers, "1m/5m random tz: 7m", 1, 5, minutes(7));
 
+        // date_nanos timestamps: the boundary is computed from the millisecond rounding but the comparison happens in
+        // the nanosecond domain, so sub-millisecond samples right around the window edge must be classified exactly.
+        // 5m bucket, 1m window: the window is [4m, 5m).
+        utcNanosCase(suppliers, "nanos 5m/1m: 0s excluded", 5, 1, 0L, false);
+        utcNanosCase(suppliers, "nanos 5m/1m: 4m minus 1ns excluded", 5, 1, minuteNanos(4) - 1, false);
+        utcNanosCase(suppliers, "nanos 5m/1m: 4m included", 5, 1, minuteNanos(4), true);
+        utcNanosCase(suppliers, "nanos 5m/1m: 4m plus 1ns included", 5, 1, minuteNanos(4) + 1, true);
+        utcNanosCase(suppliers, "nanos 5m/1m: 5m minus 1ns included", 5, 1, minuteNanos(5) - 1, true);
+        utcNanosCase(suppliers, "nanos 5m/1m: 5m excluded", 5, 1, minuteNanos(5), false);
+        // 5m bucket, 2m window: the window is [3m, 5m).
+        utcNanosCase(suppliers, "nanos 5m/2m: 3m minus 1ns excluded", 5, 2, minuteNanos(3) - 1, false);
+        utcNanosCase(suppliers, "nanos 5m/2m: 3m included", 5, 2, minuteNanos(3), true);
+        // Window larger than bucket: everything passes.
+        utcNanosCase(suppliers, "nanos 1m/5m: 0s included", 1, 5, 0L, true);
+        utcNanosCase(suppliers, "nanos 1m/5m: 30s plus 1ns included", 1, 5, minuteNanos(0) + TimeUnit.SECONDS.toNanos(30) + 1, true);
+        // The trailing minute of the final five-minute bucket starts after the date_nanos range.
+        utcNanosCase(suppliers, "nanos 5m/1m: maximum timestamp excluded", 5, 1, DateUtils.MAX_NANOSECOND, false);
+
         for (int i = 0; i < 10; i++) {
             fullyRandomCase(suppliers, "random case " + i);
         }
@@ -130,6 +149,31 @@ public class WindowFilterTests extends AbstractConfigurationFunctionTestCase {
                 Matchers.startsWith(
                     "WindowFilterEvaluator[window=" + window.toMillis() + ", bucket=Rounding[" + bucket.toMillis() + " in Z][fixed]"
                 ),
+                DataType.BOOLEAN,
+                equalTo(expected)
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+        }));
+    }
+
+    private static void utcNanosCase(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        int bucketMinutes,
+        int windowMinutes,
+        long timestampNanos,
+        boolean expected
+    ) {
+        Duration window = Duration.ofMinutes(windowMinutes);
+        Duration bucket = Duration.ofMinutes(bucketMinutes);
+
+        suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, DataType.TIME_DURATION, DataType.DATE_NANOS), () -> {
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+            args.add(new TestCaseSupplier.TypedData(window, DataType.TIME_DURATION, "window").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(bucket, DataType.TIME_DURATION, "bucket").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(timestampNanos, DataType.DATE_NANOS, "@timestamp"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                Matchers.startsWith("WindowFilterDateNanosEvaluator[window=" + window.toMillis()),
                 DataType.BOOLEAN,
                 equalTo(expected)
             ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
@@ -219,5 +263,9 @@ public class WindowFilterTests extends AbstractConfigurationFunctionTestCase {
 
     private static long seconds(long s) {
         return TimeUnit.SECONDS.toMillis(s);
+    }
+
+    private static long minuteNanos(long m) {
+        return TimeUnit.MINUTES.toNanos(m);
     }
 }

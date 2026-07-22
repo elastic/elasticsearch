@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -138,19 +139,28 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    public void testNumericCoercionRejectsOversizedString() throws IOException {
-        // Every numeric accessor bounds the length of a quoted string before coercing it, avoiding unbounded
-        // (and, for long, super-linear) parsing work on an attacker-sized value.
-        String oversized = "1" + "0".repeat(5000);
-        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::shortValue);
-        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::intValue);
-        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::longValue);
-        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::floatValue);
-        assertNumericAccessorRejectsOversizedString(oversized, XContentParser::doubleValue);
+    public void testNumericCoercionBoundsStringLength() throws IOException {
+        String atLimit = "0".repeat(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH - 1) + "1";
+        String overLimit = "0".repeat(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) + "1";
+        assertThat(atLimit.length(), equalTo(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH));
+        assertThat(overLimit.length(), equalTo(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH + 1));
+
+        for (CheckedConsumer<XContentParser, IOException> accessor : List.<CheckedConsumer<XContentParser, IOException>>of(
+            XContentParser::shortValue,
+            XContentParser::intValue,
+            XContentParser::longValue,
+            XContentParser::floatValue,
+            XContentParser::doubleValue
+        )) {
+            assertNumericAccessor(atLimit, accessor);
+            assertNumericAccessor(overLimit, parser -> {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> accessor.accept(parser));
+                assertThat(e.getMessage(), containsString("exceeds the maximum"));
+            });
+        }
     }
 
-    private void assertNumericAccessorRejectsOversizedString(String value, CheckedConsumer<XContentParser, IOException> accessor)
-        throws IOException {
+    private void assertNumericAccessor(String value, CheckedConsumer<XContentParser, IOException> assertion) throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.startObject().field("n", value).endObject();
@@ -158,7 +168,7 @@ public class XContentParserTests extends ESTestCase {
                 assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                expectThrows(IllegalArgumentException.class, () -> accessor.accept(parser));
+                assertion.accept(parser);
             }
         }
     }

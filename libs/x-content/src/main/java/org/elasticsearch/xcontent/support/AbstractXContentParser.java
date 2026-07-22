@@ -123,11 +123,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-            checkNumericStringLength(text());
-            double doubleValue = Double.parseDouble(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            String value = numericText.string();
+            double doubleValue = Double.parseDouble(value);
 
             if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
-                throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
+                throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
             }
 
             return (short) doubleValue;
@@ -149,11 +151,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            checkNumericStringLength(text());
-            double doubleValue = Double.parseDouble(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            String value = numericText.string();
+            double doubleValue = Double.parseDouble(value);
 
             if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
+                throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
             }
 
             return (int) doubleValue;
@@ -170,12 +174,12 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     // Numeric strings longer than this are rejected before coercion, whose cost grows with the digit count;
     // matches the unquoted JSON number-token limit. Mirrored by Numbers#MAX_NUMERIC_STRING_LENGTH. Keep in sync.
-    static final int MAX_NUMERIC_STRING_LENGTH = 1000;
+    public static final int MAX_NUMERIC_STRING_LENGTH = 1000;
 
-    private static void checkNumericStringLength(String value) {
-        if (value.length() > MAX_NUMERIC_STRING_LENGTH) {
+    private static void checkNumericStringLength(int length) {
+        if (length > MAX_NUMERIC_STRING_LENGTH) {
             throw new IllegalArgumentException(
-                "Numeric value length [" + value.length() + "] exceeds the maximum of [" + MAX_NUMERIC_STRING_LENGTH + "]"
+                "Numeric value length [" + length + "] exceeds the maximum of [" + MAX_NUMERIC_STRING_LENGTH + "]"
             );
         }
     }
@@ -232,8 +236,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            checkNumericStringLength(text());
-            return toLong(text(), coerce);
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return toLong(numericText.string(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -252,8 +257,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Float.class);
-            checkNumericStringLength(text());
-            return Float.parseFloat(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return Float.parseFloat(numericText.string());
         }
         return doFloatValue();
     }
@@ -270,8 +276,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Double.class);
-            checkNumericStringLength(text());
-            return Double.parseDouble(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return Double.parseDouble(numericText.string());
         }
         return doDoubleValue();
     }

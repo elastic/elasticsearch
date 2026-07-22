@@ -535,9 +535,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
-- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
-  method: testBootstrapOnlyVotingOnlyNodes
-  issue: https://github.com/elastic/elasticsearch/issues/154563
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
   issue: https://github.com/elastic/elasticsearch/issues/154568
@@ -559,12 +556,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesPromqlIT
-  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
-  issue: https://github.com/elastic/elasticsearch/issues/154609
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesPromqlIT
-  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
-  issue: https://github.com/elastic/elasticsearch/issues/154609
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst
   issue: https://github.com/elastic/elasticsearch/issues/154462
@@ -589,9 +580,6 @@ tests:
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testInvalidatingTokensInMixedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154620
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/154621
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testTokensStayInvalidatedInUpgradedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154627
@@ -613,3 +601,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
+  method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/154731

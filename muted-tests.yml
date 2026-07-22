@@ -427,9 +427,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
-  method: testShardSnapshotsStatus
-  issue: https://github.com/elastic/elasticsearch/issues/153575
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testRemoteFailureInlinestats
   issue: https://github.com/elastic/elasticsearch/issues/153576

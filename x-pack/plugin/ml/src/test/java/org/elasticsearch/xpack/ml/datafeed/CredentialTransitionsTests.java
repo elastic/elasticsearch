@@ -42,7 +42,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -437,7 +439,11 @@ public class CredentialTransitionsTests extends ESTestCase {
             ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
         );
 
-        assertThat(failure.get(), equalTo(noMatchingProject));
+        assertThat(failure.get(), instanceOf(NoMatchingProjectException.class));
+        assertThat(failure.get().getMessage(), containsString("Cannot update datafeed [df]"));
+        assertThat(failure.get().getMessage(), containsString("_alias:*"));
+        assertThat(failure.get().getMessage(), containsString("nonexistent_project"));
+        assertThat(failure.get().getCause(), equalTo(noMatchingProject));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 

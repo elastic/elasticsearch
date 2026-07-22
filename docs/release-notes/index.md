@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.4.4 [elasticsearch-9.4.4-release-notes]
-```{applies_to}
-stack: ga 9.4.4
-```
 
 ### Features and enhancements [elasticsearch-9.4.4-features-enhancements]
 
@@ -41,12 +38,12 @@ Infra/Core:
 
 Machine Learning:
 * Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
-* Improve error handling for quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
-* Improve handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
-* Improve messaging for OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
 * Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
 * Harden pytorch_inference with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
 * Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Improve error handling for quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Improve handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Improve messaging for OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
 * Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
 * Restrict file system access for PyTorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
@@ -117,9 +114,6 @@ Transform:
 
 
 ## 9.3.8 [elasticsearch-9.3.8-release-notes]
-```{applies_to}
-stack: ga 9.3.8
-```
 
 ### Features and enhancements [elasticsearch-9.3.8-features-enhancements]
 

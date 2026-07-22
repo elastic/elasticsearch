@@ -293,7 +293,7 @@ public final class ManifoldModel {
         return Math.exp(alpha + (logK - logN) * invDim);
     }
 
-    static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
+    public static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
         return similarityFunction == VectorSimilarityFunction.DOT_PRODUCT
             || similarityFunction == VectorSimilarityFunction.COSINE
             || similarityFunction == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;

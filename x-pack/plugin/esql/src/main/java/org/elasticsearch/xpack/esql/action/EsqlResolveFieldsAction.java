@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
@@ -88,7 +89,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         List<String> remoteViews = abstractionOptions.resolveViews()
             ? qualify(request.clusterAlias(), getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions()))
             : List.of();
-        List<String> remoteDatasets = abstractionOptions.resolveDatasets()
+        // When federation is suppressed this node reports no datasets, so a FROM <remote:name> falls through to normal
+        // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
+        // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
+        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && Federation.isAvailable()
             ? qualify(request.clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
             : List.of();
         boolean hasRemoteViews = remoteViews.isEmpty() == false;

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -79,7 +78,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            new TestCircuitBreaker(),
             noopReleasable()
         );
 
@@ -101,7 +99,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            new TestCircuitBreaker(),
             noopReleasable()
         );
 
@@ -127,7 +124,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            new TestCircuitBreaker(),
             noopReleasable()
         );
 
@@ -158,7 +154,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            new TestCircuitBreaker(),
             noopReleasable()
         );
 
@@ -187,7 +182,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            new TestCircuitBreaker(),
             noopReleasable()
         );
 
@@ -220,7 +214,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            trackingCircuitBreaker,
             releaseBytes
         );
 
@@ -250,7 +243,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            trackingCircuitBreaker,
             releaseBytes
         );
 
@@ -283,7 +275,6 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            trackingCircuitBreaker,
             releaseBytes
         );
 
@@ -309,7 +300,6 @@ public class RequestTaskTests extends ESTestCase {
             TimeValue.timeValueSeconds(30),
             threadPool,
             listener,
-            trackingCircuitBreaker,
             releaseBytes
         );
 

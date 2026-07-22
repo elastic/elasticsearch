@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -30,7 +29,6 @@ class RequestTask implements RejectableTask {
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
         ActionListener<InferenceServiceResults> listener,
-        CircuitBreaker circuitBreaker,
         Releasable releaseBytes
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);

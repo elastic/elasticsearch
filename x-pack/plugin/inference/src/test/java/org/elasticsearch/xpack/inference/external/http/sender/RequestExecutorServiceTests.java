@@ -394,7 +394,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                new TestCircuitBreaker(),
                 noopReleasable()
             )
         );
@@ -508,7 +507,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 new PlainActionFuture<>(),
-                new TestCircuitBreaker(),
                 noopReleasable()
             )
         );
@@ -519,7 +517,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 new PlainActionFuture<>(),
-                new TestCircuitBreaker(),
                 noopReleasable()
             )
         );
@@ -533,7 +530,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                new TestCircuitBreaker(),
                 noopReleasable()
             )
         );
@@ -766,7 +762,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                new TestCircuitBreaker(),
                 noopReleasable()
             )
         );
@@ -785,7 +780,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                new TestCircuitBreaker(),
                 noopReleasable()
             )
         );

@@ -79,7 +79,6 @@ public class RequestExecutorServiceSettings {
     private volatile int queueCapacity;
     private volatile TimeValue taskPollFrequency;
     private volatile Duration rateLimitGroupStaleDuration;
-
     private final ConcurrentMap<String, Consumer<Integer>> queueCapacityCallbacks = new ConcurrentHashMap<>();
 
     public RequestExecutorServiceSettings(Settings settings) {

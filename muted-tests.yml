@@ -541,9 +541,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602
-- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
-  method: testIndexWithZeroReplicasAndAutoExpandReplicasHasClusterBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/154605
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606

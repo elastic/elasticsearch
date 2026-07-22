@@ -1987,3 +1987,18 @@ result:double | step:datetime            | _timeseries:keyword
 7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
 6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;
+
+// topk over an already-aggregated vector (sum by). The inner aggregation collapses to the BY labels, then topk
+// ranks those series - this is the shape that previously failed planning with "can't find input for [topk(...)]".
+topk_over_sum_by
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+| SORT result DESC;
+
+result:double | step:datetime            | pod:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | two
+9969.0        | 2024-05-10T01:00:00.000Z | three
+;

@@ -201,13 +201,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
-    @Override
-    public boolean boundSchemaNeedsFileSchema(List<Attribute> readSchema) {
-        // A dotted leaf decodes as a flat key only when its prefix column is in the schema too, and a bound
-        // schema is a projection that routinely omits it. See needsFullSchemaSupplement.
-        return readSchema != null && readSchema.isEmpty() == false && needsFullSchemaSupplement(readSchema);
-    }
-
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
         throws IOException {
         if (attributes != null) {
@@ -496,8 +489,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // A bound schema is used as given. It must NOT be supplemented by inferring here: this method is
         // handed storage that may be a single-use stream, and opening it again for inference both breaks
         // that contract and re-reads the file on every chunk. Whoever owns the file's leading bytes resolves
-        // any facts the projection does not carry, once, before the read starts -- see
-        // FormatReader#boundSchemaNeedsFileSchema.
+        // any facts the projection does not carry before the read starts.
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);

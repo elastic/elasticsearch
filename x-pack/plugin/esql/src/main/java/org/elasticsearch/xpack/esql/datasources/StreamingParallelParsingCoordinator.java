@@ -842,30 +842,22 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Does the once-per-file work that needs the file's leading bytes, before any chunk is dispatched.
          * <p>
-         * Which work depends on what the planner left to do. With no resolved schema, one is inferred here and
-         * bound onto the reader so chunks 1..N parse against it rather than re-inferring (or, for CSV, reading
-         * a data row as a header). With a resolved schema that the reader can decode from, nothing is
-         * inferred — a header-bearing file only has to tell later chunks what its columns are called, since
-         * only chunk 0 can see the header. With a resolved schema the reader cannot decode from on its own,
-         * the file's schema is inferred anyway, once, so that every chunk decodes against the same answer.
+         * The file's schema is inferred and bound onto the reader so chunks 1..N parse against one answer
+         * rather than re-inferring per chunk (or, for CSV, reading a data row as a header). This runs whether
+         * or not the planner resolved a schema: where it did, the reader merges the two and the bound schema
+         * wins on type, so the inference cannot retype a column — it only contributes columns the projection
+         * does not name, which some readers need in order to decode the ones it does.
          * <p>
-         * That last case is safe only because the bound schema wins on type when the two are merged. Letting
-         * an inferred type win is what produced the compressed-read crashes, where an inferred {@code INTEGER}
-         * displaced a declared {@code LONG}.
+         * A header-bearing file whose declared schema binds by name additionally has to tell later chunks what
+         * its columns are called, since only chunk 0 can see the header.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
-            if (readSchema == null || readSchema.isEmpty()) {
-                bindInferredSchema(buffer, length);
-            } else if (reader.boundSchemaNeedsFileSchema(readSchema)) {
-                // The planner's schema stands, but this reader cannot decode from it alone — it needs to know
-                // about columns the query did not ask for. Infer the file's schema here, once, so every chunk
-                // decodes against the same answer; inferring per chunk would let two chunks of one file
-                // disagree. The reader merges this with the bound schema and the bound types still win, so
-                // this cannot retype a column (which is what made the inference harmful in the first place).
-                bindInferredSchema(buffer, length);
-            } else {
+            // Capture before binding: the header names must come from the reader as the planner configured it,
+            // not from one already swapped for a schema inferred from this chunk.
+            if (readSchema != null && readSchema.isEmpty() == false) {
                 captureFileHeaderColumns(buffer, length);
             }
+            bindInferredSchema(buffer, length);
         }
 
         /**

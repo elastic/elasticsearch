@@ -468,14 +468,11 @@ public final class ParallelParsingCoordinator {
         // header), bind the full on-disk schema before segment workers run. For non-leading macro
         // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
-        // Two reasons to resolve the file's schema before the segment workers run, both needing it exactly once
-        // for the whole read: the COUNT(*) case above, and a reader whose bound schema is not enough to decode
-        // from (see FormatReader#boundSchemaNeedsFileSchema). Resolving it per segment instead would let two
-        // segments of one file decode the same column differently, depending only on what their own rows
-        // happened to contain — and each segment would pay a ranged open to do it.
-        boolean bindForCountStar = projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader;
-        boolean bindForIncompleteBoundSchema = reader.boundSchemaNeedsFileSchema(readSchema);
-        if (bindForCountStar || bindForIncompleteBoundSchema) {
+        // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
+        // against the file width. When this read includes the file-leading bytes (and therefore any
+        // header), bind the full on-disk schema before segment workers run. For non-leading macro
+        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
             var meta = parallelReader.metadata(storageObject);
             if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                 parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());

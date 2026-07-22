@@ -486,15 +486,7 @@ public class FileSplitProvider implements SplitProvider {
         // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
         // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
         // sequential stream and finds boundaries quote/escape-aware.
-        //
-        // A reader whose bound schema is not enough to decode from is kept whole for a different reason: it
-        // has to be told facts about the file that the projection does not carry, and those must be resolved
-        // once for the whole file. Split it and each split resolves them from its own rows, so two splits of
-        // one file decode the same column differently — values where a split happened to contain the evidence,
-        // nulls where it did not. Whole-file reads still parallelise internally; only cross-split distribution
-        // is given up, for this one schema shape.
-        if (requiresSequentialWholeFileRead(configuredReader)
-            || (configuredReader != null && configuredReader.boundSchemaNeedsFileSchema(task.readSchema()))) {
+        if (requiresSequentialWholeFileRead(configuredReader)) {
             fileSplits.add(
                 FileSplit.withReadSchema(
                     "file",

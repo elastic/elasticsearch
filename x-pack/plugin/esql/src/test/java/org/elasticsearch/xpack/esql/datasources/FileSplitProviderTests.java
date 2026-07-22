@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -868,130 +867,6 @@ public class FileSplitProviderTests extends ESTestCase {
             }
             assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
         }
-    }
-
-    /**
-     * A reader that cannot decode from its bound schema alone needs facts about the file that the projection
-     * does not carry, and those must be resolved once for the whole file. Splitting it would have each split
-     * resolve them from its own rows, so two splits of one file decode the same column differently — values
-     * where a split happened to contain the evidence, nulls where it did not.
-     */
-    public void testReaderNeedingTheFileSchemaIsKeptWhole() {
-        assertEquals("a reader needing the file's schema must not be split", 1, discoverSplitsForSchemaHungryReader(true).size());
-    }
-
-    /** Control: the same file and reader, without that need, still macro-splits as usual. */
-    public void testReaderNotNeedingTheFileSchemaStillSplits() {
-        assertTrue("baseline must macro-split, or the test above proves nothing", discoverSplitsForSchemaHungryReader(false).size() > 1);
-    }
-
-    private List<ExternalSplit> discoverSplitsForSchemaHungryReader(boolean needsFileSchema) {
-        StringBuilder sb = new StringBuilder();
-        while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
-            sb.append("{\"a.b\":1}\n");
-        }
-        byte[] payload = sb.toString().getBytes(StandardCharsets.UTF_8);
-
-        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy(
-            "hungry",
-            (s, bf) -> new SchemaHungryReader(needsFileSchema, CSV_MIN_SEGMENT_BYTES),
-            Settings.EMPTY,
-            null
-        );
-        formatRegistry.registerExtension(".ndjson", "hungry");
-        formatRegistry.byName("hungry");
-
-        FileSplitProvider splitter = new FileSplitProvider(
-            CSV_MIN_SEGMENT_BYTES,
-            new DecompressionCodecRegistry(),
-            createPayloadStorageRegistry(payload),
-            formatRegistry,
-            Settings.EMPTY
-        );
-
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/f.ndjson"), payload.length, Instant.EPOCH);
-        // A dotted leaf with no prefix column — the shape whose reader cannot decode from the projection alone.
-        // Passing it for real is what pins the provider handing the file's schema to the reader's predicate.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
-            entry.path(),
-            new SchemaReconciliation.FileSchemaInfo(
-                new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "a.b", DataType.LONG))),
-                null,
-                null,
-                null
-            )
-        );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null,
-            GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson"),
-            schemaMap,
-            Map.of(),
-            PartitionMetadata.EMPTY,
-            List.of(),
-            ExternalSchema.EMPTY,
-            null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.NONE
-        );
-        return splitter.discoverSplits(ctx).splits();
-    }
-
-    /** Reports that its bound schema is not enough to decode from, the way a dotted-leaf projection is not. */
-    private static class SchemaHungryReader implements SegmentableFormatReader, NoConfigFormatReader {
-        private final boolean needsFileSchema;
-        private final long minSegmentSize;
-
-        SchemaHungryReader(boolean needsFileSchema, long minSegmentSize) {
-            this.needsFileSchema = needsFileSchema;
-            this.minSegmentSize = minSegmentSize;
-        }
-
-        @Override
-        public boolean boundSchemaNeedsFileSchema(List<Attribute> readSchema) {
-            // Keyed on the argument, not just the flag: the gate hangs on the provider passing the file's
-            // resolved schema here, and a stub that ignored it would stay green if the provider passed null.
-            return needsFileSchema && readSchema != null && readSchema.isEmpty() == false;
-        }
-
-        @Override
-        public RowPositionStrategy rowPositionStrategy() {
-            return PassThroughRowPositionStrategy.INSTANCE;
-        }
-
-        @Override
-        public RecordSplitter recordSplitter(int maxRecordBytes) {
-            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
-        }
-
-        @Override
-        public long minimumSegmentSize() {
-            return minSegmentSize;
-        }
-
-        @Override
-        public SourceMetadata metadata(StorageObject object) {
-            return null;
-        }
-
-        @Override
-        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
-            throw new UnsupportedOperationException("split discovery only");
-        }
-
-        @Override
-        public String formatName() {
-            return "hungry";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".ndjson");
-        }
-
-        @Override
-        public void close() {}
     }
 
     private List<ExternalSplit> discoverRealDelimitedSplits(

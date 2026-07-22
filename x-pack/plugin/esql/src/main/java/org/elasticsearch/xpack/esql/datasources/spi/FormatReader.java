@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.Closeable;
@@ -327,24 +326,6 @@ public interface FormatReader extends Closeable {
      * throughput-sensitive reads actually use.
      */
     default boolean declaredNameBindingNeedsFileStart() {
-        return false;
-    }
-
-    /**
-     * Whether this reader still needs the file's own schema even though {@code readSchema} is bound — that is,
-     * whether the bound schema alone is not enough to decode the file correctly.
-     * <p>
-     * A bound schema is a projection: it names the columns the query wants, and nothing else. Some formats need
-     * to know about columns the query never asked for in order to read the ones it did. NDJSON is the case that
-     * matters: it decodes a flat dotted key {@code "a.b"} as one field only when the file also has a column
-     * {@code "a"}, and reads it as a nested path otherwise — so a projection naming {@code a.b} without {@code a}
-     * decodes the wrong thing on any file that has both.
-     * <p>
-     * When this returns true, whoever splits the file into chunks must resolve the file's schema once and give
-     * every chunk the same answer. Resolving it per chunk lets two chunks of one file disagree — a chunk whose
-     * records happen not to mention {@code a} would decode {@code a.b} differently from one that does.
-     */
-    default boolean boundSchemaNeedsFileSchema(@Nullable List<Attribute> readSchema) {
         return false;
     }
 

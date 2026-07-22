@@ -365,60 +365,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * When the planner has already resolved this file's schema, the coordinator must not infer one from
-     * the first chunk.
-     * <p>
-     * Inferring anyway does not merely waste a pass: the inferred schema is bound onto the reader, and a
-     * reader that also holds the planner's schema has no way to tell which of the two is authoritative.
-     * A column declared {@code long} whose first chunk happens to hold small values comes back as
-     * {@code int}, and the block then fails to cast in an engine still expecting {@code long}. That is
-     * the compressed-read crash; this test pins the coordinator's half of the fix.
-     */
-    public void testBoundReadSchemaSuppressesFirstChunkInference() throws Exception {
-        int lineCount = 5000;
-        String content = buildContent(lineCount);
-        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-
-        ExecutorService executor = Executors.newFixedThreadPool(8);
-        try {
-            // Small chunkSize forces many chunks; parallelism > 1 so the streaming segmentator actually
-            // runs (at parallelism 1 the serial path never rebinds and the test would prove nothing).
-            LineFormatReader reader = new LineFormatReader(1024);
-            List<Attribute> boundSchema = List.of(new ReferenceAttribute(Source.EMPTY, "line", DataType.KEYWORD));
-
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    stream,
-                    null,
-                    List.of("line"),
-                    100,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT,
-                    boundSchema,
-                    0L,
-                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    null,
-                    -1L,
-                    StripeColumnScope.PROJECTED,
-                    StreamingParallelParsingCoordinator.WarningSinks.NONE
-                )
-            );
-
-            assertEquals(lineCount, allLines.size());
-            assertEquals("the planner resolved this file's schema, so the coordinator must not infer one", 0, reader.metadataCalls.get());
-            assertEquals("no chunk should be parsed against a reader bound to an inferred schema", 0, reader.boundReadCalls.get());
-            assertTrue(
-                "every chunk should be parsed against the reader the planner configured, got " + reader.unboundReadCalls.get(),
-                reader.unboundReadCalls.get() > 1
-            );
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    /**
      * The segmentator only dispatches a chunk after locating its trailing {@code \n} (carry-over
      * is shifted into the next chunk), so every chunk handed to a parser ends on a record
      * terminator. The coordinator therefore must mark every chunk {@code lastSplit=true} so the

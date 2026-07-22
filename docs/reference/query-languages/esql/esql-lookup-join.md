@@ -76,7 +76,6 @@ FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 
 ```{applies_to}
 stack: ga 9.6+
-serverless: unavailable
 ```
 
 When running a cross-cluster query, you can use the `_coordinator:` prefix to execute a `LOOKUP JOIN` on the [coordinating node](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role) of the local cluster:

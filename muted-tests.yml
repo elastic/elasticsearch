@@ -535,9 +535,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
-- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
-  method: testBootstrapOnlyVotingOnlyNodes
-  issue: https://github.com/elastic/elasticsearch/issues/154563
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
   issue: https://github.com/elastic/elasticsearch/issues/154568

@@ -13,8 +13,8 @@ jobs:
     name: Trigger Buildkite test analysis pipeline
     if: |
       github.repository == 'elastic/elasticsearch' &&
-      contains(toJson(github.event.issue.labels.*.name), 'needs:risk') &&
-      contains(toJson(github.event.issue.labels.*.name), '>test-failure') &&
+      contains(github.event.issue.labels.*.name, 'needs:risk') &&
+      contains(github.event.issue.labels.*.name, '>test-failure') &&
       (
         github.event.label.name == 'needs:risk' ||
         github.event.label.name == '>test-failure' ||
@@ -32,7 +32,7 @@ jobs:
           ISSUE_URL:    ${{ github.event.issue.html_url }}
           ISSUE_TITLE:  ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          REPORT_TO_PR: ${{ contains(toJson(github.event.issue.labels.*.name), 'Team:Delivery') || contains(toJson(github.event.issue.labels.*.name), 'Team:Core/Infra') }}
+          REPORT_TO_PR: ${{ contains(github.event.issue.labels.*.name, 'Team:Delivery') || contains(github.event.issue.labels.*.name, 'Team:Core/Infra') }}
         run: |
           set -euo pipefail
 

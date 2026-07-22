@@ -1983,6 +1983,32 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for the given index (pattern) to be at least yellow with no shards initializing or relocating. This is the
+     * appropriate wait condition before querying for documents written prior to a restart or upgrade: yellow alone is
+     * satisfied as soon as the primary is STARTED, but searches routed to an INITIALIZING replica can return stale or
+     * empty results until peer recovery completes, which often surfaces as a 404 from APIs that translate "no hits" to
+     * "not found".
+     *
+     * Prefer this over a raw {@link #ensureHealth} call in any BWC, full-cluster-restart, or rolling-upgrade test that
+     * reads back data indexed before the restart/upgrade. {@link #ensureGreen} is unsuitable for the MIXED phase of
+     * rolling-upgrade tests on indices with {@code auto_expand_replicas=0-1}, since one node is offline at a time and
+     * the cluster legitimately stays yellow.
+     *
+     * @param index index pattern to check (use {@code ""} for cluster-wide health)
+     * @param timeout optional health-check timeout (e.g. {@code "120s"}); {@code null} uses the server default
+     */
+    public static void ensureYellowAndNoInitializingShards(String index, String timeout) throws IOException {
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("wait_for_no_initializing_shards", "true");
+            if (timeout != null) {
+                request.addParameter("timeout", timeout);
+            }
+        });
+    }
+
+    /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */

@@ -880,7 +880,7 @@ public class IndexEngine extends InternalEngine {
     // For cleanup after resharding
     public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
         super.deleteByQuery(query);
-        // Soft-deletes do not advance max seqno; bump force-merge UUID so getShardStateId changes.
+        // Bypasses ES delete ops (no seqno); bump force-merge UUID so getShardStateId changes.
         onShardContentChanged();
     }
 

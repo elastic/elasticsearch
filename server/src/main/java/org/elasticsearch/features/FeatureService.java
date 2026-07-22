@@ -25,7 +25,6 @@ import java.util.Map;
  * For more information, see {@link FeatureSpecification}.
  */
 public class FeatureService {
-
     public static final NodeFeature TEST_FEATURES_ENABLED = new NodeFeature("test_features_enabled");
 
     private static final Logger logger = LogManager.getLogger(FeatureService.class);

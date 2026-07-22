@@ -42,8 +42,9 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
             threadPool,
             client,
             xContentRegistry,
+            featureService,
             templateFilter(isDataStreamsLifecycleOnlyMode(clusterService.getSettings())),
-            featureService
+            NODE_FEATURE_FILTERS
         );
     }
 

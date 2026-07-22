@@ -515,7 +515,10 @@ public class SparseFileTrackerTests extends ESTestCase {
             for (long i = gap.start(); i < gap.end(); i++) {
                 if (randomBoolean()) {
                     gap.onProgress(i + 1);
-                    if (i >= 40) {
+                    // future1 is completed when gaps are filled to its upper boundary of 40. However, if the gap.onProgress is called
+                    // with the gap's end, i.e. 50, the gap's listeners are not invoked until gap.onCompletion is called. So we include
+                    // that in the condition check.
+                    if (i >= 40 && i + 1 != 50L) {
                         assertTrue(future1.isDone());
                     }
                 }

@@ -232,5 +232,3 @@ Search:
 
 Security:
 * Deprecate certificate based remote cluster security model [#120806](https://github.com/elastic/elasticsearch/pull/120806)
-
-

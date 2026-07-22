@@ -17,11 +17,14 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  */
 final class EscfBoolColumn extends EscfColumn {
 
-    /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. */
+    /**
+     * Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}.
+     * Always zero-based and covers {@code [0, docCount)} when non-null.
+     */
     private final FixedBitSet values;
 
-    EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
-        super(docCount, absent);
+    EscfBoolColumn(int docCount, FixedBitSet validity, FixedBitSet values) {
+        super(docCount, validity);
         this.values = values;
     }
 
@@ -31,18 +34,28 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
-        return bitSet(d) ? SourceValueType.TRUE : SourceValueType.FALSE;
+    byte typeByteForPresent(int row) {
+        return bitSet(row) ? SourceValueType.TRUE : SourceValueType.FALSE;
     }
 
     @Override
-    boolean getBooleanValue(int d) {
-        return bitSet(d);
+    boolean getBooleanValue(int row) {
+        return bitSet(row);
     }
 
-    private boolean bitSet(int d) {
-        // The value bitset is sized only to the last true document (and is null when there are none),
-        // so any doc beyond its length reads false. Mirrors EscfColumn#isAbsent.
-        return values != null && d < values.length() && values.get(d);
+    private boolean bitSet(int row) {
+        // values is null or covers [0, docCount), so no length guard is needed.
+        return values != null && values.get(row);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfBoolColumn(count, windowValidity(validity, from, count), windowBitSet(values, from, count));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        // validity and values are already windowed and zero-based; return them directly.
+        return EscfColumnData.ofBool(docCount, validity, values);
     }
 }

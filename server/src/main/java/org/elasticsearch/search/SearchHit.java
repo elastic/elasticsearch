@@ -28,7 +28,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -294,7 +293,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+    public long ramBytesUsed() {
+        return SearchHitRamUsageEstimator.estimate(this);
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

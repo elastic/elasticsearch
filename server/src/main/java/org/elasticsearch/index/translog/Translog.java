@@ -673,10 +673,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds an source batch to the transaction log as a single record. The returned {@link Location}
-     * covers the whole batch; on read, {@link TranslogSnapshot#next()} explodes the record back into
-     * individual {@link Index} ops. Reading the batch back via {@link BaseTranslogReader#read(Location)}
-     * is not currently supported.
+     * Adds a source batch to the transaction log as a single record. The returned {@link Location}
+     * covers the whole batch. On snapshot reads, {@link TranslogSnapshot#next()} explodes the record
+     * back into individual {@link Index} ops. To read a single document by row, use
+     * {@link BaseTranslogReader#read(Location)} with a {@link Location} that carries a non-negative
+     * {@code batchRowIndex}.
      */
     public Location add(final IndexBatch batch) throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
@@ -853,6 +854,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * this method will return <code>null</code>.
      */
     public Operation readOperation(Location location) throws IOException {
+        return readOperation(location, -1);
+    }
+
+    /**
+     * Reads and returns the operation from the given location. If the record is an {@link IndexBatch}
+     * and {@code rowIndex >= 0}, returns that row's {@link Index} operation. A batch record with
+     * {@code rowIndex < 0} throws. Returns {@code null} if the generation is no longer available.
+     */
+    public Operation readOperation(Location location, int rowIndex) throws IOException {
         try {
             readLock.lock();
             try {
@@ -863,13 +873,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (current.generation == location.generation) {
                     // no need to fsync here the read operation will ensure that buffers are written to disk
                     // if they are still in RAM and we are reading onto that position
-                    return current.read(location);
+                    return current.read(location, rowIndex);
                 } else {
                     // read backwards - it's likely we need to read on that is recent
                     for (int i = readers.size() - 1; i >= 0; i--) {
                         TranslogReader translogReader = readers.get(i);
                         if (translogReader.generation == location.generation) {
-                            return translogReader.read(location);
+                            return translogReader.read(location, rowIndex);
                         }
                     }
                 }
@@ -1112,7 +1122,39 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (result == 0) {
                 result = Long.compare(translogLocation, o.translogLocation);
             }
+
             return result;
+        }
+    }
+
+    /**
+     * Pairs a {@link Location} with an optional batch row index for use by the live version map
+     * and the realtime GET path.
+     *
+     * <p>{@code rowIndex} is {@code -1} for a whole-record location and {@code >= 0}
+     * when it pins a single document's row within a batch.
+     */
+    public record OperationLocation(Location location, int rowIndex) {
+
+        /**
+         * Ensure that location is non-null
+         */
+        public OperationLocation {
+            Objects.requireNonNull(location, "location must not be null");
+        }
+
+        /**
+         * Creates a whole-record location that is not a batch row (i.e. {@code rowIndex == -1}).
+         */
+        public OperationLocation(Location location) {
+            this(location, -1);
+        }
+
+        /**
+         * Whether this location pins a single document's row within a batch ({@link IndexBatch}).
+         */
+        public boolean isBatchRow() {
+            return rowIndex >= 0;
         }
     }
 
@@ -2004,6 +2046,50 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     }
                 }
                 return out;
+            }
+        }
+
+        /**
+         * Gets a single document's {@link Index} operation from this batch by row index,
+         * without re-materializing the other rows
+         */
+        public Index getIndexOp(int rowIndex) throws IOException {
+            // TODO: Batches may still be encoded as EIRF (row-major) in some tests; pick the reader by magic.
+            // This branch goes away once we fully transition to the column format (ESCF).
+            IndexOp indexOp = null;
+            for (Op op : ops) {
+                if (op instanceof IndexOp io && io.rowIndex() == rowIndex) {
+                    indexOp = io;
+                    break;
+                }
+            }
+            if (indexOp == null) {
+                throw new IOException("No IndexOp with rowIndex " + rowIndex + " in this batch");
+            }
+            try (SourceBatch sourceBatch = openBatch(batchData)) {
+                if (indexOp.rowIndex() >= sourceBatch.docCount()) {
+                    throw new IOException(
+                        "IndexOp rowIndex [" + indexOp.rowIndex() + "] out of range for batch with [" + sourceBatch.docCount() + "] rows"
+                    );
+                }
+
+                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
+                SourceRow row = sourceBatch.row(indexOp.rowIndex());
+                BytesReference source;
+                try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
+                    EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                    source = BytesReference.bytes(builder);
+                }
+
+                return new Index(
+                    indexOp.uid(),
+                    indexOp.seqNo(),
+                    primaryTerm,
+                    indexOp.version(),
+                    source,
+                    indexOp.routing(),
+                    indexOp.autoGeneratedIdTimestamp()
+                );
             }
         }
 

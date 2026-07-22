@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
@@ -101,6 +102,8 @@ public abstract class FullTextFunction extends Function
         PostOptimizationVerificationAware,
         RewriteableAware,
         PostOptimizationPlanVerificationAware {
+
+    public static final TransportVersion ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS = TransportVersion.fromName("esql_options_for_search_functions");
 
     // TODO: This message omits HIGHLIGHT, which supports MATCH, MATCH_PHRASE, QSTR, and KQL (see
     // HighlightQueryBuilders#verifyQueryStructure). We cannot simply append it because KNN also shares this message but

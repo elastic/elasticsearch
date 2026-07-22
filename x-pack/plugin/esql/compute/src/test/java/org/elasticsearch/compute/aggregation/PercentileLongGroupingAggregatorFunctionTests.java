@@ -34,7 +34,7 @@ public class PercentileLongGroupingAggregatorFunctionTests extends GroupingAggre
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileLongAggregatorFunctionSupplier(percentile);
+        return new PercentileLongAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION);
     }
 
     @Override

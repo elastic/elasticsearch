@@ -8,7 +8,13 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -18,6 +24,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -29,6 +36,7 @@ import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOp
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -520,6 +528,44 @@ public class HighlightOperatorTests extends OperatorTestCase {
             assertThat(value(result, 1), equalTo("the <em>fox</em> in the barn"));
         } finally {
             result.close();
+        }
+    }
+
+    public void testCustomAnalyzerMatchesThroughSynonyms() throws IOException {
+        // The keep-word matcher compares post-analysis tokens against post-analysis query terms, so filtering must
+        // compose with whatever a custom analyzer emits — including tokens that never appear in the original text.
+        // Here the analyzer injects "automobile" as a synonym of "car": the query term can only match through the
+        // injected token, so if filtering compared raw text (or dropped injected tokens) row 1 would wrongly yield
+        // null. The snippet must wrap the original "car", whose offsets the injected token carries. Row 2 keeps no
+        // tokens and exercises the short-circuit under a custom analyzer.
+        SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
+        synonyms.add(new CharsRef("car"), new CharsRef("automobile"), true);
+        SynonymMap synonymMap = synonyms.build();
+        Analyzer analyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new StandardTokenizer();
+                TokenStream stream = new LowerCaseFilter(tokenizer);
+                stream = new SynonymGraphFilter(stream, synonymMap, true);
+                return new TokenStreamComponents(tokenizer, stream);
+            }
+        };
+        BytesRefBlock input = bytesRefs(List.of(List.of("the red car drives"), List.of("a plain sentence")));
+        try (
+            HighlightOperator operator = new HighlightOperator(
+                blockFactory(),
+                config("automobile", 5, 0, 0).withExecutionContext(analyzer, contentTerm("automobile"), CONTENT),
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
+            )
+        ) {
+            Page result = operator.process(new Page(input));
+            BytesRefBlock highlighted = result.getBlock(result.getBlockCount() - 1);
+            try {
+                assertThat(value(highlighted, 0), equalTo("the red <em>car</em> drives"));
+                assertThat(highlighted.isNull(1), equalTo(true));
+            } finally {
+                result.releaseBlocks();
+            }
         }
     }
 

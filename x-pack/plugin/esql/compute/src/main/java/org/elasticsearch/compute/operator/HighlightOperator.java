@@ -8,18 +8,27 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
+import org.apache.lucene.search.uhighlight.CharArrayMatcher;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -39,7 +48,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyze
 
 import java.io.IOException;
 import java.text.BreakIterator;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -97,6 +108,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final MemoryIndex memoryIndex;
     private final LeafReader memoryIndexReader;
     private final CustomUnifiedHighlighter[] highlighters;
+    // Matcher for tokens the query could possibly match, or null when filtering is disabled for this query (see
+    // buildKeepWordMatcher). Restricting indexing to only these tokens is the Phase 2 optimization: hashing and
+    // sorting inside MemoryIndex.storeTerms/createSearcher scale with the number of distinct terms in the row, but
+    // the highlighter only ever looks up query terms, so indexing everything else is pure waste.
+    private final CharArrayMatcher keepWordMatcher;
 
     public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
         this.blockFactory = blockFactory;
@@ -148,6 +164,85 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 true
             );
         }
+        this.keepWordMatcher = buildKeepWordMatcher(query);
+    }
+
+    /**
+     * Matcher for tokens the query could possibly need — either to highlight, or to correctly decide whether a row
+     * matches at all — or {@code null} when the query contains clauses whose terms cannot be enumerated
+     * (multi-term/automaton queries, unknown leaves) — in that case every token is indexed, as before.
+     * <p>
+     * Union across ON fields is intentional: one matcher is built from all query terms regardless of field. Keeping
+     * a token in field B's postings that only field A's query mentions is harmless — the highlighter looks up
+     * {@code field:term} postings, so it can never produce a false highlight from an over-kept token. Splitting the
+     * matcher per field is a possible later micro-optimization, not needed here.
+     * <p>
+     * {@code MUST_NOT} terms are deliberately kept, even though the highlighter never wraps them in tags. Unlike
+     * Lucene's {@code MemoryIndexOffsetStrategy} (which only ever runs highlighting on a document some outer query
+     * engine has already confirmed matches, against the real index), this operator's per-row memory index is the
+     * *only* thing that decides whether the row matches — {@link CustomUnifiedHighlighter#highlightField}
+     * re-evaluates the query against it. Dropping a {@code MUST_NOT} term from the index would erase the evidence
+     * needed to exclude the row, turning a real non-match into a false highlight. Keeping it costs nothing extra in
+     * the common case (prohibited terms are rare) and preserves exact parity with the unfiltered behavior.
+     * <p>
+     * Any other non-enumerable leaf disables filtering entirely (conservative): a dropped token can never be
+     * highlighted, so under-keeping would cause wrong results, while over-keeping (i.e. not filtering at all) only
+     * costs performance.
+     */
+    private static CharArrayMatcher buildKeepWordMatcher(Query query) {
+        List<BytesRef> terms = new ArrayList<>();
+        boolean[] unfilterable = new boolean[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public void consumeTerms(Query q, Term... queryTerms) {
+                for (Term term : queryTerms) {
+                    terms.add(term.bytes());
+                }
+            }
+
+            @Override
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                unfilterable[0] = true; // wildcard/prefix/regexp etc. — cannot enumerate safely
+            }
+
+            @Override
+            public void visitLeaf(Query q) {
+                unfilterable[0] = true; // leaf that reported no terms — we don't know what it matches
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                // QueryVisitor's own default implementation returns EMPTY_VISITOR for MUST_NOT, skipping its terms
+                // entirely. That default is wrong for us (see this method's Javadoc on MUST_NOT above), so every
+                // occur, including MUST_NOT, must keep recursing into this same visitor.
+                return this;
+            }
+        });
+        if (unfilterable[0] || terms.isEmpty()) {
+            return null;
+        }
+        for (BytesRef term : terms) {
+            if (term.length >= Automata.MAX_STRING_UNION_TERM_LENGTH) {
+                return null; // CharArrayMatcher.fromTerms cannot build an automaton over huge terms
+            }
+        }
+        // The underlying string-union automaton builder requires strictly sorted, de-duplicated input.
+        Collections.sort(terms);
+        dedupeSorted(terms);
+        return CharArrayMatcher.fromTerms(terms);
+    }
+
+    // Removes adjacent duplicates from an already-sorted list in place. Query terms often repeat across clauses
+    // (e.g. the same term MUST'd and used in a phrase), and the string-union automaton builder rejects duplicates.
+    private static void dedupeSorted(List<BytesRef> sortedTerms) {
+        int writeIndex = 0;
+        for (int readIndex = 0; readIndex < sortedTerms.size(); readIndex++) {
+            BytesRef term = sortedTerms.get(readIndex);
+            if (writeIndex == 0 || term.equals(sortedTerms.get(writeIndex - 1)) == false) {
+                sortedTerms.set(writeIndex++, term);
+            }
+        }
+        sortedTerms.subList(writeIndex, sortedTerms.size()).clear();
     }
 
     // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.
@@ -232,7 +327,12 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             appendNulls(fields);
             return;
         }
-        fillRowIndex(fields);
+        if (fillRowIndex(fields)) {
+            // The query can't match anything kept from this row and no_match_size == 0, so every field's output is
+            // null by definition — skip building highlighters' passages entirely.
+            appendNulls(fields);
+            return;
+        }
         for (int fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
             HighlightField field = fields[fieldIndex];
             if (field.rowText == null) {
@@ -249,12 +349,57 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     // Refills the shared memory index for the current row. reset() clears previously indexed fields/terms so each
     // row starts from an empty index; the index, its reader, and the highlighters below are otherwise untouched.
-    private void fillRowIndex(HighlightField[] fields) {
+    // When keepWordMatcher is non-null, only tokens the query could match are indexed (Phase 2): the rest are
+    // dropped before they ever reach MemoryIndex.addField, so hashing and sorting only ever see query terms.
+    // Returns true when the caller can short-circuit straight to nulls: nothing was kept anywhere in the row *and*
+    // no_match_size is 0 (with no_match_size > 0 a miss must still return leading text, which requires running the
+    // highlighter — this guard must not skip that case).
+    private boolean fillRowIndex(HighlightField[] fields) {
         memoryIndex.reset();
+        int keptTokens = 0;
         for (HighlightField field : fields) {
-            if (field.rowText != null) {
-                memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
+            if (field.rowText == null) {
+                continue;
             }
+            if (keepWordMatcher == null) {
+                memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
+                keptTokens = -1; // unknown — never short-circuit without filtering
+            } else {
+                TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
+                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepWordMatcher);
+                memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
+                if (keptTokens >= 0) {
+                    keptTokens += filtered.kept;
+                }
+            }
+        }
+        return keptTokens == 0 && config.noMatchSize() == 0;
+    }
+
+    /**
+     * Drops tokens the query cannot match before they reach the memory index, so hashing and sorting only ever see
+     * query terms. {@link FilteringTokenFilter} accumulates position increments for the dropped tokens, so kept
+     * tokens retain their original positions and phrase queries still match (or fail to match) exactly as they
+     * would against the unfiltered index. Mirrors what Lucene's {@code MemoryIndexOffsetStrategy} does for
+     * Query DSL highlighting.
+     */
+    private static final class KeepQueryTermsFilter extends FilteringTokenFilter {
+        private final CharArrayMatcher matcher;
+        private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+        private int kept = 0;
+
+        KeepQueryTermsFilter(TokenStream in, CharArrayMatcher matcher) {
+            super(in);
+            this.matcher = matcher;
+        }
+
+        @Override
+        protected boolean accept() {
+            boolean keep = matcher.match(termAtt.buffer(), 0, termAtt.length());
+            if (keep) {
+                kept++;
+            }
+            return keep;
         }
     }
 

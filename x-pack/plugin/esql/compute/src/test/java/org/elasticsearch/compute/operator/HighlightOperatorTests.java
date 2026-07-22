@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -421,6 +422,104 @@ public class HighlightOperatorTests extends OperatorTestCase {
             assertThat(value(highlightBody, 1), equalTo("a <em>fox</em> in the barn"));
         } finally {
             result.releaseBlocks();
+        }
+    }
+
+    // Phase 2 filtering tests: only tokens the query can match are indexed (see HighlightOperator#buildKeepWordMatcher
+    // and #fillRowIndex). Each test below targets a specific correctness risk that dropping non-query tokens could
+    // introduce.
+
+    public void testFilteredIndexPreservesPositionsForPhrases() {
+        // Row 1: "fox" and "jumps" are adjacent (positions 0,1) -> the slop-0 phrase matches.
+        // Row 2: "quickly" sits between them; after filtering it's dropped but its position increment is kept, so
+        // the filtered index has fox=0, jumps=2 -> the phrase must NOT match. A broken position-increment carry
+        // (fox=0, jumps=1) would make this row falsely match.
+        Query phraseQuery = new PhraseQuery(CONTENT_FIELD, "fox", "jumps");
+        BytesRefBlock result = highlight(
+            config("\"fox jumps\"", 5, 0, 0),
+            phraseQuery,
+            bytesRefs(List.of(List.of("fox jumps high"), List.of("fox quickly jumps")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>fox jumps</em> high"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testNoMatchSizeStillReturnsLeadingTextWithFiltering() {
+        // A miss row (no "fox") sits between two hit rows; no_match_size > 0 means the miss row must still run the
+        // highlighter and return its leading text rather than being short-circuited to null.
+        BytesRefBlock result = highlight(
+            config("fox", 5, 0, 200),
+            bytesRefs(
+                List.of(List.of("The quick fox jumps."), List.of("Gardens and flowers bloom in spring."), List.of("A fox in the barn."))
+            )
+        );
+        try {
+            assertThat(value(result, 0), equalTo("The quick <em>fox</em> jumps."));
+            assertThat(value(result, 1), equalTo("Gardens and flowers bloom in spring."));
+            assertThat(value(result, 2), equalTo("A <em>fox</em> in the barn."));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testShortCircuitMissRowsYieldNull() {
+        // no_match_size == 0, so a row where filtering keeps nothing hits the fillRowIndex short-circuit directly.
+        BytesRefBlock result = highlight(
+            config("fox", 5, 0, 0),
+            bytesRefs(
+                List.of(List.of("The quick fox jumps."), List.of("Gardens and flowers bloom in spring."), List.of("A fox in the barn."))
+            )
+        );
+        try {
+            assertThat(value(result, 0), equalTo("The quick <em>fox</em> jumps."));
+            assertThat(result.isNull(1), equalTo(true));
+            assertThat(value(result, 2), equalTo("A <em>fox</em> in the barn."));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiTermQueryDisablesFiltering() {
+        // PrefixQuery triggers consumeTermsMatching, which cannot be enumerated into a keep-word matcher, so
+        // filtering must be silently disabled (every token indexed, as before Phase 2) and highlighting must still
+        // produce the same output it would without filtering, including a plain miss row yielding null.
+        Query prefixQuery = new PrefixQuery(new Term(CONTENT_FIELD, "fo"));
+        BytesRefBlock result = highlight(
+            config("fo*", 5, 0, 0),
+            prefixQuery,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMustNotTermsAreNotHighlighted() {
+        // MUST_NOT terms are kept in the filtered index (see buildKeepWordMatcher's Javadoc): unlike Lucene's
+        // MemoryIndexOffsetStrategy, this operator's memory index is the only thing that decides whether a row
+        // matches, so dropping "dog" would erase the evidence needed to correctly exclude row 1. Row 2 has no
+        // prohibited term, matches, and highlights only "fox" — "dog" never gets wrapped in tags even when kept,
+        // because the highlighter never produces spans for MUST_NOT clauses.
+        Query query = new BooleanQuery.Builder().add(termQuery(CONTENT_FIELD, "fox"), BooleanClause.Occur.MUST)
+            .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
+            .build();
+        BytesRefBlock result = highlight(
+            config("+fox -dog", 5, 0, 0),
+            query,
+            bytesRefs(List.of(List.of("the fox and the dog"), List.of("the fox in the barn")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+            assertThat(value(result, 1), equalTo("the <em>fox</em> in the barn"));
+        } finally {
+            result.close();
         }
     }
 

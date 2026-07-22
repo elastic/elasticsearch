@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPluginIntegTestCase {
@@ -135,7 +136,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         for (var blob : blobs) {
             assertThat(
                 "every indexed doc carries @timestamp so backfill resolves to a real data timestamp",
-                blob.dataTimestamp(),
+                blob.maxDataTimestamp(),
                 not(equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
             );
         }
@@ -154,6 +155,97 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         assertBusy(() -> {
             var readBlobKeys = cacheService.capturedKeys().stream().filter(blobsByKey::containsKey).collect(Collectors.toSet());
             assertMetadataReadRegionsBackfilled(cacheService, blobsByKey, readBlobKeys);
+        });
+    }
+
+    /// Packs three compound commits with *mixed* `@timestamp` values into a single BCC blob and verifies that a search-shard recovery
+    /// folds that blob to a single timestamp: the most recent known cache midpoint across its compound commits. The commit without a
+    /// `@timestamp` value (UNKNOWN midpoint) and the older timestamped commit must both inherit the most recent commit's timestamp, never
+    /// dragging the blob's regions to UNKNOWN.
+    public void testRecoveryBackfillsMultiCcBlobWithSingleMostRecentTimestamp() throws Exception {
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 3).build()
+        );
+        var indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            ).setMapping("@timestamp", "type=date")
+        );
+
+        // An older timestamped commit, then an untimestamped one, then the most recent timestamped commit. No flush: the third refresh
+        // trips the count cutoff and uploads all three as one blob.
+        long high = randomLongBetween(2, MAX_MILLIS_BEFORE_9999);
+        long low = randomLongBetween(1, high - 1);
+        indexTimestampedDocs(indexName, low);
+        indexUntimestampedDocs(indexName);
+        indexTimestampedDocs(indexName, high);
+
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
+        var commitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
+
+        // The cutoff-triggered upload is async, so wait for the packed blob to appear before reading its layout.
+        assertBusy(() -> {
+            var currentBlobs = readBlobInfosFromObjectStore(shardId, primaryTerm, indexNode, commitsContainer);
+            assertThat(
+                "the count cutoff must pack all three compound commits into one blob, got " + currentBlobs,
+                currentBlobs.stream().anyMatch(b -> b.ccMidpoints().size() == 3),
+                equalTo(true)
+            );
+        });
+        var multiCcBlob = readBlobInfosFromObjectStore(shardId, primaryTerm, indexNode, commitsContainer).stream()
+            .filter(b -> b.ccMidpoints().size() == 3)
+            .findFirst()
+            .orElseThrow();
+
+        // The blob genuinely mixes an untimestamped commit with two timestamped ones, and folds to the most recent (higher) midpoint.
+        assertThat(
+            "one commit has no @timestamp (UNKNOWN midpoint)",
+            multiCcBlob.ccMidpoints(),
+            hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+        );
+        var knownMidpoints = multiCcBlob.ccMidpoints()
+            .stream()
+            .filter(ts -> ts != SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+            .sorted()
+            .toList();
+        assertThat("two commits carry a @timestamp", knownMidpoints.size(), equalTo(2));
+        assertThat("there is an older known midpoint that must not win the fold", knownMidpoints.get(0), lessThan(knownMidpoints.get(1)));
+        assertThat("the fold picks the single most recent known midpoint", multiCcBlob.maxDataTimestamp(), equalTo(knownMidpoints.get(1)));
+
+        // Recover the search shard: it reads the blob's metadata (stamping BACKFILL_IN_PROGRESS) and backfills its regions.
+        var searchNode = startSearchNode();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        ensureGreen(indexName);
+
+        var cacheService = (CapturingCacheService) internalCluster().getInstance(
+            StatelessPlugin.SharedBlobCacheServiceSupplier.class,
+            searchNode
+        ).get();
+
+        assertBusy(() -> {
+            var captured = cacheService.capturedTimestamps(multiCcBlob.cacheKey());
+            assertThat("recovery must read the multi-CC blob's metadata", captured, not(empty()));
+            assertThat(
+                "the metadata read stamps the regions BACKFILL_IN_PROGRESS before backfill",
+                captured,
+                hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
+            );
+
+            var live = cacheService.liveTimestamps(multiCcBlob.cacheKey());
+            assertThat("backfill must leave the blob's regions live", live, not(empty()));
+            assertThat(
+                "the untimestamped and older commits inherit the single most recent known timestamp",
+                live,
+                hasItem(multiCcBlob.maxDataTimestamp())
+            );
+            assertThat(
+                "backfill must leave no region at the transient sentinel",
+                live,
+                not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+            );
         });
     }
 
@@ -327,7 +419,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         for (var blob : blobs) {
             assertThat(
                 "every indexed doc carries @timestamp so backfill resolves to a real data timestamp",
-                blob.dataTimestamp(),
+                blob.maxDataTimestamp(),
                 not(equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
             );
         }
@@ -346,10 +438,8 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         });
     }
 
-    /// A single BCC blob's cache key and the cache midpoint of each of its compound commits (UNKNOWN for a CC without a `@timestamp`
-    /// range), read from the object store. [#dataTimestamp()] is the single value the blob's metadata regions are backfilled with.
     private record BlobInfo(FileCacheKey cacheKey, List<Long> ccMidpoints) {
-        long dataTimestamp() {
+        long maxDataTimestamp() {
             return ccMidpoints.stream()
                 .filter(ts -> ts != SharedBlobCacheService.UNKNOWN_TIMESTAMP)
                 .max(Long::compare)
@@ -424,7 +514,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 live.size(),
                 greaterThan(1)
             );
-            assertThat("backfill must resolve regions to the blob's data timestamp", live, hasItem(blob.dataTimestamp()));
+            assertThat("backfill must resolve regions to the blob's data timestamp", live, hasItem(blob.maxDataTimestamp()));
             assertThat(
                 "backfill must leave no live region stamped BACKFILL_IN_PROGRESS_TIMESTAMP",
                 live,

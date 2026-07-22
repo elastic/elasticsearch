@@ -87,8 +87,7 @@ public sealed interface BoundsCheckModel {
      *     <li>a bounds-check annotation on a non-{@code MemorySegment} parameter;</li>
      *     <li>more than one bounds-check annotation on the same parameter;</li>
      *     <li>unresolved sibling parameter reference;</li>
-     *     <li>incorrect sibling parameter type;</li>
-     *     <li>incorrect attribute combination (e.g. two mutual exclusive attributes are both specified)</li>
+     *     <li>incorrect sibling parameter type</li>
      * </ul>
      */
     static List<BoundsCheckModel> from(ExecutableElement method, List<NativeType> paramTypes, Messager messager) {

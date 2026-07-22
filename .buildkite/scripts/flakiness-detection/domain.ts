@@ -128,7 +128,7 @@ export interface RunnableCommand {
 export interface BatchingConfig {
   capByKind: Record<TestKind, number>;
   itersByKind: Record<"test" | "internalClusterTest", number>;
-  // Loop count passed to .ci/scripts/repeat-rest-test.sh for all REST test kinds.
+  // Loop count passed to runners/repeat-rest-test.sh for all REST test kinds.
   // Shared across javaRestTest / yamlRestTestRunner / yamlRestTestSuite / yamlRestTestCase
   // because the bash wrapper has one knob and there's no operator scenario justifying
   // per-kind values.
@@ -137,7 +137,7 @@ export interface BatchingConfig {
   // "buildkite" emits `.ci/scripts/run-gradle.sh ...` (the BK-agent wrapper that
   // copies init.gradle, computes MAX_WORKERS, reads ldd version, etc. — Linux-only).
   // "local" emits `./gradlew ...` directly, suitable for a developer laptop.
-  // The `.ci/scripts/repeat-rest-test.sh` wrapper is portable bash and is used
+  // The `runners/repeat-rest-test.sh` wrapper is portable bash and is used
   // for both targets.
   target: "buildkite" | "local";
 }

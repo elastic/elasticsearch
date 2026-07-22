@@ -30,6 +30,16 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         return EscfColumn.from(data.child()).getBinaryValue(elemIdx).utf8ToString();
     }
 
+    private static long readArrayLong(EscfColumnData data, int row, int elemPos) {
+        int elemIdx = data.offsets()[row] + elemPos;
+        return EscfColumn.from(data.child()).getLongValue(elemIdx);
+    }
+
+    private static double readArrayDouble(EscfColumnData data, int row, int elemPos) {
+        int elemIdx = data.offsets()[row] + elemPos;
+        return EscfColumn.from(data.child()).getDoubleValue(elemIdx);
+    }
+
     private static int elemCount(EscfColumnData data, int row) {
         return data.offsets()[row + 1] - data.offsets()[row];
     }
@@ -233,7 +243,7 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         assertTrue("doc 2 absent", EscfColumn.from(data).isAbsent(2));
     }
 
-    /** Multi-value LONG → ARRAY[LONG]. */
+    /** Multi-value LONG → ARRAY[LONG] with correct element values after the compact-at-transition. */
     public void testLongMultiValuePromotesToArray() {
         EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.setLong(0, 1L);
@@ -242,6 +252,34 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         assertEquals(EscfColumnKind.ARRAY, data.kind());
         assertEquals(EscfColumnKind.LONG, data.child().kind());
         assertEquals(2, elemCount(data, 0));
+        assertEquals(1L, readArrayLong(data, 0, 0));
+        assertEquals(2L, readArrayLong(data, 0, 1));
+    }
+
+    /**
+     * ARRAY[LONG]: multiple docs, some with skip-rows before transition.
+     * The first element for doc 0 is written positionally; the second element triggers the compact.
+     * Doc 2 (absent) should have an empty range; doc 3 has two elements written after the compact.
+     */
+    public void testLongMultiDocArrayValues() {
+        EscfRowColumnBuilder builder = EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.setLong(0, 10L);
+        builder.setLong(0, 20L); // triggers compact
+        builder.setLong(1, 30L);
+        // doc 2: absent (skip)
+        builder.setLong(3, 40L);
+        builder.setLong(3, 50L);
+        EscfColumnData data = builder.finish(4);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(2, elemCount(data, 0));
+        assertEquals(10L, readArrayLong(data, 0, 0));
+        assertEquals(20L, readArrayLong(data, 0, 1));
+        assertEquals(1, elemCount(data, 1));
+        assertEquals(30L, readArrayLong(data, 1, 0));
+        assertEquals(0, elemCount(data, 2)); // absent
+        assertEquals(2, elemCount(data, 3));
+        assertEquals(40L, readArrayLong(data, 3, 0));
+        assertEquals(50L, readArrayLong(data, 3, 1));
     }
 
     /** setLong on a non-LONG builder triggers an AssertionError. */
@@ -285,7 +323,7 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         assertEquals(3.14, readScalarDouble(data, 2), 1e-9);
     }
 
-    /** Multi-value DOUBLE → ARRAY[DOUBLE]. */
+    /** Multi-value DOUBLE → ARRAY[DOUBLE] with correct element values after the compact-at-transition. */
     public void testDoubleMultiValuePromotesToArray() {
         EscfRowColumnBuilder builder = EscfRowColumnBuilder.doubles(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.setDouble(0, 1.0);
@@ -294,6 +332,8 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         assertEquals(EscfColumnKind.ARRAY, data.kind());
         assertEquals(EscfColumnKind.DOUBLE, data.child().kind());
         assertEquals(2, elemCount(data, 0));
+        assertEquals(1.0, readArrayDouble(data, 0, 0), 0.0);
+        assertEquals(2.0, readArrayDouble(data, 0, 1), 0.0);
     }
 
     /** setDouble on a non-DOUBLE builder triggers an AssertionError. */

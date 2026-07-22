@@ -1507,7 +1507,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support is limited to strict-columnar index modes (COLUMNAR, LOGSDB_COLUMNAR)
         // where high-cardinality keywords use the document-order inline-null binary doc-values
-        // encoding (ArrayOrderInlineNull). The unsupported conditions mirror supportsBatchIndexing.
+        // encoding (ArrayOrderInlineNull).
         return indexSettings.getMode().isStrictColumnar()
             && fieldType().usesArrayOrderBinaryDocValues()
             && hasScript() == false

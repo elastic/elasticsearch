@@ -22,21 +22,9 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
 import java.util.List;
 
 /**
- * A {@link BinaryColumn} backed by an ESCF data column, bridging both the Lucene
- * {@code IndexWriter.addBatch} columnar path and the row-oriented soft-update path.
- *
- * <p>Two data shapes are supported through a single adaptor:
- * <ul>
- *   <li><b>Dense (STRING/BINARY)</b> — one byte-string value per row. Density is
- *       {@link Density#DENSE}. Create via {@link #stringColumn}.
- *   <li><b>Sparse array (ARRAY with a var-width child)</b> — zero or more byte-string elements
- *       per row; rows with no elements are skipped. Density is {@link Density#SPARSE}. Create
- *       via {@link #arrayColumn}.
- * </ul>
- *
- * <p>Both shapes expose iteration via {@link EscfColumn#bytesRefCursor()}: a dense cursor for
- * var-width columns, and an element-granular cursor that repeats the same row-id for multi-valued
- * documents and skips empty/absent rows for array columns.
+ * A {@link BinaryColumn} backed by an ESCF data column. Supports dense STRING/BINARY columns
+ * (one value per row) and sparse ARRAY columns (zero or more elements per row, absent rows skipped).
+ * Create via {@link #stringColumn}, {@link #arrayColumn}, or the dispatch helper {@link #of}.
  */
 public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColumn {
 
@@ -47,48 +35,20 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         this.data = data;
     }
 
-    /**
-     * Creates a dense {@link LuceneBinaryColumn} backed by a STRING or BINARY ESCF column. Each
-     * row in the column data maps to exactly one Lucene field.
-     *
-     * @param data      the ESCF column data; must have kind {@link EscfColumnKind#STRING} or
-     *                  {@link EscfColumnKind#BINARY}
-     * @param name      Lucene field name
-     * @param fieldType Lucene field type
-     */
+    /** Creates a dense ({@link Density#DENSE}) column from a STRING or BINARY {@link EscfColumnData}. */
     public static LuceneBinaryColumn stringColumn(EscfColumnData data, String name, IndexableFieldType fieldType) {
         return new LuceneBinaryColumn(EscfColumn.from(data), name, fieldType, Density.DENSE);
     }
 
-    /**
-     * Creates a sparse {@link LuceneBinaryColumn} backed by an ARRAY ESCF column whose child is a
-     * var-width (STRING or BINARY) column. Multi-valued rows produce multiple elements; empty and
-     * absent rows are skipped.
-     *
-     * @param data      the ESCF column data; must have kind {@link EscfColumnKind#ARRAY}
-     * @param name      Lucene field name
-     * @param fieldType Lucene field type
-     */
+    /** Creates a sparse ({@link Density#SPARSE}) column from an ARRAY {@link EscfColumnData}. */
     public static LuceneBinaryColumn arrayColumn(EscfColumnData data, String name, IndexableFieldType fieldType) {
         assert data.kind() == EscfColumnKind.ARRAY : "expected ARRAY, got " + EscfColumnKind.name(data.kind());
         return new LuceneBinaryColumn(EscfColumn.from(data), name, fieldType, Density.SPARSE);
     }
 
     /**
-     * Creates a {@link LuceneBinaryColumn} from a STRING, BINARY, or ARRAY ESCF column, dispatching
-     * to the correct density. Use this in preference to the individual factories when the column
-     * kind is determined at runtime (e.g. a builder that may promote to ARRAY).
-     *
-     * <p>STRING and BINARY columns: {@link Density#DENSE} when every document is present
-     * ({@code data.validity() == null}); {@link Density#SPARSE} otherwise, so that Lucene's
-     * {@code addBatch} path uses {@link #tuples()} rather than {@link #values()} and correctly
-     * skips absent documents.
-     *
-     * <p>ARRAY columns are always {@link Density#SPARSE} (absent rows are empty ranges).
-     *
-     * @param data      the ESCF column data; must have kind STRING, BINARY, or ARRAY
-     * @param name      Lucene field name
-     * @param fieldType Lucene field type
+     * Dispatch helper: STRING/BINARY → {@link Density#DENSE} (or SPARSE when validity is non-null);
+     * ARRAY → {@link Density#SPARSE}. Use when the kind is determined at runtime.
      */
     public static LuceneBinaryColumn of(EscfColumnData data, String name, IndexableFieldType fieldType) {
         return switch (data.kind()) {

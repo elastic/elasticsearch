@@ -40,7 +40,7 @@ public class DeduplicatingStringColumnAccumulatorTests extends ESTestCase {
      * exercise the exact same column.
      */
     private static LuceneBinaryColumn drain(DeduplicatingStringColumnAccumulator acc) {
-        return LuceneBinaryColumn.arrayColumn(
+        return LuceneBinaryColumn.of(
             acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE),
             FieldNamesFieldMapper.NAME,
             StringField.TYPE_NOT_STORED

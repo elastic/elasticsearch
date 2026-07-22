@@ -163,16 +163,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         if (acc == null || acc.isEmpty()) {
             return;
         }
-        // Strict columnar mode is always a modern index version, so only the doc-values shape of
-        // postParse applies. Guard on the same version to document that invariant.
-        assert context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
-            : "columnar _ignored requires a modern index version";
-        // Drain the accumulator once, then back both Lucene fields the row path emits per ignored
-        // name (SortedSetDocValuesField + indexed StringField) with the same immutable column data:
-        // each LuceneBinaryColumn.of call builds an independent read-only view, so sharing is safe.
-        // The column may be scalar (all-single-valued) or ARRAY (multi-valued); of() dispatches.
+
         final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
-        context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));
+        } else {
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_STORED));
+        }
     }
 }

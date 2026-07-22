@@ -9,9 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -29,7 +29,9 @@ import java.util.Arrays;
 public final class EscfRowColumnBuilder {
 
     private final byte kind;
-    private final RecyclerBytesStreamOutput childData;
+    private final Recycler<BytesRef> recycler;
+    /** Written positionally for fixed64 scalar mode; swapped to element-packed at the first multi-value. */
+    private RecyclerBytesStreamOutput childData;
     /** {@code childOffsets[i]}: byte offset of element {@code i} in {@code childData}. */
     private int[] childOffsets;
     /** {@code rowOffsets[r]}: index of the first element for row {@code r}. */
@@ -48,6 +50,7 @@ public final class EscfRowColumnBuilder {
             || kind == EscfColumnKind.LONG
             || kind == EscfColumnKind.DOUBLE : "unsupported kind: " + EscfColumnKind.name(kind);
         this.kind = kind;
+        this.recycler = recycler;
         this.childData = new RecyclerBytesStreamOutput(recycler);
         this.childOffsets = new int[16];
         this.rowOffsets = new int[16];
@@ -84,19 +87,19 @@ public final class EscfRowColumnBuilder {
 
     /** Appends a string value for {@code row}; builder must be {@link #strings}. */
     public void setString(int row, BytesRef value) {
-        assert kind == EscfColumnKind.STRING : "setString called on " + EscfColumnKind.name(kind) + " builder";
+        assertKind(EscfColumnKind.STRING);
         appendVarElement(row, value);
     }
 
     /** Appends a binary value for {@code row}; builder must be {@link #binaries}. */
     public void setBinary(int row, BytesRef value) {
-        assert kind == EscfColumnKind.BINARY : "setBinary called on " + EscfColumnKind.name(kind) + " builder";
+        assertKind(EscfColumnKind.BINARY);
         appendVarElement(row, value);
     }
 
     /** Appends a long value for {@code row}; builder must be {@link #longs}. */
     public void setLong(int row, long value) {
-        assert kind == EscfColumnKind.LONG : "setLong called on " + EscfColumnKind.name(kind) + " builder";
+        assertKind(EscfColumnKind.LONG);
         appendElement(row);
         writeLongLE(value);
         childDataLen += Long.BYTES;
@@ -104,10 +107,14 @@ public final class EscfRowColumnBuilder {
 
     /** Appends a double value for {@code row}; builder must be {@link #doubles}. */
     public void setDouble(int row, double value) {
-        assert kind == EscfColumnKind.DOUBLE : "setDouble called on " + EscfColumnKind.name(kind) + " builder";
+        assertKind(EscfColumnKind.DOUBLE);
         appendElement(row);
         writeLongLE(Double.doubleToRawLongBits(value));
         childDataLen += Long.BYTES;
+    }
+
+    private void assertKind(byte expected) {
+        assert kind == expected : EscfColumnKind.name(expected) + " setter called on " + EscfColumnKind.name(kind) + " builder";
     }
 
     /**
@@ -155,6 +162,19 @@ public final class EscfRowColumnBuilder {
             advanceTo(row);
         } else {
             // row == currentRow: second (or later) element for this doc → promote to ARRAY.
+            if (!multivalued && (kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE)) {
+                // First transition for fixed64: take ownership of the positional pages, swap in a
+                // fresh stream, then compact existing elements element-packed into it.
+                BytesReference positional = childData.moveToBytesReference();
+                childData = new RecyclerBytesStreamOutput(recycler);
+                try {
+                    for (int i = 0; i < elemCount; i++) {
+                        positional.slice(childOffsets[i], Long.BYTES).writeTo(childData);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             multivalued = true;
         }
         childOffsets = ensureIntCapacity(childOffsets, elemCount + 1);
@@ -168,7 +188,19 @@ public final class EscfRowColumnBuilder {
             rowOffsets = ensureIntCapacity(rowOffsets, r + 1);
             rowOffsets[r] = elemCount;
         }
+        if (!multivalued && (kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE)) {
+            // Positional scalar mode: write zeros for absent slots so childData is a docCount*8 buffer.
+            int absentCount = targetRow - currentRow - 1;
+            if (absentCount > 0) {
+                skipBytes(absentCount * Long.BYTES);
+            }
+        }
         currentRow = targetRow;
+    }
+
+    private void skipBytes(int byteCount) {
+        childData.skip(byteCount);
+        childDataLen += byteCount;
     }
 
     /** Builds the ARRAY result when any document received two or more elements. */
@@ -210,52 +242,34 @@ public final class EscfRowColumnBuilder {
     }
 
     private EscfColumnData finishScalarFixed64(int docCount, FixedBitSet validity) {
-        BytesReference allElemData = childData.moveToBytesReference();
-        byte[] buf = new byte[docCount * 8];
-        for (int d = 0; d < docCount; d++) {
-            if (rowOffsets[d] < rowOffsets[d + 1]) {
-                // each fixed64 element is exactly Long.BYTES; childOffsets[i] == i * 8.
-                int byteStart = childOffsets[rowOffsets[d]];
-                BytesRef elem = allElemData.slice(byteStart, Long.BYTES).toBytesRef();
-                System.arraycopy(elem.bytes, elem.offset, buf, d * Long.BYTES, Long.BYTES);
-            }
-            // absent: buf[d*8..d*8+8] stays zero (default for byte[])
+        // Complete the positional buffer: absent trailing slots also need zeros.
+        int trailingAbsent = docCount - currentRow - 1;
+        if (trailingAbsent > 0) {
+            skipBytes(trailingAbsent * Long.BYTES);
         }
-        return EscfColumnData.ofFixed64(kind, docCount, validity, new BytesArray(buf));
+        // childData is now a positional docCount*8 buffer; absent slots are zero.
+        return EscfColumnData.ofFixed64(kind, docCount, validity, childData.bytes());
     }
 
     private EscfColumnData finishScalarVarWidth(int docCount, FixedBitSet validity) {
         int[] perDocOffsets = new int[docCount + 1];
-        int bytePos = 0;
-        for (int d = 0; d < docCount; d++) {
-            perDocOffsets[d] = bytePos;
-            if (rowOffsets[d] < rowOffsets[d + 1]) {
-                // present: exactly one element; advance bytePos to its end.
-                bytePos = childOffsets[rowOffsets[d + 1]];
-            }
-            // absent: bytePos unchanged → perDocOffsets[d+1] == perDocOffsets[d]
+        for (int d = 0; d <= docCount; d++) {
+            perDocOffsets[d] = childOffsets[rowOffsets[d]];
         }
-        perDocOffsets[docCount] = bytePos;
-        return EscfColumnData.ofVarWidth(kind, docCount, validity, perDocOffsets, childData.moveToBytesReference());
+        return EscfColumnData.ofVarWidth(kind, docCount, validity, perDocOffsets, childData.bytes());
     }
 
     private EscfColumnData buildChildForArray() {
         if (kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE) {
-            // elemCount elements, each 8 bytes, contiguous in childData.
+            // childData was swapped to element-packed at the first multi-value; hand it straight to ofFixed64.
             return EscfColumnData.ofFixed64(kind, elemCount, null, childData.moveToBytesReference());
         } else {
             // Var-width child: elemCount elements with per-element byte boundaries.
-            return EscfColumnData.ofVarWidth(
-                kind,
-                elemCount,
-                null, // child holds only real elements; no absent slots
-                Arrays.copyOf(childOffsets, elemCount + 1),
-                childData.moveToBytesReference()
-            );
+            return EscfColumnData.ofVarWidth(kind, elemCount, null, childOffsets, childData.moveToBytesReference());
         }
     }
 
     private static int[] ensureIntCapacity(int[] array, int minSize) {
-        return array.length >= minSize ? array : Arrays.copyOf(array, Math.max(minSize, array.length * 2));
+        return array.length >= minSize ? array : Arrays.copyOf(array, ArrayUtil.oversize(minSize, Integer.BYTES));
     }
 }

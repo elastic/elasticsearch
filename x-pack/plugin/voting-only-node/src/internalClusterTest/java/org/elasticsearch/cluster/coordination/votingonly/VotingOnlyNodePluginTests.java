@@ -117,15 +117,10 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         );
     }
 
-    public void testBootstrapOnlyVotingOnlyNodes() throws Exception {
+    public void testBootstrapOnlyVotingOnlyNodes() {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)), Settings.EMPTY, Settings.EMPTY);
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
-        );
+        ensureStableCluster(3);
         awaitMasterNode();
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(

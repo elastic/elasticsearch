@@ -161,6 +161,13 @@ If you encounter any of the following methods, you must go and read their javado
 * `TestAnalyzer.statementError`
 * `TestAnalyzer.error`
 * `forciblyCast`
+* `EsqlCapabilities.Cap`
+* `FunctionDefinition.Builder#capabilities`
+
+## ES|QL tests
+If you write or modify ES|QL csv-spec, rest, or yaml tests, read the javadoc for
+`EsqlCapabilities.Cap` and `FunctionDefinition.Builder#capabilities` before proceeding.
+They describe two separate capability mechanisms and the rule for choosing between them.
 
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.

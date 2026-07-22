@@ -126,7 +126,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability, onFailure);
     }
 
@@ -2423,6 +2423,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
         }
 
+        /** Returns the numeric type of this field. */
+        public NumberType numberType() {
+            return type;
+        }
+
+        /** Returns {@code true} if this field is indexed with BKD points. */
+        public boolean isIndexedWithPoints() {
+            return indexType.hasPoints();
+        }
+
+        /** Returns {@code true} if this field uses an inverted index for terms ({@code index_terms: true}). */
+        public boolean isIndexedWithTerms() {
+            return indexType.hasTerms();
+        }
+
         /**
          * Maps a query value to the sortable-bytes term used by an {@code index_terms} integer
          * field, or returns {@code null} if the value cannot match any document. Byte, Short,
@@ -2705,6 +2720,17 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return allowMultipleValues == false || docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        // allowMultipleValues==false is a structural invariant of the field type (ie. aggregate_metric_double's metric sub-fields, which
+        // must always be single-valued), not the user-configurable doc_values.multi_value constraint, so it must always fail regardless
+        // of on_failure.
+        if (allowMultipleValues == false) {
+            return DocValuesParameter.Values.OnFailure.FAIL;
+        }
+        return docValuesParameters.onFailure();
     }
 
     @Override

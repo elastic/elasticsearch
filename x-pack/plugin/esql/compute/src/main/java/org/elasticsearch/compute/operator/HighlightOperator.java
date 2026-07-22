@@ -222,23 +222,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 return null; // CharArrayMatcher.fromTerms cannot build an automaton over huge terms
             }
         }
-        // The underlying string-union automaton builder requires strictly sorted, de-duplicated input.
+        // The underlying string-union automaton builder requires strictly sorted, de-duplicated input. Query terms
+        // often repeat across clauses (e.g. the same term MUST'd and used in a phrase), so dedupe after sorting.
         Collections.sort(terms);
-        dedupeSorted(terms);
-        return CharArrayMatcher.fromTerms(terms);
-    }
-
-    // Removes adjacent duplicates from an already-sorted list in place. Query terms often repeat across clauses
-    // (e.g. the same term MUST'd and used in a phrase), and the string-union automaton builder rejects duplicates.
-    private static void dedupeSorted(List<BytesRef> sortedTerms) {
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < sortedTerms.size(); readIndex++) {
-            BytesRef term = sortedTerms.get(readIndex);
-            if (writeIndex == 0 || term.equals(sortedTerms.get(writeIndex - 1)) == false) {
-                sortedTerms.set(writeIndex++, term);
-            }
-        }
-        sortedTerms.subList(writeIndex, sortedTerms.size()).clear();
+        return CharArrayMatcher.fromTerms(terms.stream().distinct().toList());
     }
 
     // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.
@@ -345,29 +332,31 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     // Refills the shared memory index for the current row. reset() clears previously indexed fields/terms so each
     // row starts from an empty index; the index, its reader, and the highlighters below are otherwise untouched.
-    // When keepWordMatcher is non-null, only tokens the query could match are indexed: the rest are dropped before
-    // they ever reach MemoryIndex.addField, so hashing and sorting only ever see query terms.
     // Returns true when the caller can short-circuit straight to nulls: nothing was kept anywhere in the row and
     // no_match_size is 0. With no_match_size > 0 a miss must still return leading text, which requires running the
-    // highlighter, so this guard must not skip that case.
+    // highlighter, so this guard must not skip that case. Without filtering (keepWordMatcher == null) every row
+    // must still run the highlighter, since we don't know what the query can match.
     private boolean fillRowIndex(HighlightField[] fields) {
         memoryIndex.reset();
+        if (keepWordMatcher == null) {
+            for (HighlightField field : fields) {
+                if (field.rowText != null) {
+                    memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
+                }
+            }
+            return false;
+        }
+        // Only tokens the query could match are indexed: the rest are dropped before they ever reach
+        // MemoryIndex.addField, so hashing and sorting only ever see query terms.
         int keptTokens = 0;
         for (HighlightField field : fields) {
             if (field.rowText == null) {
                 continue;
             }
-            if (keepWordMatcher == null) {
-                memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
-                keptTokens = -1; // unknown, never short-circuit without filtering
-            } else {
-                TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
-                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepWordMatcher);
-                memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
-                if (keptTokens >= 0) {
-                    keptTokens += filtered.kept;
-                }
-            }
+            TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
+            KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepWordMatcher);
+            memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
+            keptTokens += filtered.kept;
         }
         return keptTokens == 0 && config.noMatchSize() == 0;
     }

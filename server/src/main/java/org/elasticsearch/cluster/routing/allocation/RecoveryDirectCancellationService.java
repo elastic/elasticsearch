@@ -218,7 +218,7 @@ public class RecoveryDirectCancellationService {
                         sentCancellations.invalidate(cancellation.allocationId(), new SentCancellation(request.term(), cancellation));
                     }
                 }
-                logger.warn("failed to cancel recoveries on [{}]", node, e);
+                logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
             }), CancelRecoveriesAction.Response::new, genericExecutor)
         );
     }

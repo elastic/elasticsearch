@@ -45,6 +45,18 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
+    // The generative suite is not category-scoped: it runs arbitrary generated queries, so it loads all indices
+    // and no views.
+    @Override
+    protected java.util.List<String> indicesToLoad() {
+        return null;
+    }
+
+    @Override
+    protected java.util.Collection<String> viewsToLoad() {
+        return java.util.List.of();
+    }
+
     @Override
     protected void doTest() throws Throwable {
         // The query from the test may not be supported for query approximation.

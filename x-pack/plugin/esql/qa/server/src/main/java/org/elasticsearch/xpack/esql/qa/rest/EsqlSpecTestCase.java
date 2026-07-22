@@ -46,6 +46,7 @@ import org.junit.Rule;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -198,6 +199,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
+        // When running one category at a time, skip files that belong to a different category (their data is not loaded).
+        if (SPEC_CATEGORY != null) {
+            assumeTrue(
+                "Test group [" + groupName + "] is not in the active category [" + SPEC_CATEGORY + "]",
+                SPEC_CATEGORY.equals(CsvTestsDataLoader.categoryFor(groupName).name())
+            );
+        }
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
@@ -214,22 +222,22 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
-        // Only load views for groups that reference them (see shouldLoadViews) to avoid issues with wildcards like "FROM *".
-        if (shouldLoadViews()) {
+        // Load exactly the views this run's category declares (empty for every non-view category). Loading only these
+        // keeps views out of wildcard resolution for the other categories.
+        Collection<String> viewsToLoad = viewsToLoad();
+        if (viewsToLoad.isEmpty() == false) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
-                    loadViewsIntoEs(adminClient(), this::clusterHasCapability);
+                    loadViewsIntoEs(adminClient(), this::clusterHasCapability, viewsToLoad);
                 }
                 return null;
             });
-            // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
-            // so running them would fail with "index not found" rather than giving a meaningful skip.
-            if ("views".equals(groupName)) {
-                assumeTrue(
-                    "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
-                    supportsViews()
-                );
-            }
+            // Skip tests entirely when the cluster cannot support the views they need: views are not loaded, so
+            // running them would fail with "index not found" rather than giving a meaningful skip.
+            assumeTrue(
+                "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
+                supportsViews()
+            );
         } else {
             deleteViews(adminClient());
             VIEWS.reset();
@@ -262,18 +270,34 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    // Load views only for groups whose tests reference view fixtures
-    protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+    /**
+     * When set (via {@code -Dtests.spec_category=<name>}), the cluster loads only that category's data (from the
+     * spec_data.yml manifest) and tests from other categories are skipped, so the suite runs one category at a time
+     * against exactly its own data. When unset (the default today, until per-category test tasks are wired), the
+     * legacy behavior applies: all indices are loaded and views are loaded only for the groups that reference them.
+     */
+    protected static final String SPEC_CATEGORY = System.getProperty("tests.spec_category");
+
+    /**
+     * Indices to load during setup. When a category is selected, load exactly that category's indices; otherwise load
+     * all of them. Suites that are not category-scoped (external-source, generative) override this.
+     *
+     * @return null to load all indices; empty list to load none; a non-empty list to load only those indices
+     */
+    protected List<String> indicesToLoad() {
+        return SPEC_CATEGORY == null ? null : CsvTestsDataLoader.dataForCategory(SPEC_CATEGORY).indices();
     }
 
     /**
-     * Indices to load during setup. Override to control which indices are loaded.
-     *
-     * @return null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     * Views to load during setup. When a category is selected, load exactly that category's views (empty for non-view
+     * categories); otherwise load all views for the groups that reference them. Non-category-scoped suites override this.
      */
-    protected List<String> indicesToLoad() {
-        return null;
+    protected Collection<String> viewsToLoad() {
+        if (SPEC_CATEGORY != null) {
+            return CsvTestsDataLoader.dataForCategory(SPEC_CATEGORY).views();
+        }
+        boolean viewGroup = "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+        return viewGroup ? CsvTestsDataLoader.VIEW_CONFIGS.keySet() : List.of();
     }
 
     protected void shouldSkipTest(String testName) throws IOException {

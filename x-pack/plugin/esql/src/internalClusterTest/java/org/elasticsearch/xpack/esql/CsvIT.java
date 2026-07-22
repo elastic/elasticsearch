@@ -98,14 +98,13 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -141,10 +140,12 @@ public class CsvIT extends ESTestCase {
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
-    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load");
-
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
+    // The category (from spec_data.yml) whose data is currently loaded. When a test from a different category
+    // runs, the previous category's indices and views are dropped so each category runs against exactly its own
+    // data — this is what makes a bare "FROM *" category-scoped and keeps views out of non-view categories.
+    private static String currentCategory = null;
 
     /**
      * Hook for tests that want to load datasets with a transformed mapping and/or transformed source documents,
@@ -264,12 +265,14 @@ public class CsvIT extends ESTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
-
-        var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
-        // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
-        // Falling back to a new instance as repeatable scenario order is not essential here.
-        Collections.shuffle(specs, new Random(0));
-        Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
+        List<Object[]> specs = new ArrayList<>(SpecReader.readScriptSpec(urls, CsvSpecReader::specParser));
+        // Run tests grouped by category so the per-category data (loaded when the category changes) is set up once
+        // per category rather than thrashing. Order within a category is preserved (file name, then line number).
+        specs.sort(
+            Comparator.<Object[], String>comparing(spec -> CsvTestsDataLoader.categoryFor((String) spec[1]).name())
+                .thenComparing(spec -> (String) spec[1])
+                .thenComparingInt(spec -> (Integer) spec[3])
+        );
         return specs;
     }
 
@@ -365,6 +368,7 @@ public class CsvIT extends ESTestCase {
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
+        switchCategoryIfNeeded(groupName);
         currentGroupName = groupName;
         // verify no prior failures
         indices.ensureNoFailures();
@@ -517,16 +521,28 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static void loadViews() {
-        // TODO We should instead load views once and never unload them
-        if (GROUPS_WITH_VIEWS.contains(currentGroupName)) {
-            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
-                if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
-                    views.maybeLoad(name, view);
-                }
-            });
-        } else {
+    /**
+     * Drops the previous category's indices and views when a test from a new category starts, so each category
+     * runs against exactly the data its manifest entry declares. Enrich policies and inference endpoints are left
+     * in place: they are referenced by name (not by wildcard) and so do not perturb index/view resolution.
+     */
+    private static void switchCategoryIfNeeded(String groupName) {
+        String category = CsvTestsDataLoader.categoryFor(groupName).name();
+        if (category.equals(currentCategory) == false) {
+            indices.unloadAll();
             views.unloadAll();
+            currentCategory = category;
+        }
+    }
+
+    private static void loadViews() {
+        // Load exactly the views this file's category declares (empty for all non-view categories). Views are
+        // index-like, so loading them only here keeps them out of wildcard resolution for every other category.
+        for (String name : CsvTestsDataLoader.categoryFor(currentGroupName).views()) {
+            CsvTestsDataLoader.ViewConfig view = CsvTestsDataLoader.VIEW_CONFIGS.get(name);
+            if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
+                views.maybeLoad(name, view);
+            }
         }
     }
 
@@ -545,28 +561,21 @@ public class CsvIT extends ESTestCase {
     private static void loadIndices(FieldCapabilitiesRequest request) {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
+            if (pattern.startsWith("-")) {
+                // An exclusion (e.g. "-addresses_*") loads nothing: it only removes indices that are otherwise
+                // present. Loading the excluded index would defeat category scoping and pollute later FROM * tests.
+                return Stream.empty();
+            }
             if (pattern.contains("*")) {
                 if (pattern.equals("*")) {
-                    switch (currentGroupName) {
-                        // Temporarily allow a few so they have time to migrate away
-                        case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
-                        // Views tests need FROM * with exclusions to test wildcard view resolution (e.g. FROM *,-employees*)
-                        case "views" -> logger.info("FROM * used in views test");
-                        default -> throw new IllegalStateException(
-                            "FROM * is not allowed in csv-spec tests because it makes them brittle. We add new data sets frequently."
-                        );
-                    }
-                    return CSV_DATASET.values().stream();
+                    // "FROM *" is category-scoped: it loads exactly the indices this file's category declares, so it
+                    // resolves the same regardless of what other data sets exist. No exclusions or whitelist needed.
+                    return CsvTestsDataLoader.categoryFor(currentGroupName).indices().stream().map(CSV_DATASET::get);
                 }
                 if (pattern.endsWith("*") == false) {
                     throw new IllegalStateException("CsvIT only supports suffix patterns but got: " + pattern);
                 }
-                String prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
-                if (prefix.length() < 3) {
-                    throw new IllegalStateException(
-                        "FROM pattern* may not be short in csv-spec tests because it makes them brittle. We add new data sets frequently."
-                    );
-                }
+                String prefix = pattern.substring(0, pattern.length() - 1);
                 return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
                 var aliasConfig = ALIAS_CONFIGS.get(pattern);
@@ -643,6 +652,12 @@ public class CsvIT extends ESTestCase {
                 }
             }
             indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
+        }
+
+        @Override
+        protected void unload(String name) {
+            logger.info("Dropping dataset [{}]", name);
+            assertAcked(cluster.client().admin().indices().prepareDelete(name));
         }
     };
 

@@ -592,9 +592,6 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
   method: testLargeRequestIsNeverDispatched
   issue: https://github.com/elastic/elasticsearch/issues/154657
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
-  method: testPreFlushWaitsForOngoingFlushes
-  issue: https://github.com/elastic/elasticsearch/issues/154658
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/10_basic/Create index with write aliases}
   issue: https://github.com/elastic/elasticsearch/issues/154659

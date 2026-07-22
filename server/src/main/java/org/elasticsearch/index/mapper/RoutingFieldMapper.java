@@ -405,13 +405,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
-    private static final IndexableFieldType ROUTING_FIELD_TYPE = StringField.TYPE_STORED;
-
-    // Mirrors the doc-values branch of addRoutingField: sorted doc values with a skip index, no
-    // inverted index or stored value (matches SortedDocValuesField.indexedField).
-    private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
-
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return true;
@@ -433,29 +426,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                     context.addFieldNamesColumnar(d, fieldType().name());
                 }
             }
-        }
-    }
-
-    @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return true;
-    }
-
-    @Override
-    public void preColumnarParse(BatchMappingContext context) {
-        final BytesRef[] routings = context.routings();
-        if (routings == null) {
-            return;
-        }
-        if (docValues) {
-            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
-            // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
-        } else {
-            // TODO(columnar): the row path also calls context.addToFieldNames(NAME) here so _routing
-            // participates in _field_names-based exists queries; the columnar path has no _field_names
-            // column plumbing yet. Narrow, documented gap — does not affect indices that never set an
-            // explicit routing value.
-            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
         }
     }
 

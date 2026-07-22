@@ -8484,7 +8484,7 @@ public class InternalEngineTests extends EngineTestCase {
             // i = 1 will result in failure since we already indexed it
             ops.add(new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
         }
-        final List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+        final List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEirfBatch(ops)));
         assertEquals(Engine.Result.Type.SUCCESS, results.get(0).getResultType());
         assertEquals(Engine.Result.Type.FAILURE, results.get(1).getResultType());
         assertThat(results.get(1).getFailure(), instanceOf(VersionConflictEngineException.class));
@@ -8558,7 +8558,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < 3; i++) {
             ops.add(indexForDoc(createParsedDoc("doc-" + i, null)));
         }
-        engine.indexBatch(ops, encodeAsEscfBatch(ops));
+        engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
 
         // A realtime GET on a batched doc is served straight from the translog batch row.
         final long refreshedCheckpointBefore = engine.lastRefreshedCheckpoint();

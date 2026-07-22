@@ -657,38 +657,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // TODO: Need to implement support for additional scenarios
-        // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
-        // materialize, and either recovery source is disabled or only a size estimate is needed
-        // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
-        // too), and non-synthetic recovery source all require the full row path.
-        final boolean recoverySourceEnabled = indexSettings.isRecoverySourceEnabled();
-        final boolean syntheticRecovery = recoverySourceEnabled && indexSettings.isRecoverySourceSyntheticEnabled();
-        return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
-    }
-
-    @Override
-    public void preColumnarParse(BatchMappingContext context) throws IOException {
-        final boolean syntheticRecovery = context.indexSettings().isRecoverySourceEnabled()
-            && context.indexSettings().isRecoverySourceSyntheticEnabled();
-        if (syntheticRecovery == false) {
-            return;
-        }
-
-        final int docCount = context.docCount();
-        final byte[] sizes = new byte[docCount * 8];
-        for (int d = 0; d < docCount; d++) {
-            final IndexRequest request = context.request(d);
-            final XContentType contentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
-            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes(), sizes, d * 8);
-        }
-        context.addColumn(
-            MappedColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
-        );
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

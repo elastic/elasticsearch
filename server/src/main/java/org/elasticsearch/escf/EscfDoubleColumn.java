@@ -45,13 +45,4 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
         return EscfColumnData.ofFixed64(kind(), docCount, validity, data);
     }
 
-    @Override
-    EscfColumn sliceInternal(int from, int count) {
-        return new EscfDoubleColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
-    }
-
-    @Override
-    EscfColumnData toColumnData() {
-        return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
-    }
 }

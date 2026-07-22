@@ -1,5 +1,0 @@
-area: Transform
-issues: []
-pr: 152803
-summary: Tighten retry startup logic
-type: bug

@@ -140,7 +140,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
         anomalyDetectionEnabled = MachineLearning.ANOMALY_DETECTION_ENABLED.get(environment.settings());
         dataFrameAnalyticsEnabled = MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.get(environment.settings());
-        nlpEnabled = MachineLearning.NLP_ENABLED.get(environment.settings());
+        nlpEnabled = XPackSettings.NLP_ENABLED.get(environment.settings());
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -70,9 +71,11 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.defaultDenseVectorIndexOptions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.randomCompatibleDimensions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.INDEX_OPTIONS_FIELD;
@@ -702,6 +705,49 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         return currentIndexOptions;
     }
 
+    protected SemanticIndexOptions getDefaultIndexOptions(Model model, MapperService mapperService) {
+        IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+        boolean experimentalFeatures = DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings());
+
+        TaskType taskType = model.getTaskType();
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        Integer dimensions = model.getServiceSettings().dimensions();
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING, EMBEDDING -> {
+                boolean floatFamilyElementType = elementType == DenseVectorFieldMapper.ElementType.FLOAT
+                    || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
+                if (floatFamilyElementType
+                    && SemanticTextFieldMapper.setExplicitIndexOptionsForSemanticText(indexVersion)
+                    && dimensions >= BBQ_MIN_DIMS) {
+                    yield new SemanticIndexOptions(
+                        SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                        defaultBbqHnswDenseVectorIndexOptions()
+                    );
+                } else {
+                    var denseDefaults = defaultDenseVectorIndexOptions(
+                        indexVersion,
+                        operationMode == License.OperationMode.ENTERPRISE,
+                        true,
+                        dimensions,
+                        elementType,
+                        experimentalFeatures
+                    );
+                    yield denseDefaults == null
+                        ? null
+                        : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,  denseDefaults);
+                }
+            }
+            case SPARSE_EMBEDDING -> {
+                var sparseDefaults = SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion);
+                yield sparseDefaults == null
+                    ? null
+                    : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseDefaults);
+            }
+            default -> throw new AssertionError("Unexpected task type [" + taskType + "]");
+        };
+    }
+
     protected void givenModelSettings(String inferenceId, MinimalServiceSettings modelSettings) {
         when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
     }
@@ -843,5 +889,14 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         if (useLegacyFormat && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
             throw new IllegalArgumentException("Index version " + indexVersion + " does not support legacy semantic text format");
         }
+    }
+
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+        DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(
+            SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE
+        );
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 }

@@ -46,8 +46,8 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             public interface MemCmpLib {
                 @Function("memcmp")
                 int memcmp(
-                    @VectorSegment(countParam = "n", elementBytes = 1) MemorySegment a,
-                    @VectorSegment(countParam = "n", elementBytes = 1) MemorySegment b,
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment b,
                     long n);
             }
             """;
@@ -99,8 +99,8 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             public interface MemCmpLib {
                 @Function("memcmp")
                 int memcmp(
-                    @VectorSegment(countParam = "n", elementBytes = 8, aligned = true) MemorySegment a,
-                    @VectorSegment(countParam = "n", elementBytes = 8) MemorySegment b,
+                    @VectorSegment(countParam = "n", elementBits = 64, aligned = true) MemorySegment a,
+                    @VectorSegment(countParam = "n", elementBits = 64) MemorySegment b,
                     long n);
             }
             """;
@@ -148,8 +148,8 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             public interface MemCmpLib {
                 @Function("memcmp")
                 int memcmp(
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 1) MemorySegment a,
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 1) MemorySegment b,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment b,
                     long n);
             }
             """;
@@ -202,8 +202,8 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             public interface MemCmpLib {
                 @Function("memcmp")
                 int memcmp(
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 8, aligned = true) MemorySegment a,
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 8) MemorySegment b,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 64, aligned = true) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 64) MemorySegment b,
                     long n);
             }
             """;
@@ -218,7 +218,7 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
         java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
         memcmp.setAccessible(true);
 
-        // rows = cols = n = 1 -> requires 1*1*8 = 8 bytes (elementBytes=8), 8-byte aligned.
+        // rows = cols = n = 1 -> requires 1*1*64/8 = 8 bytes (elementBits=64), 8-byte aligned.
         try (var arena = java.lang.foreign.Arena.ofConfined()) {
             MemorySegment buf = arena.allocate(16, 8);
             MemorySegment misaligned = buf.asSlice(1, 8);
@@ -236,14 +236,15 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     }
 
     /**
-     * The {@code rowPitchBytesParam} relational check.
-     * All attributes ({@code rowsParam}/{@code colsParam}/{@code rowPitchBytesParam}) reference the
-     * same parameter {@code n}, so the method's real arity stays at {@code (a, b, n)}, matching
-     * {@code memcmp}'s actual signature exactly.
-     * With {@code elementBytes = 2}, {@code rowBytes = n*16/8 = 2n} while {@code pitch = n}, so
-     * {@code pitch < rowBytes} for every {@code n > 0}: this always throws, by construction.
+     * The {@code paddingBytesParam} size math. All attributes ({@code rowsParam}/{@code colsParam}/
+     * {@code paddingBytesParam}) reference the same parameter {@code n}, so the method's real arity
+     * stays at {@code (a, b, n)}, matching {@code memcmp}'s actual signature exactly.
+     * With {@code elementBits = 8}, {@code rowBytes = n*8/8 + n = 2n}, so the required size is
+     * {@code rows * rowBytes = n * 2n = 2n²} — twice the packed (no-padding) size {@code n²}. This
+     * proves the padding is added to each row rather than ignored (a regression here would accept a
+     * segment only {@code n²} bytes long).
      */
-    public void testRowPitchBytesCheckThrowsOnTooSmallPitch() throws Exception {
+    public void testMatrixSegmentPaddingBytesAddsToRowSize() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -254,9 +255,68 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             public interface MemCmpLib {
                 @Function("memcmp")
                 int memcmp(
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 2, rowPitchBytesParam = "n")
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
                     MemorySegment a,
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 2) MemorySegment b,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment b,
+                    long n);
+            }
+            """;
+
+        CompilationResult result = compile("test.MemCmpLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.MemCmpLib$Impl");
+        java.lang.reflect.Constructor<?> ctor = implClass.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object instance = ctor.newInstance();
+        java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
+        memcmp.setAccessible(true);
+
+        // n = 4 -> rowBytes = 2*4 = 8, size = 4*8 = 32 bytes required; the packed size would be only 16.
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            MemorySegment good = arena.allocate(32);
+            MemorySegment tooSmall = arena.allocate(16);
+
+            try {
+                memcmp.invoke(instance, tooSmall, good, 4L);
+                fail("Expected IndexOutOfBoundsException");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                assertTrue("Expected IndexOutOfBoundsException, got: " + e.getCause(), e.getCause() instanceof IndexOutOfBoundsException);
+            }
+
+            MemorySegment a = arena.allocate(32);
+            MemorySegment b = arena.allocate(32);
+            for (int i = 0; i < 4; i++) {
+                a.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
+                b.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
+            }
+            int cmp = (int) memcmp.invoke(instance, a, b, 4L);
+            assertEquals(0, cmp);
+        }
+    }
+
+    /**
+     * The {@code paddingBytesParam} guard rejects a negative padding value with an
+     * {@code IllegalArgumentException}, thrown before any size check or native call. All attributes
+     * reference the same {@code n}, so passing {@code n = -1} drives the padding negative and the
+     * emitted {@code if (paddingBytes < 0) throw} fires.
+     */
+    public void testMatrixSegmentNegativePaddingThrows() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment b,
                     long n);
             }
             """;
@@ -275,7 +335,7 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             MemorySegment a = arena.allocate(64);
             MemorySegment b = arena.allocate(64);
             try {
-                memcmp.invoke(instance, a, b, 4L);
+                memcmp.invoke(instance, a, b, -1L);
                 fail("Expected IllegalArgumentException");
             } catch (java.lang.reflect.InvocationTargetException e) {
                 assertTrue("Expected IllegalArgumentException, got: " + e.getCause(), e.getCause() instanceof IllegalArgumentException);
@@ -284,58 +344,11 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     }
 
     /**
-     * The {@code rowPitchBytesParam} relational check, non-throwing branch.
-     * With {@code elementBytes = 1}, {@code rowBytes = n*8/8 = n}, equal to {@code pitch = n},
-     * so {@code pitch >= rowBytes} holds and the check passes; the size is then computed as
-     * {@code rows*pitch = n*n}, and the call proceeds to the real {@code memcmp}.
+     * Verifies a sub-byte {@code elementBits} check rounds each row's byte size <em>up</em> to whole
+     * bytes: a 2D segment is {@code rows} independently packed vectors, and each vector must have room
+     * for all its bits.
      */
-    public void testRowPitchBytesCheckDoesNotThrowOnSufficientPitch() throws Exception {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification
-            public interface MemCmpLib {
-                @Function("memcmp")
-                int memcmp(
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 1, rowPitchBytesParam = "n")
-                    MemorySegment a,
-                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBytes = 1, rowPitchBytesParam = "n")
-                    MemorySegment b,
-                    long n);
-            }
-            """;
-
-        CompilationResult result = compile("test.MemCmpLib", source);
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-
-        Class<?> implClass = result.loadClass("test.MemCmpLib$Impl");
-        java.lang.reflect.Constructor<?> ctor = implClass.getDeclaredConstructor();
-        ctor.setAccessible(true);
-        Object instance = ctor.newInstance();
-        java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
-        memcmp.setAccessible(true);
-
-        // n = 4 -> rows*pitch = 4*4 = 16 bytes required; memcmp itself only reads n=4.
-        try (var arena = java.lang.foreign.Arena.ofConfined()) {
-            MemorySegment a = arena.allocate(16);
-            MemorySegment b = arena.allocate(16);
-            for (int i = 0; i < 4; i++) {
-                a.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
-                b.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
-            }
-            int cmp = (int) memcmp.invoke(instance, a, b, 4L);
-            assertEquals(0, cmp);
-        }
-    }
-
-    /**
-     * Verifies the sub-byte {@code elementBits} path, focusing in particular on the byte
-     * size math.
-     */
-    public void testMatrixSegmentElementBitsMultipliesBeforeDividing() throws Exception {
+    public void testMatrixSegmentSubByteRowSizeRoundsUpToWholeBytes() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -362,11 +375,11 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
         java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
         memcmp.setAccessible(true);
 
-        // rows = cols = n = 3, elementBits = 4: correct size = (3*3*4)/8 = 4 bytes. A naive
-        // per-row computation ((3*4)/8 = 1, then 3*1 = 3) would wrongly accept a 3-byte segment.
+        // rows = cols = n = 3, elementBits = 4: each row is 3*4 = 12 bits -> ceil(12/8) = 2 bytes, so the
+        // required size is rows * 2 = 6 bytes. A 5-byte segment must be rejected.
         try (var arena = java.lang.foreign.Arena.ofConfined()) {
-            MemorySegment b = arena.allocate(4);
-            MemorySegment tooSmall = arena.allocate(3);
+            MemorySegment b = arena.allocate(6);
+            MemorySegment tooSmall = arena.allocate(5);
 
             try {
                 memcmp.invoke(instance, tooSmall, b, 3L);
@@ -375,7 +388,62 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
                 assertTrue("Expected IndexOutOfBoundsException, got: " + e.getCause(), e.getCause() instanceof IndexOutOfBoundsException);
             }
 
-            MemorySegment a = arena.allocate(4);
+            MemorySegment a = arena.allocate(6);
+            for (int i = 0; i < 3; i++) {
+                a.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
+                b.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
+            }
+            int cmp = (int) memcmp.invoke(instance, a, b, 3L);
+            assertEquals(0, cmp);
+        }
+    }
+
+    /**
+     * Same rounding-up rule as {@link #testMatrixSegmentSubByteRowSizeRoundsUpToWholeBytes}, for a 1D
+     * {@code @VectorSegment}: a sub-byte packed vector's byte size is {@code ceil(count*elementBits/8)},
+     * so a segment sized to the floored value is rejected.
+     */
+    public void testVectorSegmentSubByteSizeRoundsUpToWholeBytes() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 4) MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """;
+
+        CompilationResult result = compile("test.MemCmpLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.MemCmpLib$Impl");
+        java.lang.reflect.Constructor<?> ctor = implClass.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object instance = ctor.newInstance();
+        java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
+        memcmp.setAccessible(true);
+
+        // n = 3, elementBits = 4: 3*4 = 12 bits -> ceil(12/8) = 2 bytes required. A 1-byte segment must be
+        // rejected even though a floored size (12/8 = 1) would accept it. The check throws before memcmp runs.
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            MemorySegment b = arena.allocate(3);
+            MemorySegment tooSmall = arena.allocate(1);
+
+            try {
+                memcmp.invoke(instance, tooSmall, b, 3L);
+                fail("Expected IndexOutOfBoundsException");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                assertTrue("Expected IndexOutOfBoundsException, got: " + e.getCause(), e.getCause() instanceof IndexOutOfBoundsException);
+            }
+
+            MemorySegment a = arena.allocate(3);
             for (int i = 0; i < 3; i++) {
                 a.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
                 b.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);

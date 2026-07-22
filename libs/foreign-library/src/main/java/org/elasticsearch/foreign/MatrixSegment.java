@@ -21,27 +21,13 @@ import java.lang.foreign.MemorySegment;
  * The processor uses this annotation to emit a fixed bounds check at the top of the
  * generated {@code $Impl} method, before the native call.
  *
- * <p>The row size is given in exactly one of two forms:
- * <ul>
- *   <li>{@link #colsParam()} + exactly one of {@link #elementBytes()}/{@link #elementBits()} — row size
- *   is computed as {@code cols * elementBits / 8}.</li>
- *   <li>{@link #rowBytesParam()} — direct row size in bytes. Mutually exclusive with
- *   {@code colsParam}/{@code elementBytes}/{@code elementBits}.</li>
- * </ul>
- *
- * <p>By default, rows are assumed packed contiguously (row N+1 starts immediately after row N). If
- * instead the buffer pads each row to a fixed stride, set {@link #rowPitchBytesParam()} to the sibling
- * parameter holding that per-row stride in bytes. When set, the required segment size becomes
- * {@code rows * rowPitchBytes} instead of {@code rows * rowBytes}, and the processor additionally
- * emits a check for {@code (rowPitchBytes < rowBytes)}.
- *
  * <pre>{@code
  * @Function("dot_product_i7u_bulk")
  * void dotProductI7uBulk(
- *     @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1) MemorySegment a,
- *     @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment b,
+ *     @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8) MemorySegment a,
+ *     @VectorSegment(countParam = "length", elementBits = 8) MemorySegment b,
  *     int length, int count,
- *     @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment result);
+ *     @VectorSegment(countParam = "count", elementBits = 32) MemorySegment result);
  * }</pre>
  */
 @Retention(RetentionPolicy.SOURCE)
@@ -53,37 +39,21 @@ public @interface MatrixSegment {
     String rowsParam();
 
     /** Name of the sibling {@code int}/{@code long} parameter holding the column count. */
-    String colsParam() default "";
+    String colsParam();
 
-    /** Whole-byte element size, used with {@link #colsParam()}. Mutually exclusive with {@link #elementBits()}. */
-    int elementBytes() default 0;
+    /** Element size in bits, used with {@link #colsParam()}. */
+    int elementBits();
 
     /**
-     * Sub-byte element size in bits, used with {@link #colsParam()}. Mutually exclusive with
-     * {@link #elementBytes()}.
+     * Name of the optional sibling {@code int}/{@code long} parameter holding the row padding
+     * bytes. If no parameter is specified, padding is assumed to be 0.
      */
-    int elementBits() default 0;
+    String paddingBytesParam() default "";
 
     /**
-     * Name of a sibling {@code int}/{@code long} parameter that holds directly a row size in bytes.
-     * Mutually exclusive with {@link #colsParam()}, {@link #elementBytes()}, and {@link #elementBits()}.
-     */
-    String rowBytesParam() default "";
-
-    /**
-     * Name of a sibling {@code int}/{@code long} parameter holding the actual per-row stride in bytes,
-     * for buffers where rows are padded rather than packed back-to-back. Optional; compatible with
-     * either {@link #colsParam()} or {@link #rowBytesParam()}. When set, the required size becomes
-     * {@code rows * rowPitchBytes} instead of {@code rows * rowBytes}.
-     */
-    String rowPitchBytesParam() default "";
-
-    /**
-     * Whether the segment's address must be aligned to {@link #elementBytes()}. Emitted as a JVM
-     * {@code assert}, so it only runs under {@code -ea} — zero production cost, matching today's
-     * debug-only alignment checks. Requires the {@link #colsParam()} + {@link #elementBytes()} form
-     * ({@link #rowBytesParam()} has no declared element scalar to align to, and sub-byte
-     * {@link #elementBits()} has no natural alignment unit).
+     * Whether the segment's address must be aligned to the element byte size. Emitted as a JVM
+     * {@code assert}, so it only runs under {@code -ea}. Requires {@link #elementBits()} to be
+     * a multiple of 8 (whole-bytes).
      */
     boolean aligned() default false;
 }

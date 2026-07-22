@@ -30,7 +30,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@VectorSegment(countParam = "length", elementBytes = 1) int length);
+                int fn(@VectorSegment(countParam = "length", elementBits = 8) int length);
             }
             """;
 
@@ -53,7 +53,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@VectorSegment(countParam = "nope", elementBytes = 1) MemorySegment a, int length);
+                int fn(@VectorSegment(countParam = "nope", elementBits = 8) MemorySegment a, int length);
             }
             """;
 
@@ -76,7 +76,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@VectorSegment(countParam = "b", elementBytes = 1) MemorySegment a, MemorySegment b);
+                int fn(@VectorSegment(countParam = "b", elementBits = 8) MemorySegment a, MemorySegment b);
             }
             """;
 
@@ -89,7 +89,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
         );
     }
 
-    public void testVectorSegmentNeitherElementSizeSetFails() {
+    public void testVectorSegmentZeroElementBitsFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -99,7 +99,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@VectorSegment(countParam = "length") MemorySegment a, int length);
+                int fn(@VectorSegment(countParam = "length", elementBits = 0) MemorySegment a, int length);
             }
             """;
 
@@ -107,54 +107,8 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about missing element size but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("requires exactly one of 'elementBytes' or 'elementBits'"))
-        );
-    }
-
-    public void testVectorSegmentBothElementSizeSetFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.VectorSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(@VectorSegment(countParam = "length", elementBytes = 1, elementBits = 4) MemorySegment a, int length);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about both element sizes set but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("requires exactly one of 'elementBytes' or 'elementBits'"))
-        );
-    }
-
-    public void testVectorSegmentNegativeElementBytesFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.VectorSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(@VectorSegment(countParam = "length", elementBytes = -1) MemorySegment a, int length);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about negative elementBytes but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("elementBytes on parameter [a] must be positive"))
+            "Expected error about non-positive elementBits but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("elementBits on parameter [a] must be positive"))
         );
     }
 
@@ -181,7 +135,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
         );
     }
 
-    public void testVectorSegmentAlignedWithElementBitsFails() {
+    public void testVectorSegmentAlignedWithSubByteElementBitsFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -199,8 +153,10 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about aligned requiring elementBytes but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@VectorSegment.aligned") && msg.contains("requires 'elementBytes'"))
+            "Expected error about aligned requiring whole-byte elementBits but got: " + result.errors(),
+            result.errors()
+                .stream()
+                .anyMatch(msg -> msg.contains("@VectorSegment.aligned") && msg.contains("requires 'elementBits' to be a multiple of 8"))
         );
     }
 
@@ -217,7 +173,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1) int count, int length);
+                int fn(@MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8) int count, int length);
             }
             """;
 
@@ -240,7 +196,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@MatrixSegment(rowsParam = "nope", colsParam = "length", elementBytes = 1) MemorySegment a, int length, int count);
+                int fn(@MatrixSegment(rowsParam = "nope", colsParam = "length", elementBits = 8) MemorySegment a, int length, int count);
             }
             """;
 
@@ -264,7 +220,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             public interface BadLib {
                 @Function("native_fn")
                 int fn(
-                   @MatrixSegment(rowsParam = "b", colsParam = "length", elementBytes = 1) MemorySegment a,
+                   @MatrixSegment(rowsParam = "b", colsParam = "length", elementBits = 8) MemorySegment a,
                    MemorySegment b,
                    int length
                 );
@@ -280,133 +236,6 @@ public class BoundsCheckTests extends ProcessorTestCase {
         );
     }
 
-    public void testMatrixSegmentUnknownRowPitchBytesParamFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1, rowPitchBytesParam = "nope")
-                    MemorySegment a,
-                    int length, int count);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about unknown rowPitchBytesParam but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@MatrixSegment.rowPitchBytesParam references unknown parameter [nope]"))
-        );
-    }
-
-    public void testMatrixSegmentNeitherColsNorRowBytesSetFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(@MatrixSegment(rowsParam = "count") MemorySegment a, int count);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about missing colsParam/rowBytesParam but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("must set exactly one of 'colsParam' or 'rowBytesParam'"))
-        );
-    }
-
-    public void testMatrixSegmentBothColsAndRowBytesSetFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", rowBytesParam = "rowBytes") MemorySegment a,
-                    int length,
-                    int count,
-                    int rowBytes
-                );
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about both colsParam and rowBytesParam set but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("must set exactly one of 'colsParam' or 'rowBytesParam'"))
-        );
-    }
-
-    public void testMatrixSegmentRowBytesWithElementBytesFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(
-                    @MatrixSegment(rowsParam = "count", rowBytesParam = "rowBytes", elementBytes = 1) MemorySegment a,
-                    int count, int rowBytes);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about rowBytesParam combined with elementBytes but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("cannot combine 'rowBytesParam' with 'elementBytes'/'elementBits'"))
-        );
-    }
-
-    public void testMatrixSegmentRowBytesWithElementBitsFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(
-                    @MatrixSegment(rowsParam = "count", rowBytesParam = "rowBytes", elementBits = 4) MemorySegment a,
-                    int count, int rowBytes);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about rowBytesParam combined with elementBits but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("cannot combine 'rowBytesParam' with 'elementBytes'/'elementBits'"))
-        );
-    }
-
     public void testMatrixSegmentUnknownColsParamFails() {
         String source = """
             package test;
@@ -417,7 +246,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@MatrixSegment(rowsParam = "count", colsParam = "nope", elementBytes = 1) MemorySegment a, int count);
+                int fn(@MatrixSegment(rowsParam = "count", colsParam = "nope", elementBits = 8) MemorySegment a, int count);
             }
             """;
 
@@ -441,7 +270,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
             public interface BadLib {
                 @Function("native_fn")
                 int fn(
-                    @MatrixSegment(rowsParam = "count", colsParam = "b", elementBytes = 1) MemorySegment a,
+                    @MatrixSegment(rowsParam = "count", colsParam = "b", elementBits = 8) MemorySegment a,
                     MemorySegment b, int count);
             }
             """;
@@ -455,53 +284,7 @@ public class BoundsCheckTests extends ProcessorTestCase {
         );
     }
 
-    public void testMatrixSegmentUnknownRowBytesParamFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(@MatrixSegment(rowsParam = "count", rowBytesParam = "nope") MemorySegment a, int count);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about unknown rowBytesParam but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@MatrixSegment.rowBytesParam references unknown parameter [nope]"))
-        );
-    }
-
-    public void testMatrixSegmentColsNeitherElementSizeSetFails() {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("native_fn")
-                int fn(@MatrixSegment(rowsParam = "count", colsParam = "length") MemorySegment a, int length, int count);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail", result.success());
-        assertTrue(
-            "Expected error about missing element size but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("requires exactly one of 'elementBytes' or 'elementBits'"))
-        );
-    }
-
-    public void testMatrixSegmentColsBothElementSizeSetFails() {
+    public void testMatrixSegmentUnknownPaddingBytesParamFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -512,7 +295,8 @@ public class BoundsCheckTests extends ProcessorTestCase {
             public interface BadLib {
                 @Function("native_fn")
                 int fn(
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1, elementBits = 4) MemorySegment a,
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8, paddingBytesParam = "nope")
+                    MemorySegment a,
                     int length, int count);
             }
             """;
@@ -521,12 +305,12 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about both element sizes set but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("requires exactly one of 'elementBytes' or 'elementBits'"))
+            "Expected error about unknown paddingBytesParam but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@MatrixSegment.paddingBytesParam references unknown parameter [nope]"))
         );
     }
 
-    public void testMatrixSegmentAlignedWithRowBytesFails() {
+    public void testMatrixSegmentPaddingBytesParamWrongTypeFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -537,8 +321,9 @@ public class BoundsCheckTests extends ProcessorTestCase {
             public interface BadLib {
                 @Function("native_fn")
                 int fn(
-                    @MatrixSegment(rowsParam = "count", rowBytesParam = "rowBytes", aligned = true) MemorySegment a,
-                    int count, int rowBytes);
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8, paddingBytesParam = "b")
+                    MemorySegment a,
+                    MemorySegment b, int length, int count);
             }
             """;
 
@@ -546,14 +331,60 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about aligned requiring colsParam+elementBytes but got: " + result.errors(),
-            result.errors()
-                .stream()
-                .anyMatch(msg -> msg.contains("@MatrixSegment.aligned") && msg.contains("requires 'colsParam' + 'elementBytes'"))
+            "Expected error about paddingBytesParam type but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@MatrixSegment.paddingBytesParam parameter [b] must be int or long"))
         );
     }
 
-    public void testMatrixSegmentAlignedWithElementBitsFails() {
+    public void testMatrixSegmentZeroElementBitsFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 0) MemorySegment a, int length, int count);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about non-positive elementBits but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("elementBits on parameter [a] must be positive"))
+        );
+    }
+
+    public void testMatrixSegmentNegativeElementBitsFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = -4) MemorySegment a,
+                    int length, int count);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about negative elementBits but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("elementBits on parameter [a] must be positive"))
+        );
+    }
+
+    public void testMatrixSegmentAlignedWithSubByteElementBitsFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -573,8 +404,10 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about aligned requiring elementBytes but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@MatrixSegment.aligned") && msg.contains("requires 'elementBytes'"))
+            "Expected error about aligned requiring whole-byte elementBits but got: " + result.errors(),
+            result.errors()
+                .stream()
+                .anyMatch(msg -> msg.contains("@MatrixSegment.aligned") && msg.contains("requires 'elementBits' to be a multiple of 8"))
         );
     }
 
@@ -594,8 +427,8 @@ public class BoundsCheckTests extends ProcessorTestCase {
             public interface BadLib {
                 @Function("native_fn")
                 int fn(
-                    @VectorSegment(countParam = "length", elementBytes = 1)
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1)
+                    @VectorSegment(countParam = "length", elementBits = 8)
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8)
                     MemorySegment a,
                     int length, int count);
             }

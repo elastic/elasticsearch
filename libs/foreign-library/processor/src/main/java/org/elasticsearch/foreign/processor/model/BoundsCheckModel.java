@@ -37,34 +37,31 @@ public sealed interface BoundsCheckModel {
 
     /**
      * 1D linear shape, from {@code @VectorSegment}: the segment must be at least
-     * {@code count * elementBits / 8} bytes. When {@code aligned}, the processor additionally emits
-     * an {@code assert} that the segment's address is aligned to {@code elementBits / 8} bytes.
+     * {@code ceil(count * elementBits / 8)} bytes (the bit count is rounded up to whole bytes, so a
+     * sub-byte packed vector always has room for every element). When {@code aligned}, the processor
+     * additionally emits an {@code assert} that the segment's address is aligned to
+     * {@code elementBits / 8} bytes.
      *
      * @param segParamIndex index of the annotated {@code MemorySegment} parameter
      * @param countParamIndex index of the sibling parameter holding the element count
-     * @param elementBits bits per element (whole-byte sizes are {@code elementBytes * 8})
+     * @param elementBits bits per element
      * @param aligned whether to additionally assert the segment is aligned to {@code elementBits / 8} bytes
      */
     record VectorSegmentCheck(int segParamIndex, int countParamIndex, int elementBits, boolean aligned) implements BoundsCheckModel {}
 
     /**
-     * 2D shape, from {@code @MatrixSegment}: the segment must be at least {@code rows * rowBytes}
-     * bytes, where {@code rowBytes} is either a direct sibling parameter ({@link #hasDirectRowBytes()})
-     * or {@code cols * elementBits / 8}. When {@link #hasRowPitchBytes()}, rows are strided/padded
-     * rather than packed contiguously: the required size becomes {@code rows * rowPitchBytes} instead,
-     * and the processor additionally emits a check that {@code (rowPitchBytes < rowBytes)}. When
-     * {@code aligned}, the processor additionally emits an {@code assert} that the segment's address
-     * is aligned to {@code elementBits / 8} bytes (only possible when {@code colsParamIndex >= 0}).
+     * 2D shape, from {@code @MatrixSegment}: a collection of {@code rows} independently packed vectors.
+     * The segment must be at least {@code rows * rowBytes} bytes, where {@code rowBytes} is
+     * {@code ceil(cols * elementBits / 8) + paddingBytes} (each row's bit count is rounded up to whole
+     * bytes before padding is added). When {@code aligned}, the processor additionally emits an
+     * {@code assert} that the segment's address is aligned to {@code elementBits / 8} bytes.
      *
      * @param segParamIndex index of the annotated {@code MemorySegment} parameter
      * @param rowsParamIndex index of the sibling parameter holding the row count
-     * @param colsParamIndex index of the sibling parameter holding the column count, or {@code -1}
-     *        when {@code rowBytesParamIndex} is used instead
-     * @param elementBits bits per element, meaningful only when {@code colsParamIndex >= 0}
-     * @param rowBytesParamIndex index of the sibling parameter already holding the row size in
-     *        bytes, or {@code -1} when {@code colsParamIndex}/{@code elementBits} are used instead
-     * @param rowPitchBytesParamIndex index of the sibling parameter holding the actual per-row
-     *        stride in bytes, or {@code -1} when rows are packed contiguously (no padding)
+     * @param colsParamIndex index of the sibling parameter holding the column count
+     * @param elementBits bits per element
+     * @param paddingBytesParamIndex index of the sibling parameter holding the per-row padding in bytes,
+     *                               or {@code -1} when rows are packed contiguously (no padding)
      * @param aligned whether to additionally assert the segment is aligned to {@code elementBits / 8} bytes
      */
     record MatrixSegmentCheck(
@@ -72,19 +69,12 @@ public sealed interface BoundsCheckModel {
         int rowsParamIndex,
         int colsParamIndex,
         int elementBits,
-        int rowBytesParamIndex,
-        int rowPitchBytesParamIndex,
+        int paddingBytesParamIndex,
         boolean aligned
     ) implements BoundsCheckModel {
-
-        /** True if the row size comes from a direct byte-count sibling parameter, not {@code cols * elementBits / 8}. */
-        public boolean hasDirectRowBytes() {
-            return rowBytesParamIndex >= 0;
-        }
-
-        /** True if rows are strided/padded — sized via {@code rowPitchBytes} rather than the packed row size. */
-        public boolean hasRowPitchBytes() {
-            return rowPitchBytesParamIndex >= 0;
+        /** True if rows are padded. */
+        public boolean hasPaddingBytes() {
+            return paddingBytesParamIndex >= 0;
         }
     }
 
@@ -192,14 +182,16 @@ public sealed interface BoundsCheckModel {
         if (countIndex < 0) {
             return null;
         }
-        int elementBits = resolveElementBits("@VectorSegment", annotation.elementBytes(), annotation.elementBits(), param, messager);
+        int elementBits = resolveElementBits("@VectorSegment", annotation.elementBits(), param, messager);
         if (elementBits < 0) {
             return null;
         }
-        if (annotation.aligned() && annotation.elementBytes() == 0) {
+        if (annotation.aligned() && annotation.elementBits() % 8 != 0) {
             messager.printMessage(
                 Kind.ERROR,
-                "@VectorSegment.aligned on parameter [" + param.getSimpleName() + "] requires 'elementBytes'",
+                "@VectorSegment.aligned on parameter ["
+                    + param.getSimpleName()
+                    + "] requires 'elementBits' to be a multiple of 8 (whole bytes)",
                 param
             );
             return null;
@@ -219,79 +211,44 @@ public sealed interface BoundsCheckModel {
         if (rowsIndex < 0) {
             return null;
         }
-        int rowPitchBytesIndex = -1;
-        if (annotation.rowPitchBytesParam().isEmpty() == false) {
-            rowPitchBytesIndex = resolveIntSiblingParam(
-                "@MatrixSegment.rowPitchBytesParam",
-                annotation.rowPitchBytesParam(),
-                param,
-                params,
-                paramTypes,
-                messager
-            );
-            if (rowPitchBytesIndex < 0) {
-                return null;
-            }
-        }
-        boolean hasCols = annotation.colsParam().isEmpty() == false;
-        boolean hasRowBytes = annotation.rowBytesParam().isEmpty() == false;
-        if (hasCols == hasRowBytes) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@MatrixSegment on parameter [" + param.getSimpleName() + "] must set exactly one of 'colsParam' or 'rowBytesParam'",
-                param
-            );
-            return null;
-        }
-        if (hasRowBytes) {
-            if (annotation.elementBytes() != 0 || annotation.elementBits() != 0) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "@MatrixSegment on parameter ["
-                        + param.getSimpleName()
-                        + "] cannot combine 'rowBytesParam' with 'elementBytes'/'elementBits'",
-                    param
-                );
-                return null;
-            }
-            if (annotation.aligned()) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires 'colsParam' + 'elementBytes'",
-                    param
-                );
-                return null;
-            }
-            int rowBytesIndex = resolveIntSiblingParam(
-                "@MatrixSegment.rowBytesParam",
-                annotation.rowBytesParam(),
-                param,
-                params,
-                paramTypes,
-                messager
-            );
-            if (rowBytesIndex < 0) {
-                return null;
-            }
-            return new MatrixSegmentCheck(segParamIndex, rowsIndex, -1, 0, rowBytesIndex, rowPitchBytesIndex, false);
-        }
+
         int colsIndex = resolveIntSiblingParam("@MatrixSegment.colsParam", annotation.colsParam(), param, params, paramTypes, messager);
         if (colsIndex < 0) {
             return null;
         }
-        int elementBits = resolveElementBits("@MatrixSegment", annotation.elementBytes(), annotation.elementBits(), param, messager);
+
+        int elementBits = resolveElementBits("@MatrixSegment", annotation.elementBits(), param, messager);
         if (elementBits < 0) {
             return null;
         }
-        if (annotation.aligned() && annotation.elementBytes() == 0) {
+
+        if (annotation.aligned() && (annotation.elementBits() % 8) != 0) {
             messager.printMessage(
                 Kind.ERROR,
-                "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires 'elementBytes'",
+                "@MatrixSegment.aligned on parameter ["
+                    + param.getSimpleName()
+                    + "] requires 'elementBits' to be a multiple of 8 (whole bytes)",
                 param
             );
             return null;
         }
-        return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, -1, rowPitchBytesIndex, annotation.aligned());
+
+        int paddingBytesParamIndex = -1;
+        if (annotation.paddingBytesParam().isEmpty() == false) {
+            paddingBytesParamIndex = resolveIntSiblingParam(
+                "@MatrixSegment.paddingBytesParam",
+                annotation.paddingBytesParam(),
+                param,
+                params,
+                paramTypes,
+                messager
+            );
+            if (paddingBytesParamIndex < 0) {
+                return null;
+            }
+        }
+
+        return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, paddingBytesParamIndex, annotation.aligned());
     }
 
     /**
@@ -326,42 +283,11 @@ public sealed interface BoundsCheckModel {
     }
 
     /**
-     * Verifies exactly one of {@code elementBytes}/{@code elementBits} is set (positive) and returns
-     * the element size normalized to bits (whole-byte sizes become {@code elementBytes * 8}). Returns
-     * {@code -1} (with a {@link Kind#ERROR} emitted) on failure.
+     * Verifies {@code elementBits} is set, it is positive, and returns it.
+     * Returns {@code -1} (with a {@link Kind#ERROR} emitted) on failure.
      */
-    private static int resolveElementBits(
-        String annotationName,
-        int elementBytes,
-        int elementBits,
-        VariableElement annotatedParam,
-        Messager messager
-    ) {
-        boolean hasBytes = elementBytes != 0;
-        boolean hasBits = elementBits != 0;
-        if (hasBytes == hasBits) {
-            messager.printMessage(
-                Kind.ERROR,
-                annotationName
-                    + " on parameter ["
-                    + annotatedParam.getSimpleName()
-                    + "] requires exactly one of 'elementBytes' or 'elementBits'",
-                annotatedParam
-            );
-            return -1;
-        }
-        if (hasBytes) {
-            if (elementBytes < 0) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    annotationName + ".elementBytes on parameter [" + annotatedParam.getSimpleName() + "] must be positive",
-                    annotatedParam
-                );
-                return -1;
-            }
-            return elementBytes * 8;
-        }
-        if (elementBits < 0) {
+    private static int resolveElementBits(String annotationName, int elementBits, VariableElement annotatedParam, Messager messager) {
+        if (elementBits <= 0) {
             messager.printMessage(
                 Kind.ERROR,
                 annotationName + ".elementBits on parameter [" + annotatedParam.getSimpleName() + "] must be positive",

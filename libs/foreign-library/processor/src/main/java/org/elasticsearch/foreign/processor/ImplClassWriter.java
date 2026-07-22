@@ -416,8 +416,10 @@ class ImplClassWriter {
     }
 
     /**
-     * Emits {@code Objects.checkFromIndexSize(0L, count * elementBits / 8, segment.byteSize())}, plus
-     * an alignment {@code assert} when {@link BoundsCheckModel.VectorSegmentCheck#aligned()}.
+     * Emits {@code Objects.checkFromIndexSize(0L, ceil(count * elementBits / 8), segment.byteSize())},
+     * plus an alignment {@code assert} when {@link BoundsCheckModel.VectorSegmentCheck#aligned()}. The
+     * byte size is rounded up so a sub-byte packed vector always has enough whole bytes to hold every
+     * element (e.g. {@code 6} 2-bit elements need {@code ceil(12/8) = 2} bytes, not {@code 1}).
      */
     private static void emitVectorSegmentCheck(
         CodeBuilder cb,
@@ -430,6 +432,9 @@ class ImplClassWriter {
         emitLongParamLoad(cb, paramTypes.get(check.countParamIndex()), slots[check.countParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
+        // ceil(count * elementBits / 8): round the bit count up to whole bytes via (bits + 7) / 8
+        cb.ldc(7L);
+        cb.ladd();
         cb.ldc(8L);
         cb.ldiv();
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
@@ -439,11 +444,11 @@ class ImplClassWriter {
     }
 
     /**
-     * Emits code checking {@code segment.byteSize() < rows * rowBytes} (or
-     * {@code rows * rowPitchBytes} when {@link BoundsCheckModel.MatrixSegmentCheck#hasRowPitchBytes()}),
-     * plus an alignment {@code assert} when {@link BoundsCheckModel.MatrixSegmentCheck#aligned()}. When
-     * the row size comes from {@code cols}/{@code elementBits}, the whole {@code rows * cols * elementBits}
-     * product is computed before the single {@code / 8}.
+     * Emits code checking {@code segment.byteSize() < rows * rowBytes}, where
+     * {@code rowBytes = ceil(cols * elementBits / 8) + paddingBytes}, plus an alignment {@code assert}
+     * when {@link BoundsCheckModel.MatrixSegmentCheck#aligned()}. A 2D segment is treated as {@code rows}
+     * independently packed vectors, so each row's byte size is rounded up to whole bytes before the
+     * per-row padding is added and the whole thing is multiplied by {@code rows}.
      */
     private static void emitMatrixSegmentCheck(
         CodeBuilder cb,
@@ -452,71 +457,48 @@ class ImplClassWriter {
         int[] slots,
         BoundsCheckModel.MatrixSegmentCheck check
     ) {
-        if (check.hasRowPitchBytes()) {
-            emitRowPitchBytesRelationalCheck(cb, paramTypes, slots, check);
-        }
+        // fromIndex arg for checkFromIndexSize
         cb.lconst_0();
-        emitLongParamLoad(cb, paramTypes.get(check.rowsParamIndex()), slots[check.rowsParamIndex()]);
-        if (check.hasRowPitchBytes()) {
-            emitLongParamLoad(cb, paramTypes.get(check.rowPitchBytesParamIndex()), slots[check.rowPitchBytesParamIndex()]);
-            cb.lmul();
-        } else if (check.hasDirectRowBytes()) {
-            emitLongParamLoad(cb, paramTypes.get(check.rowBytesParamIndex()), slots[check.rowBytesParamIndex()]);
-            cb.lmul();
-        } else {
-            emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
-            cb.lmul();
-            cb.ldc((long) check.elementBits());
-            cb.lmul();
-            cb.ldc(8L);
-            cb.ldiv();
+
+        // ceil(cols * elementBits / 8): round the per-row bit count up to whole bytes via (bits + 7) / 8
+        emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
+        cb.ldc((long) check.elementBits());
+        cb.lmul();
+        cb.ldc(7L);
+        cb.ladd();
+        cb.ldc(8L);
+        cb.ldiv();
+        if (check.hasPaddingBytes()) {
+            emitPaddingBytesRelationalCheck(cb, paramTypes, slots, check);
+            emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
+            cb.ladd();
         }
+        emitLongParamLoad(cb, paramTypes.get(check.rowsParamIndex()), slots[check.rowsParamIndex()]);
+        cb.lmul();
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
         if (check.aligned()) {
             emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
         }
     }
 
-    /** Emits {@code if (rowPitchBytes < rowBytes) throw new IllegalArgumentException(...)}. Stack-neutral. */
-    private static void emitRowPitchBytesRelationalCheck(
+    /** Emits {@code if (paddingBytes < 0) throw new IllegalArgumentException(...)}. Stack-neutral. */
+    private static void emitPaddingBytesRelationalCheck(
         CodeBuilder cb,
         List<NativeType> paramTypes,
         int[] slots,
         BoundsCheckModel.MatrixSegmentCheck check
     ) {
-        var pitchOk = cb.newLabel();
-        emitLongParamLoad(cb, paramTypes.get(check.rowPitchBytesParamIndex()), slots[check.rowPitchBytesParamIndex()]);
-        emitRowBytesValue(cb, paramTypes, slots, check);
+        var paddingOk = cb.newLabel();
+        emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
+        cb.lconst_0();
         cb.lcmp();
-        cb.ifge(pitchOk); // rowPitchBytes - rowBytes >= 0 => rowPitchBytes >= rowBytes, ok
+        cb.ifge(paddingOk); // paddingBytes >= 0, ok
         cb.new_(CD_IllegalArgumentException);
         cb.dup();
-        cb.ldc("rowPitchBytesParam must be at least the packed row size");
+        cb.ldc("paddingBytes must be >= 0");
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
-        cb.labelBinding(pitchOk);
-    }
-
-    /**
-     * Pushes the packed row size in bytes (a direct {@code rowBytesParam}, or {@code cols * elementBits / 8}).
-     * Only used standalone, by {@link #emitRowPitchBytesRelationalCheck} — never as part of the
-     * {@code rows}-multiplied size, where the single-division-at-the-end rule applies instead.
-     */
-    private static void emitRowBytesValue(
-        CodeBuilder cb,
-        List<NativeType> paramTypes,
-        int[] slots,
-        BoundsCheckModel.MatrixSegmentCheck check
-    ) {
-        if (check.hasDirectRowBytes()) {
-            emitLongParamLoad(cb, paramTypes.get(check.rowBytesParamIndex()), slots[check.rowBytesParamIndex()]);
-        } else {
-            emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
-            cb.ldc((long) check.elementBits());
-            cb.lmul();
-            cb.ldc(8L);
-            cb.ldiv();
-        }
+        cb.labelBinding(paddingOk);
     }
 
     /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */
@@ -566,20 +548,6 @@ class ImplClassWriter {
         }
     }
 
-    /**
-     * Generates a method body that marshals {@code String} parameters to native memory before the call.
-     * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
-     *
-     * <p>Local variable layout (slots):
-     * <ul>
-     *   <li>0: {@code this}</li>
-     *   <li>1..paramEnd-1: original Java parameters</li>
-     *   <li>paramEnd: the {@code Arena}</li>
-     *   <li>paramEnd+1..: one {@code MemorySegment} per {@code STRING} parameter, in order</li>
-     *   <li>last slot (if non-void return): the return value from invokeExact</li>
-     * </ul>
-     */
     /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via

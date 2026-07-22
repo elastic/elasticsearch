@@ -11,10 +11,10 @@ package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.lang.foreign.MemorySegment;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.BranchInstruction;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -421,7 +421,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     // correct, not that the emitted checks fire at runtime.
     // -------------------------------------------------------------------------
 
-    public void testVectorSegmentElementBytesGeneratesClass() throws Exception {
+    public void testVectorSegmentGeneratesClass() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -432,8 +432,8 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             public interface MyLib {
                 @Function("dot_product")
                 int dotProduct(
-                    @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment a,
-                    @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment b,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment a,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment b,
                     int length);
             }
             """;
@@ -448,7 +448,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertEquals("dotProduct must still return int", int.class, method.getReturnType());
     }
 
-    public void testVectorSegmentElementBitsGeneratesClass() throws Exception {
+    public void testVectorSegmentSubByteElementBitsGeneratesClass() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -460,7 +460,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
                 @Function("dot_product_i4")
                 int dotProductI4(
                     @VectorSegment(countParam = "elementCount", elementBits = 4) MemorySegment a,
-                    @VectorSegment(countParam = "elementCount", elementBytes = 1) MemorySegment b,
+                    @VectorSegment(countParam = "elementCount", elementBits = 8) MemorySegment b,
                     int elementCount);
             }
             """;
@@ -482,7 +482,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             public interface MyLib {
                 @Function("dot_product_sparse")
                 int dotProductSparse(
-                    @VectorSegment(countParam = "count", elementBytes = 8, aligned = true) MemorySegment addresses,
+                    @VectorSegment(countParam = "count", elementBits = 64, aligned = true) MemorySegment addresses,
                     int count);
             }
             """;
@@ -495,7 +495,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertAssertionsDisabledFieldPresent(implClass);
     }
 
-    public void testMatrixSegmentColsElementBytesGeneratesClass() throws Exception {
+    public void testMatrixSegmentGeneratesClass() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -507,10 +507,10 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             public interface MyLib {
                 @Function("dot_product_bulk")
                 void dotProductBulk(
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1) MemorySegment docs,
-                    @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment query,
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8) MemorySegment docs,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment query,
                     int length, int count,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment scores);
+                    @VectorSegment(countParam = "count", elementBits = 32) MemorySegment scores);
             }
             """;
 
@@ -531,7 +531,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertEquals("dotProductBulk must still return void", void.class, method.getReturnType());
     }
 
-    public void testMatrixSegmentColsElementBitsGeneratesClass() throws Exception {
+    public void testMatrixSegmentSubByteElementBitsGeneratesClass() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -544,9 +544,9 @@ public class ImplClassWriterTests extends ProcessorTestCase {
                 @Function("dot_product_i4_bulk")
                 void dotProductI4Bulk(
                     @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 4) MemorySegment docs,
-                    @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment query,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment query,
                     int length, int count,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment scores);
+                    @VectorSegment(countParam = "count", elementBits = 32) MemorySegment scores);
             }
             """;
 
@@ -556,7 +556,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertNotNull("Generated MyLib$Impl class not found", result.loadClassNoInit("test.MyLib$Impl"));
     }
 
-    public void testMatrixSegmentRowBytesGeneratesClass() throws Exception {
+    public void testMatrixSegmentPaddingBytesGeneratesClass() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -566,75 +566,13 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             import org.elasticsearch.foreign.MatrixSegment;
             @LibrarySpecification(name = "testlib")
             public interface MyLib {
-                @Function("dot_product_bbq_bulk")
-                void dotProductBBQBulk(
-                    @MatrixSegment(rowsParam = "count", rowBytesParam = "datasetVectorLengthInBytes") MemorySegment docs,
-                    int datasetVectorLengthInBytes,
-                    @VectorSegment(countParam = "datasetVectorLengthInBytes", elementBytes = 1) MemorySegment query,
-                    int count,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment scores);
-            }
-            """;
-
-        CompilationResult result = compile("test.MyLib", source);
-
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-        assertNotNull("Generated MyLib$Impl class not found", result.loadClassNoInit("test.MyLib$Impl"));
-    }
-
-    public void testMatrixSegmentRowPitchBytesGeneratesClass() throws Exception {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.VectorSegment;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface MyLib {
-                @Function("dot_product_bulk_offsets")
-                void dotProductBulkOffsets(
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 1, rowPitchBytesParam = "pitch")
+                @Function("dot_product_bulk_padded")
+                void dotProductBulkPadded(
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8, paddingBytesParam = "padding")
                     MemorySegment docs,
-                    @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment query,
-                    int length, int pitch,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment offsets,
-                    int count,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment scores);
-            }
-            """;
-
-        CompilationResult result = compile("test.MyLib", source);
-
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-        assertNotNull("Generated MyLib$Impl class not found", result.loadClassNoInit("test.MyLib$Impl"));
-    }
-
-    /**
-     * {@code rowPitchBytesParam} and {@code rowBytesParam} are NOT mutually exclusive — a matrix can
-     * have both a directly-supplied packed row size and a separate, larger stride (e.g. BBQ's
-     * {@code _bulk_offsets} path). This must compile and size via {@code rowPitchBytesParam}, not
-     * {@code rowBytesParam}.
-     */
-    public void testMatrixSegmentRowPitchBytesWithRowBytesGeneratesClass() throws Exception {
-        String source = """
-            package test;
-            import java.lang.foreign.MemorySegment;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.VectorSegment;
-            import org.elasticsearch.foreign.MatrixSegment;
-            @LibrarySpecification(name = "testlib")
-            public interface MyLib {
-                @Function("dot_product_bbq_bulk_offsets")
-                void dotProductBBQBulkOffsets(
-                    @MatrixSegment(rowsParam = "count", rowBytesParam = "datasetVectorLengthInBytes", rowPitchBytesParam = "pitch")
-                    MemorySegment docs,
-                    int datasetVectorLengthInBytes, int pitch,
-                    @VectorSegment(countParam = "datasetVectorLengthInBytes", elementBytes = 1) MemorySegment query,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment offsets,
-                    int count,
-                    @VectorSegment(countParam = "count", elementBytes = 4) MemorySegment scores);
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment query,
+                    int length, int count, int padding,
+                    @VectorSegment(countParam = "count", elementBits = 32) MemorySegment scores);
             }
             """;
 
@@ -655,7 +593,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             public interface MyLib {
                 @Function("read_matrix")
                 void readMatrix(
-                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBytes = 4, aligned = true) MemorySegment m,
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 32, aligned = true) MemorySegment m,
                     int length, int count);
             }
             """;

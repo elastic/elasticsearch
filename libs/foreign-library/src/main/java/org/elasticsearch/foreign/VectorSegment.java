@@ -21,16 +21,11 @@ import java.lang.foreign.MemorySegment;
  * The processor uses this annotation to emit a fixed bounds check at the top of the
  * generated {@code $Impl} method, before the native call.
  *
- * <p>Exactly one of {@link #elementBytes()} or {@link #elementBits()} must be set; the processor
- * rejects a method where neither, or both, are set. {@link #elementBits()} exists for sub-byte packed
- * element sizes (e.g. {@code 4} for int4); whole-byte element sizes should use
- * {@link #elementBytes()}.
- *
  * <pre>{@code
  * @Function("dot_product_i7u")
  * int dotProductI7u(
- *     @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment a,
- *     @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment b,
+ *     @VectorSegment(countParam = "length", elementBits = 8) MemorySegment a,
+ *     @VectorSegment(countParam = "length", elementBits = 8) MemorySegment b,
  *     int length);
  * }</pre>
  */
@@ -42,20 +37,13 @@ public @interface VectorSegment {
     /** Name of the sibling {@code int}/{@code long} parameter holding the element count. */
     String countParam();
 
-    /** Whole-byte element size. Mutually exclusive with {@link #elementBits()}. */
-    int elementBytes() default 0;
+    /** Element size in bits. */
+    int elementBits();
 
     /**
-     * Sub-byte element size in bits (e.g. {@code 4} for int4). Mutually exclusive with
-     * {@link #elementBytes()}.
-     */
-    int elementBits() default 0;
-
-    /**
-     * Whether the segment's address must be aligned to {@link #elementBytes()}. Emitted as a JVM
-     * {@code assert}, so it only runs under {@code -ea} — zero production cost, matching today's
-     * debug-only alignment checks. Requires {@link #elementBytes()} (sub-byte elements have no
-     * natural alignment unit).
+     * Whether the segment's address must be aligned to the element size (in bytes). Emitted as a JVM
+     * {@code assert}, so it only runs under {@code -ea}. Requires {@link #elementBits()} to be a multiple
+     * of 8 (sub-byte elements have no natural alignment unit).
      */
     boolean aligned() default false;
 }

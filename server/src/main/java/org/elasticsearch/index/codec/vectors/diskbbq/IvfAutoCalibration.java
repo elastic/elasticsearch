@@ -170,8 +170,9 @@ public class IvfAutoCalibration {
 
     /**
      * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState}.
-     * When reuse is not possible, runs full calibration on merged vectors. Bounded (force-merge) merges
-     * skip metadata reuse and always calibrate.
+     * When reuse is not possible, runs calibration on the merged vectors. Bounded (force-merge) merges
+     * skip metadata reuse and always calibrate. Background and force merges share the same calibration
+     * path, so calibration semantics never depend on the merge kind.
      */
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException {
         Objects.requireNonNull(mergeState, "mergeState");
@@ -189,6 +190,9 @@ public class IvfAutoCalibration {
             return codecDefault;
         }
 
+        // Background merges may short-circuit to reusing the input segments' agreed calibration metadata.
+        // Force merges always recalibrate. Either way, when a fresh fit is needed both merge kinds run the
+        // SAME single calibration path below — no per-merge-kind algorithmic divergence.
         if (isBoundedForceMerge(mergeState) == false) {
             IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState);
             if (reused != null) {
@@ -199,13 +203,6 @@ public class IvfAutoCalibration {
                 "Merge calibration: bounded force merge (inputSegments=[{}]), skipping metadata reuse",
                 mergeState.knnVectorsReaders == null ? 0 : mergeState.knnVectorsReaders.length
             );
-            try {
-                KMeansFloatVectorValues sampledVectors = CalibrationUtils.buildSampled(fieldInfo, mergeState, numVectors);
-                return calibrate(sampledVectors, similarityFunction, numVectors, CalibrationMode.FULL);
-            } catch (IOException e) {
-                logger.warn("calibration failed on bounded force merge, falling back to codec default encoding", e);
-                return codecDefault;
-            }
         }
 
         try {
@@ -468,7 +465,7 @@ public class IvfAutoCalibration {
         double invDim = manifold[1];
 
         if (mode == CalibrationMode.FAST) {
-            return sweepQuantizationCandidatesManifoldResiduals(similarityFunction, ctx.numVectors(), alpha, invDim, calibrationSource);
+            return sweepQuantizationCandidatesRealResiduals(similarityFunction, ctx.numVectors(), alpha, invDim, calibrationSource);
         } else {
             ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(calibrationSource, vectorsPerCluster);
             return sweepQuantizationCandidates(similarityFunction, ctx.numVectors(), alpha, invDim, scalingFit, calibrationSource);
@@ -476,42 +473,40 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Sweeps (encoding, rerank) candidates using synthetic Gaussian residuals scaled to the
-     * manifold cluster radius: no k-means, no NN assignment. The slope {@code beta1 = invDim}
-     * is taken directly from the manifold; only the intercept {@code beta0} is measured via a
-     * single OSQ pass on random residuals. This is the cheapest calibration path.
-     * <p>
-     * TODO: the synthetic Gaussian residuals (and their squared norms) depend only on the manifold
-     * cluster radius, which is constant across candidates in a single sweep — only the OSQ
-     * quantization varies with (qbits, dbits). Generating them once and reusing across all candidates
-     * would avoid regenerating {@code nDocs * dim} Gaussians per candidate. See also the sort in
-     * {@code ErrorModel#quantizedRepErrorStd} which fully sorts to take only the top-5k.
+     * Sweeps (encoding, rerank) candidates using <em>real</em> corpus residuals: a single k-means clustering
+     * of a {@code ErrorModel#REAL_RESIDUAL_SAMPLE}-vector sample provides the actual per-cluster residuals,
+     * whose OSQ error is measured directly. Instead of re-clustering at multiple corpus sizes to learn how
+     * the residual error shrinks as the corpus grows (the full path's multi-sample scaling fit), the manifold
+     * slope {@code invDim} is used as a plug-in to extrapolate that single measurement from the sample size to
+     * the real corpus size (see {@link ErrorModel#estimateMagnitudeFromRealResiduals}).
      */
-    private SweepOutcome sweepQuantizationCandidatesManifoldResiduals(
+    private SweepOutcome sweepQuantizationCandidatesRealResiduals(
         VectorSimilarityFunction similarityFunction,
         int numVectors,
         double alpha,
         double invDim,
         CalibrationSource calibrationSource
     ) throws IOException {
+        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(calibrationSource);
         Map<EncKey, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
         return sweepCandidates(similarityFunction, numVectors, alpha, invDim, (candidate, precondition) -> {
             EncKey key = new EncKey(candidate.qbits(), candidate.dbits(), precondition);
             QuantizationErrorStdModel errorModel = errorModelCache.get(key);
             if (errorModel == null) {
-                errorModel = ErrorModel.estimateMagnitudeFromManifoldResiduals(
-                    alpha,
+                errorModel = ErrorModel.estimateMagnitudeFromRealResiduals(
                     invDim,
                     calibrationSource,
                     precondition,
                     candidate.qbits(),
                     candidate.dbits(),
                     vectorsPerCluster,
-                    numVectors
+                    state
                 );
                 errorModelCache.put(key, errorModel);
             }
-            return errorModel.errorStd(vectorsPerCluster, numVectors);
+            // cap evaluation at the measured sample size to avoid extrapolating beyond its fitted range
+            int effectiveN = Math.min(numVectors, state.ndocs());
+            return errorModel.errorStd(vectorsPerCluster, effectiveN);
         });
     }
 
@@ -599,11 +594,12 @@ public class IvfAutoCalibration {
 
                 logger.debug(
                     () -> format(
-                        "Quantization recall((%d, %d) | %d, %s) = %.2f%%",
+                        "Quantization recall((%d, %d) | %d, %s) errorStd=%.5f = %.2f%%",
                         candidate.qbits(),
                         candidate.dbits(),
                         rerankVal,
                         precondition ? "precondition" : "no precondition",
+                        errorStd,
                         expected * 100.0
                     )
                 );

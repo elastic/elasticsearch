@@ -1306,6 +1306,7 @@ public class StatelessPlugin extends Plugin
             SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
             SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
             SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
+            SharedCacheCapacityAllocationDecider.MINIMUM_LOGGING_INTERVAL,
             SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
             SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,

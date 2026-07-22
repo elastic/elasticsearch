@@ -365,7 +365,8 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
                 SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
                 SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
-                SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING
+                SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
+                SharedCacheCapacityAllocationDecider.MINIMUM_LOGGING_INTERVAL
             )
         );
         return new SharedCacheCapacityAllocationDecider(clusterSettings);

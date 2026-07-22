@@ -15,10 +15,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -45,7 +47,27 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      */
     public enum CacheAccountingMode {
         BOOSTED,
-        TOTAL
+        TOTAL;
+
+        public long getCurrentCommitmentBytes(NodeCacheSizeAndCommitments nodeCacheSizeAndCommitments) {
+            return switch (this) {
+                case BOOSTED -> nodeCacheSizeAndCommitments.boostedCacheCommitmentInBytes();
+                case TOTAL -> Math.addExact(
+                    nodeCacheSizeAndCommitments.boostedCacheCommitmentInBytes(),
+                    nodeCacheSizeAndCommitments.unboostedCacheCommitmentInBytes()
+                );
+            };
+        }
+
+        public long getShardRequirementBytes(BoostedAndUnboostedCacheRequirements requirement) {
+            return switch (this) {
+                case BOOSTED -> getRequirementWithFallback(requirement.boostedCacheRequirementInBytes());
+                case TOTAL -> Math.addExact(
+                    getRequirementWithFallback(requirement.boostedCacheRequirementInBytes()),
+                    getRequirementWithFallback(requirement.unboostedCacheRequirementInBytes())
+                );
+            };
+        }
     }
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
@@ -75,13 +97,23 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * The {@code canRemain} threshold. Above this, the decider will return {@link Decision#NO} for canRemain decisions for existing shards.
-     * Note: canRemain will be implemented in a future change.
+     * The {@code canRemain} threshold. Above this, the decider will return {@link Decision#NOT_PREFERRED} for canRemain decisions for
+     * existing shards. Note: canRemain will be implemented in a future change.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
         "95%",
         RatioValue::parseRatioValue,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Rate-limits how often the debug-level explanation message is logged for a given canAllocate decision path.
+     */
+    public static final Setting<TimeValue> MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
+        "cluster.routing.allocation.shared_cache_capacity.log_interval",
+        TimeValue.timeValueMinutes(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -98,6 +130,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         "shared cache capacity decider is applicable only to search nodes"
     );
 
+    private final FrequencyCappedAction logCanAllocateMessage;
     private volatile boolean enabled;
     private volatile CacheAccountingMode accountingMode;
     private volatile RatioValue lowWatermark;
@@ -108,6 +141,8 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         clusterSettings.initializeAndWatch(ACCOUNTING_MODE_SETTING, value -> this.accountingMode = value);
         clusterSettings.initializeAndWatch(LOW_WATERMARK_SETTING, value -> this.lowWatermark = value);
         clusterSettings.initializeAndWatch(HIGH_WATERMARK_SETTING, value -> this.highWatermark = value);
+        logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, logCanAllocateMessage::setMinInterval);
     }
 
     @Override
@@ -134,7 +169,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "no cache size and commitment data available for node [%s]", node.nodeId());
         }
 
-        final long currentCommitmentBytes = getCurrentCommitmentBytes(nodeCommitments, accountingMode);
+        final long currentCommitmentBytes = accountingMode.getCurrentCommitmentBytes(nodeCommitments);
         final long thresholdBytes = (long) (nodeCommitments.cacheSizeInBytes() * lowWatermark.getAsRatio());
 
         final boolean isDebugEnabled = logger.isDebugEnabled();
@@ -148,7 +183,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                     accountingMode
                 );
                 if (isDebugEnabled) {
-                    logger.debug(message);
+                    logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
@@ -173,7 +208,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             );
         }
 
-        final long shardRequirementBytes = getShardRequirementBytes(shardCacheRequirement, accountingMode);
+        final long shardRequirementBytes = accountingMode.getShardRequirementBytes(shardCacheRequirement);
         final long newCommitmentBytes = Math.addExact(currentCommitmentBytes, shardRequirementBytes);
 
         if (newCommitmentBytes > thresholdBytes) {
@@ -189,7 +224,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                     accountingMode
                 );
                 if (isDebugEnabled) {
-                    logger.debug(message);
+                    logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
@@ -209,29 +244,6 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             thresholdBytes,
             accountingMode
         );
-    }
-
-    private static long getCurrentCommitmentBytes(
-        NodeCacheSizeAndCommitments nodeCacheSizeAndCommitments,
-        CacheAccountingMode accountingMode
-    ) {
-        return switch (accountingMode) {
-            case BOOSTED -> nodeCacheSizeAndCommitments.boostedCacheCommitmentInBytes();
-            case TOTAL -> Math.addExact(
-                nodeCacheSizeAndCommitments.boostedCacheCommitmentInBytes(),
-                nodeCacheSizeAndCommitments.unboostedCacheCommitmentInBytes()
-            );
-        };
-    }
-
-    private static long getShardRequirementBytes(BoostedAndUnboostedCacheRequirements requirement, CacheAccountingMode accountingMode) {
-        return switch (accountingMode) {
-            case BOOSTED -> getRequirementWithFallback(requirement.boostedCacheRequirementInBytes());
-            case TOTAL -> Math.addExact(
-                getRequirementWithFallback(requirement.boostedCacheRequirementInBytes()),
-                getRequirementWithFallback(requirement.unboostedCacheRequirementInBytes())
-            );
-        };
     }
 
     private static long getRequirementWithFallback(long requirementInBytes) {

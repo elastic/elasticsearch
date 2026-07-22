@@ -21,18 +21,10 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 
 /**
- * Row-addressed builder for ESCF columns of a fixed kind (STRING, BINARY, LONG, or DOUBLE).
- * Accepts {@code (row, value)} pairs with non-decreasing row numbers; rows never supplied are
- * absent in the output. The column starts in scalar form and <b>promotes to
- * {@link EscfColumnKind#ARRAY} automatically when any document receives more than one value</b>.
- *
- * <p>Create with a typed factory ({@link #strings}, {@link #binaries}, {@link #longs},
- * {@link #doubles}); seal with {@link #finish}. Not thread-safe.
- *
- * <p>All typed setters share one {@link RecyclerBytesStreamOutput}: var-width setters write the
- * raw bytes; {@link #setLong} writes a little-endian 64-bit long; {@link #setDouble} writes the
- * little-endian raw bits of the double value. {@link #childOffsets} always records the byte
- * boundary between adjacent elements (1-N bytes for var, exactly 8 bytes for numeric).
+ * Row-addressed accumulator for a single ESCF column of a fixed kind (STRING, BINARY, LONG, or DOUBLE).
+ * Accepts {@code (row, value)} pairs with non-decreasing row numbers; rows never supplied are absent.
+ * Starts scalar and promotes to {@link EscfColumnKind#ARRAY} automatically when any row receives
+ * more than one value. Create via a typed factory; seal with {@link #finish}. Not thread-safe.
  */
 public final class EscfRowColumnBuilder {
 
@@ -65,38 +57,22 @@ public final class EscfRowColumnBuilder {
         this.multivalued = false;
     }
 
-    /**
-     * Returns a new builder for {@link EscfColumnKind#STRING} columns.
-     * Use {@link org.elasticsearch.transport.BytesRefRecycler#NON_RECYCLING_INSTANCE} when the
-     * backing bytes have no explicit lifecycle (e.g. the batch-mapping columnar path).
-     */
+    /** Returns a new builder for {@link EscfColumnKind#STRING} columns. */
     public static EscfRowColumnBuilder strings(Recycler<BytesRef> recycler) {
         return new EscfRowColumnBuilder(EscfColumnKind.STRING, recycler);
     }
 
-    /**
-     * Returns a new builder for {@link EscfColumnKind#BINARY} columns.
-     * Use {@link org.elasticsearch.transport.BytesRefRecycler#NON_RECYCLING_INSTANCE} when the
-     * backing bytes have no explicit lifecycle (e.g. the batch-mapping columnar path).
-     */
+    /** Returns a new builder for {@link EscfColumnKind#BINARY} columns. */
     public static EscfRowColumnBuilder binaries(Recycler<BytesRef> recycler) {
         return new EscfRowColumnBuilder(EscfColumnKind.BINARY, recycler);
     }
 
-    /**
-     * Returns a new builder for {@link EscfColumnKind#LONG} columns.
-     * Use {@link org.elasticsearch.transport.BytesRefRecycler#NON_RECYCLING_INSTANCE} when the
-     * backing bytes have no explicit lifecycle (e.g. the batch-mapping columnar path).
-     */
+    /** Returns a new builder for {@link EscfColumnKind#LONG} columns. */
     public static EscfRowColumnBuilder longs(Recycler<BytesRef> recycler) {
         return new EscfRowColumnBuilder(EscfColumnKind.LONG, recycler);
     }
 
-    /**
-     * Returns a new builder for {@link EscfColumnKind#DOUBLE} columns.
-     * Use {@link org.elasticsearch.transport.BytesRefRecycler#NON_RECYCLING_INSTANCE} when the
-     * backing bytes have no explicit lifecycle (e.g. the batch-mapping columnar path).
-     */
+    /** Returns a new builder for {@link EscfColumnKind#DOUBLE} columns. */
     public static EscfRowColumnBuilder doubles(Recycler<BytesRef> recycler) {
         return new EscfRowColumnBuilder(EscfColumnKind.DOUBLE, recycler);
     }
@@ -106,31 +82,19 @@ public final class EscfRowColumnBuilder {
         return elemCount == 0;
     }
 
-    /**
-     * Appends a string value to the row at {@code row}. The builder must have been created with
-     * {@link #strings}. Row numbers must be non-decreasing; repeating the current row number adds
-     * another element for that document and promotes the output to ARRAY.
-     */
+    /** Appends a string value for {@code row}; builder must be {@link #strings}. */
     public void setString(int row, BytesRef value) {
         assert kind == EscfColumnKind.STRING : "setString called on " + EscfColumnKind.name(kind) + " builder";
         appendVarElement(row, value);
     }
 
-    /**
-     * Appends a binary value to the row at {@code row}. The builder must have been created with
-     * {@link #binaries}. Row numbers must be non-decreasing; repeating the current row number adds
-     * another element for that document and promotes the output to ARRAY.
-     */
+    /** Appends a binary value for {@code row}; builder must be {@link #binaries}. */
     public void setBinary(int row, BytesRef value) {
         assert kind == EscfColumnKind.BINARY : "setBinary called on " + EscfColumnKind.name(kind) + " builder";
         appendVarElement(row, value);
     }
 
-    /**
-     * Appends a long value to the row at {@code row}. The builder must have been created with
-     * {@link #longs}. Row numbers must be non-decreasing; repeating the current row number adds
-     * another element for that document and promotes the output to ARRAY.
-     */
+    /** Appends a long value for {@code row}; builder must be {@link #longs}. */
     public void setLong(int row, long value) {
         assert kind == EscfColumnKind.LONG : "setLong called on " + EscfColumnKind.name(kind) + " builder";
         appendElement(row);
@@ -138,11 +102,7 @@ public final class EscfRowColumnBuilder {
         childDataLen += Long.BYTES;
     }
 
-    /**
-     * Appends a double value to the row at {@code row}. The builder must have been created with
-     * {@link #doubles}. Row numbers must be non-decreasing; repeating the current row number adds
-     * another element for that document and promotes the output to ARRAY.
-     */
+    /** Appends a double value for {@code row}; builder must be {@link #doubles}. */
     public void setDouble(int row, double value) {
         assert kind == EscfColumnKind.DOUBLE : "setDouble called on " + EscfColumnKind.name(kind) + " builder";
         appendElement(row);
@@ -151,12 +111,9 @@ public final class EscfRowColumnBuilder {
     }
 
     /**
-     * Seals the builder and returns the completed ESCF column. Fills trailing absent rows up to
-     * {@code docCount}. If every document received at most one value the output kind is the fixed
-     * kind supplied at construction (STRING, BINARY, LONG, or DOUBLE) and absent documents are
-     * tracked in a validity bitset. If any document received two or more values the output kind is
-     * {@link EscfColumnKind#ARRAY} with the fixed kind as the child. The builder must not be used
-     * after this call.
+     * Seals the builder and returns the completed column. Emits a scalar column of the fixed kind
+     * when every document received at most one value (absent docs tracked in a validity bitset), or
+     * an {@link EscfColumnKind#ARRAY} column otherwise. Must not be called again after this.
      */
     public EscfColumnData finish(int docCount) {
         // Fill trailing absent rows [currentRow+1, docCount-1] and set the final fence.
@@ -176,11 +133,8 @@ public final class EscfRowColumnBuilder {
         }
     }
 
-    // -- private implementation --
-
     private void appendVarElement(int row, BytesRef value) {
         appendElement(row);
-        // RecyclerBytesStreamOutput.writeBytes overrides StreamOutput without declaring IOException.
         childData.writeBytes(value.bytes, value.offset, value.length);
         childDataLen += value.length;
     }
@@ -193,11 +147,6 @@ public final class EscfRowColumnBuilder {
         }
     }
 
-    /**
-     * Records a new element for {@code row}, advancing the row pointer and capturing the element's
-     * start byte offset. If {@code row == currentRow} (second element for the same doc) the
-     * {@link #multivalued} flag is set.
-     */
     private void appendElement(int row) {
         assert row >= 0;
         assert currentRow == -1 || row >= currentRow
@@ -260,11 +209,6 @@ public final class EscfRowColumnBuilder {
         }
     }
 
-    /**
-     * Builds a fixed-64 scalar column: a {@code docCount*8} byte buffer where slot {@code d*8}
-     * holds the value for document {@code d} (copied from the element stream) or zero for absent
-     * documents.
-     */
     private EscfColumnData finishScalarFixed64(int docCount, FixedBitSet validity) {
         BytesReference allElemData = childData.moveToBytesReference();
         byte[] buf = new byte[docCount * 8];
@@ -280,10 +224,6 @@ public final class EscfRowColumnBuilder {
         return EscfColumnData.ofFixed64(kind, docCount, validity, new BytesArray(buf));
     }
 
-    /**
-     * Builds a var-width scalar column: per-doc byte offsets derived from the element layout.
-     * Absent docs share the running byte position (zero-length range) and are skipped via validity.
-     */
     private EscfColumnData finishScalarVarWidth(int docCount, FixedBitSet validity) {
         int[] perDocOffsets = new int[docCount + 1];
         int bytePos = 0;
@@ -299,7 +239,6 @@ public final class EscfRowColumnBuilder {
         return EscfColumnData.ofVarWidth(kind, docCount, validity, perDocOffsets, childData.moveToBytesReference());
     }
 
-    /** Builds the dense child sub-column for ARRAY output. */
     private EscfColumnData buildChildForArray() {
         if (kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE) {
             // elemCount elements, each 8 bytes, contiguous in childData.

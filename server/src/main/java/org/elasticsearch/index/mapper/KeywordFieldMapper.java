@@ -1521,15 +1521,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
 
-        // Dispatch on the ESCF column kind and build a scan cursor. The cursor yields (docId, value)
-        // pairs with non-decreasing doc ids; multi-valued docs (ARRAY) repeat the same id per element,
-        // and absent rows are skipped entirely. Both STRING and ARRAY[STRING] columns provide this via
-        // EscfColumn.bytesRefCursor(); for ARRAY a non-string child throws UnsupportedOperationException.
+        // Dispatch on the ESCF column kind and build a scan cursor.
         final ObjectTupleCursor<BytesRef> cursor;
         switch (source.kind()) {
             case EscfColumnKind.STRING, EscfColumnKind.ARRAY -> cursor = source.bytesRefCursor();
             default ->
-                // TODO: support UNION input columns (required for explicit null / null_value handling).
+                // TODO: support UNION and other input columns (required for explicit null / null_value handling).
                 throw new UnsupportedOperationException(
                     "mapColumnBatch: ESCF column kind ["
                         + EscfColumnKind.name(source.kind())
@@ -1540,41 +1537,35 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
-        // Synthetic-source fallback for ignore_above-exceeded values. Single-valued per doc only;
-        // the multi-valued case is deferred (TODO).
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
+        final boolean emitDvs = fieldType().hasDocValues();
 
-        // Each builder is created only when its column will actually be emitted; unused builders
-        // are null to avoid allocating a RecyclerBytesStreamOutput when not needed.
-        // valuesBuilder: terms (indexed/stored) column only.
-        // blobBuilder + countsBuilder: doc-values blob and its companion counts column.
-        // fallbackBuilder + fallbackCountsBuilder: synthetic-source fallback for ignore_above values.
-        // Counts are written inline (docSlotCount per doc at flush time); no post-pass is needed.
-        final boolean emitBlob = fieldType().hasDocValues();
-        final EscfRowColumnBuilder valuesBuilder = emitTerms ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder blobBuilder = emitBlob ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder countsBuilder = emitBlob ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder fallbackBuilder = emitFallback
-            ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE)
-            : null;
-        final EscfRowColumnBuilder fallbackCountsBuilder = emitFallback
+        // Nothing to emit.
+        if (emitTerms == false && emitDvs == false && emitFallback == false) {
+            return;
+        }
+        // TODO: make the batch return these column builders to wire up recycling
+        final EscfRowColumnBuilder terms = emitTerms ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
+        final EscfRowColumnBuilder binaryDvs = emitDvs ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
+        final EscfRowColumnBuilder dvCounts = emitDvs ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
+        final EscfRowColumnBuilder fallback = emitFallback ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
+        final EscfRowColumnBuilder fallbackCounts = emitFallback
             ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE)
             : null;
 
         int currentDoc = -1;
         boolean ignoredThisDoc = false;
-        boolean hasFallbackThisDoc = false;
         // Per-doc element buffer for blob encoding; null when blob is not emitted.
-        BytesRef[] docSlots = emitBlob ? new BytesRef[4] : null;
+        BytesRef[] docSlots = emitDvs ? new BytesRef[4] : null;
         int docSlotCount = 0;
 
         while (true) {
             final int nextDoc = cursor.nextDoc();
             if (nextDoc != currentDoc) {
                 // Flush the completed doc's elements as one encoded blob and record its count inline.
-                if (blobBuilder != null && docSlotCount > 0) {
-                    blobBuilder.setString(currentDoc, MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount));
-                    countsBuilder.setLong(currentDoc, docSlotCount);
+                if (binaryDvs != null && docSlotCount > 0) {
+                    binaryDvs.setString(currentDoc, MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount));
+                    dvCounts.setLong(currentDoc, docSlotCount);
                     docSlotCount = 0;
                 }
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1582,65 +1573,44 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 currentDoc = nextDoc;
                 ignoredThisDoc = false;
-                hasFallbackThisDoc = false;
             }
 
-            // Apply the indexValue decision tree for one value element.
-            final BytesRef binaryValue = BytesRef.deepCopyOf(cursor.value());
-
-            // Disabled-field skip: a no-op for columnar-gated fields (hasDocValues() == true), but
-            // mirrored for correctness.
-            if (fieldType.indexOptions() == IndexOptions.NONE && fieldType.stored() == false && fieldType().hasDocValues() == false) {
-                continue;
-            }
+            final BytesRef binaryValue = cursor.value();
 
             // ignore_above: record _ignored once per doc; defer the synthetic-source value fallback.
             // Wrap as a Text so isIgnored can compute the char count from the UTF-8 bytes.
+            // TODO: optimize to calculate ignoreAbove on utf-8. If bytes < ignore above we don't need to even create String
             final Text textValue = new Text(new XContentString.UTF8Bytes(binaryValue.bytes, binaryValue.offset, binaryValue.length));
             if (fieldType().ignoreAbove().isIgnored(textValue)) {
                 if (ignoredThisDoc == false) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
-                    ignoredThisDoc = true;
-                }
-                if (fallbackBuilder != null) {
-                    if (hasFallbackThisDoc) {
-                        // TODO: support multiple ignore_above-exceeded values per doc (multi-valued
-                        // fallback requires SeparateCount vint-length encoding across multiple values).
-                        throw new UnsupportedOperationException(
-                            "mapColumnBatch: more than one ignore_above-exceeded value in field ["
-                                + fullPath()
-                                + "] for doc ["
-                                + currentDoc
-                                + "]; multi-valued synthetic-source fallback is not yet supported"
-                        );
+                    if (fallback != null) {
+                        fallback.setString(currentDoc, binaryValue);
+                        fallbackCounts.setLong(currentDoc, 1L);
                     }
-                    fallbackBuilder.setString(currentDoc, binaryValue);
-                    fallbackCountsBuilder.setLong(currentDoc, 1L);
-                    hasFallbackThisDoc = true;
+                    ignoredThisDoc = true;
+                } else if (fallback != null) {
+                    // TODO: support multiple ignore_above-exceeded values per doc (multi-valued
+                    // fallback requires SeparateCount vint-length encoding across multiple values).
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: more than one ignore_above-exceeded value in field ["
+                            + fullPath()
+                            + "] for doc ["
+                            + currentDoc
+                            + "]; multi-valued synthetic-source fallback is not yet supported"
+                    );
                 }
                 continue;
             }
 
-            // Preflight check mirrors indexValue: Lucene rejects terms longer than MAX_TERM_LENGTH.
             if (binaryValue.length > MAX_TERM_LENGTH) {
-                final byte[] prefix = new byte[30];
-                System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
-                throw new IllegalArgumentException(
-                    "Document contains at least one immense term in field=\""
-                        + fieldType().name()
-                        + "\" (whose UTF8 encoding is longer than the max length "
-                        + MAX_TERM_LENGTH
-                        + "), all of which were skipped. Please correct the analyzer to not produce such terms."
-                        + " The prefix of the first immense term is: '"
-                        + Arrays.toString(prefix)
-                        + "...'"
-                );
+                throw largeTermException(binaryValue);
             }
 
-            if (valuesBuilder != null) {
-                valuesBuilder.setString(currentDoc, binaryValue);
+            if (terms != null) {
+                terms.setString(currentDoc, binaryValue);
             }
-            if (blobBuilder != null) {
+            if (binaryDvs != null) {
                 if (docSlotCount == docSlots.length) {
                     docSlots = Arrays.copyOf(docSlots, docSlotCount * 2);
                 }
@@ -1650,34 +1620,48 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // Attach output columns. Each builder is independent: terms and blob/counts may be omitted
         // independently based on field configuration.
-        if (valuesBuilder != null && valuesBuilder.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(valuesBuilder.finish(docCount), fieldType().name(), fieldType));
+        if (terms != null && terms.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
         }
-        if (blobBuilder != null && blobBuilder.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(blobBuilder.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
-            // countsBuilder is always non-empty when blobBuilder is non-empty (written in lock-step).
+        if (binaryDvs != null && binaryDvs.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
+            // countsBuilder is always non-empty when binaryDvs is non-empty (written in lock-step).
             ctx.addColumn(
                 LuceneLongColumn.of(
-                    countsBuilder.finish(docCount),
+                    dvCounts.finish(docCount),
                     fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
                     Defaults.COUNTS_FIELD_TYPE,
                     LongColumn.NumericKind.LONG
                 )
             );
         }
-        if (emitFallback && fallbackBuilder != null && fallbackBuilder.isEmpty() == false) {
+        if (emitFallback && fallback != null && fallback.isEmpty() == false) {
             final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-            ctx.addColumn(LuceneBinaryColumn.of(fallbackBuilder.finish(docCount), fallbackFieldName, CustomDocValuesField.TYPE));
-            // fallbackCountsBuilder written in lock-step with fallbackBuilder (always 1 per present doc).
+            ctx.addColumn(LuceneBinaryColumn.of(fallback.finish(docCount), fallbackFieldName, CustomDocValuesField.TYPE));
             ctx.addColumn(
                 LuceneLongColumn.of(
-                    fallbackCountsBuilder.finish(docCount),
+                    fallbackCounts.finish(docCount),
                     fallbackFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
                     Defaults.COUNTS_FIELD_TYPE,
                     LongColumn.NumericKind.LONG
                 )
             );
         }
+    }
+
+    private IllegalArgumentException largeTermException(BytesRef value) {
+        byte[] prefix = new byte[30];
+        System.arraycopy(value.bytes, value.offset, prefix, 0, 30);
+        return new IllegalArgumentException(
+            "Document contains at least one immense term in field=\""
+                + fieldType().name()
+                + "\" (whose UTF8 encoding is longer than the max length "
+                + MAX_TERM_LENGTH
+                + "), all of which were skipped. Please correct the analyzer to not produce such terms."
+                + " The prefix of the first immense term is: '"
+                + Arrays.toString(prefix)
+                + "...'"
+        );
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
@@ -1775,24 +1759,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
-        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
+        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene will fail the indexing request and, to
         // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
         // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
         // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
         if (binaryValue.length > MAX_TERM_LENGTH) {
-            byte[] prefix = new byte[30];
-            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
-            String msg = "Document contains at least one immense term in field=\""
-                + fieldType().name()
-                + "\" (whose "
-                + "UTF8 encoding is longer than the max length "
-                + MAX_TERM_LENGTH
-                + "), all of which were "
-                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
-                + "term is: '"
-                + Arrays.toString(prefix)
-                + "...'";
-            throw new IllegalArgumentException(msg);
+            throw largeTermException(binaryValue);
         }
 
         if (fieldType().usesBinaryDocValues()) {

@@ -21,41 +21,31 @@ import java.nio.charset.StandardCharsets;
  */
 public class EscfRowColumnBuilderTests extends ESTestCase {
 
-    // -- helpers --
-
     private static BytesRef bytesRef(String s) {
         return new BytesRef(s.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Reads element {@code elemIdx} from the child of an ARRAY column. */
     private static String readArrayElem(EscfColumnData data, int row, int elemPos) {
         int elemIdx = data.offsets()[row] + elemPos;
         return EscfColumn.from(data.child()).getBinaryValue(elemIdx).utf8ToString();
     }
 
-    /** Number of elements in row {@code row} of an ARRAY column. */
     private static int elemCount(EscfColumnData data, int row) {
         return data.offsets()[row + 1] - data.offsets()[row];
     }
 
-    /** Reads a string value from a scalar (STRING) column at row {@code row}. */
     private static String readScalarString(EscfColumnData data, int row) {
         return EscfColumn.from(data).getBinaryValue(row).utf8ToString();
     }
 
-    /** Reads a long value from a scalar (LONG) column at row {@code row}. */
     private static long readScalarLong(EscfColumnData data, int row) {
-        return ((EscfLongColumn) EscfColumn.from(data)).getLongValue(row);
+        return EscfColumn.from(data).getLongValue(row);
     }
 
-    /** Reads a double value from a scalar (DOUBLE) column at row {@code row}. */
     private static double readScalarDouble(EscfColumnData data, int row) {
-        return ((EscfDoubleColumn) EscfColumn.from(data)).getDoubleValue(row);
+        return EscfColumn.from(data).getDoubleValue(row);
     }
 
-    // -- STRING builder --
-
-    /** An empty STRING builder produces an all-absent scalar STRING column. */
     public void testStringsEmptyBuilder() {
         EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         assertTrue(builder.isEmpty());
@@ -167,8 +157,6 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> builder.setString(0, bytesRef("x")));
     }
 
-    // -- ARRAY of STRING (via multi-value) verification --
-
     /**
      * Verifies the element layout in an ARRAY output matches expectations, corresponding to the
      * old {@code testOutputMatchesXContentBasedArrayBuilder} test.
@@ -189,8 +177,6 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         assertEquals(1, elemCount(data, 2));
         assertEquals("d", readArrayElem(data, 2, 0));
     }
-
-    // -- BINARY builder --
 
     /** Single BINARY write → scalar BINARY. */
     public void testBinarySingleValue() {
@@ -270,8 +256,6 @@ public class EscfRowColumnBuilderTests extends ESTestCase {
         builder.setLong(2, 0L);
         expectThrows(AssertionError.class, () -> builder.setLong(1, 0L));
     }
-
-    // -- DOUBLE builder --
 
     /** Single double write → dense scalar DOUBLE column. */
     public void testDoubleSingleValueDense() {

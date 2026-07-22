@@ -606,16 +606,32 @@ public class PartitionedHashAggregationOperator implements Operator {
         BlockHash.Router probeRouter = probeHash.router();
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        for (int i = 0; i < positions; i++) {
-            boolean anyNull = false;
-            for (int k = 0; k < keyCount; k++) {
-                if (page.getBlock(k).isNull(i)) {
-                    anyNull = true;
-                    break;
-                }
+        // Hoist block lookups out of the tight per-row loop.
+        Block[] keyBlocks = new Block[keyCount];
+        boolean anyBlockHasNulls = false;
+        for (int k = 0; k < keyCount; k++) {
+            keyBlocks[k] = page.getBlock(k);
+            if (keyBlocks[k].asVector() == null) {
+                anyBlockHasNulls = true;
             }
-            partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(page, i), partitionCount);
-            counts[partitionOf[i]]++;
+        }
+        if (anyBlockHasNulls) {
+            for (int i = 0; i < positions; i++) {
+                boolean anyNull = false;
+                for (int k = 0; k < keyCount; k++) {
+                    if (keyBlocks[k].isNull(i)) {
+                        anyNull = true;
+                        break;
+                    }
+                }
+                partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(page, i), partitionCount);
+                counts[partitionOf[i]]++;
+            }
+        } else {
+            for (int i = 0; i < positions; i++) {
+                partitionOf[i] = Math.floorMod(probeRouter.partitionHashOfRow(page, i), partitionCount);
+                counts[partitionOf[i]]++;
+            }
         }
         int[] offsets = new int[partitionCount + 1];
         for (int p = 0; p < partitionCount; p++) {

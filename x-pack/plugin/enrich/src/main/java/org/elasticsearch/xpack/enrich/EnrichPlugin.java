@@ -164,7 +164,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
      */
     public static final Setting<ByteSizeValue> ENRICH_MAX_TOTAL_METADATA_SIZE = Setting.byteSizeSetting(
         "enrich.max_total_metadata_size",
-        ByteSizeValue.ofMb(25),
+        ByteSizeValue.ofMb(5),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

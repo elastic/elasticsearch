@@ -1,0 +1,11 @@
+area: ES|QL
+highlight:
+  body: |-
+    Runtime search for match_phrase on non-index-mapped expressions is now
+    enabled in release builds.
+  notable: true
+  title: Release `match_phrase` on runtime expressions
+issues: []
+pr: 154765
+summary: Release `match_phrase` on runtime expressions
+type: enhancement

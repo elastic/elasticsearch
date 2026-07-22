@@ -427,9 +427,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
-  method: testShardSnapshotsStatus
-  issue: https://github.com/elastic/elasticsearch/issues/153575
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testRemoteFailureInlinestats
   issue: https://github.com/elastic/elasticsearch/issues/153576
@@ -628,3 +625,15 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.HnswUtilsTests
   method: testNeighborhoodGraphSearchFindsSelf
   issue: https://github.com/elastic/elasticsearch/issues/154633
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithRelocationOrObjectStoreFailures
+  issue: https://github.com/elastic/elasticsearch/issues/154655
+- class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
+  method: testLargeRequestIsNeverDispatched
+  issue: https://github.com/elastic/elasticsearch/issues/154657
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
+  method: testPreFlushWaitsForOngoingFlushes
+  issue: https://github.com/elastic/elasticsearch/issues/154658
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.create/10_basic/Create index with write aliases}
+  issue: https://github.com/elastic/elasticsearch/issues/154659

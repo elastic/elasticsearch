@@ -28,11 +28,12 @@ import java.util.Map;
 public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int HTTP_PORT = 9200;
+    private static final String FIXTURE_IMAGE_VERSION = "1.1";
     private static final Map<String, String> IMAGES = Map.of(
-        "5.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:1.1",
-        "5.6.16", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:1.1",
-        "6.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:1.1",
-        "6.8.20", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:1.1"
+        "5.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
+        "5.6.16", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:" + FIXTURE_IMAGE_VERSION,
+        "6.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
+        "6.8.20", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:" + FIXTURE_IMAGE_VERSION
     );
 
     public OldElasticsearchContainer(String version, String repoLocation) {
@@ -53,7 +54,9 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
 
     private static ImageFromDockerfile localImage(String version) {
         String resourceBase = "docker/" + version + "/";
-        return new ImageFromDockerfile("localhost/old-elasticsearch-" + version.replace('.', '-') + "-fixture")
+        return new ImageFromDockerfile(
+            "localhost/old-elasticsearch-" + version.replace('.', '-') + "-fixture:" + FIXTURE_IMAGE_VERSION
+        )
             .withFileFromClasspath("Dockerfile", resourceBase + "Dockerfile")
             .withFileFromClasspath("entrypoint.sh", resourceBase + "entrypoint.sh");
     }

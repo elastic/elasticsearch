@@ -81,11 +81,11 @@ An important configuration step when setting up columnar index mode is determini
 Good index sorting fields allow storing data more efficiently and improving query response times.
 Good index sorting fields are dependent on the use case and the data.
 
-The `logsdb_columnar` index mode, just like `logsdb` index mode, uses by default the `host.name` field in ascending order and `@timestamp` field in descending order as the index sort fields.
+The `logsdb_columnar` index mode, like `logsdb` index mode, uses by default the `host.name` field in ascending order and `@timestamp` field in descending order as the index sort fields.
 Hosts typically emit similar logs, so storing log entries from the same host sequentially on disk improves the efficiency of compression techniques such as run-length and delta encoding.
-The `@timestamp` field is also used as the index sort field, with recent log entries appearing first and thus improving query performance for queries over recent data.
+The `@timestamp` field is also used as the index sort field with recent log entries appearing first, improving query performance for queries over recent data.
 
-The `columnar` index mode doesn't enable index sorting by default. Let's say you collect logs from different agents, then sorting by agent id and timestamp may be a good choice:
+The `columnar` index mode doesn't enable index sorting by default. Let's say you collect logs from different agents, then sorting by agent id and timestamp might be a good choice:
 
 ```console
 PUT my-index
@@ -125,6 +125,7 @@ Dynamic mapping behavior is controlled through configuration param `dynamic` tha
 - **true** (default): Enables the dynamic mapping behaviour as is described above.
 - **false**: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - **strict**: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
+
 Note that the *runtime* option is not supported in columnar mode.
 
 ### Dynamic false [dynamic-false]

@@ -49,7 +49,7 @@ PUT my-index-000001
 For all fields that support them, `doc_values` are enabled by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can disable `doc_values` in order to save disk space.
 
 ::::{note}
-You cannot disable doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields.
+You cannot disable doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/columnar/index.md) index.
 
 In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Enabling or disabling `doc_values` for these fields might result in an error or have no effect.
 ::::
@@ -83,7 +83,11 @@ stack: preview
 serverless: preview
 ```
 
-By default, all fields allow multiple values per document. You can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
+::::{note}
+This setting requires a [`columnar`](/reference/columnar/index.md) mode index.
+::::
+
+By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
 
 ```console
 PUT my-index-000001
@@ -110,7 +114,12 @@ stack: preview
 serverless: preview
 ```
 
-By default, all fields allow missing or null values. You can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected.
+::::{note}
+This setting requires a [`columnar`](/reference/columnar/index.md) mode index.
+::::
+
+
+By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected.
 
 ```console
 PUT my-index-000001
@@ -134,7 +143,7 @@ The index-level setting `index.mapping.doc_values.nullability` will control the 
 
 ## Multi-valued doc values ordering
 
-Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates may be lost.
+Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates and null values may be lost.
 This implementation detail of doc values is visible when features directly interact with doc values, which may be the case for example in ES|QL or aggregations in the search API. Note, that _source always returns arrays in the way that was provided at index time.
 
 How the ordering differs depends on whether the array is mapped as keyword or a numeric field type. In case of the `keyword` field type, the multi-valued values for each document are ordered lexicographically and duplicates are lost. If retaining duplicates is important then the `counted_keyword` field type should be used.

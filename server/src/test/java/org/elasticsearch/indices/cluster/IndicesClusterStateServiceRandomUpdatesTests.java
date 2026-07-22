@@ -301,11 +301,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
+        final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
+
         // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, primaryTerm, new Exception("dummy"));
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, false, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting, false, primaryTerm, new Exception("dummy"));
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 

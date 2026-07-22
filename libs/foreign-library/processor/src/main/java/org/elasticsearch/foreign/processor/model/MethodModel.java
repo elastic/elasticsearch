@@ -23,6 +23,7 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -33,8 +34,8 @@ import javax.tools.Diagnostic.Kind;
 import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD_FQN;
 
 /**
- * Models a single method on a {@code @LibrarySpecification} interface. The method is either a
- * {@code @Function}-annotated native binding or a {@code @StructFactory} struct constructor.
+ * Models a single method on a {@code @LibrarySpecification} interface or abstract class. The method
+ * is either a {@code @Function}-annotated native binding or a {@code @StructFactory} struct constructor.
  *
  * @param methodName the Java method name
  * @param cSymbol the exact C symbol name; {@code null} for struct factory methods
@@ -49,6 +50,8 @@ import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD
  * @param structReturnSimpleName simple name of the struct return type; non-null only when {@code isStructFactory}
  * @param packedElementSimpleName simple name of the array element record; non-null only when {@code isStructFactory}
  *        and the return struct declares an {@code @ArrayField} accessor
+ * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
+ *        specs); always {@code false} for interface-based specs
  */
 public record MethodModel(
     String methodName,
@@ -61,7 +64,8 @@ public record MethodModel(
     int firstVariadicArg,
     boolean isStructFactory,
     String structReturnSimpleName,
-    String packedElementSimpleName
+    String packedElementSimpleName,
+    boolean isProtected
 ) {
 
     /** Name of the static {@code MethodHandle} field generated for this method in the {@code $Impl} class. */
@@ -81,6 +85,7 @@ public record MethodModel(
     public static MethodModel from(ExecutableElement method, ProcessingEnvironment env, List<String> enclosingStructNames) {
         Messager messager = env.getMessager();
         String methodName = method.getSimpleName().toString();
+        boolean isProtected = method.getModifiers().contains(Modifier.PROTECTED);
 
         Function function = method.getAnnotation(Function.class);
         boolean isStructFactory = method.getAnnotation(StructFactory.class) != null;
@@ -159,7 +164,8 @@ public record MethodModel(
             firstVariadicArg,
             false,
             null,
-            null
+            null,
+            isProtected
         );
     }
 
@@ -169,6 +175,7 @@ public record MethodModel(
         List<String> enclosingStructNames,
         Messager messager
     ) {
+        boolean isProtected = method.getModifiers().contains(Modifier.PROTECTED);
         TypeMirror returnMirror = method.getReturnType();
         if (returnMirror.getKind() != TypeKind.DECLARED) {
             messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must return a @StructSpecification type", method);
@@ -242,7 +249,8 @@ public record MethodModel(
             -1,
             true,
             structReturnSimpleName,
-            packedElementSimpleName
+            packedElementSimpleName,
+            isProtected
         );
     }
 

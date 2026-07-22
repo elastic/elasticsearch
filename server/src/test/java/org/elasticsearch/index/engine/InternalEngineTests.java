@@ -8486,20 +8486,19 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(Engine.Result.Type.SUCCESS, results.get(2).getResultType());
 
         final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
-        final Translog.Location loc0 = versionMap.get(ops.get(0).uid()).getLocation();
-        final Translog.Location loc2 = versionMap.get(ops.get(2).uid()).getLocation();
+        final Translog.OperationLocation loc0 = versionMap.get(ops.get(0).uid()).getOperationLocation();
+        final Translog.OperationLocation loc2 = versionMap.get(ops.get(2).uid()).getOperationLocation();
 
         assertNotNull("0 must have a tracked batch-row location", loc0);
         assertTrue(loc0.isBatchRow());
-        assertEquals(0, loc0.batchRowIndex());
+        assertEquals(0, loc0.rowIndex());
 
         assertNotNull("2 must have a tracked batch-row location", loc2);
         assertTrue(loc2.isBatchRow());
-        assertEquals(2, loc2.batchRowIndex());   // crucially 2, not 1 — the failed row is not compacted
+        assertEquals(2, loc2.rowIndex());   // crucially 2, not 1 — the failed row is not compacted
 
-        // Both point at the same physical batch record (same generation + offset), differing only by row.
-        assertEquals(loc0.generation(), loc2.generation());
-        assertEquals(loc0.translogLocation(), loc2.translogLocation());
+        // Both wrap the same physical batch record, differing only by row.
+        assertEquals(loc0.location(), loc2.location());
         assertNotEquals(loc0, loc2);
     }
 
@@ -8521,14 +8520,15 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         // A single-document index (engine.index, NOT a batch) records a whole-record location:
-        // batchRowIndex == -1, i.e. not a batch row
+        // rowIndex == -1, i.e. not a batch row
         final Engine.Index op = indexForDoc(createParsedDoc("single", null));
         engine.index(op);
 
-        final Translog.Location loc = engine.getVersionMap().get(op.uid()).getLocation();
-        assertNotNull("single-doc index must have a tracked translog location", loc);
+        final Translog.OperationLocation loc = engine.getVersionMap().get(op.uid()).getOperationLocation();
+        assertNotNull("single-doc index must have a tracked operation location", loc);
+        assertNotNull("single-doc index must wrap a translog location", loc.location());
         assertFalse("single-doc location must not be a batch row", loc.isBatchRow());
-        assertEquals(-1, loc.batchRowIndex());
+        assertEquals(-1, loc.rowIndex());
     }
 
     public void testRealtimeGetServesBatchedDoc() throws IOException {

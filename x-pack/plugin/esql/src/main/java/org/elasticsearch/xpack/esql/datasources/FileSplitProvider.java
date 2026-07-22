@@ -453,8 +453,14 @@ public class FileSplitProvider implements SplitProvider {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
-        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently.
+        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
+        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
+        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
+        if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
+            configuredReader = configuredReader.withDeclaredPathBinding(true);
+        }
 
         // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
         // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
@@ -587,6 +593,10 @@ public class FileSplitProvider implements SplitProvider {
     private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
         if (reader == null) {
             return false;
+        }
+        if (reader.declaredNameBindingNeedsFileStart()) {
+            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+            return true;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
         if (seg == null) {

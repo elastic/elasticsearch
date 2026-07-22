@@ -1,0 +1,9 @@
+area: ES|QL
+issues:
+ - 153394
+ - 153411
+ - 154241
+ - 153752
+pr: 153410
+summary: Use atomic reference counting for blocks and vectors
+type: enhancement

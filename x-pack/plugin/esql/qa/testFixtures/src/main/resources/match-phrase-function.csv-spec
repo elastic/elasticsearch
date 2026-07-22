@@ -810,3 +810,67 @@ ROW content = to_text(mv_append("ends with brown", "fox starts"))
 
 content:text
 ;
+
+###############################################
+# Tests for MATCH_PHRASE on runtime keyword expressions: a pushed-down match_phrase on a keyword
+# field rewrites to a term query, so the runtime path matches the exact value
+#
+
+matchPhraseOnRuntimeKeyword
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match_phrase(full_name, "Anneke Preusig") OR match_phrase(full_name, "Berni Genin")
+| SORT emp_no
+| KEEP emp_no, full_name
+;
+
+emp_no:integer | full_name:keyword
+10006          | Anneke Preusig
+10014          | Berni Genin
+;
+
+matchPhraseOnRuntimeKeywordIsExact
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+// only the exact value matches: no phrase-within-value, no case folding, no analysis
+ROW content = ["brown fox", "a brown fox", "Brown Fox", "brown, fox"]
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox")
+;
+
+content:keyword
+brown fox
+;
+
+matchPhraseOnKeywordWithRowAndNullValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL content = CASE(content == "foo", NULL, "foobar")
+| WHERE match_phrase(content, "foobar")
+;
+
+content:keyword
+foobar
+foobar
+;
+
+matchPhraseOnKeywordWithRowAndMultiValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL content = mv_append(content, "extra")
+| WHERE match_phrase(content, "foobar")
+;
+
+content:keyword
+[foobar, extra]
+;

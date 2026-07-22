@@ -796,7 +796,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (alwaysLiteral[i]) {
                     assertTrue(
                         "Parameter [" + arg.name() + "] is always forced to be a literal in tests, so it must have the CONSTANT hint.",
-                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                        arg instanceof EsqlFunctionRegistry.LambdaArgSignature
+                            || (arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind()))
                     );
                     if (arg.hint() != null && arg.hint().allowedValues() != null && arg.hint().allowedValues().isEmpty() == false) {
                         Set<String> declaredValues = new HashSet<>(arg.hint().allowedValues());

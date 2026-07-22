@@ -2276,6 +2276,15 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Window filters use the rounded bucket label's floor and ceiling when filtering windows
+         * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
+         * extrapolating over the window's own range instead of the outer time bucket's range when
+         * the window is smaller than the bucket, fixing values that were inflated by the ratio of
+         * bucket size to window size.
+         */
+        FIX_ESQL_SMALL_WINDOWS,
+
+        /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
@@ -2790,6 +2799,15 @@ public class EsqlCapabilities {
          * {@code supported=false}.
          */
         DATA_SOURCES_SERVERLESS_SCOPE,
+
+        /**
+         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
+         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
+         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
+         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
+         * containing such a node correctly returns {@code supported=false}.
+         */
+        REGISTER_FEDERATION_FEATURE,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned

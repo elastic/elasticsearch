@@ -21,9 +21,6 @@ Inference:
 * [Inference API] Prevent overriding `secret_parameters` [#153309](https://github.com/elastic/elasticsearch/pull/153309)
 
 ## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
-```{applies_to}
-stack: ga 9.3.8
-```
 
 Inference:
 * [Inference API] Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
@@ -411,5 +408,3 @@ Vector Search:
 
 Watcher:
 * Removing support for types field in watcher search [#120748](https://github.com/elastic/elasticsearch/pull/120748)
-
-

@@ -24,9 +24,6 @@ stack: ga 9.4.4
 There are no deprecations associated with this release.
 
 ## 9.3.8 [elasticsearch-9.3.8-deprecations]
-```{applies_to}
-stack: ga 9.3.8
-```
 
 There are no deprecations associated with this release.
 
@@ -238,5 +235,3 @@ Search:
 
 Security:
 * Deprecate certificate based remote cluster security model [#120806](https://github.com/elastic/elasticsearch/pull/120806)
-
-

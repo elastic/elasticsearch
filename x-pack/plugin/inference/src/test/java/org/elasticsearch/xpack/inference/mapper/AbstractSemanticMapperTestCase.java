@@ -38,6 +38,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -60,6 +61,7 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +71,9 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.randomCompatibleDimensions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKING_SETTINGS_FIELD;
@@ -116,6 +121,15 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         protected XPackLicenseState getLicenseState() {
             return licenseState;
         }
+    }
+
+    /** The kinds of incompatibility that can exist between two inference endpoint model settings. */
+    protected enum IncompatibilityKind {
+        TASK_TYPE,
+        DIMENSIONS,
+        SIMILARITY,
+        ELEMENT_TYPE,
+        DOES_NOT_EXIST
     }
 
     protected final License.OperationMode operationMode;
@@ -584,6 +598,122 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     protected void givenModelSettings(String inferenceId, MinimalServiceSettings modelSettings) {
         when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
+    }
+
+    /**
+     * Creates a {@link TestModel} that is compatible with {@code baseModel} (same task type, dimensions,
+     * similarity, and element type) but with a distinct service, task settings, and secrets, registered
+     * under the given inference ID. Compatible models can be substituted via an inference-ID update.
+     */
+    protected TestModel createCompatibleModel(String inferenceId, TestModel baseModel) {
+        return new TestModel(
+            inferenceId,
+            baseModel.getTaskType(),
+            randomAlphaOfLength(4),
+            new TestModel.TestServiceSettings(
+                randomAlphaOfLength(4),
+                baseModel.getServiceSettings().dimensions(),
+                baseModel.getServiceSettings().similarity(),
+                baseModel.getServiceSettings().elementType()
+            ),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+        );
+    }
+
+    /**
+     * Creates a {@link TestModel} that is NOT compatible with {@code baseModel}, choosing uniformly among the
+     * applicable kinds of incompatibility: task type, dimensions, similarity, element type, or the endpoint not
+     * existing. Setting-based perturbations (dimensions/similarity/element type) only apply to dense base models;
+     * a sparse base model has null dimensions/similarity/element type, so only task-type and does-not-exist apply.
+     *
+     * @return an incompatible model to register under {@code inferenceId}, or {@code null} to indicate the
+     *         caller should NOT register an endpoint (the does-not-exist case).
+     */
+    protected TestModel createIncompatibleModel(String inferenceId, TestModel baseModel) {
+        final TestModel.TestServiceSettings baseServiceSettings = baseModel.getServiceSettings();
+        final DenseVectorFieldMapper.ElementType baseElementType = baseServiceSettings.elementType();
+
+        List<IncompatibilityKind> applicable = new ArrayList<>();
+        if (supportedTaskTypes().size() > 1) {
+            applicable.add(IncompatibilityKind.TASK_TYPE);
+        }
+        applicable.add(IncompatibilityKind.DOES_NOT_EXIST);
+        if (baseModel.getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            applicable.add(IncompatibilityKind.DIMENSIONS);
+            applicable.add(IncompatibilityKind.ELEMENT_TYPE);
+            // SIMILARITY only when the element type supports more than one option to perturb to
+            if (getSupportedSimilarities(baseElementType).size() > 1) {
+                applicable.add(IncompatibilityKind.SIMILARITY);
+            }
+        }
+
+        TaskType taskType = baseModel.getTaskType();
+        Integer dimensions = baseServiceSettings.dimensions();
+        SimilarityMeasure similarity = baseServiceSettings.similarity();
+        DenseVectorFieldMapper.ElementType elementType = baseElementType;
+        boolean returnNull = false;
+
+        switch (randomFrom(applicable)) {
+            case DOES_NOT_EXIST -> returnNull = true;
+            case TASK_TYPE -> {
+                taskType = randomValueOtherThan(taskType, () -> randomFrom(supportedTaskTypes()));
+                if (taskType != TaskType.SPARSE_EMBEDDING && baseModel.getTaskType() == TaskType.SPARSE_EMBEDDING) {
+                    // Sparse -> dense: populate required dense settings from a fresh random dense model
+                    TestModel randomDenseModel = TestModel.createRandomInstance(taskType);
+                    dimensions = randomDenseModel.getServiceSettings().dimensions();
+                    similarity = randomDenseModel.getServiceSettings().similarity();
+                    elementType = randomDenseModel.getServiceSettings().elementType();
+                } else if (taskType == TaskType.SPARSE_EMBEDDING) {
+                    // Dense -> sparse: clear dense-only settings
+                    dimensions = null;
+                    similarity = null;
+                    elementType = null;
+                }
+            }
+            case DIMENSIONS -> dimensions = randomValueOtherThan(
+                dimensions,
+                () -> randomCompatibleDimensions(baseElementType, BBQ_MIN_DIMS * 2)
+            );
+            case SIMILARITY -> similarity = randomValueOtherThan(similarity, () -> randomFrom(getSupportedSimilarities(baseElementType)));
+            case ELEMENT_TYPE -> {
+                elementType = randomValueOtherThan(
+                    elementType,
+                    () -> randomFrom(
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        DenseVectorFieldMapper.ElementType.BYTE,
+                        DenseVectorFieldMapper.ElementType.BIT
+                    )
+                );
+                // Regenerate dimensions and similarity compatible with the new element type
+                dimensions = randomCompatibleDimensions(elementType, BBQ_MIN_DIMS * 2);
+                similarity = randomFrom(getSupportedSimilarities(elementType));
+            }
+        }
+
+        if (returnNull) {
+            return null;
+        }
+
+        return buildModel(baseModel, inferenceId, taskType, elementType, dimensions, similarity);
+    }
+
+    protected static TestModel buildModel(
+        TestModel baseModel,
+        String inferenceId,
+        TaskType taskType,
+        @Nullable DenseVectorFieldMapper.ElementType elementType,
+        @Nullable Integer dimensions,
+        @Nullable SimilarityMeasure similarity
+    ) {
+        return new TestModel(
+            inferenceId,
+            taskType,
+            baseModel.getConfigurations().getService(),
+            new TestModel.TestServiceSettings(baseModel.getServiceSettings().model(), dimensions, similarity, elementType),
+            baseModel.getTaskSettings(),
+            baseModel.getSecretSettings()
+        );
     }
 
     protected static String randomFieldName(int numLevel) {

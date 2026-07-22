@@ -100,10 +100,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.defaultDenseVectorIndexOptions;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.randomCompatibleDimensions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -853,129 +850,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 assertThat(exc.getMessage(), containsString(expectedErrorMessage));
             }
         }
-    }
-
-    /**
-     * Creates a {@link TestModel} that is compatible with {@code baseModel} (same task type, dimensions,
-     * similarity, and element type) but with a distinct service, task settings, and secrets, registered
-     * under the given inference ID. Compatible models can be substituted via an inference-ID update.
-     */
-    private static TestModel createCompatibleModel(String inferenceId, TestModel baseModel) {
-        return new TestModel(
-            inferenceId,
-            baseModel.getTaskType(),
-            randomAlphaOfLength(4),
-            new TestModel.TestServiceSettings(
-                randomAlphaOfLength(4),
-                baseModel.getServiceSettings().dimensions(),
-                baseModel.getServiceSettings().similarity(),
-                baseModel.getServiceSettings().elementType()
-            ),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-        );
-    }
-
-    /** The kinds of incompatibility that can exist between two inference endpoint model settings. */
-    private enum IncompatibilityKind {
-        TASK_TYPE,
-        DIMENSIONS,
-        SIMILARITY,
-        ELEMENT_TYPE,
-        DOES_NOT_EXIST
-    }
-
-    /**
-     * Creates a {@link TestModel} that is NOT compatible with {@code baseModel}, choosing uniformly among the
-     * applicable kinds of incompatibility: task type, dimensions, similarity, element type, or the endpoint not
-     * existing. Setting-based perturbations (dimensions/similarity/element type) only apply to dense base models;
-     * a sparse base model has null dimensions/similarity/element type, so only task-type and does-not-exist apply.
-     *
-     * @return an incompatible model to register under {@code inferenceId}, or {@code null} to indicate the
-     *         caller should NOT register an endpoint (the does-not-exist case).
-     */
-    private static TestModel createIncompatibleModel(String inferenceId, TestModel baseModel) {
-        final TestModel.TestServiceSettings baseServiceSettings = baseModel.getServiceSettings();
-        final DenseVectorFieldMapper.ElementType baseElementType = baseServiceSettings.elementType();
-
-        List<IncompatibilityKind> applicable = new ArrayList<>();
-        applicable.add(IncompatibilityKind.TASK_TYPE);
-        applicable.add(IncompatibilityKind.DOES_NOT_EXIST);
-        if (baseModel.getTaskType() != TaskType.SPARSE_EMBEDDING) {
-            applicable.add(IncompatibilityKind.DIMENSIONS);
-            applicable.add(IncompatibilityKind.ELEMENT_TYPE);
-            // SIMILARITY only when the element type supports more than one option to perturb to
-            if (getSupportedSimilarities(baseElementType).size() > 1) {
-                applicable.add(IncompatibilityKind.SIMILARITY);
-            }
-        }
-
-        TaskType taskType = baseModel.getTaskType();
-        Integer dimensions = baseServiceSettings.dimensions();
-        SimilarityMeasure similarity = baseServiceSettings.similarity();
-        DenseVectorFieldMapper.ElementType elementType = baseElementType;
-        boolean returnNull = false;
-
-        switch (randomFrom(applicable)) {
-            case DOES_NOT_EXIST -> returnNull = true;
-            case TASK_TYPE -> {
-                taskType = randomValueOtherThan(taskType, () -> randomFrom(Set.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)));
-                if (taskType == TaskType.TEXT_EMBEDDING) {
-                    // Sparse -> dense: populate required dense settings from a fresh random dense model
-                    TestModel randomDenseModel = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-                    dimensions = randomDenseModel.getServiceSettings().dimensions();
-                    similarity = randomDenseModel.getServiceSettings().similarity();
-                    elementType = randomDenseModel.getServiceSettings().elementType();
-                } else {
-                    // Dense -> sparse: clear dense-only settings
-                    dimensions = null;
-                    similarity = null;
-                    elementType = null;
-                }
-            }
-            case DIMENSIONS -> dimensions = randomValueOtherThan(
-                dimensions,
-                () -> randomCompatibleDimensions(baseElementType, BBQ_MIN_DIMS * 2)
-            );
-            case SIMILARITY -> similarity = randomValueOtherThan(similarity, () -> randomFrom(getSupportedSimilarities(baseElementType)));
-            case ELEMENT_TYPE -> {
-                elementType = randomValueOtherThan(
-                    elementType,
-                    () -> randomFrom(
-                        DenseVectorFieldMapper.ElementType.FLOAT,
-                        DenseVectorFieldMapper.ElementType.BYTE,
-                        DenseVectorFieldMapper.ElementType.BIT
-                    )
-                );
-                // Regenerate dimensions and similarity compatible with the new element type
-                dimensions = randomCompatibleDimensions(elementType, BBQ_MIN_DIMS * 2);
-                similarity = randomFrom(getSupportedSimilarities(elementType));
-            }
-        }
-
-        if (returnNull) {
-            return null;
-        }
-
-        return buildModel(baseModel, inferenceId, taskType, elementType, dimensions, similarity);
-    }
-
-    private static TestModel buildModel(
-        TestModel baseModel,
-        String inferenceId,
-        TaskType taskType,
-        @Nullable DenseVectorFieldMapper.ElementType elementType,
-        @Nullable Integer dimensions,
-        @Nullable SimilarityMeasure similarity
-    ) {
-        return new TestModel(
-            inferenceId,
-            taskType,
-            baseModel.getConfigurations().getService(),
-            new TestModel.TestServiceSettings(baseModel.getServiceSettings().model(), dimensions, similarity, elementType),
-            baseModel.getTaskSettings(),
-            baseModel.getSecretSettings()
-        );
     }
 
     public void testDynamicUpdate() throws IOException {

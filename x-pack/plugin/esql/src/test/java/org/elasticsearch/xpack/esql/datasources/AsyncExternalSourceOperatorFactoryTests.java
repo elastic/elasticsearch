@@ -634,6 +634,69 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A zero-projection {@code STATS COUNT(*)} over a Hive-partitioned dataset. The query references no
+     * columns, so its output attribute list is empty, while the dataset's partition stamp keeps
+     * {@code partitionColumnNames} non-empty. Before the fix, {@code wrapWithVirtualColumns} gated only
+     * on the dataset axis and constructed a {@link VirtualColumnIterator} with the empty output as
+     * {@code fullOutput}, tripping the constructor's {@code "fullOutput cannot be null or empty"} check
+     * during {@code openNext*} — the exact partitioned-text {@code COUNT(*)} crash. The guard now also
+     * skips the wrap on the output axis, forwarding the reader's position-only pages unchanged so the
+     * row count rides {@code positionCount} to the count aggregator (mirroring the already-working
+     * unpartitioned path). This is the factory-level behavioral pin for the fix.
+     */
+    public void testZeroProjectionCountStarOverPartitionedSourceForwardsPositionOnlyPages() throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/year=2024/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/**/*.parquet");
+
+        // COUNT(*) projects zero columns: the reader emits a position-only page (0 data blocks).
+        FormatReader formatReader = new SinglePageReader(() -> new Page(2));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        // Empty output — the defining feature of a bare STATS COUNT(*) read — over a partitioned stamp.
+        List<Attribute> attributes = List.of();
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).partitionColumnNames(Set.of("year")).partitionValues(Map.of("year", 2024)).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+
+            assertEquals("one page produced", 1, pages.size());
+            Page page = pages.get(0);
+            assertEquals("zero-projection read carries no data blocks", 0, page.getBlockCount());
+            assertEquals("the row count rides positionCount", 2, page.getPositionCount());
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
     public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 
@@ -973,6 +1036,66 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ).sliceQueue(sliceQueue).build();
 
         assertSame(sliceQueue, factory.sliceQueue());
+    }
+
+    /**
+     * A whole-file split reaches the reader marked as its file's last, so the reader keeps a final record with
+     * no trailing terminator. Splits built before the position keys existed carry no markers at all, and this
+     * is the path that recognises them — on the factory that production actually uses.
+     */
+    public void testLegacyUnstampedWholeFileSplitReachesTheReaderAsFileFinal() throws Exception {
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/whole.ndjson"),
+            0,
+            1024,
+            "ndjson",
+            Map.of(), // no position keys — as produced before they were stamped
+            Map.of()
+        );
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/whole.ndjson"),
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(List.of(split))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+
+        assertEquals(1, formatReader.capturedLastSplit().size());
+        assertTrue(
+            "a split covering the whole file owns its trailing bytes, so the reader must be told it is the file's last",
+            formatReader.capturedLastSplit().get(0)
+        );
+        // Same fact, second consumer: it closes the file's trailing stats stripe. Derived from one place so the
+        // two cannot disagree — they used to, and a mid-file stripe was closed as if it were the file's last.
+        assertTrue("a whole-file read closes the file's final stats stripe", formatReader.capturedStatsFileFinal().get(0));
     }
 
     public void testSliceQueueWithNonZeroOffsetWrapsWithRangeStorageObject() throws Exception {
@@ -3326,10 +3449,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
+        private final List<Boolean> capturedLastSplit = new ArrayList<>();
+        private final List<Boolean> capturedStatsFileFinal = new ArrayList<>();
 
         SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
             this.capturedObjects = capturedObjects;
             this.capturedSkipFirstLine = capturedSkipFirstLine;
+        }
+
+        List<Boolean> capturedLastSplit() {
+            return capturedLastSplit;
+        }
+
+        List<Boolean> capturedStatsFileFinal() {
+            return capturedStatsFileFinal;
         }
 
         @Override
@@ -3341,6 +3474,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             capturedObjects.add(object);
             capturedSkipFirstLine.add(context.firstSplit() == false);
+            capturedLastSplit.add(context.lastSplit());
+            capturedStatsFileFinal.add(context.statsFileFinal());
             return singlePageIterator();
         }
 

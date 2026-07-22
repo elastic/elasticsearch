@@ -9,9 +9,11 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -1220,9 +1222,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     }
                     builder.endObject();
                 }
-                if (failures != null && failures.size() > 0) {
+                if (failures != null && failures.isEmpty() == false) {
                     builder.startArray(RestActions.FAILURES_FIELD.getPreferredName());
-                    for (ShardSearchFailure failure : failures) {
+                    ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(
+                        failures.toArray(ShardSearchFailure.EMPTY_ARRAY)
+                    );
+                    for (ShardOperationFailedException failure : groupedFailures) {
                         failure.toXContent(builder, params);
                     }
                     builder.endArray();

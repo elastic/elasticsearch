@@ -15,6 +15,8 @@ import java.lang.classfile.ClassFile;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.BranchInstruction;
 import java.lang.invoke.MethodHandle;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -330,6 +332,56 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Class<?> driver = result.loadClass("test.BufDriver");
         Object buf = driver.getMethod("create", short.class).invoke(null, (short) 42);
         assertNotNull("BufDriver.create must return a non-null Buf", buf);
+    }
+
+    /**
+     * An abstract-class {@code @LibrarySpecification} must generate a {@code $Impl} that extends
+     * the abstract class (not {@code Object}) and implements the abstract methods. The generated
+     * {@code $Impl.getSuperclass()} must equal the abstract class, and a {@code protected abstract}
+     * method must carry {@code Modifier.PROTECTED} in the generated impl.
+     */
+    public void testAbstractClassImplExtendsSuperclass() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib")
+            public abstract class MyAbstractLib {
+                @Function("native_add")
+                public abstract int add(int a, int b);
+
+                @Function("native_sub")
+                protected abstract int sub(int a, int b);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyAbstractLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.MyAbstractLib$Impl");
+        assertNotNull("Generated MyAbstractLib$Impl class not found", implClass);
+
+        // $Impl must extend the abstract class, not Object
+        Class<?> superClass = implClass.getSuperclass();
+        assertEquals("test.MyAbstractLib", superClass.getName());
+
+        // $Impl must not implement any separate interface for the library type
+        Class<?>[] ifaces = implClass.getInterfaces();
+        for (Class<?> iface : ifaces) {
+            assertFalse("$Impl must not implement MyAbstractLib as an interface", iface.getName().equals("test.MyAbstractLib"));
+        }
+
+        // The protected method must carry ACC_PROTECTED (not ACC_PUBLIC)
+        Method subMethod = null;
+        for (Method m : implClass.getDeclaredMethods()) {
+            if (m.getName().equals("sub")) {
+                subMethod = m;
+                break;
+            }
+        }
+        assertNotNull("sub method not found in MyAbstractLib$Impl", subMethod);
+        assertTrue("sub must be protected", Modifier.isProtected(subMethod.getModifiers()));
+        assertFalse("sub must not be public", Modifier.isPublic(subMethod.getModifiers()));
     }
 
     /**

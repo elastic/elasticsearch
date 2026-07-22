@@ -76,13 +76,24 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     ) {}
 
     protected QueryContext createQueryContext(int ord) throws IOException {
-        var correctiveTerms = values.getCorrectiveTerms(ord);
-        return new QueryContext(
-            ord,
-            correctiveTerms.lowerInterval(),
-            correctiveTerms.upperInterval(),
-            correctiveTerms.additionalCorrection(),
-            correctiveTerms.quantizedComponentSum()
+        // Read the full per-vector record (vector + corrections) in a single slice, matching the read
+        // pattern in scoreFromOrds/bulkScoreFromOrds, instead of a separate getCorrectiveTerms(ord) I/O
+        // on the values' own channel. Only the corrections trailer is extracted here.
+        long offset = (long) ord * vectorPitch;
+        input.seek(offset);
+        // The corrections trailer starts at byte offset dims within the record; read the 3 floats + 1 int
+        // directly from the slice rather than materializing a short-lived sub-slice.
+        return IndexInputUtils.withSlice(
+            input,
+            vectorPitch,
+            firstScratch::getScratch,
+            seg -> new QueryContext(
+                ord,
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims + Float.BYTES),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims + 2L * Float.BYTES),
+                seg.get(ValueLayout.JAVA_INT_UNALIGNED, dims + 3L * Float.BYTES)
+            )
         );
     }
 

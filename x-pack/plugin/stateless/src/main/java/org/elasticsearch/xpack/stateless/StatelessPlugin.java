@@ -882,6 +882,7 @@ public class StatelessPlugin extends Plugin
             readerHeapMetrics,
             StatelessReaderHeapMetrics.register(services.telemetryProvider().getMeterRegistry(), readerHeapBreaker.get())
         );
+        StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
         setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
@@ -1241,6 +1242,7 @@ public class StatelessPlugin extends Plugin
             TranslogReplicator.FLUSH_SIZE_SETTING,
             IndexEngine.MERGE_PREWARM,
             IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+            IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,

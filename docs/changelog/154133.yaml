@@ -1,0 +1,6 @@
+area: Reindex
+issues:
+ - 154103
+pr: 154133
+summary: Fix reindex relocation failing with basic auth
+type: bug

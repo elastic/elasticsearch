@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -758,11 +759,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
-                        // don't return until all pages are fetched
-                        externalSink.addCompletionListener(ActionListener.running(() -> {
-                            exchangeService.finishSinkHandler(externalId, null);
-                            reductionListener.onResponse(resp);
-                        }));
+                        // don't return until all pages are fetched; preserve the current thread context (which holds the
+                        // reduction driver's warnings) because the completion listener may fire on a different thread
+                        // (the transport thread that processes the coordinator's fetchPageAsync call)
+                        externalSink.addCompletionListener(
+                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
+                                exchangeService.finishSinkHandler(externalId, null);
+                                reductionListener.onResponse(resp);
+                            }), threadPool.getThreadContext())
+                        );
                     }, e -> {
                         LOGGER.debug("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);

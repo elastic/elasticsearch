@@ -486,6 +486,12 @@ public class EsqlCapabilities {
         CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
+         * Partial folding of {@code CASE} keeps the KEYWORD type declared at analysis time when the
+         * surviving branch is TEXT, instead of letting the plan output drift to TEXT. See #154278.
+         */
+        FIX_CASE_PARTIAL_FOLD_KEYWORD_TYPE,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -2270,9 +2276,28 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Window filters use the rounded bucket label's floor and ceiling when filtering windows
+         * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
+         * extrapolating over the window's own range instead of the outer time bucket's range when
+         * the window is smaller than the bucket, fixing values that were inflated by the ratio of
+         * bucket size to window size.
+         */
+        FIX_ESQL_SMALL_WINDOWS,
+
+        /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * On a {@code date_nanos} {@code @timestamp} index, PromQL evaluates in the millisecond domain: the
+         * {@code @timestamp} is normalized to {@code datetime} (epoch-millis) up front, so the time buckets, the
+         * windowing, and the built-in {@code step} column all behave exactly as on a plain {@code date} index. In
+         * particular the {@code step} column is always {@code datetime} regardless of the index resolution; without
+         * this, a {@code date_nanos} index produced a {@code date_nanos} {@code step} column that tripped the
+         * post-optimization output verifier.
+         */
+        FIX_PROMQL_DATE_NANOS_STEP(FIX_PROMQL_TIME_BUCKET_V2.isEnabled()),
 
         /**
          * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
@@ -2765,6 +2790,24 @@ public class EsqlCapabilities {
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,
+
+        /**
+         * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
+         * {@code PUT/GET/DELETE /_query/dataset/{name}}) are exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        DATA_SOURCES_SERVERLESS_SCOPE,
+
+        /**
+         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
+         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
+         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
+         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
+         * containing such a node correctly returns {@code supported=false}.
+         */
+        REGISTER_FEDERATION_FEATURE,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -3337,7 +3380,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V4(Build.current().isSnapshot()),
+        HIGHLIGHT_V5(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3408,6 +3451,12 @@ public class EsqlCapabilities {
         SPATIAL_BBOX_VALIDATION_FIX,
 
         /**
+         * Support for lambda expression syntax (e.g. {@code x -> x + 1}) as function arguments.
+         * Syntax only for now: no function accepts a lambda argument yet.
+         */
+        LAMBDA_SYNTAX(Build.current().isSnapshot()),
+
+        /**
          * Fix for MATCH with fuzziness on version fields throwing a ClassCastException when lenient is false.
          * See <a href="https://github.com/elastic/elasticsearch/issues/154068">#154068</a>
          */
@@ -3418,6 +3467,26 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
          */
         FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
+
+        /**
+         * Fix {@code ReplaceRoundToWithQueryAndTags} throwing a {@code ClassCastException} when {@code ROUND_TO}'s first argument
+         * is a function (e.g. {@code ROUND_TO(BYTE_LENGTH(field), ...)}) rather than a bare field.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
+         */
+        FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
+
+        /**
+         * Support for the PromQL {@code topk()} order-statistic aggregation.
+         */
+        PROMQL_TOPK,
+
+        /**
+         * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
+         * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
+         * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
+         * lookup used by rate interpolation.
+         */
+        FIX_TIME_SERIES_DATE_NANOS_MIXED_ROUNDING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

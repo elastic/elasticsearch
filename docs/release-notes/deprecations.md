@@ -16,11 +16,19 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.4.3 [elasticsearch-9.4.3-deprecations]
+## 9.4.4 [elasticsearch-9.4.4-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.8 [elasticsearch-9.3.8-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.3.7 [elasticsearch-9.3.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.3 [elasticsearch-9.4.3-deprecations]
 
 There are no deprecations associated with this release.
 
@@ -224,5 +232,3 @@ Search:
 
 Security:
 * Deprecate certificate based remote cluster security model [#120806](https://github.com/elastic/elasticsearch/pull/120806)
-
-

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -71,6 +72,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
+        .capabilities("unmapped_fields_pushdown_fix")
         // in-development runtime search support; move to capabilities(...) when released
         .snapshotCapabilities("runtime_filter")
         .name("match_phrase");
@@ -264,14 +266,28 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
 
     @Override
     public boolean isRuntimeSearch() {
-        return runtimeSearchEnabled() && fieldAsFieldAttribute() == null;
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
+            // Runtime search on expressions is currently snapshot-only.
+            return runtimeSearchEnabled();
+        }
+        // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+        // indices where the field is unmapped, so it is matched at runtime instead.
+        return fieldAttribute.isPotentiallyUnmapped();
     }
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (fieldAsFieldAttribute() == null) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
             return Translatable.NO;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
         return super.translatable(pushdownPredicates);
     }
 

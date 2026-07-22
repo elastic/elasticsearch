@@ -2390,6 +2390,50 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A compressed file whose codec finds no block boundaries falls back to one whole-file split, and that
+     * split still states its position.
+     * <p>
+     * Pinned at the producer rather than through the position helpers: a whole-file split with no keys is
+     * currently rescued by the compatibility path for splits from older coordinators, so an unstamped
+     * producer looks correct until that path is deleted — at which point the file's final record would go
+     * missing again with every other test still green.
+     */
+    public void testCompressedFallbackWithNoBoundariesStampsPosition() {
+        assertWholeFileSplitStamped(splitsFromCompressedFallback());
+    }
+
+    private static List<ExternalSplit> splitsFromCompressedFallback() {
+        // A codec that reports no block boundaries at all sends the provider down its whole-file fallback.
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(new FakeSplittableCodec(new long[0]));
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            new FormatReaderRegistry(codecRegistry),
+            Settings.EMPTY
+        );
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/noboundaries.ndjson.bz2"), 1_000_000L, Instant.EPOCH);
+        return splitter.discoverSplits(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson.bz2"),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of()
+            )
+        ).splits();
+    }
+
+    private static void assertWholeFileSplitStamped(List<ExternalSplit> splits) {
+        assertEquals("the fallback emits exactly one whole-file split", 1, splits.size());
+        FileSplit whole = (FileSplit) splits.get(0);
+        assertEquals(0, whole.offset());
+        assertEquals("true", whole.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertEquals("true", whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
+
+    /**
      * Every shape of split this class can produce, with the position it must report.
      * <p>
      * Split position used to be re-derived at each consumer under differing rules, so a whole-file read

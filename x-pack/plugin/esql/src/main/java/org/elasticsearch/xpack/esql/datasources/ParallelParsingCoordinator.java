@@ -468,10 +468,6 @@ public final class ParallelParsingCoordinator {
         // header), bind the full on-disk schema before segment workers run. For non-leading macro
         // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
-        // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. When this read includes the file-leading bytes (and therefore any
-        // header), bind the full on-disk schema before segment workers run. For non-leading macro
-        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
             var meta = parallelReader.metadata(storageObject);
             if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {

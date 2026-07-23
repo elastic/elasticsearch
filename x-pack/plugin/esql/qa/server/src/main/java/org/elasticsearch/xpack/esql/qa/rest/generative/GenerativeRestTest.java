@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
@@ -851,6 +852,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
                 if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case HighlightGenerator.HIGHLIGHT -> {
+                // An empty prefix overwrites an ON column. Mark generated columns as non-index-mapped even when names collide.
+                Object highlightColumns = command.context().get(HighlightGenerator.HIGHLIGHT_COLUMNS);
+                if (highlightColumns instanceof List<?> highlightColumnList) {
+                    highlightColumnList.forEach(name -> createdColumns.add((String) name));
                 }
             }
             case LookupJoinGenerator.LOOKUP_JOIN -> {

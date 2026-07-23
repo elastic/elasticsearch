@@ -56,6 +56,8 @@ public interface DirectAccessInput {
      * @param count    number of ranges to resolve
      * @param addressesScratch pre-allocated output buffer; must hold at least {@code count} pointer-width
      *                 entries. May be larger and reused across calls; only {@code [0, count)} are written.
+     *                 Its base address must be aligned to {@link java.lang.foreign.ValueLayout#ADDRESS}'s
+     *                 byte alignment.
      * @param action   invoked with {@code addressesScratch}; only the first {@code count} address slots
      *                 contain valid data, and those addresses are valid only for the duration of the call
      * @return {@code true} if all ranges were resolved and the action was invoked; {@code false} otherwise
@@ -69,10 +71,9 @@ public interface DirectAccessInput {
     ) throws IOException;
 
     /**
-     * Validates the {@code offsets}, {@code count} and {@code addressesScratch}arguments for
-     * {@link #withSliceAddresses}. Throws on negative count, an
-     * undersized offsets array or an undersized MemorySegment. Returns {@code true} if count is zero
-     * (caller should treat as a no-op), {@code false} otherwise.
+     * Validates the {@code offsets}, {@code count} and {@code addressesScratch} arguments for
+     * {@link #withSliceAddresses}.
+     * Returns {@code true} if count is zero (caller should treat as a no-op), {@code false} otherwise.
      */
     static boolean checkSlicesArgs(long[] offsets, int count, MemorySegment addressesScratch) {
         if (count < 0) {
@@ -84,6 +85,16 @@ public interface DirectAccessInput {
         if (addressesScratch.byteSize() < count * ValueLayout.ADDRESS.byteSize()) {
             throw new IllegalArgumentException(
                 "addressesScratch segment byte size [" + addressesScratch.byteSize() + "] is too small to hold [" + count + "] pointers"
+            );
+        }
+        boolean isAligned = addressesScratch.address() % ValueLayout.ADDRESS.byteAlignment() == 0;
+        if (isAligned == false) {
+            throw new IllegalArgumentException(
+                "addressesScratch segment address ["
+                    + addressesScratch.address()
+                    + "] is not aligned to ["
+                    + ValueLayout.ADDRESS.byteAlignment()
+                    + "] bytes"
             );
         }
         return count == 0;

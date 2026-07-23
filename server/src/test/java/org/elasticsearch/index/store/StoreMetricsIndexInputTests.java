@@ -226,28 +226,36 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         assertFalse(((DirectAccessInput) decorated).withMemorySegmentSlice(0L, 10L, ms -> fail("action should not be called")));
     }
 
-    // Verifies that the bulk withMemorySegmentSlices delegates to the wrapped input when it implements DirectAccessInput.
+    // Verifies that the bulk withSliceAddresses delegates to the wrapped input when it implements DirectAccessInput.
     @SuppressWarnings("unchecked")
-    public void testWithByteBufferSlicesDelegatesToDAI() throws IOException {
+    public void testWithSliceAddressesDelegatesToDAI() throws IOException {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockInput = mock(IndexInput.class, withSettings().extraInterfaces(DirectAccessInput.class));
-        when(((DirectAccessInput) mockInput).withMemorySegmentSlices(any(), anyInt(), anyInt(), any())).thenReturn(true);
+        when(((DirectAccessInput) mockInput).withSliceAddresses(any(), anyInt(), anyInt(), any(), any())).thenReturn(true);
 
         IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
-        CheckedConsumer<MemorySegment[], IOException> action = mss -> {};
+        CheckedConsumer<MemorySegment, IOException> action = addrs -> {};
         long[] offsets = { 0L, 100L, 200L };
-        assertTrue(((DirectAccessInput) decorated).withMemorySegmentSlices(offsets, 64, 3, action));
-        verify((DirectAccessInput) mockInput).withMemorySegmentSlices(eq(offsets), eq(64), eq(3), eq(action));
+        MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
+        assertTrue(((DirectAccessInput) decorated).withSliceAddresses(offsets, 64, 3, addrsOut, action));
+        verify((DirectAccessInput) mockInput).withSliceAddresses(eq(offsets), eq(64), eq(3), eq(addrsOut), eq(action));
     }
 
-    // Verifies that the bulk withMemorySegmentSlices returns false when the wrapped input does not implement DirectAccessInput.
-    public void testWithByteBufferSlicesReturnsFalseWhenInnerIsNotDAI() throws IOException {
+    // Verifies that the bulk withSliceAddresses returns false when the wrapped input does not implement DirectAccessInput.
+    public void testWithSliceAddressesReturnsFalseWhenInnerIsNotDAI() throws IOException {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockInput = mock(IndexInput.class);
         IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
 
+        MemorySegment addrsOut = MemorySegment.ofArray(new long[1]);
         assertFalse(
-            ((DirectAccessInput) decorated).withMemorySegmentSlices(new long[] { 0L }, 10, 1, mss -> fail("action should not be called"))
+            ((DirectAccessInput) decorated).withSliceAddresses(
+                new long[] { 0L },
+                10,
+                1,
+                addrsOut,
+                addrs -> fail("action should not be called")
+            )
         );
     }
 }

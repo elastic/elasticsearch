@@ -14,10 +14,10 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowBuilder;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -33,8 +33,13 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
@@ -71,7 +76,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         return new IndexRequest("index").id(id);
     }
 
-    private List<Engine.Index> parseBatch(IndexShard shard, EirfBatch batch, BulkItemRequest[] items) throws IOException {
+    private List<Engine.Index> parseBatch(IndexShard shard, SourceBatch batch, BulkItemRequest[] items) throws IOException {
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
         assertNotNull("expected batch path to support this mapping", resolution);
         List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, items.length, 0, resolution);
@@ -82,6 +87,18 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
     private static LuceneDocument rootDoc(Engine.Index op) {
         return op.parsedDoc().rootDoc();
+    }
+
+    /** Builds a single-document JSON {@link BytesReference} from alternating name/value pairs. */
+    private static BytesReference doc(Object... kvPairs) throws IOException {
+        try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+            b.startObject();
+            for (int i = 0; i < kvPairs.length; i += 2) {
+                b.field((String) kvPairs[i], kvPairs[i + 1]);
+            }
+            b.endObject();
+            return BytesReference.bytes(b);
+        }
     }
 
     public void testSupportedMapperTypes() throws Exception {
@@ -102,26 +119,20 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             items[i] = new BulkItemRequest(i, indexRequest("id-" + i));
         }
 
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+        List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            sources.add(doc("ts", 1_700_000_000_000L + i, "host", "host-" + i, "value", 100L + i, "score", 1.5 + i));
+        }
+        try (SourceBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
             for (int i = 0; i < numDocs; i++) {
-                builder.startDocument();
-                builder.setLong("ts", 1_700_000_000_000L + i);
-                builder.setString("host", "host-" + i);
-                builder.setLong("value", 100L + i);
-                builder.setDouble("score", 1.5 + i);
-                builder.endDocument();
-            }
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                for (int i = 0; i < numDocs; i++) {
-                    LuceneDocument doc = rootDoc(ops.get(i));
-                    assertThat(doc.getField("ts").numericValue().longValue(), equalTo(1_700_000_000_000L + i));
-                    assertThat(doc.getBinaryValue("host"), equalTo(new BytesRef("host-" + i)));
-                    assertThat(doc.getField("value").numericValue().longValue(), equalTo(100L + i));
-                    // Double doc-values field stores Double.doubleToLongBits(value); decode for assertion.
-                    long scoreBits = doc.getField("score").numericValue().longValue();
-                    assertThat(Double.longBitsToDouble(scoreBits), equalTo(1.5 + i));
-                }
+                LuceneDocument doc = rootDoc(ops.get(i));
+                assertThat(doc.getField("ts").numericValue().longValue(), equalTo(1_700_000_000_000L + i));
+                assertThat(doc.getBinaryValue("host"), equalTo(new BytesRef("host-" + i)));
+                assertThat(doc.getField("value").numericValue().longValue(), equalTo(100L + i));
+                // Double doc-values field stores Double.doubleToLongBits(value); decode for assertion.
+                long scoreBits = doc.getField("score").numericValue().longValue();
+                assertThat(Double.longBitsToDouble(scoreBits), equalTo(1.5 + i));
             }
         }
 
@@ -140,15 +151,9 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             }""";
         IndexShard shard = newShardWithMapping(mapping);
 
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("host", "a");
-            builder.setString("body", "hello world");
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
-                assertNull("batch path should refuse text+index_prefixes leaves and trigger sequential fallback", resolution);
-            }
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("host", "a", "body", "hello world")), XContentType.JSON)) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+            assertNull("batch path should refuse text+index_prefixes leaves and trigger sequential fallback", resolution);
         }
 
         closeShards(shard);
@@ -167,34 +172,28 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("host", "alpha");
-            builder.setString("extra", "silent"); // unmapped under dynamic=false parent → ignored
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
-                assertNotNull(resolution);
-                int hostLeaf = batch.schema().findLeaf("host", 0);
-                int extraLeaf = batch.schema().findLeaf("extra", 0);
-                assertNotNull(resolution.columnMappers()[hostLeaf]);
-                assertNull(resolution.columnMappers()[extraLeaf]);
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("host", "alpha", "extra", "silent")), XContentType.JSON)) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+            assertNotNull(resolution);
+            int hostLeaf = batch.schema().findLeaf("host", 0);
+            int extraLeaf = batch.schema().findLeaf("extra", 0);
+            assertNotNull(resolution.columnMappers()[hostLeaf]);
+            assertNull(resolution.columnMappers()[extraLeaf]);
 
-                List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, items.length, 0, resolution);
-                assertNotNull(ops);
-                assertThat(ops, hasSize(1));
-                LuceneDocument doc = rootDoc(ops.get(0));
-                assertThat(doc.getBinaryValue("host"), equalTo(new BytesRef("alpha")));
-                assertThat(doc.getFields("extra"), empty());
-            }
+            List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, items.length, 0, resolution);
+            assertNotNull(ops);
+            assertThat(ops, hasSize(1));
+            LuceneDocument doc = rootDoc(ops.get(0));
+            assertThat(doc.getBinaryValue("host"), equalTo(new BytesRef("alpha")));
+            assertThat(doc.getFields("extra"), empty());
         }
 
         closeShards(shard);
     }
 
     public void testNumberMapperReceivesStringValue() throws Exception {
-        // The contract is: NumberFieldMapper should parse string EIRF values via its usual
-        // parseCreateField path; resolveMappers does not pre-match column EIRF types.
+        // The contract is: NumberFieldMapper should parse string batch values via its usual
+        // parseCreateField path; resolveMappers does not pre-match column types.
         String mapping = """
             {
               "properties": {
@@ -204,15 +203,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("v", "42"); // string into a long-typed mapper
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                LuceneDocument doc = rootDoc(ops.get(0));
-                assertThat(doc.getField("v").numericValue().longValue(), equalTo(42L));
-            }
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("v", "42")), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            LuceneDocument doc = rootDoc(ops.get(0));
+            assertThat(doc.getField("v").numericValue().longValue(), equalTo(42L));
         }
 
         closeShards(shard);
@@ -228,19 +222,14 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("host", "way-too-long-value"); // exceeds ignore_above
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                LuceneDocument doc = rootDoc(ops.get(0));
-                assertThat(doc.getFields("host"), empty());
-                assertTrue(
-                    "ignore_above should record the field name in _ignored",
-                    doc.getFields("_ignored").stream().anyMatch(f -> "host".equals(f.stringValue()))
-                );
-            }
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("host", "way-too-long-value")), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            LuceneDocument doc = rootDoc(ops.get(0));
+            assertThat(doc.getFields("host"), empty());
+            assertTrue(
+                "ignore_above should record the field name in _ignored",
+                doc.getFields("_ignored").stream().anyMatch(f -> "host".equals(f.stringValue()))
+            );
         }
 
         closeShards(shard);
@@ -267,36 +256,30 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexRequest indexRequest = indexRequest("doc-1").routing("route-1");
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest) };
 
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("host", "alpha");
-            builder.setLong("value", 7L);
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                ParsedDocument parsed = ops.getFirst().parsedDoc();
-                LuceneDocument doc = parsed.rootDoc();
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("host", "alpha", "value", 7)), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            ParsedDocument parsed = ops.getFirst().parsedDoc();
+            LuceneDocument doc = parsed.rootDoc();
 
-                // ProvidedIdFieldMapper.preParse — sets context.id and adds an indexed _id field.
-                assertThat("ParsedDocument id should be populated by IdFieldMapper.preParse", parsed.id(), equalTo("doc-1"));
-                assertNotNull("_id Lucene field must be present", doc.getField(IdFieldMapper.NAME));
+            // ProvidedIdFieldMapper.preParse — sets context.id and adds an indexed _id field.
+            assertThat("ParsedDocument id should be populated by IdFieldMapper.preParse", parsed.id(), equalTo("doc-1"));
+            assertNotNull("_id Lucene field must be present", doc.getField(IdFieldMapper.NAME));
 
-                // RoutingFieldMapper.preParse — adds a stored _routing field whose string value is the routing key.
-                IndexableField routingField = doc.getField(RoutingFieldMapper.NAME);
-                assertNotNull("_routing must be added by RoutingFieldMapper.preParse", routingField);
-                assertThat(routingField.stringValue(), equalTo("route-1"));
+            // RoutingFieldMapper.preParse — adds a stored _routing field whose string value is the routing key.
+            IndexableField routingField = doc.getField(RoutingFieldMapper.NAME);
+            assertNotNull("_routing must be added by RoutingFieldMapper.preParse", routingField);
+            assertThat(routingField.stringValue(), equalTo("route-1"));
 
-                // VersionFieldMapper.preParse — adds a placeholder _version doc-values field.
-                assertNotNull("_version must be added by VersionFieldMapper.preParse", doc.getField(VersionFieldMapper.NAME));
+            // VersionFieldMapper.preParse — adds a placeholder _version doc-values field.
+            assertNotNull("_version must be added by VersionFieldMapper.preParse", doc.getField(VersionFieldMapper.NAME));
 
-                // SeqNoFieldMapper.postParse — adds the _seq_no placeholder doc-values field.
-                assertNotNull("_seq_no must be added by SeqNoFieldMapper.postParse", doc.getField(SeqNoFieldMapper.NAME));
+            // SeqNoFieldMapper.postParse — adds the _seq_no placeholder doc-values field.
+            assertNotNull("_seq_no must be added by SeqNoFieldMapper.postParse", doc.getField(SeqNoFieldMapper.NAME));
 
-                // SourceFieldMapper.preParse — adds the _source stored field with the row-synthesized JSON.
-                IndexableField sourceField = doc.getField(SourceFieldMapper.NAME);
-                assertNotNull("_source must be added by SourceFieldMapper.preParse", sourceField);
-                assertNotNull(sourceField.binaryValue());
-            }
+            // SourceFieldMapper.preParse — adds the _source stored field with the row-synthesized JSON.
+            IndexableField sourceField = doc.getField(SourceFieldMapper.NAME);
+            assertNotNull("_source must be added by SourceFieldMapper.preParse", sourceField);
+            assertNotNull(sourceField.binaryValue());
         }
 
         closeShards(shard);
@@ -328,26 +311,21 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, SYNTHETIC_SOURCE_SETTINGS);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("doc-1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("host", "way-too-long"); // exceeds ignore_above
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                LuceneDocument doc = rootDoc(ops.getFirst());
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("host", "way-too-long")), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            LuceneDocument doc = rootDoc(ops.getFirst());
 
-                // Synthetic source: stored _source is absent, but a _recovery_source flavor must be present.
-                assertNull("stored _source must not be present in synthetic mode", doc.getField(SourceFieldMapper.NAME));
-                boolean hasRecovery = doc.getField(SourceFieldMapper.RECOVERY_SOURCE_NAME) != null
-                    || doc.getField(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME) != null;
-                assertTrue(
-                    "SourceFieldMapper.preParse must add either _recovery_source or _recovery_source_size in synthetic mode",
-                    hasRecovery
-                );
+            // Synthetic source: stored _source is absent, but a _recovery_source flavor must be present.
+            assertNull("stored _source must not be present in synthetic mode", doc.getField(SourceFieldMapper.NAME));
+            boolean hasRecovery = doc.getField(SourceFieldMapper.RECOVERY_SOURCE_NAME) != null
+                || doc.getField(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME) != null;
+            assertTrue(
+                "SourceFieldMapper.preParse must add either _recovery_source or _recovery_source_size in synthetic mode",
+                hasRecovery
+            );
 
-                // ignore_above triggered → IgnoredFieldMapper.postParse records the field name.
-                assertNotNull("_ignored must be added when a column exceeds ignore_above", doc.getField(IgnoredFieldMapper.NAME));
-            }
+            // ignore_above triggered → IgnoredFieldMapper.postParse records the field name.
+            assertNotNull("_ignored must be added when a column exceeds ignore_above", doc.getField(IgnoredFieldMapper.NAME));
         }
 
         closeShards(shard);
@@ -364,17 +342,11 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setNull("host");
-            builder.setNull("v");
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                LuceneDocument doc = rootDoc(ops.get(0));
-                assertThat(doc.getFields("host"), empty());
-                assertThat(doc.getFields("v"), empty());
-            }
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("host", null, "v", null)), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            LuceneDocument doc = rootDoc(ops.get(0));
+            assertThat(doc.getFields("host"), empty());
+            assertThat(doc.getFields("v"), empty());
         }
 
         closeShards(shard);
@@ -394,38 +366,32 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             items[i] = new BulkItemRequest(i, indexRequest("id-" + i));
         }
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setBoolean("active", true);
-            builder.endDocument();
-            builder.startDocument();
-            builder.setBoolean("active", false);
-            builder.endDocument();
-            builder.startDocument();
-            builder.setNull("active");
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
+        try (
+            SourceBatch batch = EscfEncoder.encode(
+                List.of(doc("active", true), doc("active", false), doc("active", null)),
+                XContentType.JSON
+            )
+        ) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
 
-                LuceneDocument trueDoc = rootDoc(ops.get(0));
-                List<IndexableField> trueFields = trueDoc.getFields("active");
-                assertFalse("expected indexable fields for true", trueFields.isEmpty());
-                assertTrue(
-                    "boolean true should encode as numeric 1",
-                    trueFields.stream().anyMatch(f -> f.numericValue() != null && f.numericValue().longValue() == 1L)
-                );
+            LuceneDocument trueDoc = rootDoc(ops.get(0));
+            List<IndexableField> trueFields = trueDoc.getFields("active");
+            assertFalse("expected indexable fields for true", trueFields.isEmpty());
+            assertTrue(
+                "boolean true should encode as numeric 1",
+                trueFields.stream().anyMatch(f -> f.numericValue() != null && f.numericValue().longValue() == 1L)
+            );
 
-                LuceneDocument falseDoc = rootDoc(ops.get(1));
-                List<IndexableField> falseFields = falseDoc.getFields("active");
-                assertFalse("expected indexable fields for false", falseFields.isEmpty());
-                assertTrue(
-                    "boolean false should encode as numeric 0",
-                    falseFields.stream().anyMatch(f -> f.numericValue() != null && f.numericValue().longValue() == 0L)
-                );
+            LuceneDocument falseDoc = rootDoc(ops.get(1));
+            List<IndexableField> falseFields = falseDoc.getFields("active");
+            assertFalse("expected indexable fields for false", falseFields.isEmpty());
+            assertTrue(
+                "boolean false should encode as numeric 0",
+                falseFields.stream().anyMatch(f -> f.numericValue() != null && f.numericValue().longValue() == 0L)
+            );
 
-                LuceneDocument nullDoc = rootDoc(ops.get(2));
-                assertThat(nullDoc.getFields("active"), empty());
-            }
+            LuceneDocument nullDoc = rootDoc(ops.get(2));
+            assertThat(nullDoc.getFields("active"), empty());
         }
 
         closeShards(shard);
@@ -445,21 +411,13 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             items[i] = new BulkItemRequest(i, indexRequest("id-" + i));
         }
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("addr", "192.168.1.1");
-            builder.endDocument();
-            builder.startDocument();
-            builder.setString("addr", "::1");
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("addr", "192.168.1.1"), doc("addr", "::1")), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
 
-                BytesRef expectedV4 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")));
-                BytesRef expectedV6 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")));
-                assertThat(rootDoc(ops.get(0)).getField("addr").binaryValue(), equalTo(expectedV4));
-                assertThat(rootDoc(ops.get(1)).getField("addr").binaryValue(), equalTo(expectedV6));
-            }
+            BytesRef expectedV4 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")));
+            BytesRef expectedV6 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")));
+            assertThat(rootDoc(ops.get(0)).getField("addr").binaryValue(), equalTo(expectedV4));
+            assertThat(rootDoc(ops.get(1)).getField("addr").binaryValue(), equalTo(expectedV6));
         }
 
         closeShards(shard);
@@ -475,19 +433,14 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("addr", "not-an-ip");
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                LuceneDocument doc = rootDoc(ops.get(0));
-                assertThat(doc.getFields("addr"), empty());
-                assertTrue(
-                    "ignore_malformed should record the field name in _ignored",
-                    doc.getFields("_ignored").stream().anyMatch(f -> "addr".equals(f.stringValue()))
-                );
-            }
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("addr", "not-an-ip")), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            LuceneDocument doc = rootDoc(ops.get(0));
+            assertThat(doc.getFields("addr"), empty());
+            assertTrue(
+                "ignore_malformed should record the field name in _ignored",
+                doc.getFields("_ignored").stream().anyMatch(f -> "addr".equals(f.stringValue()))
+            );
         }
 
         closeShards(shard);
@@ -503,15 +456,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("body", "the quick brown fox");
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(shard, batch, items);
-                LuceneDocument doc = rootDoc(ops.get(0));
-                assertThat(doc.getField("body").stringValue(), equalTo("the quick brown fox"));
-            }
+        try (SourceBatch batch = EscfEncoder.encode(List.of(doc("body", "the quick brown fox")), XContentType.JSON)) {
+            List<Engine.Index> ops = parseBatch(shard, batch, items);
+            LuceneDocument doc = rootDoc(ops.get(0));
+            assertThat(doc.getField("body").stringValue(), equalTo("the quick brown fox"));
         }
 
         closeShards(shard);

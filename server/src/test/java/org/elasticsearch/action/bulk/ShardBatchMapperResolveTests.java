@@ -9,8 +9,9 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowBuilder;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -23,21 +24,43 @@ import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
 
-    /** Build a schema with the given (name, EIRF type) leaves by driving an EirfRowBuilder. */
-    private static SourceSchema schemaOf(String... leafNames) {
-        try (EirfRowBuilder b = new EirfRowBuilder()) {
-            b.startDocument();
-            for (String name : leafNames) {
-                // Any value shape works — resolveMappers only looks at the schema, not the value.
-                b.setLong(name, 0L);
+    /** Builds a flat schema from simple (non-dotted) leaf names. */
+    private static SourceSchema schemaOf(String... leafPaths) throws IOException {
+        try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+            b.startObject();
+            for (String path : leafPaths) {
+                b.field(path, 0);
             }
-            b.endDocument();
-            try (EirfBatch batch = b.build()) {
+            b.endObject();
+            try (EscfBatch batch = EscfEncoder.encode(List.of(BytesReference.bytes(b)), XContentType.JSON)) {
+                return batch.schema();
+            }
+        }
+    }
+
+    /** Builds a schema from dotted paths (e.g. "outer.inner"), converting each to a nested JSON object. */
+    @SuppressWarnings("unchecked")
+    private static SourceSchema schemaOfNested(String... dottedPaths) throws IOException {
+        Map<String, Object> doc = new LinkedHashMap<>();
+        for (String path : dottedPaths) {
+            int dot = path.indexOf('.');
+            String parent = path.substring(0, dot);
+            String child = path.substring(dot + 1);
+            Map<String, Object> nested = (Map<String, Object>) doc.computeIfAbsent(parent, k -> new LinkedHashMap<>());
+            nested.put(child, 0);
+        }
+        try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+            try (EscfBatch batch = EscfEncoder.encode(List.of(BytesReference.bytes(b.map(doc))), XContentType.JSON)) {
                 return batch.schema();
             }
         }
@@ -212,7 +235,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        SourceSchema schema = schemaOf("outer.inner");
+        SourceSchema schema = schemaOfNested("outer.inner");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup());
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
@@ -227,7 +250,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        SourceSchema schema = schemaOf("outer.known", "outer.unknown");
+        SourceSchema schema = schemaOfNested("outer.known", "outer.unknown");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup());
         assertNotNull(resolution);
         assertNotNull(resolution.columnMappers()[schema.findLeaf("known", schema.findNonLeaf("outer", 0))]);

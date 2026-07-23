@@ -241,7 +241,7 @@ public record UnifiedCompletionRequest(
                 ? in.readOptionalNamedWriteable(Reasoning.class)
                 : null,
             in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED)
-                ? in.readOptionalNamedWriteable(CacheControl.class)
+                ? in.readOptionalWriteable(CacheControl::new)
                 : null,
             in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) ? in.readOptionalString() : null
         );
@@ -261,7 +261,7 @@ public record UnifiedCompletionRequest(
             out.writeOptionalNamedWriteable(reasoning);
         }
         if (out.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED)) {
-            out.writeOptionalNamedWriteable(cacheControl);
+            out.writeOptionalWriteable(cacheControl);
             out.writeOptionalString(sessionId);
         }
     }
@@ -311,6 +311,14 @@ public record UnifiedCompletionRequest(
 
     public boolean containsChatCompletionReasoning() {
         return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
+    }
+
+    public boolean containsChatCompletionCacheControl() {
+        return cacheControl() != null;
+    }
+
+    public boolean containsSessionId() {
+        return sessionId() != null;
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {

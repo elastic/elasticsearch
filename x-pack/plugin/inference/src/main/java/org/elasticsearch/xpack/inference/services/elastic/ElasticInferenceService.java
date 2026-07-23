@@ -277,6 +277,16 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    protected boolean supportsChatCompletionCacheControl() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionSessionId() {
+        return true;
+    }
+
+    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,

@@ -27,26 +27,21 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
- * Bounds the memory held by in-flight cache-fill reads on the receive side. A fetched range occupies heap — untracked by circuit
- * breakers — from the moment its bytes arrive (a pooled Netty buffer for transport reads, SDK buffers for object store reads) until a
- * fill thread writes it to the cache file. The fill pool is disk-bound, so without a bound here the network can outrun disk writes and
- * exhaust the heap.
+ * Bounds heap held by in-flight cache-fill reads on the receive side. A fetched range occupies untracked heap (pooled Netty buffer /
+ * SDK buffers) from network arrival until a fill thread writes it to disk; without a bound the network outruns the disk-bound fill
+ * pool and exhausts heap.
  *
- * This is the receive-side counterpart of {@link org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure},
- * which protects the serving (indexing) node but releases its budget once bytes are sent over the wire — exactly when the receiving
- * node's exposure begins.
+ * Receive-side counterpart of {@link org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure}, which
+ * releases at send time — exactly when receiver exposure starts.
  *
- * Unlike the serving side, acquirers here are not rejected when the budget is exhausted: they queue and are granted in FIFO order as
- * budget is released. Rejection would fail warming and prefetching precisely in the overload scenario this exists for; queuing instead
- * slows intake to the pace of the disk writes that release the budget. Callers on latency-sensitive paths (cache-miss reads serving
- * searches) must not wait and should bypass this pressure entirely; see {@link CacheBlobReaderService}.
+ * Acquirers queue FIFO rather than being rejected: rejection would fail warming/prefetching in the very overload this exists for.
+ * Latency-sensitive paths (cache-miss reads) must bypass; see {@link CacheBlobReaderService}.
  *
- * Since grants are strictly FIFO, a queue head that has not been granted for {@link #STALL_WARN_THRESHOLD} means no budget at all was
- * released in that period — typically an in-flight read whose stream was never drained or closed. That state is otherwise silent (the
- * fills just never happen), so it is reported with a WARN at most once per threshold period.
+ * A queue head unmoved for {@link #STALL_WARN_THRESHOLD} means nothing was released in that period — typically an admitted read whose
+ * stream was never drained or closed. WARN'd at most once per period.
  *
- * There is deliberately no shutdown handling: listeners passed to {@link #acquire} must tolerate never being completed if the node
- * shuts down while they are queued. All acquirers are speculative fills, for which this is inherent anyway.
+ * No shutdown handling: queued listeners must tolerate never completing (all acquirers are speculative fills, for which this is
+ * inherent anyway).
  */
 public class FillCacheMemoryPressure {
 
@@ -100,18 +95,16 @@ public class FillCacheMemoryPressure {
 
     /**
      * Acquires {@code bytes} of fill budget. The listener is completed with a {@link Releasable} that must be released exactly once,
-     * when the read no longer occupies heap (the fill wrote it to disk, or the read failed). Completed inline if budget is available
-     * and no earlier acquirer is waiting; otherwise queued and completed on {@code executor}, in FIFO order, as budget frees up.
-     * Callers must pass the executor on which the deferred read is allowed to run — typically the pool the acquiring thread belongs
-     * to — because whatever work follows the grant runs there. A request larger than the whole limit is granted once nothing else is
-     * in flight, so it cannot wait forever.
+     * when the read no longer occupies heap. Completed inline if budget is free and no earlier acquirer is waiting; otherwise queued
+     * FIFO and completed on {@code executor} — must be the pool the deferred read is allowed to run on (typically the acquirer's own
+     * pool). Requests larger than the whole limit are granted once nothing else is in flight, so they cannot wait forever.
      */
     public void acquire(long bytes, Executor executor, ActionListener<Releasable> listener) {
         assert bytes > 0 : "acquiring [" + bytes + "] bytes";
         final boolean queued;
         final boolean scheduleStallCheck;
         synchronized (mutex) {
-            // grant only if no one is already waiting, else a large head-of-queue waiter could starve
+            // don't overtake a waiter — a large queue head could otherwise starve
             if (waiters.isEmpty() && fits(bytes)) {
                 grant(bytes);
                 queued = false;
@@ -137,7 +130,7 @@ public class FillCacheMemoryPressure {
 
     // caller must hold mutex
     private boolean fits(long bytes) {
-        // an oversized request is admitted when nothing else is in flight; the budget just goes transiently negative-headroom
+        // oversized request admitted when idle; budget goes transiently over-limit
         return currentBytes + bytes <= fillBytesLimit || currentBytes == 0;
     }
 
@@ -148,8 +141,7 @@ public class FillCacheMemoryPressure {
     }
 
     private Releasable releasableFor(long bytes) {
-        // releaseOnce makes a double-release harmless in production, where it would otherwise silently inflate the budget;
-        // assertOnce still surfaces the offending caller in tests
+        // releaseOnce: harmless double-release in prod; assertOnce still surfaces the caller in tests
         return Releasables.assertOnce(Releasables.releaseOnce(() -> release(bytes)));
     }
 
@@ -168,12 +160,12 @@ public class FillCacheMemoryPressure {
                 granted.add(head);
             }
         }
-        // complete off-mutex and forked: a synchronously failing read would otherwise release (and drain) recursively
+        // off-mutex + forked: a synchronously-failing read would otherwise recurse into release
         for (Waiter waiter : granted) {
             try {
                 waiter.executor().execute(() -> waiter.listener().onResponse(releasableFor(waiter.bytes())));
             } catch (Exception e) {
-                // the executor rejected the grant (node shutting down): return the budget and fail the waiter
+                // executor rejected (node shutting down): return budget, fail waiter
                 release(waiter.bytes());
                 waiter.listener().onFailure(e);
             }
@@ -184,7 +176,7 @@ public class FillCacheMemoryPressure {
         try {
             threadPool.schedule(this::checkForStalledHeadWaiter, delay, threadPool.generic());
         } catch (Exception e) {
-            // scheduler rejected the task (node shutting down): stall monitoring ends here
+            // scheduler rejected (node shutting down): stall monitoring ends
             synchronized (mutex) {
                 stallCheckScheduled = false;
             }
@@ -192,9 +184,8 @@ public class FillCacheMemoryPressure {
     }
 
     /**
-     * Runs {@link #STALL_WARN_THRESHOLD} after the queue becomes non-empty and re-arms itself while it stays non-empty, so a WARN is
-     * emitted at most once per threshold period. Watching only the head is sufficient: grants are FIFO, so a head older than the
-     * threshold means nothing at all was granted in that period.
+     * Runs {@link #STALL_WARN_THRESHOLD} after the queue becomes non-empty and re-arms while it stays non-empty (WARN at most once per
+     * period). Watching only the head suffices: FIFO grants mean a stale head implies zero grants in that period.
      */
     private void checkForStalledHeadWaiter() {
         final long headWaitedMillis;

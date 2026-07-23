@@ -57,8 +57,8 @@ public class TestUtils {
     private TestUtils() {}
 
     /**
-     * A {@link FillCacheMemoryPressure} with the limit configured by {@code settings} (default: heap-relative) and no telemetry,
-     * for constructing a {@code CacheBlobReaderService} in tests that do not exercise the fill-memory budget.
+     * A {@link FillCacheMemoryPressure} using {@code settings} (default: heap-relative) and no telemetry, for tests that do not
+     * exercise the fill-memory budget.
      */
     public static FillCacheMemoryPressure unmeteredFillCacheMemoryPressure(Settings settings, ThreadPool threadPool) {
         return new FillCacheMemoryPressure(settings, MeterRegistry.NOOP, threadPool);

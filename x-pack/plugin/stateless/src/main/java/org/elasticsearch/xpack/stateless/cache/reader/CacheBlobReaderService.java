@@ -86,12 +86,10 @@ public class CacheBlobReaderService {
      * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes
      * @param cachePopulationReason         The reason that we're reading from the data source
      * @param fileName                      The actual (lucene) file that's requested from the blob location
-     * @param speculativeFill               whether the reader feeds a speculative fill (warming, online prewarming, commit
-     *                                      prefetching) as opposed to a read some thread is blocked on. Speculative fills are
-     *                                      subject to the {@link FillCacheMemoryPressure} budget. Demand reads must never be:
-     *                                      they drain as soon as bytes arrive, are naturally bounded by the blocked thread, and
-     *                                      must not queue behind speculative work (blocking a pool thread on the budget could
-     *                                      otherwise stall the very pool that deferred reads resume on)
+     * @param speculativeFill               true = feeds a speculative fill (warming, online prewarming, commit prefetch) — subject
+     *                                      to the {@link FillCacheMemoryPressure} budget. Demand reads (some thread is blocked)
+     *                                      must never set this true: they must not queue behind speculative work, and blocking a
+     *                                      pool thread on the budget could stall the very pool a deferred read would resume on.
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(

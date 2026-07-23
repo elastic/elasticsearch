@@ -36,10 +36,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FillCacheMemoryPressureTests extends ESTestCase {
 
-    /**
-     * Completes deferred grants on the releasing thread so that tests observe FIFO drain deterministically; production passes the
-     * acquiring thread's pool.
-     */
+    /** Completes deferred grants on the releasing thread for deterministic FIFO drain; prod passes the acquirer's pool. */
     private static final Executor INLINE_GRANTS = Runnable::run;
 
     private TestThreadPool threadPool;
@@ -97,7 +94,7 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         assertThat(grantOrder, empty());
         assertThat(pressure.getWaiterCount(), equalTo(2));
 
-        // the second waiter (30 bytes) would fit alongside the 80 in flight, but must not jump the 50-byte head of the queue
+        // the 30-byte waiter would fit alongside the 80 in flight, but must not jump the 50-byte head
         granted.get(0).close();
         assertThat(grantOrder, contains("first", "second"));
         assertThat(pressure.getWaiterCount(), equalTo(0));
@@ -112,7 +109,7 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         pressure.acquire(90, INLINE_GRANTS, collectTo(granted));
         List<Releasable> queuedGrants = new CopyOnWriteArrayList<>();
         pressure.acquire(50, INLINE_GRANTS, collectTo(queuedGrants));
-        // 5 bytes would fit right now, but granting it would starve the 50-byte waiter at the head
+        // 5 bytes would fit now, but granting it would starve the 50-byte head
         pressure.acquire(5, INLINE_GRANTS, collectTo(queuedGrants));
         assertThat(queuedGrants, empty());
         assertThat(pressure.getWaiterCount(), equalTo(2));
@@ -125,12 +122,12 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
     public void testOversizedRequestGrantedWhenNothingInFlight() {
         var pressure = pressureWithLimit(100);
         List<Releasable> granted = new ArrayList<>();
-        // larger than the whole limit: granted immediately because nothing is in flight
+        // oversized: granted immediately because nothing is in flight
         pressure.acquire(500, INLINE_GRANTS, collectTo(granted));
         assertThat(granted, hasSize(1));
         assertThat(pressure.getCurrentBytes(), equalTo(500L));
 
-        // everything else waits until the oversized read completes
+        // everything else waits until it completes
         List<Releasable> queuedGrants = new CopyOnWriteArrayList<>();
         pressure.acquire(10, INLINE_GRANTS, collectTo(queuedGrants));
         assertThat(queuedGrants, empty());
@@ -164,8 +161,7 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         pressure.acquire(50, deferredGrants::add, collectTo(queuedGrants));
         assertThat(pressure.getWaiterCount(), equalTo(1));
 
-        // the release charges the budget and hands the grant to the waiter's executor; the listener must not complete before
-        // the executor runs the grant
+        // release charges the budget and hands the grant to the waiter's executor — the listener must not complete before it runs
         granted.get(0).close();
         assertThat(deferredGrants, hasSize(1));
         assertThat(queuedGrants, empty());
@@ -185,7 +181,7 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         pressure.acquire(60, r -> { throw new EsRejectedExecutionException("simulated rejection", true); }, ActionListener.wrap(r -> {
             fail("must not be granted, the executor rejected the grant");
         }, failure::set));
-        // a second waiter with a working executor must still be served with the budget the rejected waiter returned
+        // a second waiter with a working executor must still be served by the budget the rejected waiter returned
         List<Releasable> queuedGrants = new CopyOnWriteArrayList<>();
         pressure.acquire(40, INLINE_GRANTS, collectTo(queuedGrants));
         assertThat(pressure.getWaiterCount(), equalTo(2));
@@ -247,7 +243,7 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
                 assertThat("in-flight bytes exceed limit", pressure.getCurrentBytes(), lessThanOrEqualTo(limit));
             }
         }
-        // closing an outstanding grant can synchronously grant a waiter, which appends to the list; loop until it is truly drained
+        // closing a grant can synchronously grant a waiter, which appends to the list; loop until truly drained
         while (outstanding.isEmpty() == false) {
             outstanding.remove(0).close();
         }

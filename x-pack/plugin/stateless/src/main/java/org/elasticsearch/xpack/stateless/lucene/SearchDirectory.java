@@ -472,8 +472,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         ) {
             @Override
             protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
-                // feeds CacheFileReader, i.e. demand reads a warming thread blocks on: accounted as warming but never subject
-                // to the fill-memory budget, which would make them queue behind the speculative region fetches
+                // feeds CacheFileReader (demand reads a warming thread blocks on): accounted as warming, but must bypass
+                // the fill-memory budget to avoid queuing behind the speculative region fetches
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,

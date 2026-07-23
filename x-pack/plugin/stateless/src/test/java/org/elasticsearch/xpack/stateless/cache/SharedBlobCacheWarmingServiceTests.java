@@ -1766,20 +1766,20 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     /**
-     * End-to-end check that {@link FillCacheMemoryPressure} bounds the bytes held by in-flight warming reads. Every fetch is captured
-     * before it produces bytes, so at any moment the pressure's admitted bytes equal what real warming would hold in heap; the budget
-     * must never be exceeded, later reads must queue as waiters, and warming must still complete once fetches are (slowly) released.
+     * End-to-end: {@link FillCacheMemoryPressure} bounds bytes held by in-flight warming reads. Fetches are captured before they
+     * produce bytes, so admitted bytes equal what real warming would hold in heap; the budget must never be exceeded, later reads
+     * must queue, and warming must still complete as fetches are released slowly.
      */
     public void testWarmingReadsAreBoundedByFillMemoryBudget() throws Exception {
         final long primaryTerm = randomLongBetween(10, 42);
-        // small regions so the commits below span many regions, i.e. many distinct fetches
+        // small regions → commits span many regions → many distinct fetches
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE * 2;
-        // admits at most two full-region fetches; deliberately larger than any single fetch so the oversized-grant rule never applies
+        // fits at most two full-region fetches; larger than any single fetch so the oversized-grant rule never fires
         final long fillLimitBytes = regionSizeInBytes * 2 + SharedBytes.PAGE_SIZE;
 
-        // constructed in createCacheBlobReaderService, where the node's thread pool is available
+        // built in createCacheBlobReaderService (needs the node's thread pool)
         final var pressureRef = new AtomicReference<FillCacheMemoryPressure>();
-        // gate is enabled only around warmCache: reads before it (e.g. updateCommit header reads) flow through untouched
+        // only enabled around warmCache; earlier reads (e.g. updateCommit header) flow through untouched
         final var gateFetches = new AtomicBoolean(false);
         final BlockingQueue<Runnable> capturedFetches = new LinkedBlockingQueue<>();
 
@@ -1791,7 +1791,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
-                    // offline warming and commit prefetching issue reads outside the warmCache call under test
+                    // offline warming + commit prefetch issue reads outside the warmCache call under test
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
                     .build();
@@ -1818,7 +1818,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         return new ObjectStoreCacheBlobReader(blobContainer, blobName, cacheRangeSize, fetchExecutor) {
                             @Override
                             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-                                // reached only after the pressure admitted this read, so captured-but-unreleased fetches
+                                // reached only after the pressure admits the read, so captured-but-unreleased fetches
                                 // hold budget exactly like in-flight bytes would hold heap in production
                                 if (gateFetches.get()) {
                                     capturedFetches.add(() -> super.getRangeInputStream(position, length, listener));
@@ -1846,7 +1846,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
             for (StatelessCommitRef ref : indexCommits) {
-                // no replicated internal file content: small files would otherwise be satisfied from the region-0 header, not fetched
+                // skip replicated internal content: small files would otherwise be served from the region-0 header, not fetched
                 assertTrue(vbcc.appendCommit(ref, false, null));
             }
             vbcc.freeze();
@@ -1861,11 +1861,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 );
             }
             uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
-            // sanity: the data must span enough regions that the budget is actually contended
+            // sanity: data must span enough regions that the budget is actually contended
             assertThat(vbcc.getTotalSizeInBytes(), greaterThan(fillLimitBytes * 2));
             var lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             fakeNode.searchDirectory.updateCommit(lastCommit);
-            // mark the vbcc as uploaded so the switching reader routes to the (gated) object store reader
+            // mark the vbcc uploaded so the switching reader routes to the (gated) object-store reader
             BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
             var indexShard = mockIndexShard(fakeNode);
 
@@ -1873,11 +1873,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
             fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmFuture);
 
-            // phase 1: with no fetch released, the budget must be binding — admitted bytes at the limit, later reads queued
+            // phase 1: nothing released yet → budget is binding (admitted bytes at limit, later reads queued)
             assertBusy(() -> assertThat(pressure.getWaiterCount(), greaterThan(0)));
             assertThat(pressure.getCurrentBytes(), lessThanOrEqualTo(fillLimitBytes));
 
-            // phase 2: release fetches one at a time; the invariant must hold at every step and warming must complete
+            // phase 2: release fetches one at a time; the invariant must hold at every step, and warming must complete
             int releasedFetches = 0;
             while (true) {
                 Runnable fetch = capturedFetches.poll(warmFuture.isDone() ? 200 : 10_000, TimeUnit.MILLISECONDS);
@@ -1892,7 +1892,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             gateFetches.set(false);
             safeGet(warmFuture);
             assertThat("expected the budget to serialize more fetches than it admits at once", releasedFetches, greaterThan(2));
-            // streams are closed on fill threads after the cache write, so the last releases can trail the warming future
+            // streams close on fill threads after the cache write, so the last releases can trail the warming future
             assertBusy(() -> {
                 assertThat(pressure.getCurrentBytes(), equalTo(0L));
                 assertThat(pressure.getWaiterCount(), equalTo(0));

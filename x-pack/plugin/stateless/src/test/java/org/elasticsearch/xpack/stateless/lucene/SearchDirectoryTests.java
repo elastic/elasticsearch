@@ -760,7 +760,7 @@ public class SearchDirectoryTests extends ESTestCase {
             // A subsequent recovery on the same node re-reads only the latest BCC blob and backfills it with its real timestamp, clearing
             // any orphaned sentinel regions left behind by earlier (unfinished) reads.
             final long reReadTimestamp = randomLongBetween(1L, 1_000_000L);
-            searchDirectory.backfillMetadataReadTimestamps(Map.of(new BlobFile(reReadBlobName, reReadTermAndGen), reReadTimestamp), true);
+            searchDirectory.backfillMetadataReadTimestamps(Map.of(reReadKey, reReadTimestamp), true);
 
             assertThat(
                 "the re-read blob's region is resolved to its real timestamp",

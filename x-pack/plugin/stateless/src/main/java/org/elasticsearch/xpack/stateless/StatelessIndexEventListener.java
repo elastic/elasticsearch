@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -56,6 +55,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -426,7 +427,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             indexShard.getOperationPrimaryTerm()
         );
         if (batchedCompoundCommit != null) {
-            backfillLatestBccMetadataReadTimestamps(searchDirectory, batchedCompoundCommit);
+            searchDirectory.backfillMetadataReadTimestamp(batchedCompoundCommit);
         }
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
@@ -504,11 +505,14 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
                             l2.map(aVoid -> {
-                                var timestampByBlob = Maps.<BlobFile, Long>newHashMapWithExpectedSize(targetsToWarm.size());
+                                var timestampByCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(targetsToWarm.size());
                                 for (var entry : targetsToWarm.entrySet()) {
-                                    timestampByBlob.put(entry.getKey(), entry.getValue().timestampMillis());
+                                    timestampByCacheKey.put(
+                                        new FileCacheKey(searchDirectory.getShardId(), entry.getKey()),
+                                        entry.getValue().timestampMillis()
+                                    );
                                 }
-                                searchDirectory.backfillMetadataReadTimestamps(timestampByBlob, true);
+                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })
                         );
@@ -546,26 +550,6 @@ class StatelessIndexEventListener implements IndexEventListener {
                 }));
             })
         );
-    }
-
-    private static void backfillLatestBccMetadataReadTimestamps(
-        SearchDirectory searchDirectory,
-        BatchedCompoundCommit batchedCompoundCommit
-    ) {
-        if (searchDirectory.timestampBackfillEnabled() == false) {
-            return;
-        }
-        var termAndGen = batchedCompoundCommit.primaryTermAndGeneration();
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation());
-        // We are working with time-based index here, so we use minimal timestamp as a fallback and not an unknown timestamp.
-        long timestampMillis = SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
-        for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
-            timestampMillis = BlobFileRanges.mostRecentKnownTimestamp(
-                timestampMillis,
-                BlobFileRanges.midpointMillisOrUnknownForCache(compoundCommit.getTimestampFieldValueRange())
-            );
-        }
-        searchDirectory.backfillMetadataReadTimestamp(new BlobFile(blobName, termAndGen), timestampMillis);
     }
 
     private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {

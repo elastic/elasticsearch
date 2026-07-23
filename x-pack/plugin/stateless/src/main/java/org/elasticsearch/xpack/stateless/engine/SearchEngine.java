@@ -59,10 +59,10 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -582,7 +582,7 @@ public class SearchEngine extends Engine {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
-                    final Map<BlobFile, Long> backfillTimestampsByBlob = ConcurrentCollections.newConcurrentMap();
+                    final Map<FileCacheKey, Long> backfillTimestampsByCacheKey = ConcurrentCollections.newConcurrentMap();
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,
@@ -602,10 +602,14 @@ public class SearchEngine extends Engine {
                             long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
                                 referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
                             );
-                            backfillTimestampsByBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                            backfillTimestampsByCacheKey.merge(
+                                new FileCacheKey(searchDirectory.getShardId(), bccBlobFile),
+                                ccTimestamp,
+                                BlobFileRanges::mostRecentKnownTimestamp
+                            );
                         },
                         listenableFuture.map(aVoid -> {
-                            searchDirectory.backfillMetadataReadTimestamps(backfillTimestampsByBlob);
+                            searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
                             return newBlobFileRanges;
                         })
                     );

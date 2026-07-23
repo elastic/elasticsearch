@@ -31,7 +31,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
     static String BULK_ITEM_TEMPLATE =
         """
-            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
+            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor, "tag": "$tag"}
             """;
 
     private static final String TEMPLATE = """
@@ -55,6 +55,10 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
                 },
                 "factor": {
                   "type": "double"
+                },
+                "tag": {
+                  "type": "keyword"
+                  %%tag_keep_mode%%
                 }
               }
             }
@@ -70,8 +74,11 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         {
             maybeEnableLogsdbByDefault();
 
+            final String tagKeepMode = columnarEnabled ? "" : ",\"synthetic_source_keep\":\"all\"";
+            final String template = TEMPLATE.replace("%%tag_keep_mode%%", tagKeepMode);
+
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-            createTemplate(dataStreamName, templateId, TEMPLATE);
+            createTemplate(dataStreamName, templateId, template);
 
             time = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);
@@ -85,6 +92,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             assertDataStream(dataStreamName, templateId);
             ensureGreen(dataStreamName);
             search(dataStreamName);
+            searchWithSource(dataStreamName);
             query(dataStreamName);
         }
         AtomicReference<Instant> timeRef = new AtomicReference<>(time);
@@ -92,6 +100,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             timeRef.set(timeRef.get().plusNanos(60 * 30));
             bulkIndex(dataStreamName, 4, 1024, timeRef.get(), LogsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
+            searchWithSource(dataStreamName);
             query(dataStreamName);
             // verify index mode stats are serializable across mixed-version nodes
             assertOK(client().performRequest(new Request("GET", "/_xpack/usage")));
@@ -103,6 +112,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
             ensureGreen(dataStreamName);
             search(dataStreamName);
+            searchWithSource(dataStreamName);
             query(dataStreamName);
         }
     }
@@ -124,13 +134,15 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         String message = randomAlphaOfLength(128);
         long length = randomLong();
         double factor = randomDouble();
+        String tag = randomAlphaOfLengthBetween(3, 8);
         return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
             .replace("$host", hostName)
             .replace("$method", methodName)
             .replace("$ip", ip)
             .replace("$message", message)
             .replace("$length", Long.toString(length))
-            .replace("$factor", Double.toString(factor));
+            .replace("$factor", Double.toString(factor))
+            .replace("$tag", tag);
     }
 
     void search(String dataStreamName) throws Exception {
@@ -175,6 +187,30 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertThat(maxTx, notNullValue());
         Double maxRx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_factor.value");
         assertThat(maxRx, notNullValue());
+    }
+
+    /**
+     * Fetches actual documents to exercise the {@code _ignored_source} read path. The {@code tag} field is
+     * mapped with {@code synthetic_source_keep: all}, which unconditionally writes its value to
+     * {@code _ignored_source}.
+     */
+    void searchWithSource(String dataStreamName) throws Exception {
+        var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
+        searchRequest.addParameter("pretty", "true");
+        searchRequest.setJsonEntity("""
+            {
+                "size": 10
+            }
+            """);
+        var response = client().performRequest(searchRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+
+        Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
+        assertThat(totalCount, greaterThanOrEqualTo(1024));
+        // tag has synthetic_source_keep:all so it is written to _ignored_source
+        String tag = ObjectPath.evaluate(responseBody, "hits.hits.0._source.tag");
+        assertThat(tag, notNullValue());
     }
 
     void query(String dataStreamName) throws Exception {

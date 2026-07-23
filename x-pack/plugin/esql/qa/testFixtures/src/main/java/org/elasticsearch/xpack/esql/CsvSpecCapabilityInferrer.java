@@ -145,10 +145,11 @@ public final class CsvSpecCapabilityInferrer {
     }
 
     private Set<String> inferFromQuery(String query) {
+        String stripped = stripLiteralsAndComments(query);
         Set<String> result = new HashSet<>();
 
         // Function capabilities: fn_<name>
-        Matcher m = FUNCTION_CALL.matcher(query);
+        Matcher m = FUNCTION_CALL.matcher(stripped);
         while (m.find()) {
             String cap = "fn_" + m.group(1).toLowerCase(Locale.ROOT);
             if (functionCaps.contains(cap)) {
@@ -157,7 +158,7 @@ public final class CsvSpecCapabilityInferrer {
         }
 
         // Enrich policy capabilities
-        m = ENRICH_COMMAND.matcher(query);
+        m = ENRICH_COMMAND.matcher(stripped);
         while (m.find()) {
             String policyName = m.group(1).toLowerCase(Locale.ROOT);
             List<String> policyCaps = POLICY_CAPS.get(policyName);
@@ -171,6 +172,73 @@ public final class CsvSpecCapabilityInferrer {
         }
 
         return result;
+    }
+
+    /**
+     * Returns a copy of {@code query} with string literals and line comments removed,
+     * replaced by a single space to preserve word boundaries.
+     *
+     * <p>ES|QL supports two string literal forms:
+     * <ul>
+     *   <li>Triple-quoted: {@code """..."""} — no escape sequences inside.</li>
+     *   <li>Double-quoted: {@code "..."} — {@code \"} and {@code \\} are escape sequences.</li>
+     * </ul>
+     * <p>Line comments ({@code // ...}) are also stripped.  This prevents regex matches on
+     * function-like tokens that appear inside literal values rather than in the query syntax
+     * itself (e.g. {@code WHERE wkt = "POLYGON((0 0, 1 0))"} must not infer {@code fn_polygon}).
+     */
+    static String stripLiteralsAndComments(String query) {
+        StringBuilder result = new StringBuilder(query.length());
+        int i = 0;
+        int len = query.length();
+        while (i < len) {
+            char c = query.charAt(i);
+
+            // Line comment: // to end of line
+            if (c == '/' && i + 1 < len && query.charAt(i + 1) == '/') {
+                while (i < len && query.charAt(i) != '\n') {
+                    i++;
+                }
+                result.append(' ');
+                continue;
+            }
+
+            // Triple-quoted string: """...""" (no escape sequences inside)
+            if (c == '"' && i + 2 < len && query.charAt(i + 1) == '"' && query.charAt(i + 2) == '"') {
+                i += 3;
+                while (i + 2 < len) {
+                    if (query.charAt(i) == '"' && query.charAt(i + 1) == '"' && query.charAt(i + 2) == '"') {
+                        i += 3;
+                        break;
+                    }
+                    i++;
+                }
+                result.append(' ');
+                continue;
+            }
+
+            // Regular double-quoted string: "..." with \" and \\ escapes
+            if (c == '"') {
+                i++; // skip opening "
+                while (i < len) {
+                    char sc = query.charAt(i);
+                    if (sc == '\\' && i + 1 < len) {
+                        i += 2; // skip escape sequence
+                    } else if (sc == '"') {
+                        i++; // skip closing "
+                        break;
+                    } else {
+                        i++;
+                    }
+                }
+                result.append(' ');
+                continue;
+            }
+
+            result.append(c);
+            i++;
+        }
+        return result.toString();
     }
 
     // -----------------------------------------------------------------------

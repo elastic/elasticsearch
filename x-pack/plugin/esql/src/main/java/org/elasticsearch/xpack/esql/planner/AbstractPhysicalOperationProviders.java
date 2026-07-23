@@ -207,7 +207,11 @@ public abstract class AbstractPhysicalOperationProviders {
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
                 PlannerSettings plannerSettings = context.plannerSettings();
-                int partitionCount = pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount());
+                int mergeWorkerCount = pragmas.partitionedAggMergeWorkerCount(PartitionedHashMergeOperator.DEFAULT_MERGE_WORKER_COUNT);
+                int partitionCount = Math.min(
+                    pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount()),
+                    mergeWorkerCount
+                );
                 if (aggregatorMode == AggregatorMode.FINAL
                     && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
                     && partitionCount > 1
@@ -221,9 +225,6 @@ public abstract class AbstractPhysicalOperationProviders {
                         true, // grouping
                         s -> mergeSpecs.add(new PartitionedHashMergeOperator.AggregatorSpec(s.supplier, s.channels)),
                         context
-                    );
-                    int mergeWorkerCount = pragmas.partitionedAggMergeWorkerCount(
-                        PartitionedHashMergeOperator.DEFAULT_MERGE_WORKER_COUNT
                     );
                     operatorFactory = new PartitionedHashMergeOperator.Builder().groupSpecs(
                         groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()

@@ -503,7 +503,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         SearchDirectory directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool) {
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                cache,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -514,7 +520,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     LongConsumer totalBytesReadFromIndexing,
                     BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                     Executor objectStoreFetchExecutor,
-                    String fileName
+                    String fileName,
+                    boolean speculativeFill
                 ) {
                     getBlobReader.accept(this, blobFile);
                     return super.getCacheBlobReader(
@@ -526,7 +533,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         totalBytesReadFromIndexing,
                         cachePopulationReason,
                         objectStoreFetchExecutor,
-                        fileName
+                        fileName,
+                        speculativeFill
                     );
                 }
             },
@@ -653,7 +661,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
-            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                sharedBlobCacheService,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ),
             objectStoreUploadTracker,
             shardId
         );

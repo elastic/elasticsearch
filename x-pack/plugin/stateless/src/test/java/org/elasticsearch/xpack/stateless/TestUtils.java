@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -54,6 +55,14 @@ import static org.mockito.Mockito.when;
 public class TestUtils {
 
     private TestUtils() {}
+
+    /**
+     * A {@link FillCacheMemoryPressure} with the limit configured by {@code settings} (default: heap-relative) and no telemetry,
+     * for constructing a {@code CacheBlobReaderService} in tests that do not exercise the fill-memory budget.
+     */
+    public static FillCacheMemoryPressure unmeteredFillCacheMemoryPressure(Settings settings, ThreadPool threadPool) {
+        return new FillCacheMemoryPressure(settings, MeterRegistry.NOOP, threadPool);
+    }
 
     public static IndicesService mockIndicesService(ClusterService clusterService) {
         final IndicesService indicesService = mock(IndicesService.class);

@@ -510,7 +510,10 @@ public class CacheFileReader {
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
-                    // IndexingShardCacheBlobReader should be completed on the FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    // IndexingShardCacheBlobReader should be completed on the FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL.
+                    // The above also requires that the reader is never subject to FillCacheMemoryPressure (demand reads bypass it):
+                    // waiting for fill budget here would block this pool thread behind speculative fills, possibly the same pool a
+                    // deferred read would resume on.
                     var readFuture = new PlainActionFuture<Integer>();
                     cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
                         try (in) {

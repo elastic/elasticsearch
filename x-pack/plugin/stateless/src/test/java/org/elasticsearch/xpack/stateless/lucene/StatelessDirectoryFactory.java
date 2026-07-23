@@ -172,7 +172,13 @@ public final class StatelessDirectoryFactory {
             var fakeBlobStoreDirectory = new NIOFSDirectory(dataPath);
             var blobNameToFileName = new ConcurrentHashMap<String, String>();
 
-            var cacheBlobReaderService = new CacheBlobReaderService(nodeSettings, cacheService, null, threadPool);
+            var cacheBlobReaderService = new CacheBlobReaderService(
+                nodeSettings,
+                cacheService,
+                null,
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+            );
             var shardId = new ShardId(new Index("index", "_na_"), 0);
 
             var searchDirectory = new SearchDirectory(

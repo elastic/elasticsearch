@@ -794,11 +794,7 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        var fillCacheMemoryPressure = new FillCacheMemoryPressure(
-            settings,
-            services.telemetryProvider().getMeterRegistry(),
-            threadPool.generic()
-        );
+        var fillCacheMemoryPressure = new FillCacheMemoryPressure(settings, services.telemetryProvider().getMeterRegistry(), threadPool);
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool, fillCacheMemoryPressure)
@@ -1277,6 +1273,7 @@ public class StatelessPlugin extends Plugin
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
             FillCacheMemoryPressure.FILL_BYTES_LIMIT,
+            FillCacheMemoryPressure.STALL_WARN_THRESHOLD,
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,

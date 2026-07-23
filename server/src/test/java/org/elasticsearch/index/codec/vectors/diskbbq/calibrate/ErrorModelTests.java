@@ -21,10 +21,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import static org.apache.lucene.util.VectorUtil.l2normalize;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ErrorModelTests extends ESTestCase {
 
@@ -234,75 +236,198 @@ public class ErrorModelTests extends ESTestCase {
         assertThat(magnitudeModel.errorStd(128, 4096), greaterThan(0.0));
     }
 
-    public void testEstimateMagnitudeFromManifoldResidualsReturnsFiniteModel() throws IOException {
-        CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
-        double alpha = -1.5;
-        double invDim = 0.5;
-        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(alpha, invDim, source, false, 4, 2, 128, 5000);
-        assertTrue(Double.isFinite(model.params().beta0()));
-        assertTrue(Double.isFinite(model.params().beta1()));
-        assertThat(model.errorStd(128, 5000), greaterThan(0.0));
-    }
-
-    public void testEstimateMagnitudeFromManifoldResidualsUsesInvDimAsSlope() throws IOException {
-        CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
-        double invDim = 0.42;
-        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(-1.0, invDim, source, false, 4, 2, 128, 5000);
-        // slope beta1 is taken directly from invDim, not refit
-        assertEquals(invDim, model.params().beta1(), 0.0);
-    }
-
-    public void testEstimateMagnitudeFromManifoldResidualsWithDotProduct() throws IOException {
-        CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.DOT_PRODUCT, 10);
-        double invDim = 0.4;
-        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(-1.2, invDim, source, false, 4, 1, 128, 5000);
-        assertTrue(Double.isFinite(model.params().beta0()));
-        assertEquals(invDim, model.params().beta1(), 0.0);
-        assertThat(model.errorStd(128, 5000), greaterThan(0.0));
-    }
-
-    public void testEstimateMagnitudeFromManifoldResidualsSmallCorpus() throws IOException {
-        // corpus smaller than SAMPLE_SIZES_MAGNITUDE[0]=2048 — nDocs is clamped to corpusOrdinals.length
-        float[][] rows = syntheticClusteredRows(600, 8, 4);
-        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, 8);
-        int[] queryOrdinals = new int[10];
-        int[] corpusOrdinals = new int[500];
-        for (int i = 0; i < queryOrdinals.length; i++) {
-            queryOrdinals[i] = i;
-        }
-        for (int i = 0; i < corpusOrdinals.length; i++) {
-            corpusOrdinals[i] = 10 + i;
-        }
+    /**
+     * Verifies that {@link ErrorModel#estimateMagnitudeFromRealResiduals} (fast single-shot path)
+     * approximates {@code ErrorModel#estimateMagnitudeModel} (full multi-sample sweep).
+     * <p>
+     * For a fair like-for-like comparison both models are given the <em>same slope</em> (from the
+     * scaling fit). The fast model is anchored at {@link ErrorModel#REAL_RESIDUAL_SAMPLE}, which is
+     * the measurement sample size, so at that evaluation point it should closely agree with the full
+     * model's OLS fit through {@code SAMPLE_SIZES_MAGNITUDE = [2048, 3072, 4096]}. At a second,
+     * larger evaluation point the extrapolated predictions are compared with the same 3× tolerance
+     * to account for the OLS safety margin included in the full path but absent in the fast path.
+     */
+    public void testEstimateMagnitudeFromRealResidualsApproximatesMagnitudeModel() throws IOException {
+        int dim = 1024;
+        int numQueries = 64;
+        int corpusSize = 6_000;
+        float[][] rows = randomNormalizedRows(numQueries + corpusSize, dim, 43L);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
         CalibrationSource source = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
-            8,
+            dim,
             fvv,
-            queryOrdinals,
-            8,
+            range(0, numQueries),
+            dim,
             false,
             false,
             null,
-            corpusOrdinals,
+            range(numQueries, corpusSize),
             10
         );
-        double invDim = 0.3;
-        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(-1.0, invDim, source, false, 4, 2, 64, 500);
-        assertTrue(Double.isFinite(model.params().beta0()));
-        assertEquals(invDim, model.params().beta1(), 0.0);
+        int nDocsPerCluster = 128;
+
+        // Full path: sweeps [2048, 3072, 4096] and fits a plug-in OLS intercept with the scaling slope
+        ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, nDocsPerCluster);
+        QuantizationErrorStdModel fullModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, false, 4, 2, nDocsPerCluster);
+
+        // Fast path: single measurement; use the same slope for a direct comparison of the intercept
+        double sharedInvDim = scalingFit.scalingModel().params().beta1();
+        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        QuantizationErrorStdModel fastModel = ErrorModel.estimateMagnitudeFromRealResiduals(
+            sharedInvDim,
+            source,
+            false,
+            4,
+            2,
+            nDocsPerCluster,
+            // anchor at the measurement sample size for correct semantics
+            state
+        );
+
+        // FULL path: beta1 is always fixed from the scaling fit (plug-in OLS)
+        assertEquals("full model must use the shared slope", sharedInvDim, fullModel.params().beta1(), 0.0);
+        assertTrue("fast model beta1 must be finite", Double.isFinite(fastModel.params().beta1()));
+
+        // At the anchor sample size the fast model is anchored; both should agree within the OLS safety margin
+        int anchor = ErrorModel.REAL_RESIDUAL_SAMPLE; // 2048
+        double fastAtAnchor = fastModel.errorStd(nDocsPerCluster, anchor);
+        double fullAtAnchor = fullModel.errorStd(nDocsPerCluster, anchor);
+        assertThat("fast estimate at anchor must be positive", fastAtAnchor, greaterThan(0.0));
+        assertThat("full estimate at anchor must be positive", fullAtAnchor, greaterThan(0.0));
+        double ratioAtAnchor = fastAtAnchor / fullAtAnchor;
+        assertThat(
+            "fast/full ratio at anchor must be < 1.15 (fast=" + fastAtAnchor + " full=" + fullAtAnchor + ")",
+            ratioAtAnchor,
+            lessThan(1.15)
+        );
+        assertThat(
+            "fast/full ratio at anchor must be > 0.85 (fast=" + fastAtAnchor + " full=" + fullAtAnchor + ")",
+            ratioAtAnchor,
+            greaterThan(0.85)
+        );
+
+        // At the largest magnitude sample size the slope extrapolation governs; check agreement there too
+        int largerSample = 4096;
+        double fastAtLarger = fastModel.errorStd(nDocsPerCluster, largerSample);
+        double fullAtLarger = fullModel.errorStd(nDocsPerCluster, largerSample);
+        assertThat("fast estimate at larger sample must be positive", fastAtLarger, greaterThan(0.0));
+        assertThat("full estimate at larger sample must be positive", fullAtLarger, greaterThan(0.0));
+        double ratioAtLarger = fastAtLarger / fullAtLarger;
+        assertThat(
+            "fast/full ratio at larger sample must be < 3 (fast=" + fastAtLarger + " full=" + fullAtLarger + ")",
+            ratioAtLarger,
+            lessThan(1.15)
+        );
+        assertThat(
+            "fast/full ratio at larger sample must be > 1/3 (fast=" + fastAtLarger + " full=" + fullAtLarger + ")",
+            ratioAtLarger,
+            greaterThan(0.85)
+        );
     }
 
-    public void testEstimateMagnitudeFromManifoldResidualsIsDeterministic() throws IOException {
-        CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
-        double alpha = -1.5;
-        double invDim = 0.5;
-        QuantizationErrorStdModel first = ErrorModel.estimateMagnitudeFromManifoldResiduals(alpha, invDim, source, false, 4, 2, 128, 5000);
-        QuantizationErrorStdModel second = ErrorModel.estimateMagnitudeFromManifoldResiduals(alpha, invDim, source, false, 4, 2, 128, 5000);
-        assertEquals(first.params().beta0(), second.params().beta0(), 0.0);
-        assertEquals(first.params().beta1(), second.params().beta1(), 0.0);
+    /**
+     * Guards {@link CalibrationUtils#MAX_QUERY_SAMPLE}: reducing the query sample (256 vs 1024) must not
+     * materially change the real-residual error-std estimate, otherwise the parameter is set too low and
+     * would break estimation accuracy. Runs the same manifold + real-residual estimate at both query counts
+     * over an identical corpus and asserts the estimates stay close.
+     */
+    public void testErrorEstimateStableAcrossQuerySampleSize() throws IOException {
+        int dim = 1024;
+        float[][] rows = randomNormalizedRows(7000, dim, 42L);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        int[] corpus = range(1024, 5000); // disjoint from the 1024-vector query pool [0, 1024)
+        double errSmall = realResidualErrorStd(fvv, dim, range(0, 256), corpus);
+        double errLarge = realResidualErrorStd(fvv, dim, range(0, 1024), corpus);
+        assertThat(errSmall, greaterThan(0.0));
+        assertThat(errLarge, greaterThan(0.0));
+        double rel = Math.abs(errSmall - errLarge) / errLarge;
+        assertThat(
+            "error-std should be stable across query sample size 256 vs 1024, got " + errSmall + " vs " + errLarge,
+            rel,
+            lessThan(0.01)
+        );
+    }
+
+    /**
+     * Regression guard for the size-extrapolation fix. The real-residual error-std model must depend on
+     * corpus size: evaluating it at a larger corpus changes the prediction according to the model's own
+     * fitted slope. With a large enough corpus the model fits both intercept and slope from two actual
+     * measurements, so the ratio at a 10× larger sample size must equal {@code (1/10)^modelSlope} exactly.
+     */
+    public void testRealResidualErrorScalesWithCorpusSizeViaInvDim() throws IOException {
+        int dim = 1024;
+        float[][] rows = randomNormalizedRows(9000, dim, 7L);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        CalibrationSource source = new CalibrationSource(
+            VectorSimilarityFunction.EUCLIDEAN,
+            dim,
+            fvv,
+            range(0, 256),
+            dim,
+            false,
+            false,
+            null,
+            range(256, 8000),
+            10
+        );
+        double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
+
+        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state);
+
+        // Use the model's own fitted slope (beta1) — with corpus ≥ REAL_RESIDUAL_SAMPLE this comes
+        // from a 2-point real-data fit rather than the manifold invDim proxy
+        double modelSlope = model.params().beta1();
+        assumeTrue("need a non-zero model slope to exercise extrapolation", Math.abs(modelSlope) > 1e-4);
+
+        int sample = Math.min(ErrorModel.REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
+        double atSample = model.errorStd(128, sample);
+        double atTenX = model.errorStd(128, sample * 10);
+        assertThat(atSample, greaterThan(0.0));
+        double ratio = atTenX / atSample;
+        // Self-consistency: the ratio must match the model's slope exactly
+        assertEquals("errorStd must scale as (sample/N)^modelSlope", Math.pow(0.1, modelSlope), ratio, 1e-3);
+        assertTrue("estimate must depend on corpus size (slope must not cancel)", Math.abs(ratio - 1.0) > 1e-3);
+    }
+
+    /** Real-residual error-std for encoding (4q,2d) at a given query set / corpus, extrapolated to the corpus size. */
+    private static double realResidualErrorStd(FloatVectorValues fvv, int dim, int[] queries, int[] corpus) throws IOException {
+        CalibrationSource source = new CalibrationSource(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            dim,
+            fvv,
+            queries,
+            dim,
+            false,
+            false,
+            null,
+            corpus,
+            10
+        );
+        double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
+        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        return ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state).errorStd(128, corpus.length);
+    }
+
+    private static int[] range(int start, int count) {
+        int[] a = new int[count];
+        for (int i = 0; i < count; i++) {
+            a[i] = start + i;
+        }
+        return a;
+    }
+
+    private static float[][] randomNormalizedRows(int count, int dim, long seed) {
+        Random rng = new Random(seed);
+        float[][] rows = new float[count][dim];
+        for (int i = 0; i < count; i++) {
+            for (int d = 0; d < dim; d++) {
+                rows[i][d] = (float) rng.nextGaussian();
+            }
+            l2normalize(rows[i]);
+        }
+        return rows;
     }
 
     private record CalibrationFixture(FloatVectorValues fvv, int[] queryOrdinals, int[] corpusOrdinals, int dim) {

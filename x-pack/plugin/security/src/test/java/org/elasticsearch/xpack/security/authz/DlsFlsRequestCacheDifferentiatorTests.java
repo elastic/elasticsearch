@@ -184,9 +184,15 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         Map<String, List<String>> applicationResources,
         Map<String, List<String>> applicationPrivileges
     ) throws IOException {
-        final DocumentPermissions templatedDls = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
-            {"template":{"source":"{\\"bool\\":{\\"must\\":[{\\"terms\\":{\\"space_resources\\":{{#toJson}}_user.application_resources{{/toJson}}}},\
-{\\"terms\\":{\\"space_perms\\":{{#toJson}}_user.application_privileges{{/toJson}}}}]}}"}}""")));
+        final DocumentPermissions templatedDls = DocumentPermissions.filteredBy(
+            Set.of(
+                new BytesArray(
+                    """
+                                    {"template":{"source":"{\\"bool\\":{\\"must\\":[{\\"terms\\":{\\"space_resources\\":{{#toJson}}_user.application_resources{{/toJson}}}},\
+                        {\\"terms\\":{\\"space_perms\\":{{#toJson}}_user.application_privileges{{/toJson}}}}]}}"}}"""
+                )
+            )
+        );
         return buildCacheKeyWithInfo(templatedDls, new StubAuthorizationInfo(applicationResources, applicationPrivileges));
     }
 
@@ -238,10 +244,9 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
      * differentiator can read them from the thread context exactly as it reads the RBAC engine's info
      * at runtime.
      */
-    private record StubAuthorizationInfo(
-        Map<String, List<String>> applicationResources,
-        Map<String, List<String>> applicationPrivileges
-    ) implements AuthorizationInfo {
+    private record StubAuthorizationInfo(Map<String, List<String>> applicationResources, Map<String, List<String>> applicationPrivileges)
+        implements
+            AuthorizationInfo {
         @Override
         public Map<String, Object> asMap() {
             return Map.of();

@@ -665,26 +665,14 @@ public class RBACEngineTests extends ESTestCase {
         final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         // Resources: both spaces are accessible (space:hr via "all", space:engineering via "read").
-        assertThat(
-            authzInfo.getApplicationResources(),
-            equalTo(Map.of("myapp", List.of("space:engineering", "space:hr")))
-        );
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of("myapp", List.of("space:engineering", "space:hr"))));
 
         // Privilege tokens: "data:read/*" (read's action) appears for BOTH spaces because "all" on space:hr
         // subsumes "read", so space:hr is included in getResourcePatterns(read) via matchesPrivilege.
         // "*" (all's action) appears for space:hr directly. This correctly reflects what the user can do.
         assertThat(
             authzInfo.getApplicationPrivileges(),
-            equalTo(
-                Map.of(
-                    "myapp",
-                    List.of(
-                        "space:engineering|data:read/*",
-                        "space:hr|*",
-                        "space:hr|data:read/*"
-                    )
-                )
-            )
+            equalTo(Map.of("myapp", List.of("space:engineering|data:read/*", "space:hr|*", "space:hr|data:read/*")))
         );
     }
 

@@ -85,27 +85,16 @@ public class DlsApplicationPrivilegesTemplateTests extends SecuritySingleNodeTes
     public void setup() {
         // 1. Register the application privilege so the security layer recognises it.
         final PutPrivilegesRequest putPriv = new PutPrivilegesRequest();
-        putPriv.setPrivileges(
-            List.of(new ApplicationPrivilegeDescriptor(APP_NAME, SPACE_ACCESS_PRIV, Set.of("space:access"), emptyMap()))
-        );
+        putPriv.setPrivileges(List.of(new ApplicationPrivilegeDescriptor(APP_NAME, SPACE_ACCESS_PRIV, Set.of("space:access"), emptyMap())));
         putPriv.setRefreshPolicy(IMMEDIATE);
         client().execute(PutPrivilegesAction.INSTANCE, putPriv).actionGet();
 
         // 2. Shared reader role: DLS template filters by _user.application_resources.
-        //    At render time {{#toJson}}_user.application_resources{{/toJson}} produces e.g.
-        //    ["space:marketing"] for Alice and ["space:finance"] for Bob.
+        // At render time {{#toJson}}_user.application_resources{{/toJson}} produces e.g.
+        // ["space:marketing"] for Alice and ["space:finance"] for Bob.
         new PutRoleRequestBuilder(client()).name(READER_ROLE)
-            .addIndices(
-                new String[] { DATA_INDEX },
-                new String[] { "read" },
-                null,
-                null,
-                new BytesArray(
-                    """
-                        {"template":{"source":"{\\"terms\\":{\\"spaces\\":{{#toJson}}_user.application_resources{{/toJson}}}}"}}"""
-                ),
-                false
-            )
+            .addIndices(new String[] { DATA_INDEX }, new String[] { "read" }, null, null, new BytesArray("""
+                {"template":{"source":"{\\"terms\\":{\\"spaces\\":{{#toJson}}_user.application_resources{{/toJson}}}}"}}"""), false)
             .get();
 
         // 3. Per-space resource roles grant the application privilege on one space resource each.
@@ -138,10 +127,14 @@ public class DlsApplicationPrivilegesTemplateTests extends SecuritySingleNodeTes
 
         // 5. Index documents tagged with the spaces that may see them.
         assertAcked(indicesAdmin().prepareCreate(DATA_INDEX).setMapping("spaces", "type=keyword", "title", "type=keyword"));
-        client().prepareIndex(DATA_INDEX).setId("marketing").setSource("title", "Marketing doc", "spaces", List.of("space:marketing"))
+        client().prepareIndex(DATA_INDEX)
+            .setId("marketing")
+            .setSource("title", "Marketing doc", "spaces", List.of("space:marketing"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex(DATA_INDEX).setId("finance").setSource("title", "Finance doc", "spaces", List.of("space:finance"))
+        client().prepareIndex(DATA_INDEX)
+            .setId("finance")
+            .setSource("title", "Finance doc", "spaces", List.of("space:finance"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
         client().prepareIndex(DATA_INDEX)
@@ -205,9 +198,7 @@ public class DlsApplicationPrivilegesTemplateTests extends SecuritySingleNodeTes
         final var response = userClient.prepareSearch(DATA_INDEX).setRequestCache(true).get();
         try {
             assertThat(response.getFailedShards(), equalTo(0));
-            final Set<String> actualIds = Arrays.stream(response.getHits().getHits())
-                .map(SearchHit::getId)
-                .collect(Collectors.toSet());
+            final Set<String> actualIds = Arrays.stream(response.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
             assertThat(actualIds, equalTo(Set.of(expectedIds)));
         } finally {
             response.decRef();
@@ -215,9 +206,7 @@ public class DlsApplicationPrivilegesTemplateTests extends SecuritySingleNodeTes
     }
 
     private Client clientFor(String username) {
-        return client().filterWithHeader(
-            Map.of("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
-        );
+        return client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING)));
     }
 
     private RequestCacheStats cacheStats() {

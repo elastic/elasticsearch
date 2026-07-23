@@ -634,7 +634,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             );
             final XContentBuilder expectedMapping = semanticMapping("field", DEFAULT_EIS_JINA_V5_INFERENCE_ID, searchInferenceId);
             final MapperService mapperService = createSemanticMapperService(fieldMapping, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-            assertSemanticField(mapperService, fieldName, false, null, null, null);
+            assertSemanticField(mapperService, fieldName, false, JINA_V5_TEXT_MODEL, null, null);
             assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_JINA_V5_INFERENCE_ID, searchInferenceId);
             assertSerialization.accept(expectedMapping, mapperService);
         }

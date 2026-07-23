@@ -2665,7 +2665,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         // Wait until the backing index is hollowable. Use assertBusy because GetDataStreamAction runs
         // on whichever node the client routes to, and that node may not have applied the rollover
-        // cluster state yet even though the node that coordinated DataStreamsStatsAction above, already has.
+        // cluster state yet even though the node that coordinated DataStreamsStatsAction, in the above call, already has.
         final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNodeA);
         final AtomicReference<String> backingHollowIndex = new AtomicReference<>();
         assertBusy(() -> {

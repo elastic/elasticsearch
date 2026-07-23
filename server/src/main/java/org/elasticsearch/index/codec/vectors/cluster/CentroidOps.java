@@ -270,6 +270,14 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      */
     float normalizedFrobeniusNorm(V[] vecs1, V[] vecs2);
 
+    /**
+     * Computes the global centroid as a float[] by averaging all centroids.
+     * For byte centroids, values are widened to float during accumulation.
+     * The global centroid is always float because it is the arithmetic mean,
+     * which is not representable as byte[].
+     */
+    float[] computeFloatGlobalCentroid(V[] centroids, int dims);
+
     /** Convenience constant for the float ops singleton. */
     CentroidOps<float[]> FLOAT = FloatOps.INSTANCE;
 
@@ -423,6 +431,20 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             }
             divideAccumulator(centroid, centroid, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public float[] computeFloatGlobalCentroid(float[][] centroids, int dims) {
+            final float[] globalCentroid = new float[dims];
+            for (float[] centroid : centroids) {
+                for (int j = 0; j < dims; j++) {
+                    globalCentroid[j] += centroid[j];
+                }
+            }
+            for (int j = 0; j < dims; j++) {
+                globalCentroid[j] /= centroids.length;
+            }
+            return globalCentroid;
         }
 
         @Override
@@ -719,6 +741,20 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             byte[] centroid = new byte[dimension];
             divideAccumulator(centroid, acc, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public float[] computeFloatGlobalCentroid(byte[][] centroids, int dims) {
+            final float[] globalCentroid = new float[dims];
+            for (byte[] centroid : centroids) {
+                for (int j = 0; j < dims; j++) {
+                    globalCentroid[j] += centroid[j];
+                }
+            }
+            for (int j = 0; j < dims; j++) {
+                globalCentroid[j] /= centroids.length;
+            }
+            return globalCentroid;
         }
 
         @Override

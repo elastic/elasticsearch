@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
+
 /**
  * Holds the centroids and centroid assignments for a field.
  * <p>
@@ -75,6 +77,28 @@ public record CentroidInformation<V>(V[] centroids, CentroidAssignments centroid
                 centroidSlices
             )
         );
+    }
+
+    /**
+     * Creates a {@code CentroidInformation<V>} from centroids of any type, using the provided
+     * {@link CentroidOps} to compute the float global centroid.
+     */
+    public static <V> CentroidInformation<V> of(
+        int dims,
+        V[] centroids,
+        int[] assignments,
+        OverspillAssignments overspill,
+        CentroidSlices centroidSlices,
+        CentroidOps<V> ops
+    ) {
+        float[] globalCentroid = ops.computeFloatGlobalCentroid(centroids, dims);
+        if (centroidSlices != null) {
+            return new CentroidInformation<>(
+                centroids,
+                new CentroidAssignments(centroids.length, assignments, overspill, globalCentroid, centroidSlices)
+            );
+        }
+        return new CentroidInformation<>(centroids, new CentroidAssignments(centroids.length, assignments, overspill, globalCentroid));
     }
 
     public int numCentroids() {

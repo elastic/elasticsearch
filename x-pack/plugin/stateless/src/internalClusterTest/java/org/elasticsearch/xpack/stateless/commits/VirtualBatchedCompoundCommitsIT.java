@@ -1192,24 +1192,16 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         CountDownLatch chunk2ToProcess = new CountDownLatch(1);
         final AtomicBoolean awaitingChunk1TransportSendComplete = new AtomicBoolean(false);
         final AtomicLong chunk1PressureAtOnResponseSent = new AtomicLong(-1);
-        // Held true from when the 3rd attempt calls channel.sendResponse until onResponseSent fires.
-        // Sleeping inside onResponseSent delays zero-copy buffer release, keeping pressure at 4096
-        // long enough for a concurrent region-1 request to race on markChunkStarted.
-        final AtomicBoolean awaitingChunk2SuccessOnResponseSent = new AtomicBoolean(false);
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         indexNodeTransportService.addMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
-                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                    if (awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
-                        // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.
-                        // Pressure must still be counted at onResponseSent.
-                        chunk1PressureAtOnResponseSent.set(vbccChunksPressure.getCurrentChunksBytes());
-                        chunk1TransportSendComplete.countDown();
-                    } else if (awaitingChunk2SuccessOnResponseSent.compareAndSet(true, false)) {
-                        // Sleep here to widen the pressure-hold window
-                        safeSleep(randomLongBetween(200, 500));
-                    }
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
+                    && awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
+                    // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.
+                    // Pressure must still be counted at onResponseSent.
+                    chunk1PressureAtOnResponseSent.set(vbccChunksPressure.getCurrentChunksBytes());
+                    chunk1TransportSendComplete.countDown();
                 }
             }
         });
@@ -1239,18 +1231,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                         }
                     }, task);
                 } else if (r.getShardId().equals(index2shardId)) {
-                    // Skip the delay for region-1 (offset > 0) requests so they reach markChunkStarted
-                    // quickly while the onResponseSent sleep is holding pressure at 4096.
-                    if (r.getOffset() == 0) {
-                        safeSleep(randomLongBetween(100, 200));
-                    }
-                    logger.info(
-                        "counting down for chunk 2 attempt from {}, offset={}, length={}, request {}",
-                        chunk2Attempts.getCount(),
-                        r.getOffset(),
-                        r.getLength(),
-                        request
-                    );
                     chunk2Attempts.countDown();
                     if (chunk2Attempts.getCount() == 0) {
                         // halt the third attempt of the second refresh
@@ -1259,9 +1239,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     handler.messageReceived(request, new TransportChannel() {
                         @Override
                         public void sendResponse(Exception exception) {
-                            logger.info(
-                                "exception for chunk 2 attempt " + chunk2Attempts.getCount() + ", exception " + exception.fillInStackTrace()
-                            );
                             final var rejectedException = ExceptionsHelper.unwrap(exception, EsRejectedExecutionException.class);
                             assertNotNull(rejectedException);
                             assertThat(
@@ -1282,7 +1259,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                         @Override
                         public void sendResponse(TransportResponse response) {
                             assertThat(chunk2Attempts.getCount(), equalTo(0L));
-                            awaitingChunk2SuccessOnResponseSent.set(true);
                             channel.sendResponse(response);
                         }
                     }, task);
@@ -1303,7 +1279,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         // wait until the third attempt of the second refresh is halted
         safeAwait(chunk2Attempts);
-        // safeSleep(randomLongBetween(50, 200));
 
         logger.info("--> starting transport send for the first refresh chunk");
         chunk1ToStartTransportSend.countDown();

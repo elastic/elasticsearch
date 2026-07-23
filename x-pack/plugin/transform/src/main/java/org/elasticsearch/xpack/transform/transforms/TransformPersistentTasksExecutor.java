@@ -506,7 +506,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
      * already folds unattended into {@code -1}), then fails permanently — mirroring {@link TransformFailureHandler#retry}'s
      * "tolerate N, fail on N+1" behavior for the indexer run-time path, applied here to the startup/reassignment pipeline.
      * <p>
-     * Mirrors {@link #loadCloudCredentialWithRetry}'s shape on purpose: try {@code action} directly first, and only hand off
+     * Try {@code action} directly first, and only hand off
      * to the transform scheduler on failure. This call runs nested inside another listener's own scheduler-triggered
      * callback (config load, and possibly a caller of this method too) — registering with the scheduler unconditionally
      * (i.e. even for the very first attempt, before knowing whether it's needed) would nest a second

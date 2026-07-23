@@ -156,14 +156,14 @@ public abstract class MvRegexMatch extends BinaryScalarFunction
         // Validate the pattern here, and before the null-field short-circuit below. A constant field folds the whole
         // predicate through here before postOptimizationVerification runs, so this path cannot assume the pattern was
         // already checked — and a null-typed field would otherwise fold to constant false before the pattern is even
-        // looked at, silently accepting an author error. patternString() throws on a null or multivalue pattern;
-        // validatePattern on a malformed one. Both are reframed to the same message the verifier produces, so an
-        // author-error pattern fails loudly on every path, regardless of the field.
+        // looked at, silently accepting an author error. patternString() throws the same shape error the verifier
+        // surfaces on a null or multivalue pattern; validatePattern's malformed-pattern error is reframed to match the
+        // verifier's. Either way an author-error pattern fails loudly on every path, regardless of the field.
         String pattern = patternString();
         try {
             validatePattern(pattern);
         } catch (InvalidArgumentException | IllegalArgumentException e) {
-            throw new InvalidArgumentException("invalid pattern [{}] for [{}]: {}", pattern, sourceText(), e.getMessage());
+            throw new InvalidArgumentException(e, "invalid pattern [{}] for [{}]: {}", pattern, sourceText(), e.getMessage());
         }
         // A null-typed field has no values to match, so the predicate is constant false.
         if (left().dataType() == DataType.NULL) {

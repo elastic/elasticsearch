@@ -58,11 +58,14 @@ public class CrossClusterEsqlResolveFieldsActionIT extends AbstractCrossClusterT
             true // resolve index abstractions
         );
         var response = client(LOCAL_CLUSTER).execute(EsqlResolveFieldsAction.TYPE, request).actionGet(30, TimeUnit.SECONDS);
-        assertThat(response.resolvedIndexAbstractions(), Matchers.containsInAnyOrder(
-            new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("local-index", IndexAbstraction.Type.CONCRETE_INDEX),
-            new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("cluster-a:remote-index", IndexAbstraction.Type.CONCRETE_INDEX),
-            new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("local-view", IndexAbstraction.Type.VIEW),
-            new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("cluster-a:remote-view", IndexAbstraction.Type.VIEW)
-        ));
+        assertThat(
+            response.resolvedIndexAbstractions(),
+            Matchers.containsInAnyOrder(
+                new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("local-index", IndexAbstraction.Type.CONCRETE_INDEX),
+                new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("cluster-a:remote-index", IndexAbstraction.Type.CONCRETE_INDEX),
+                new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("local-view", IndexAbstraction.Type.VIEW),
+                new EsqlResolveFieldsResponse.ResolvedIndexAbstraction("cluster-a:remote-view", IndexAbstraction.Type.VIEW)
+            )
+        );
     }
 }

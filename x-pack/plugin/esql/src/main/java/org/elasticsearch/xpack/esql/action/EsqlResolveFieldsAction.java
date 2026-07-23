@@ -219,7 +219,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             var indexAbstraction = indicesLookup.get(name);
             if (indexAbstraction != null) {
                 abstractions.add(
-                    new EsqlResolveFieldsResponse.ResolvedIndexAbstraction(RemoteClusterAware.buildRemoteIndexName(request.fieldCapsRequest().clusterAlias(), indexAbstraction.getName()), indexAbstraction.getType())
+                    new EsqlResolveFieldsResponse.ResolvedIndexAbstraction(
+                        RemoteClusterAware.buildRemoteIndexName(request.fieldCapsRequest().clusterAlias(), indexAbstraction.getName()),
+                        indexAbstraction.getType()
+                    )
                 );
             }
         }

@@ -1,0 +1,7 @@
+SET unmapped_fields="nullify"; FROM employees,
+    (FROM languages
+     | STATS c = COUNT(*) BY emp_no, does_not_exist1),
+    (FROM languages
+     | STATS a = AVG(salary))
+| WHERE does_not_exist2::LONG < 10
+| EVAL x = does_not_exist3

@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -1478,13 +1479,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-                boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
+                boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
+                return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
+            }
+        }
+
+        private static ExecuteLocation newLookupJoinMode(ExecuteLocation mode, boolean hasRemoteIndices) {
+            if (mode == ExecuteLocation.COORDINATOR) {
+                return ExecuteLocation.COORDINATOR;
+            } else if (mode == ExecuteLocation.REMOTE || hasRemoteIndices) {
+                return ExecuteLocation.REMOTE;
+            } else {
+                return ExecuteLocation.ANY;
             }
         }
 
@@ -1930,12 +1942,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
+            String name = attribute.name();
+            int lastDot = name.lastIndexOf('.');
+            String parentName = lastDot < 0 ? null : name.substring(0, lastDot);
+            String leafName = lastDot < 0 ? name : name.substring(lastDot + 1);
             return new FieldAttribute(
                 attribute.source(),
-                null,
+                parentName,
                 attribute.qualifier(),
-                attribute.name(),
-                new PotentiallyUnmappedKeywordEsField(attribute.name())
+                name,
+                new PotentiallyUnmappedKeywordEsField(leafName)
             );
         }
 
@@ -2266,7 +2282,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
                 // so, remove things that are in common
-                resolvedProjections.removeIf(resolved::contains);
+                Set<? extends NamedExpression> resolvedSet = new HashSet<>(resolved);
+                resolvedProjections.removeIf(resolvedSet::contains);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {

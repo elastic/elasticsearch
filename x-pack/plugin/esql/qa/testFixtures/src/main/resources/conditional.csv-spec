@@ -432,6 +432,7 @@ CASE(y==2, 10, 1) * MIN(x):integer | y:integer
 
 casePartialFoldTrueToTextKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10003
@@ -448,6 +449,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldTrailingTextArmKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10003
@@ -464,6 +466,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldKeywordIsGroupable
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10005
@@ -479,6 +482,7 @@ c:long | g:keyword
 
 casePartialFoldMixedConditionsKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10003
@@ -495,6 +499,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldMultivalueTextKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no == 10001
@@ -508,6 +513,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldTextArmNullElseKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no == 10001

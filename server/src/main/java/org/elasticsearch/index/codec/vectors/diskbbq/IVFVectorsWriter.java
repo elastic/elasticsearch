@@ -58,7 +58,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final int flatVectorThreshold;
+    protected final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
     protected final SegmentWriteState segmentWriteState;
 

@@ -15,6 +15,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -83,5 +84,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return NAME;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // No preParse/postParse override — nothing to port for the columnar path either.
+        return true;
     }
 }

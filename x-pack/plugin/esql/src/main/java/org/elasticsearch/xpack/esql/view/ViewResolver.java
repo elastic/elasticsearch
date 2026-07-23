@@ -94,8 +94,8 @@ public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
-    private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
+    protected final ClusterService clusterService;
+    protected final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;

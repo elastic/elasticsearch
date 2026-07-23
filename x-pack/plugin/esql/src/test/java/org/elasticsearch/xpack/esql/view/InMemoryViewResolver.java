@@ -29,7 +29,6 @@ import static org.mockito.Mockito.mock;
 public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
     protected IndexNameExpressionResolver indexNameExpressionResolver;
-    protected ClusterService clusterService;
 
     public InMemoryViewResolver(
         ClusterService clusterService,
@@ -40,10 +39,9 @@ public class InMemoryViewResolver extends ViewResolver {
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
-            DefaultProjectResolver.INSTANCE
+            projectResolver
         );
         this.metadata = metadata;
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -61,7 +59,7 @@ public class InMemoryViewResolver extends ViewResolver {
             new ActionFilters(Set.of()),
             indexNameExpressionResolver,
             clusterService,
-            DefaultProjectResolver.INSTANCE
+            projectResolver
         );
         action.execute(mock(Task.class), request, listener);
     }

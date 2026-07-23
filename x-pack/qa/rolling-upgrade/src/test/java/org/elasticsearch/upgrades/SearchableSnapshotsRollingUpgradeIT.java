@@ -13,6 +13,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -55,19 +56,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
-        final Storage storage = Storage.SHARED_CACHE;
-
-        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
-            assertBusy(() -> {
-                Map<String, Object> settings = getIndexSettingsAsMap("mounted_index_shared_cache");
-                assertThat(
-                    settings,
-                    hasEntry(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP)
-                );
-            });
-        }
-
-        executeMountAndRecoversCorrectlyTestCase(storage, 5678L);
+        executeMountAndRecoversCorrectlyTestCase(Storage.SHARED_CACHE, 5678L);
     }
 
     /**
@@ -79,34 +68,55 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         final String snapshot = "snapshot_" + suffix;
         final String index = "mounted_index_" + suffix;
 
-        if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
-            registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
-            final String originalIndex = "logs_" + suffix;
-            createIndex(originalIndex, indexSettings(randomIntBetween(1, 3), 0).build());
-            indexDocs(originalIndex, numberOfDocs);
-            createSnapshot(repository, snapshot, originalIndex);
-            deleteIndex(originalIndex);
+                final String originalIndex = "logs_" + suffix;
+                createIndex(originalIndex, indexSettings(randomIntBetween(1, 3), 0).build());
+                indexDocs(originalIndex, numberOfDocs);
+                createSnapshot(repository, snapshot, originalIndex);
+                deleteIndex(originalIndex);
 
-            logger.info(
-                "mounting snapshot [repository={}, snapshot={}, index={}] as index [{}] with storage [{}] on version [{}]",
-                repository,
-                snapshot,
-                originalIndex,
-                index,
-                storage,
-                UPGRADE_FROM_VERSION
-            );
-            mountSnapshot(repository, snapshot, originalIndex, index, storage, Settings.EMPTY);
-        }
+                logger.info(
+                    "mounting snapshot [repository={}, snapshot={}, index={}] as index [{}] with storage [{}] on version [{}]",
+                    repository,
+                    snapshot,
+                    originalIndex,
+                    index,
+                    storage,
+                    UPGRADE_FROM_VERSION
+                );
+                mountSnapshot(repository, snapshot, originalIndex, index, storage, Settings.EMPTY);
 
-        ensureGreen(index);
-        assertHitCount(index, equalTo(numberOfDocs));
+                ensureGreen(index);
+                assertHitCount(index, equalTo(numberOfDocs));
+            }
+            case MIXED -> {
+                assumeTrue("old cluster index not found; old cluster setup may have been skipped by CI retry", indexExists(index));
 
-        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
-            deleteIndex(index);
-            deleteSnapshot(repository, snapshot);
-            deleteRepository(repository);
+                ensureGreen(index);
+                assertHitCount(index, equalTo(numberOfDocs));
+            }
+            case UPGRADED -> {
+                assumeTrue("old cluster index not found; old cluster setup may have been skipped by CI retry", indexExists(index));
+
+                if (storage == Storage.SHARED_CACHE) {
+                    assertBusy(() -> {
+                        Map<String, Object> settings = getIndexSettingsAsMap(index);
+                        assertThat(
+                            settings,
+                            hasEntry(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP)
+                        );
+                    });
+                }
+                ensureGreen(index);
+                assertHitCount(index, equalTo(numberOfDocs));
+
+                deleteIndex(index);
+                deleteSnapshot(repository, snapshot);
+                deleteRepository(repository);
+            }
         }
     }
 
@@ -115,9 +125,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
-        final Storage storage = Storage.SHARED_CACHE;
-
-        executeBlobCacheCreationTestCase(storage, 8765L);
+        executeBlobCacheCreationTestCase(Storage.SHARED_CACHE, 8765L);
     }
 
     /**
@@ -150,7 +158,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 deleteIndex(indices[i]);
             }
 
+            assertTrue("Repository was created", repositoryExists(repository));
+
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+            assumeTrue("Skipping because repository was not created in the old cluster phase", repositoryExists(repository));
+
             final int numberOfNodes = 3;
             waitForNodes(numberOfNodes);
 
@@ -305,6 +317,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertThat(tierPreference, equalTo("data_content,data_hot"));
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+            assumeTrue("Skipping because repository was not created in the old cluster phase", repositoryExists(repository));
+
             for (String snapshot : snapshots) {
                 deleteSnapshot(repository, snapshot);
             }
@@ -398,5 +412,17 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         final String pathRepo = System.getProperty("tests.path.searchable.snapshots.repo");
         assertThat("Searchable snapshots repository path is null", pathRepo, notNullValue());
         return Settings.builder().put("location", pathRepo + '/' + repository).build();
+    }
+
+    private static boolean repositoryExists(String repository) throws IOException {
+        try {
+            client().performRequest(new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repository));
+            return true;
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -354,6 +355,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         indexShard.recoveryStats().sourceRecoveryStarted();
         recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+        Runnable markSourceRecoveryCompleted = new RunOnce(() -> {
+            indexShard.recoveryStats().sourceRecoveryCompleted();
+            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+        });
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -373,8 +378,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
-            indexShard.recoveryStats().sourceRecoveryCompleted();
-            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            markSourceRecoveryCompleted.run();
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
@@ -525,8 +529,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                         try {
                             handoffCompleteListener.onResponse(null);
-                            indexShard.recoveryStats().sourceRecoveryCompleted();
-                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+                            markSourceRecoveryCompleted.run();
                         } finally {
                             handoffResultListener.onResponse(null);
                         }

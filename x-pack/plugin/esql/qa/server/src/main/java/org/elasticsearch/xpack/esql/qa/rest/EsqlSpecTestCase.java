@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvAssert;
+import org.elasticsearch.xpack.esql.CsvSpecCapabilityInferrer;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
@@ -90,6 +91,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public ProfileLogger profileLogger = new ProfileLogger();
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
+    private static final CsvSpecCapabilityInferrer CAPABILITY_INFERRER = CsvSpecCapabilityInferrer.INSTANCE;
     private final String fileName;
     private final String groupName;
     private final String testName;
@@ -302,6 +304,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         String testName,
         CsvTestCase testCase
     ) {
+        CAPABILITY_INFERRER.augmentRequiredCapabilities(testCase);
         checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
         checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilitiesLocalCluster);
     }

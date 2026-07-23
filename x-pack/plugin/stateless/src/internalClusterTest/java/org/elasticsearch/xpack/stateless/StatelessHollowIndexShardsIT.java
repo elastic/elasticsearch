@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -2699,8 +2701,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5) // so that relocations are fast in case of replaying translog
-            // Disable merge backlog throttling so the ForceMerge thread cannot cause indexing threads to block indefinitely
-            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), Integer.MAX_VALUE)
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
         startSearchNode();
@@ -2989,11 +2989,23 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 final var snapshotName = snapshotBaseName + snapshotNumber.getAndIncrement();
                 logger.info("--> creating snapshot [{}]", snapshotName);
 
-                final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repos, snapshotName)
-                    .setIndices(indexName)
-                    .setWaitForCompletion(true)
-                    .setFeatureStates(org.elasticsearch.common.Strings.EMPTY_ARRAY)
-                    .get();
+                // Bound the wait-for-completion: a snapshot that never completes (e.g. because a shard snapshot died without
+                // reporting its status, see #154655) must fail this thread with a diagnosable error instead of blocking it
+                // forever and wedging the test into a suite-level timeout.
+                final CreateSnapshotResponse response;
+                try {
+                    response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repos, snapshotName)
+                        .setIndices(indexName)
+                        .setWaitForCompletion(true)
+                        .setFeatureStates(org.elasticsearch.common.Strings.EMPTY_ARRAY)
+                        .execute()
+                        .actionGet(TimeValue.timeValueMinutes(2));
+                } catch (ElasticsearchTimeoutException e) {
+                    throw new AssertionError(
+                        "snapshot [" + snapshotName + "] did not complete within 2 minutes, its shard snapshots may be wedged",
+                        e
+                    );
+                }
 
                 final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
                 assertThat(snapshotInfo.state(), Matchers.oneOf(SnapshotState.SUCCESS, SnapshotState.PARTIAL));
@@ -3041,43 +3053,97 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
 
         logger.info("Waiting for hollowRelocationsLatch ({} relocations needed)", hollowRelocationsLatch.getCount());
+        Throwable latchFailure = null;
         try {
             safeAwait(hollowRelocationsLatch, TimeValue.timeValueMinutes(10));
             logger.info("Waited for hollowRelocationsLatch");
-        } finally {
-            // Always stop threads even if the latch wait times out, to avoid threads holding cluster resources
-            // during test teardown and causing a suite-level timeout.
-            stopThreads.set(true);
-            if (hollowRelocationsLatch.getCount() > 0) {
+        } catch (Throwable t) {
+            // Captured rather than propagated so that the stress threads are always stopped and joined, and so that any
+            // uncaught exception from a stress thread (usually the root cause of a latch timeout) is reported alongside it.
+            latchFailure = t;
+        }
+        // Always stop threads even if the latch wait times out, to avoid threads holding cluster resources
+        // during test teardown and causing a suite-level timeout.
+        stopThreads.set(true);
+        if (hollowRelocationsLatch.getCount() > 0) {
+            logger.warn(
+                "hollowRelocationsLatch timed out with {} relocations remaining; dumping thread stack traces and cluster state",
+                hollowRelocationsLatch.getCount()
+            );
+            for (Thread thread : threads) {
                 logger.warn(
-                    "hollowRelocationsLatch timed out with {} relocations remaining; dumping thread stack traces and cluster state",
-                    hollowRelocationsLatch.getCount()
+                    "Thread [{}] state [{}]:\n\tat {}",
+                    thread.getName(),
+                    thread.getState(),
+                    Arrays.stream(thread.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\tat "))
                 );
-                for (Thread thread : threads) {
-                    logger.warn(
-                        "Thread [{}] state [{}]:\n\tat {}",
-                        thread.getName(),
-                        thread.getState(),
-                        Arrays.stream(thread.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\tat "))
-                    );
-                }
+            }
+            try {
                 logger.warn(
                     "cluster state at latch timeout:\n{}",
-                    client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
+                    safeGet(client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState()
+                );
+            } catch (Throwable t) {
+                // diagnostics are best-effort and must not replace the real failure
+                logger.warn("failed to fetch cluster state at latch timeout", t);
+            }
+        }
+        // Join with a shared deadline so that a wedged stress thread produces a diagnosable failure here instead of
+        // blocking the test until the suite timeout abandons it without any useful report.
+        final long joinDeadline = System.currentTimeMillis() + TimeValue.timeValueMinutes(3).millis();
+        var stuckThreads = new ArrayList<Thread>();
+        for (Thread thread : threads) {
+            thread.join(Math.max(1, joinDeadline - System.currentTimeMillis()));
+            if (thread.isAlive()) {
+                stuckThreads.add(thread);
+                logger.warn(
+                    "Thread [{}] did not exit after being told to stop; state [{}]:\n\tat {}",
+                    thread.getName(),
+                    thread.getState(),
+                    Arrays.stream(thread.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\tat "))
                 );
             }
-            for (Thread thread : threads) {
-                thread.join();
+        }
+        // Snapshot the uncaught exceptions before interrupting stuck threads: the interrupts below typically make a stuck
+        // thread die with an uninteresting interrupt-induced exception that would otherwise pollute the failure report.
+        final var genuineUncaughtExceptions = List.copyOf(uncaughtExceptions);
+        if (stuckThreads.isEmpty() == false) {
+            // As a last resort interrupt the stuck threads so that they cannot also wedge the cluster teardown.
+            stuckThreads.forEach(Thread::interrupt);
+            for (Thread thread : stuckThreads) {
+                thread.join(TimeValue.timeValueSeconds(30).millis());
             }
-            if (uncaughtExceptions.isEmpty() == false) {
-                var first = uncaughtExceptions.get(0);
-                AssertionError ae = new AssertionError(
-                    "One or more stress threads died with an uncaught exception: " + first.getMessage(),
-                    first
-                );
-                uncaughtExceptions.stream().skip(1).forEach(ae::addSuppressed);
-                throw ae;
+        }
+        AssertionError failure = null;
+        if (genuineUncaughtExceptions.isEmpty() == false) {
+            // A dead stress thread is usually why the latch timed out, so report it as the primary failure and attach
+            // the other failures, if any, as suppressed.
+            var first = genuineUncaughtExceptions.get(0);
+            failure = new AssertionError("One or more stress threads died with an uncaught exception: " + first.getMessage(), first);
+            genuineUncaughtExceptions.stream().skip(1).forEach(failure::addSuppressed);
+        }
+        if (stuckThreads.isEmpty() == false) {
+            var stuckFailure = new AssertionError(
+                "Stress threads did not exit after being told to stop: "
+                    + stuckThreads.stream().map(Thread::getName).collect(Collectors.joining(", "))
+            );
+            if (failure == null) {
+                failure = stuckFailure;
+            } else {
+                failure.addSuppressed(stuckFailure);
             }
+        }
+        if (failure != null) {
+            if (latchFailure != null) {
+                failure.addSuppressed(latchFailure);
+            }
+            throw failure;
+        }
+        if (latchFailure != null) {
+            if (latchFailure instanceof Exception e) {
+                throw e;
+            }
+            throw (Error) latchFailure; // a Throwable is always either an Exception or an Error
         }
 
         logger.info("Waiting for ensureGreen");
@@ -3493,30 +3559,31 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         try {
             assertBusy(() -> {
                 if (System.currentTimeMillis() - start > 10 * 1000) {
-                    logger.warn(
-                        "cluster state:\n{}",
-                        client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
-                    );
-                    logger.warn("cluster pending tasks:\n{}", getClusterPendingTasks());
-                    logger.warn(
-                        "recoveries:\n{}",
-                        client(masterNode).admin()
-                            .indices()
-                            .recoveries(new RecoveryRequest(index))
-                            .get()
-                            .shardRecoveryStates()
-                            .entrySet()
-                            .stream()
-                            .map(
-                                e -> e.getKey()
-                                    + ":"
-                                    + e.getValue()
-                                        .stream()
-                                        .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
-                                        .collect(Collectors.joining(","))
-                            )
-                            .toList()
-                    );
+                    try {
+                        logger.warn(
+                            "cluster state:\n{}",
+                            safeGet(client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState()
+                        );
+                        logger.warn("cluster pending tasks:\n{}", getClusterPendingTasks());
+                        logger.warn(
+                            "recoveries:\n{}",
+                            safeGet(client(masterNode).admin().indices().recoveries(new RecoveryRequest(index))).shardRecoveryStates()
+                                .entrySet()
+                                .stream()
+                                .map(
+                                    e -> e.getKey()
+                                        + ":"
+                                        + e.getValue()
+                                            .stream()
+                                            .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
+                                            .collect(Collectors.joining(","))
+                                )
+                                .toList()
+                        );
+                    } catch (Throwable t) {
+                        // diagnostics are best-effort and must not abort the health check retries
+                        logger.warn("failed to fetch cluster diagnostics", t);
+                    }
                 }
                 var healthRequest = client(masterNode).admin()
                     .cluster()
@@ -3527,10 +3594,22 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (waitForEvents) {
                     healthRequest = healthRequest.setWaitForEvents(Priority.LANGUID);
                 }
-                assertThat(healthRequest.get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+                final ClusterHealthResponse healthResponse;
+                try {
+                    healthResponse = healthRequest.get();
+                } catch (Exception e) {
+                    // A transient failure of the health request itself (e.g. under injected object store failures) should be
+                    // retried like a non-green response rather than aborting the wait. assertBusy only retries AssertionErrors.
+                    throw new AssertionError("cluster health request failed", e);
+                }
+                assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             }, 5, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            throw new AssertionError("cluster did not become GREEN within 5 minutes", e);
+        } catch (Exception | AssertionError e) {
+            // assertBusy reports its timeout as an AssertionError, which the Exception-only catch used to miss
+            throw new AssertionError(
+                "cluster did not become GREEN within " + TimeValue.timeValueMillis(System.currentTimeMillis() - start),
+                e
+            );
         }
     }
 

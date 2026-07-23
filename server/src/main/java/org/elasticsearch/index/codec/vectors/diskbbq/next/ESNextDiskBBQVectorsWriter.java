@@ -557,10 +557,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 postingsOutput.writeByte(encoding);
                 offHeapQuantizedVectors.reset(size, ord -> vectorCentroidIdx[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
                 // write vectors
-                bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
-                    // for vector i we write `bulk` size docs or the remaining docs
-                    idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-                });
+                if (sliceField != null && centroidSupplier.slices() == null) {
+                    // Small-slices case: all vectors are in one centroid, no doc IDs needed.
+                    // The reader uses vector ord order for doc translation.
+                    assert centroidSupplier.size() == 1;
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, null);
+                } else {
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
+                        // for vector i we write `bulk` size docs or the remaining docs
+                        idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+                    });
+                }
                 lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
 

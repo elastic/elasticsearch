@@ -489,7 +489,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
         final Translog.IndexBatch batch = buildBatch(List.of(Map.of("k", "v0"), Map.of("k", "v1")), XContentType.JSON, 0L, term);
         final Translog.Location location = translog.add(batch);
 
-        // readOperation will throw for batch records if batchRowIndex is not set in the location
+        // readOperation(location) with no rowIndex throws for batch records
         final IOException ex = expectThrows(IOException.class, () -> translog.readOperation(location));
         assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage() != null && ex.getMessage().contains("batch"));
     }
@@ -541,17 +541,10 @@ public class TranslogIndexBatchTests extends ESTestCase {
             ops.add(new Translog.IndexBatch.IndexOp(1L, i, 100L + i, i, xContentType, Uid.encodeId("doc-" + i), null));
         }
         final Translog.Location batchLocation = translog.add(buildEscfBatch(sources, xContentType, primaryTerm.get(), ops));
-        assertFalse("add() returns a whole-record location. Should not contain batchRowIndex", batchLocation.isBatchRow());
 
         for (int i = 0; i < sources.size(); i++) {
-            // Mimic the LiveVersionMap by building a new Location with rowIndex
-            final Translog.Location rowLocation = new Translog.Location(
-                batchLocation.generation(),
-                batchLocation.translogLocation(),
-                batchLocation.size(),
-                i
-            );
-            final Translog.Operation op = translog.readOperation(rowLocation);
+            // Mimic the LiveVersionMap: plain whole-record Location + row index passed to the overload
+            final Translog.Operation op = translog.readOperation(batchLocation, i);
             assertTrue("expected Index op, got " + (op == null ? "null" : op.getClass()), op instanceof Translog.Index);
             final Translog.Index idx = (Translog.Index) op;
             assertEquals(i, idx.seqNo());
@@ -573,14 +566,8 @@ public class TranslogIndexBatchTests extends ESTestCase {
         );
         final Translog.Location opLocation = translog.add(single);
 
-        // explicitly set batchRowIndex to a non-negative value
-        final Translog.Location fakeLocation = new Translog.Location(
-            opLocation.generation(),
-            opLocation.translogLocation(),
-            opLocation.size(),
-            0
-        );
-        expectThrows(AssertionError.class, () -> translog.readOperation(fakeLocation));
+        // passing rowIndex >= 0 to a non-batch record throws
+        expectThrows(AssertionError.class, () -> translog.readOperation(opLocation, 0));
     }
 
 }

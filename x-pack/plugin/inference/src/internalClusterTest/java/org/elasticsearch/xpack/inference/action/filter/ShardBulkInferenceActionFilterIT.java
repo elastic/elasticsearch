@@ -39,6 +39,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -59,6 +61,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.addSemanticFieldsToMapping;
+import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.addSemanticTextFieldsToMapping;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomInferenceString;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
@@ -378,35 +382,19 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         registerModel(modelRegistry, "sparse_inference_endpoint_1", TaskType.SPARSE_EMBEDDING);
         registerModel(modelRegistry, "semanatic_inference_endpoint_1", TaskType.EMBEDDING);
 
-        String commonFields = """
-                    "semantic_text_field_1": {
-                        "type": "semantic_text",
-                        "inference_id": "sparse_inference_endpoint_1"
-                    },
-                    "semantic_text_field_2": {
-                        "type": "semantic_text",
-                        "inference_id": "sparse_inference_endpoint_2"
-                    }
-            """;
-        String semanticFields = useLegacyFormat ? "" : """
-                    ,
-                    "semantic_field_1": {
-                        "type": "semantic",
-                        "inference_id": "semanatic_inference_endpoint_1"
-                    },
-                    "semantic_field_2": {
-                        "type": "semantic",
-                        "inference_id": "semanatic_inference_endpoint_2"
-                    }
-            """;
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        addSemanticTextFieldsToMapping(
+            mapping,
+            Map.of("semantic_text_field_1", "sparse_inference_endpoint_1", "semantic_text_field_2", "sparse_inference_endpoint_2")
+        );
+        if (useLegacyFormat == false) {
+            addSemanticFieldsToMapping(
+                mapping,
+                Map.of("semantic_field_1", "semanatic_inference_endpoint_1", "semantic_field_2", "semanatic_inference_endpoint_2")
+            );
+        }
+        mapping.endObject().endObject();
 
-        String mapping = """
-            {
-                "properties": {
-            """ + commonFields + semanticFields + """
-                }
-            }
-            """;
         prepareCreate("index_restart").setMapping(mapping).get();
 
         assertItemFailures(

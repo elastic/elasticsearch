@@ -435,14 +435,13 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         IndexVersion minIndexVersion,
         IndexVersion maxIndexVersion
     ) throws IOException {
-        validateIndexVersion(minIndexVersion, useLegacyFormat());
-        validateIndexVersion(maxIndexVersion, useLegacyFormat());
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion, maxIndexVersion);
         return createSemanticMapperServiceWithIndexVersion(mappings, indexVersion);
     }
 
     protected MapperService createSemanticMapperServiceWithIndexVersion(XContentBuilder mappings, IndexVersion indexVersion)
         throws IOException {
+        validateIndexVersion(indexVersion, useLegacyFormat());
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat())

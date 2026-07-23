@@ -49,6 +49,13 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
     private final Map<String, Object> options;
     private final Mode mode;
     private final List<Attribute> output;
+    /**
+     * The row {@code LIMIT} folded into the EQL request {@code size} by {@code PushLimitIntoEqlRelation}, or
+     * {@code null} when no limit was pushed (event queries with no enclosing limit, and all sequence/sample
+     * queries — for which a row limit does not map to the number of matches). Null means the request falls back
+     * to the ES|QL result-truncation cap. Only meaningful for {@link Mode#EVENT}.
+     */
+    private final Integer pushedLimit;
 
     public EqlRelation(
         Source source,
@@ -58,12 +65,30 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         Mode mode,
         List<Attribute> output
     ) {
+        this(source, indexPattern, query, options, mode, output, null);
+    }
+
+    public EqlRelation(
+        Source source,
+        IndexPattern indexPattern,
+        Expression query,
+        Map<String, Object> options,
+        Mode mode,
+        List<Attribute> output,
+        Integer pushedLimit
+    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.query = query;
         this.options = options;
         this.mode = mode;
         this.output = output;
+        this.pushedLimit = pushedLimit;
+    }
+
+    /** Returns a copy with the row {@code LIMIT} folded into the request size (see {@link #pushedLimit}). */
+    public EqlRelation withPushedLimit(int pushedLimit) {
+        return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit);
     }
 
     @Override
@@ -80,11 +105,15 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<EqlRelation> info() {
-        return NodeInfo.create(this, EqlRelation::new, indexPattern, query, options, mode, output);
+        return NodeInfo.create(this, EqlRelation::new, indexPattern, query, options, mode, output, pushedLimit);
     }
 
     public IndexPattern indexPattern() {
         return indexPattern;
+    }
+
+    public Integer pushedLimit() {
+        return pushedLimit;
     }
 
     public Expression query() {
@@ -111,7 +140,7 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, query, options, mode, output);
+        return Objects.hash(indexPattern, query, options, mode, output, pushedLimit);
     }
 
     @Override
@@ -127,7 +156,8 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
             && Objects.equals(query, other.query)
             && Objects.equals(options, other.options)
             && mode == other.mode
-            && Objects.equals(output, other.output);
+            && Objects.equals(output, other.output)
+            && Objects.equals(pushedLimit, other.pushedLimit);
     }
 
     @Override

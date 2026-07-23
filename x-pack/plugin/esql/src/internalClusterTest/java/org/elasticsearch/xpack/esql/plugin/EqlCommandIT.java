@@ -8,24 +8,35 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -146,6 +157,74 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             assertEquals("network", Objects.toString(rows.get(1).get(4)));
             assertNull(rows.get(1).get(5));
         }
+    }
+
+    public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {
+        // Lower the cap to 1. A pushed LIMIT 1 must set size from the LIMIT (not the cap), so NO truncation warning
+        // fires. If the pushed limit failed to reach the request, size would fall back to the cap and the warning
+        // WOULD fire at size == cap == 1 — so asserting its absence discriminates the whole plumbing chain.
+        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
+        try {
+            CapturedQuery result = runCapturingWarnings("EQL " + INDEX + " \"process where true\" | LIMIT 1");
+            assertThat(result.rows(), hasSize(1));
+            assertTrue(
+                "a LIMIT-driven size must not warn about truncation, got: " + result.warnings(),
+                result.warnings().stream().noneMatch(w -> w.contains("results may be incomplete"))
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
+        }
+    }
+
+    public void testTruncationWarningWhenCapHit() throws Exception {
+        // Lower the cap below the number of process events. STATS has no LIMIT pushed past the aggregation, so the
+        // request size defaults to the cap and the (real) truncation must surface a client Warning.
+        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
+        try {
+            CapturedQuery result = runCapturingWarnings("EQL " + INDEX + " \"process where true\" | STATS count = COUNT(*)");
+            assertThat("STATS must count only the capped events", ((Number) result.rows().get(0).get(0)).longValue(), equalTo(1L));
+            assertTrue(
+                "client must receive a truncation Warning, got: " + result.warnings(),
+                result.warnings().stream().anyMatch(w -> w.contains("results may be incomplete"))
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
+        }
+    }
+
+    private record CapturedQuery(List<List<Object>> rows, List<String> warnings) {}
+
+    /**
+     * Runs a query and captures both its rows and the coordinator's response {@code Warning} headers — the only way
+     * to observe a runtime warning end to end. Mirrors the header capture in {@code ExternalMaxRecordSizeTruncationIT}
+     * / {@code WarningsIT}: {@code ActionListener.wrap} (not {@code run()}) since the transport client owns the
+     * response ref-count, so we must not close it here.
+     */
+    private CapturedQuery runCapturingWarnings(String query) throws Exception {
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<List<List<Object>>> rows = new AtomicReference<>(List.of());
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
+            try {
+                rows.set(getValuesList(response));
+                ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
+                    .getThreadPool()
+                    .getThreadContext();
+                warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+            } finally {
+                latch.countDown();
+            }
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
+        }));
+        assertTrue("query did not complete within 1 minute", latch.await(1, TimeUnit.MINUTES));
+        if (failure.get() != null) {
+            throw new AssertionError("query must not fail", failure.get());
+        }
+        return new CapturedQuery(rows.get(), warnings);
     }
 
     private static List<Object> rowByName(List<List<Object>> rows, String processName) {

@@ -99,7 +99,8 @@ public class MapperUtils {
                 eql.indexPattern().indexPattern(),
                 eql.options(),
                 eql.mode(),
-                eql.output()
+                eql.output(),
+                eql.pushedLimit()
             );
         }
 

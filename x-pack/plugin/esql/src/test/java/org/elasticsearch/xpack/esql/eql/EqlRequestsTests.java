@@ -37,23 +37,29 @@ import static org.hamcrest.Matchers.nullValue;
 public class EqlRequestsTests extends ESTestCase {
 
     private static final List<Attribute> NO_SCHEMA = List.of();
+    private static final int CAP = 10_000;
+
+    /** Delegates to {@link EqlRequests#build} with no pushed limit and the truncation cap as the size default. */
+    private static EqlSearchRequest build(String query, String indices, List<Attribute> schema, Map<String, Object> options) {
+        return EqlRequests.build(query, indices, schema, options, null, CAP);
+    }
 
     public void testRequiresIndexPattern() {
         EsqlIllegalArgumentException e = expectThrows(
             EsqlIllegalArgumentException.class,
-            () -> EqlRequests.build("process where true", "  ", NO_SCHEMA, Map.of())
+            () -> build("process where true", "  ", NO_SCHEMA, Map.of())
         );
         assertThat(e.getMessage(), containsString("non-empty index pattern"));
     }
 
     public void testSingleIndexAndQuery() {
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs-*", NO_SCHEMA, Map.of());
+        EqlSearchRequest request = build("process where true", "logs-*", NO_SCHEMA, Map.of());
         assertThat(request.indices(), arrayContaining("logs-*"));
         assertThat(request.query(), equalTo("process where true"));
     }
 
     public void testCommaSeparatedIndicesAreSplitAndTrimmed() {
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs-a, logs-b ,logs-c", NO_SCHEMA, Map.of());
+        EqlSearchRequest request = build("process where true", "logs-a, logs-b ,logs-c", NO_SCHEMA, Map.of());
         assertThat(request.indices(), arrayContaining("logs-a", "logs-b", "logs-c"));
     }
 
@@ -64,7 +70,7 @@ public class EqlRequestsTests extends ESTestCase {
             fieldAttribute("@timestamp", DATETIME),
             new UnsupportedAttribute(EMPTY, "blob", new UnsupportedEsField("blob", List.of("binary"), null, Map.of())) // excluded
         );
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs", schema, Map.of());
+        EqlSearchRequest request = build("process where true", "logs", schema, Map.of());
         List<FieldAndFormat> fields = request.fetchFields();
         assertThat(fields, hasSize(2));
         assertThat(fields.get(0).field, equalTo("process.name"));
@@ -75,12 +81,33 @@ public class EqlRequestsTests extends ESTestCase {
 
     public void testNoFetchFieldsWhenSchemaHasNoMappedFields() {
         List<Attribute> schema = List.of(new ReferenceAttribute(EMPTY, "_sequence", LONG));
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs", schema, Map.of());
+        EqlSearchRequest request = build("process where true", "logs", schema, Map.of());
         assertThat(request.fetchFields(), nullValue());
     }
 
+    public void testSizeDefaultsToTruncationCap() {
+        // No WITH size, no pushed LIMIT → the cap; and usesTruncationCapSize is true so the caller warns.
+        EqlSearchRequest request = EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of(), null, CAP);
+        assertThat(request.size(), equalTo(CAP));
+        assertThat(EqlRequests.usesTruncationCapSize(Map.of(), null), equalTo(true));
+    }
+
+    public void testPushedLimitDrivesSize() {
+        EqlSearchRequest request = EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of(), 5, CAP);
+        assertThat(request.size(), equalTo(5));
+        assertThat(EqlRequests.usesTruncationCapSize(Map.of(), 5), equalTo(false));
+    }
+
+    public void testWithSizeWinsOverPushedLimit() {
+        // WITH {"size": 7} beats a pushed LIMIT of 5, and disables the truncation warning.
+        EqlSearchRequest request = EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of("size", 7), 5, CAP);
+        assertThat(request.size(), equalTo(7));
+        assertThat(EqlRequests.usesTruncationCapSize(Map.of("size", 7), 5), equalTo(false));
+        assertThat(EqlRequests.usesTruncationCapSize(Map.of("size", 7), null), equalTo(false));
+    }
+
     public void testOptionalTuning() {
-        EqlSearchRequest request = EqlRequests.build(
+        EqlSearchRequest request = build(
             "process where true",
             "logs",
             NO_SCHEMA,

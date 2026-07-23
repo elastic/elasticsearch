@@ -39,6 +39,7 @@ public class EqlSourceExec extends LeafExec {
     private final Map<String, Object> options;
     private final EqlRelation.Mode mode;
     private final List<Attribute> attributes;
+    private final Integer pushedLimit;
 
     public EqlSourceExec(
         Source source,
@@ -46,7 +47,8 @@ public class EqlSourceExec extends LeafExec {
         String indices,
         Map<String, Object> options,
         EqlRelation.Mode mode,
-        List<Attribute> attributes
+        List<Attribute> attributes,
+        Integer pushedLimit
     ) {
         super(source);
         this.query = query;
@@ -54,6 +56,7 @@ public class EqlSourceExec extends LeafExec {
         this.options = options;
         this.mode = mode;
         this.attributes = attributes;
+        this.pushedLimit = pushedLimit;
     }
 
     @SuppressWarnings("unchecked")
@@ -64,18 +67,21 @@ public class EqlSourceExec extends LeafExec {
             in.readString(),
             (Map<String, Object>) in.readGenericValue(),
             in.readEnum(EqlRelation.Mode.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readOptionalVInt()
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
+        // Physical plans do not preserve Source across the wire (it is coordinator-only); mirror EsSourceExec.
+        Source.EMPTY.writeTo(out);
         out.writeString(query);
         out.writeString(indices);
         out.writeGenericValue(options);
         out.writeEnum(mode);
         out.writeNamedWriteableCollection(attributes);
+        out.writeOptionalVInt(pushedLimit);
     }
 
     @Override
@@ -85,7 +91,7 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EqlSourceExec::new, query, indices, options, mode, attributes);
+        return NodeInfo.create(this, EqlSourceExec::new, query, indices, options, mode, attributes, pushedLimit);
     }
 
     public String query() {
@@ -94,6 +100,11 @@ public class EqlSourceExec extends LeafExec {
 
     public String indices() {
         return indices;
+    }
+
+    /** The row {@code LIMIT} folded into the request size, or {@code null} to fall back to the truncation cap. */
+    public Integer pushedLimit() {
+        return pushedLimit;
     }
 
     public Map<String, Object> options() {
@@ -111,7 +122,7 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, indices, options, mode, attributes);
+        return Objects.hash(query, indices, options, mode, attributes, pushedLimit);
     }
 
     @Override
@@ -127,6 +138,7 @@ public class EqlSourceExec extends LeafExec {
             && Objects.equals(indices, other.indices)
             && Objects.equals(options, other.options)
             && mode == other.mode
-            && Objects.equals(attributes, other.attributes);
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(pushedLimit, other.pushedLimit);
     }
 }

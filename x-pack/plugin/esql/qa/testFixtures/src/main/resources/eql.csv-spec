@@ -79,6 +79,19 @@ count:long | name:keyword
 1          | powershell.exe
 ;
 
+eventQueryHonorsLimit
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name
+| SORT name
+| LIMIT 1
+;
+
+name:keyword
+cmd.exe
+;
+
 sequenceQueryUnnestsToOneRowPerEvent
 required_capability: eql_command
 

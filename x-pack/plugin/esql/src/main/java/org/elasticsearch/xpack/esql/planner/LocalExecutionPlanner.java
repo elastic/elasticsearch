@@ -1999,9 +1999,20 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
-        EqlSearchRequest request = EqlRequests.build(eqlSource.query(), eqlSource.indices(), eqlSource.output(), eqlSource.options());
+        // No pushed LIMIT and no WITH {"size"} → fall back to the ES|QL result-truncation cap, and warn at runtime
+        // if the response fills it (results may be incomplete).
+        int truncationCap = configuration.resultTruncationMaxSize(false);
+        boolean warnOnTruncation = EqlRequests.usesTruncationCapSize(eqlSource.options(), eqlSource.pushedLimit());
+        EqlSearchRequest request = EqlRequests.build(
+            eqlSource.query(),
+            eqlSource.indices(),
+            eqlSource.output(),
+            eqlSource.options(),
+            eqlSource.pushedLimit(),
+            truncationCap
+        );
         return PhysicalOperation.fromSource(
-            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output()),
+            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source(), warnOnTruncation),
             layout.build()
         );
     }

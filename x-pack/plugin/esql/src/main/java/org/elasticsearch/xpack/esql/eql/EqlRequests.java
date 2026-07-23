@@ -30,6 +30,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
  * convertible {@link FieldAttribute} (synthetics and unsupported columns carry no wire field), with the
  * {@code epoch_millis} format on date columns so the converter reads a stable epoch value.
  *
+ * <p>The request {@code size} follows an explicit precedence: a {@code WITH {"size"}} option wins; otherwise the
+ * row {@code LIMIT} folded into the plan ({@code pushedLimit}); otherwise the ES|QL result-truncation cap
+ * ({@code defaultSize}). Only the last case can silently truncate, so the caller warns on it (see
+ * {@link #usesTruncationCapSize}).
+ *
  * <p>Supported {@code WITH} options (all optional): {@code size}, {@code fetch_size}, {@code timestamp_field},
  * {@code tiebreaker_field}, {@code event_category_field}, {@code result_position} ({@code head}/{@code tail}).
  */
@@ -37,7 +42,14 @@ public final class EqlRequests {
 
     private EqlRequests() {}
 
-    public static EqlSearchRequest build(String query, String indices, List<Attribute> schema, Map<String, Object> options) {
+    public static EqlSearchRequest build(
+        String query,
+        String indices,
+        List<Attribute> schema,
+        Map<String, Object> options,
+        Integer pushedLimit,
+        int defaultSize
+    ) {
         if (indices == null || indices.isBlank()) {
             throw new EsqlIllegalArgumentException("EQL command requires a non-empty index pattern");
         }
@@ -53,8 +65,23 @@ public final class EqlRequests {
         if (fetchFields.isEmpty() == false) {
             request.fetchFields(fetchFields);
         }
+        // Effective size default; applyOptional overwrites it with a WITH {"size"} value if present.
+        request.size(pushedLimit != null ? pushedLimit : defaultSize);
         applyOptional(request, options);
         return request;
+    }
+
+    /**
+     * Whether the effective request size came from the truncation cap (no {@code WITH {"size"}} and no pushed
+     * {@code LIMIT}) — the only case where a full response may be silently incomplete, so the caller warns on it.
+     */
+    public static boolean usesTruncationCapSize(Map<String, Object> options, Integer pushedLimit) {
+        return hasExplicitSize(options) == false && pushedLimit == null;
+    }
+
+    /** Whether {@code WITH {"size": N}} was supplied — the single source of truth for the size-override check. */
+    private static boolean hasExplicitSize(Map<String, Object> options) {
+        return options.get("size") instanceof Number;
     }
 
     /** One fetch entry per mapped field column; synthetics ({@code ReferenceAttribute}) and unsupported columns are skipped. */
@@ -71,8 +98,8 @@ public final class EqlRequests {
     }
 
     private static void applyOptional(EqlSearchRequest request, Map<String, Object> options) {
-        if (options.get("size") instanceof Number size) {
-            request.size(size.intValue());
+        if (hasExplicitSize(options)) {
+            request.size(((Number) options.get("size")).intValue());
         }
         if (options.get("fetch_size") instanceof Number fetchSize) {
             request.fetchSize(fetchSize.intValue());

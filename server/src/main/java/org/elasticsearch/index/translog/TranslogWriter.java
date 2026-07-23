@@ -13,6 +13,7 @@ import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -43,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.zip.CRC32;
 
@@ -68,8 +69,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier minTranslogGenerationSupplier;
 
-    // callback that's called whenever an operation with a given sequence number is successfully persisted.
-    private final LongConsumer persistedSequenceNumberConsumer;
+    // callback that's called whenever some operations with the given sequence numbers are successfully persisted
+    private final Consumer<LongsRef> persistedSequenceNumbersConsumer;
     private final OperationListener operationListener;
     private final TranslogOperationAsserter operationAsserter;
     private final boolean fsync;
@@ -107,7 +108,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         LongSupplier minTranslogGenerationSupplier,
         TranslogHeader header,
         TragicExceptionHolder tragedy,
-        LongConsumer persistedSequenceNumberConsumer,
+        Consumer<LongsRef> persistedSequenceNumbersConsumer,
         BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
@@ -134,7 +135,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.persistedSequenceNumbersConsumer = persistedSequenceNumbersConsumer;
         this.bigArrays = bigArrays;
         this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
@@ -158,7 +159,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         LongSupplier minTranslogGenerationSupplier,
         long primaryTerm,
         TragicExceptionHolder tragedy,
-        LongConsumer persistedSequenceNumberConsumer,
+        Consumer<LongsRef> persistedSequenceNumbersConsumer,
         BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
@@ -203,7 +204,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 minTranslogGenerationSupplier,
                 header,
                 tragedy,
-                persistedSequenceNumberConsumer,
+                persistedSequenceNumbersConsumer,
                 bigArrays,
                 diskIoBufferPool,
                 operationListener,
@@ -582,7 +583,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     if (flushedSequenceNumbers != null) {
-                        flushedSequenceNumbers.forEach(cursor -> persistedSequenceNumberConsumer.accept(cursor.value));
+                        persistedSequenceNumbersConsumer.accept(
+                            new LongsRef(flushedSequenceNumbers.buffer, 0, flushedSequenceNumbers.size())
+                        );
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
                         : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;

@@ -409,7 +409,13 @@ class ImplClassWriter {
     // Method body generation
     // -------------------------------------------------------------------------
 
-    private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm, String fieldName, String libraryPrefix) {
+    private static void emitNativeFunctionMethod(
+        ClassBuilder cb,
+        ClassDesc generatedDesc,
+        MethodModel nm,
+        String fieldName,
+        String libraryPrefix
+    ) {
         int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
         cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm, libraryPrefix), accessFlag, code -> {
             emitBoundsChecks(code, generatedDesc, nm);

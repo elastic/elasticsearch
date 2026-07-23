@@ -26,6 +26,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -120,7 +122,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        final BatchMappingContext ctx = BatchMappingContext.fromRequests(requests, mappingLookup, mapperService.getIndexSettings());
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(IndexOperationBatch.initFromRequests(requests), mappingLookup, indexSettings);
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.

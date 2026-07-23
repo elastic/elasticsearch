@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.index.IndexSettings;
@@ -21,8 +20,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
-
-import java.io.IOException;
 
 /**
  * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
@@ -102,7 +99,7 @@ public final class ShardBatchMapper {
             final FieldMapper fieldMapper = (FieldMapper) resolved;
 
             if (fieldMapper.supportsBatchIndexing() == false) {
-                logger.info(
+                logger.debug(
                     "batch indexing disabled: mapper at [{}] of type [{}] does not support batch indexing",
                     fullPath,
                     fieldMapper.typeName()
@@ -139,48 +136,10 @@ public final class ShardBatchMapper {
     }
 
     /**
-     * Creates a {@link BatchMappingContext} pre-populated with the columns that the sorted
-     * metadata mappers produce via their {@code preColumnarParse} and {@code postColumnarParse}
-     * hooks. Field-mapper columns are NOT registered — those require the full ESCF schema and are
-     * a work in progress.
-     *
-     * <p>The returned context is not yet frozen: callers may attach additional columns via
-     * {@link BatchMappingContext#addColumn} before finalising with
-     * {@link BatchMappingContext#columns()}.
-     *
-     * <p>Intended for use in tests that exercise the engine batch path before full field-mapper
-     * columnar support is available.
-     */
-    public static BatchMappingContext buildMetadataContext(
-        int docCount,
-        IndexSettings indexSettings,
-        MappingLookup mappingLookup,
-        BytesRef[] uids
-    ) throws IOException {
-        final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-        final IndexOperationBatch metaBatch = IndexOperationBatch.metadataOnly(docCount, uids);
-        final BatchMappingContext context = new BatchMappingContext(metaBatch, indexSettings);
-        for (MetadataFieldMapper mapper : metadataMappers) {
-            mapper.preColumnarParse(context);
-        }
-        for (MetadataFieldMapper mapper : metadataMappers) {
-            mapper.postColumnarParse(context);
-        }
-        return context;
-    }
-
-    /**
      * Executes the columnar batch-mapping fast path for one chunk. Returns {@code null} (the
      * fallback signal — same contract as {@link #resolveMappers}) if any resolved field mapper or
      * any sorted metadata mapper does not support columnar parsing, or if mapping hits an
      * unexpected exception.
-     *
-     * <p>When {@code origin} is {@link Engine.Operation.Origin#PRIMARY}, each {@link Engine.Index}
-     * operation is built with {@code UNASSIGNED_SEQ_NO} and version/versionType from the request,
-     * leaving seq-no and version assignment to the engine. When {@code origin} is
-     * {@link Engine.Operation.Origin#REPLICA}, the pre-assigned values from the primary response
-     * ({@code _seq_no}, {@code _primary_term}, {@code _version}) are used instead; the caller
-     * must ensure every item in {@code [chunkStart, chunkEnd)} has a successful primary response.
      */
     public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
@@ -211,7 +170,6 @@ public final class ShardBatchMapper {
             }
         }
 
-        final int docCount = chunkEnd - chunkStart;
         final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
             items,
             chunkStart,

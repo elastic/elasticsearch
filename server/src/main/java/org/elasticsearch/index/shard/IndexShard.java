@@ -1160,14 +1160,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
-        // TODO: Add a batch-aware preIndex/postIndex listener API. Per-op Index listener rewrites
-        // are not supported for the batch path (the flat batch cannot be reconstructed from rewritten
-        // Engine.Index ops). Stats and other listeners will need dedicated batch hooks.
+        final List<Engine.Index> ops = batch.batch().materializeIndexOps();
+        // TODO: Per-op listener rewrites are not honored in the batch path; a future batch-aware
+        // listener API (preIndexBatch/postIndexBatch) will handle this properly.
+        final Engine.Index[] preOps = new Engine.Index[ops.size()];
+        for (int i = 0; i < ops.size(); i++) {
+            preOps[i] = indexingOperationListeners.preIndex(shardId, ops.get(i));
+        }
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(batch);
+            final List<Engine.IndexResult> results = engine.indexBatch(batch);
             active.set(true);
+            for (int i = 0; i < results.size(); i++) {
+                indexingOperationListeners.postIndex(shardId, preOps[i], results.get(i));
+            }
             return results;
         } catch (Exception e) {
+            for (Engine.Index preOp : preOps) {
+                indexingOperationListeners.postIndex(shardId, preOp, e);
+            }
             throw e;
         }
     }

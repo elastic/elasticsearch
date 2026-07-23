@@ -114,9 +114,9 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -242,11 +242,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     /**
-     * Builds an {@link EngineBatch} for the given operations and source batch. Uses
-     * {@link ShardBatchMapper#buildMetadataContext} to produce correctly-typed metadata columns
-     * ({@code _version}, {@code _seq_no}, {@code _primary_term}, {@code _id}), then adds a stub
-     * {@code _source} stored-field column so that {@code LuceneChangesSnapshot} can verify history
-     * consistency in teardown assertions.
+     * Builds an {@link EngineBatch} for the given operations and source batch.
      *
      * <p>TODO: Remove the manual {@code _source} column once {@link SourceFieldMapper} implements
      * the columnar-parse hooks ({@code preColumnarParse} / {@code postColumnarParse}) for the
@@ -259,13 +255,12 @@ public class InternalEngineTests extends EngineTestCase {
         // by reference between the IndexOperationBatch and the MappedColumns, so engine stamping via
         // MappedColumns.setSeqNo is immediately visible via IndexOperationBatch.seqNo().
         final IndexOperationBatch indexBatch = IndexOperationBatch.fromIndexOps(operations, batch);
-        final org.elasticsearch.index.mapper.MetadataFieldMapper[] metadataMappers = mapperService.mappingLookup()
-            .getSortedMetadataMappers();
+        final MetadataFieldMapper[] metadataMappers = mapperService.mappingLookup().getSortedMetadataMappers();
         final BatchMappingContext ctx = new BatchMappingContext(indexBatch, mapperService.mappingLookup(), defaultSettings);
-        for (org.elasticsearch.index.mapper.MetadataFieldMapper mapper : metadataMappers) {
+        for (MetadataFieldMapper mapper : metadataMappers) {
             mapper.preColumnarParse(ctx);
         }
-        for (org.elasticsearch.index.mapper.MetadataFieldMapper mapper : metadataMappers) {
+        for (MetadataFieldMapper mapper : metadataMappers) {
             mapper.postColumnarParse(ctx);
         }
         BytesRef[] sources = new BytesRef[n];

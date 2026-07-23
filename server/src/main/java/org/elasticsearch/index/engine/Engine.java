@@ -1979,10 +1979,6 @@ public abstract class Engine implements Closeable {
         /** Number of Lucene documents reserved or written for this op. Always 1 on the batch path. */
         int reservingDocs();
 
-        /**
-         * Brief description for error messages (id-only on the batch path; full parsedDoc description
-         * on the row path).
-         */
         String documentDescription();
     }
 

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -59,29 +58,11 @@ public final class BatchMappingContext {
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
-    /**
-     * Metadata-only constructor used by {@link ShardBatchMapper#buildMetadataContext}. The
-     * resulting context has no mapping lookup or field-names mapper; callers must only invoke methods
-     * that do not access those (i.e. the metadata mapper columnar-parse hooks). The underlying
-     * {@code batch} should be a {@link IndexOperationBatch#metadataOnly(int, BytesRef[])} instance
-     * so that {@link ProvidedIdFieldMapper} can attach its {@code _id} column.
-     */
     BatchMappingContext(IndexOperationBatch batch, IndexSettings indexSettings) {
         this.batch = batch;
         this.mappingLookup = null;
         this.indexSettings = indexSettings;
         this.fieldNamesFieldMapper = null;
-    }
-
-    /**
-     * Convenience factory for mapper unit tests that exercise the columnar metadata-mapper hooks
-     * directly against a set of {@link IndexRequest}s. Equivalent to:
-     * <pre>
-     *   new BatchMappingContext(IndexOperationBatch.initFromRequests(requests), mappingLookup, indexSettings)
-     * </pre>
-     */
-    public static BatchMappingContext fromRequests(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
-        return new BatchMappingContext(IndexOperationBatch.initFromRequests(requests), mappingLookup, indexSettings);
     }
 
     public MappingLookup mappingLookup() {

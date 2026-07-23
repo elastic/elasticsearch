@@ -1175,10 +1175,6 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private static boolean assertNoMixedRecoveryOperations(IndexOperationBatch batch) {
-        return true; // batch.origin() is uniform; no per-op check needed
-    }
-
     private boolean assertIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         if (origin == Operation.Origin.PRIMARY) {
             assert assertPrimaryIncomingSequenceNumber(origin, seqNo);
@@ -1547,7 +1543,6 @@ public class InternalEngine extends Engine {
         final IndexOperationBatch indexBatch = engineBatch.batch();
         final IndexOperationBatch subBatch = indexBatch.slice(subBatchIdx, subBatchIdx + subBatchSize);
         final boolean fromTranslog = subBatch.origin().isFromTranslog();
-        assert assertNoMixedRecoveryOperations(indexBatch);
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
         // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
         final long[] assignedSeqNos = new long[subBatchSize];

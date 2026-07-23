@@ -17,9 +17,6 @@ import org.elasticsearch.sourcebatch.MappedColumns;
  * column data ({@link MappedColumns}) for the columnar write path.
  *
  * @param batch   the flattened per-document operation data (uids, sources, seq_no byte arrays, etc.)
- * @param columns the assembled {@link MappedColumns} whose seqNo/primaryTerm/version byte arrays are
- *                aliased by reference from {@code batch}, so engine writes via
- *                {@link MappedColumns#setSeqNo}/{@link MappedColumns#fillPrimaryTerm}/
- *                {@link MappedColumns#setVersion} are immediately visible to the Lucene columns.
+ * @param columns the assembled {@link MappedColumns}.
  */
 public record EngineBatch(IndexOperationBatch batch, MappedColumns columns) {}

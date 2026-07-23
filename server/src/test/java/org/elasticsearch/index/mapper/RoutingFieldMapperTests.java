@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -333,11 +334,9 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         IndexRequest[] requests = new IndexRequest[] {
             new IndexRequest("index").id("1").routing("route-a"),
             new IndexRequest("index").id("2") };
-        BatchMappingContext context = BatchMappingContext.fromRequests(
-            requests,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings()
-        );
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        BatchMappingContext context = new BatchMappingContext(IndexOperationBatch.initFromRequests(requests), mappingLookup, indexSettings);
 
         mapper.preColumnarParse(context);
 

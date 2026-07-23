@@ -15,6 +15,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
@@ -49,11 +51,9 @@ public class SeqNoFieldMapperTests extends MetadataMapperTestCase {
         assertTrue("supportsColumnarParse must be true for _seq_no", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
-        BatchMappingContext context = BatchMappingContext.fromRequests(
-            requests,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings()
-        );
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        BatchMappingContext context = new BatchMappingContext(IndexOperationBatch.initFromRequests(requests), mappingLookup, indexSettings);
 
         mapper.postColumnarParse(context);
 

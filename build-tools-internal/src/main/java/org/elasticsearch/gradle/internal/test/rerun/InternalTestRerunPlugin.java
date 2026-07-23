@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Gradle plugin that implements smart test retries by skipping test tasks and
@@ -50,6 +51,19 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
     // Guard against OOM: the entire file is read into memory and held for the whole build in the long-lived Gradle daemon.
     private static final long MAX_JSON_FILE_SIZE = 100 * 1024 * 1024;
+
+    /**
+     * Test tasks running stateful, order-dependent parameterized suites: rolling-upgrade and full-cluster-restart
+     * tasks ({@code v8.19.2#bwcTest}, {@code bcUpgradeTest}, {@code luceneBwcTest}). Each of their test classes
+     * drives a shared cluster through a fixed upgrade sequence, with earlier parameterized variants (e.g.
+     * {@code {upgradedNodes=0}}) creating cluster state that later variants assert on. Excluding individually
+     * passing tests from a rerun of such a task breaks that chain: the remaining variant runs against a fresh
+     * cluster that never had the earlier variants' state and fails deterministically, so the retry can never
+     * succeed. These tasks are instead retried at suite granularity - fully successful tasks are still skipped
+     * and fully successful suites are still excluded (each suite provisions its own cluster), but a suite with
+     * any failed test reruns in its entirety.
+     */
+    private static final Pattern STATEFUL_UPGRADE_TASK_NAMES = Pattern.compile("v[0-9.]+#bwcTest|bcUpgradeTest|luceneBwcTest");
 
     @Override
     public void apply(Project project) {
@@ -82,7 +96,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         }
 
         List<String> suitesToExclude = testsBuildServiceProvider.get().getSuccessfulSuitesForTask(test.getPath());
-        List<String> testsToExclude = testsBuildServiceProvider.get().getSuccessfulTestsForTask(test.getPath());
+        List<String> testsToExclude = testsToExclude(test, testsBuildServiceProvider.get());
         if (suitesToExclude.isEmpty() == false || testsToExclude.isEmpty() == false) {
             test.getLogger()
                 .lifecycle(
@@ -109,6 +123,28 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         } else {
             test.getLogger().lifecycle("Smart retry: running all tests for {} (not confirmed successful in previous run)", test.getPath());
         }
+    }
+
+    /**
+     * The individually passing tests to exclude from a rerun of the given task, or an empty list for
+     * {@link #STATEFUL_UPGRADE_TASK_NAMES stateful upgrade tasks}, whose suites must rerun in their entirety.
+     */
+    private static List<String> testsToExclude(Test test, RetryTestsBuildService retryTestsBuildService) {
+        List<String> successfulTests = retryTestsBuildService.getSuccessfulTestsForTask(test.getPath());
+        if (successfulTests.isEmpty() == false && isStatefulUpgradeTask(test.getName())) {
+            test.getLogger()
+                .lifecycle(
+                    "Smart retry: not excluding {} individually passing tests from {} (stateful upgrade task, rerunning whole suites)",
+                    successfulTests.size(),
+                    test.getPath()
+                );
+            return List.of();
+        }
+        return successfulTests;
+    }
+
+    static boolean isStatefulUpgradeTask(String taskName) {
+        return STATEFUL_UPGRADE_TASK_NAMES.matcher(taskName).matches();
     }
 
     public abstract static class RetryTestsBuildService implements BuildService<RetryTestsBuildService.Params> {

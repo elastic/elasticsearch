@@ -182,6 +182,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected String getTestRestCluster() {
+        // After a failed upgrade the cluster typically has a node that was stopped but never came back, and reading
+        // its HTTP address would fail every remaining test in the class with a misleading infrastructure error
+        // ("Elasticsearch process died while waiting for ports file") attributed to tests that never got to run.
+        // The upgradeFailed guard in upgradeNode() cannot cover this: this method runs earlier, during the
+        // superclass' @Before initClient(). Skip the test here instead, leaving the upgrade failure as the only
+        // reported one.
+        assumeFalse("Cluster upgrade failed", upgradeFailed);
         return getUpgradeCluster().getHttpAddresses();
     }
 

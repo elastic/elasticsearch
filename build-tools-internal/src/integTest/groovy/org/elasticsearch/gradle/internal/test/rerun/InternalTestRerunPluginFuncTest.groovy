@@ -125,6 +125,47 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
     }
 
+    def "reruns whole suites of stateful upgrade tasks instead of excluding individual tests"() {
+        given:
+        simpleTestSetup()
+        buildFile << """
+        project(':subproject2') {
+            tasks.register("v1.2.3#bwcTest", Test) {
+                testClassesDirs = sourceSets.test.output.classesDirs
+                classpath = sourceSets.test.runtimeClasspath
+                testLogging {
+                    events("started", "skipped")
+                }
+            }
+        }
+        """
+        // TestClazz1 passed someTest1 but failed someTest2; TestClazz2 passed entirely.
+        file(".failed-test-history.json") << '''
+{
+  "successfulTasks": [],
+  "successfulSuites": {
+    ":subproject2:v1.2.3#bwcTest": ["org.acme.SubProject2TestClazz2"]
+  },
+  "successfulTests": {
+    ":subproject2:v1.2.3#bwcTest": ["org.acme.SubProject2TestClazz1#someTest1"]
+  }
+}'''
+
+        when:
+        def result = gradleRunner(":subproject2:v1.2.3#bwcTest", "--warning-mode", "all").build()
+
+        then:
+        result.task(":subproject2:v1.2.3#bwcTest").outcome == TaskOutcome.SUCCESS
+        result.output.contains("stateful upgrade task, rerunning whole suites")
+        // the fully successful suite is still excluded...
+        result.output.contains("excluding 1 successful suites and 0 successful tests")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+        // ...but the suite with a failure reruns in its entirety, including its passing test
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+    }
+
     def "handles malformed failed-test-history gracefully"() {
         given:
         simpleTestSetup()

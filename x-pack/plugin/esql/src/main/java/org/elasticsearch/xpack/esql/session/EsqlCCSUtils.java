@@ -103,8 +103,7 @@ public class EsqlCCSUtils {
                             Map.of(),
                             configuration,
                             DriverCompletionInfo.EMPTY,
-                            executionInfo,
-                            false
+                            executionInfo
                         ),
                         TransportVersion.current()
                     )

@@ -2966,8 +2966,8 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
 
         /**
-         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads all unmapped source fields and expands each
-         * unmapped field into its own dedicated {@code keyword} output column.
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
+         * {@code keyword} output column without requiring each field to be referenced in the query.
          */
         OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
 

@@ -57,8 +57,23 @@ class ExpandUnmappedFieldsPostProcessor {
             return result;
         }
 
-        // Pass 1 — collect all unique field names (sorted) across all pages.
-        TreeSet<String> fieldNamesSet = new TreeSet<>();
+        List<String> sortedFieldNames = collectFieldNames(result, unmappedIdx);
+        List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
+        List<Page> newPages = rewritePages(result, unmappedIdx, newSchema, sortedFieldNames, blockFactory);
+
+        return new Result(
+            newSchema,
+            newPages,
+            result.attributeMetadata(),
+            result.configuration(),
+            result.completionInfo(),
+            result.executionInfo()
+        );
+    }
+
+    /** Pass 1 — collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages. */
+    private static List<String> collectFieldNames(Result result, int unmappedIdx) {
+        TreeSet<String> fieldNames = new TreeSet<>();
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
             BytesRefBlock unmappedBlock = (BytesRefBlock) page.getBlock(unmappedIdx);
@@ -66,14 +81,14 @@ class ExpandUnmappedFieldsPostProcessor {
                 if (unmappedBlock.isNull(row)) {
                     continue;
                 }
-                BytesRef jsonRef = unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
-                Map<String, Object> parsed = parseJson(jsonRef);
-                fieldNamesSet.addAll(parsed.keySet());
+                fieldNames.addAll(parseJson(unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch)).keySet());
             }
         }
-        List<String> sortedFieldNames = new ArrayList<>(fieldNamesSet);
+        return new ArrayList<>(fieldNames);
+    }
 
-        // Build the new schema: all columns except _unmapped_fields, then one column per field name.
+    /** Builds the expanded schema: every column except {@code _unmapped_fields}, then one keyword column per field name. */
+    private static List<Attribute> buildSchema(List<Attribute> schema, int unmappedIdx, List<String> sortedFieldNames) {
         List<Attribute> newSchema = new ArrayList<>(schema.size() - 1 + sortedFieldNames.size());
         for (int i = 0; i < schema.size(); i++) {
             if (i != unmappedIdx) {
@@ -83,28 +98,37 @@ class ExpandUnmappedFieldsPostProcessor {
         for (String name : sortedFieldNames) {
             newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
         }
+        return newSchema;
+    }
 
-        // Pass 2 — rewrite pages.
+    /** Pass 2 — rewrite each page, replacing the {@code _unmapped_fields} block with one block per expanded field name. */
+    private static List<Page> rewritePages(
+        Result result,
+        int unmappedIdx,
+        List<Attribute> newSchema,
+        List<String> sortedFieldNames,
+        BlockFactory blockFactory
+    ) {
+        int columnCount = result.schema().size();
         List<Page> newPages = new ArrayList<>(result.pages().size());
+        BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
             int rowCount = page.getPositionCount();
             BytesRefBlock unmappedBlock = (BytesRefBlock) page.getBlock(unmappedIdx);
 
-            // Parse all rows once.
             List<Map<String, Object>> rowMaps = new ArrayList<>(rowCount);
             for (int row = 0; row < rowCount; row++) {
-                if (unmappedBlock.isNull(row)) {
-                    rowMaps.add(Map.of());
-                } else {
-                    BytesRef jsonRef = unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
-                    rowMaps.add(parseJson(jsonRef));
-                }
+                rowMaps.add(
+                    unmappedBlock.isNull(row)
+                        ? Map.of()
+                        : parseJson(unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch))
+                );
             }
 
             // Collect blocks from original page, skipping the _unmapped_fields block.
             Block[] allBlocks = new Block[newSchema.size()];
             int dest = 0;
-            for (int i = 0; i < schema.size(); i++) {
+            for (int i = 0; i < columnCount; i++) {
                 if (i != unmappedIdx) {
                     page.getBlock(i).incRef();
                     allBlocks[dest++] = page.getBlock(i);
@@ -119,8 +143,7 @@ class ExpandUnmappedFieldsPostProcessor {
                         if (val == null) {
                             builder.appendNull();
                         } else {
-                            String str = val instanceof String s ? s : String.valueOf(val);
-                            builder.appendBytesRef(new BytesRef(str));
+                            builder.appendBytesRef(new BytesRef(val instanceof String s ? s : String.valueOf(val)));
                         }
                     }
                     allBlocks[dest++] = builder.build();
@@ -133,16 +156,7 @@ class ExpandUnmappedFieldsPostProcessor {
             // the circuit breaker; the surviving blocks were protected by incRef above.
             page.releaseBlocks();
         }
-
-        return new Result(
-            newSchema,
-            newPages,
-            result.attributeMetadata(),
-            result.configuration(),
-            result.completionInfo(),
-            result.executionInfo(),
-            false
-        );
+        return newPages;
     }
 
     private static Map<String, Object> parseJson(BytesRef ref) {

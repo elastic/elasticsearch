@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.regex.Regex;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,8 +36,11 @@ import java.util.List;
  */
 public record UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
 
+    /** Wildcard pattern matching every field name. */
+    public static final String MATCH_ALL = "*";
+
     /** Keep every additional source field (no filtering applied). */
-    public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(List.of("*"), List.of());
+    public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(List.of(MATCH_ALL), List.of());
 
     /** Keep no additional source fields. */
     public static final UnmappedFieldsPattern NONE = new UnmappedFieldsPattern(List.of(), List.of());
@@ -47,7 +52,18 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
 
     /** True if the includes impose no restriction (the wildcard {@code "*"}, as in {@link #ALL}). */
     public boolean includesAllFields() {
-        return includes.equals(List.of("*"));
+        return includes.equals(List.of(MATCH_ALL));
+    }
+
+    /**
+     * Whether a candidate additional source field {@code name} survives this pattern: the includes must
+     * impose a restriction (be non-empty), {@code name} must match none of the excludes, and it must match
+     * every include (AND semantics, see the class javadoc).
+     */
+    public boolean matches(String name) {
+        return includes.isEmpty() == false
+            && excludes.stream().noneMatch(exclude -> Regex.simpleMatch(exclude, name))
+            && includes.stream().allMatch(include -> Regex.simpleMatch(include, name));
     }
 
     /** Returns a new pattern with {@code names} appended to the excludes list, deduplicating. */

@@ -12,10 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,14 +27,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@link MetadataAttribute} that represents the synthetic {@code _unmapped_fields} column
- * produced when {@code SET unmapped_fields="LOAD_ALL"} is in effect.
+ * The synthetic {@code _unmapped_fields} column produced when {@code SET unmapped_fields="LOAD_ALL"}
+ * is in effect.
  *
  * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
  * Finish Analysis batch. The carried {@link UnmappedFieldsPattern} describes which additional
  * (currently unmapped) source fields are loaded into the JSON object value of the column.
  */
-public final class UnmappedFieldsAttribute extends MetadataAttribute {
+public final class UnmappedFieldsAttribute extends TypedAttribute {
 
     public static final String ATTRIBUTE_NAME = "_unmapped_fields";
 
@@ -57,7 +57,7 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
     private final UnmappedFieldsPattern pattern;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
-        super(source, ATTRIBUTE_NAME, DataType.KEYWORD, false);
+        super(source, ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.TRUE, null, false);
         this.pattern = pattern;
     }
 
@@ -69,7 +69,7 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
         boolean synthetic,
         UnmappedFieldsPattern pattern
     ) {
-        super(source, ATTRIBUTE_NAME, type, nullability, id, synthetic, false);
+        super(source, ATTRIBUTE_NAME, type, nullability, id, synthetic);
         this.pattern = pattern;
     }
 
@@ -110,6 +110,21 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    protected String label() {
+        return "m";
+    }
+
+    @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return false;
     }
 
     @Override

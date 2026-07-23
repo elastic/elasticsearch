@@ -30,9 +30,6 @@ import java.util.Map;
  * @param configuration     The configuration used during the execution of this query.
  * @param completionInfo    Information collected from drivers after they've been completed.
  * @param executionInfo     Metadata about the execution of this query. Used for cross cluster queries.
- * @param toExpand          Whether the coordinator should expand the {@code _unmapped_fields} column
- *                          into per-field columns before returning the response. Set when
- *                          {@code SET unmapped_fields="LOAD_ALL"} is in effect.
  */
 public record Result(
     List<Attribute> schema,
@@ -40,8 +37,7 @@ public record Result(
     Map<NameId, Map<String, Object>> attributeMetadata,
     Configuration configuration,
     DriverCompletionInfo completionInfo,
-    @Nullable EsqlExecutionInfo executionInfo,
-    boolean toExpand
+    @Nullable EsqlExecutionInfo executionInfo
 ) {
 
     @Nullable

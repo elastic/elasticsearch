@@ -467,14 +467,7 @@ public class EsqlSession {
                             );
                         })
                         .<Versioned<Result>>andThen(
-                            (l, r) -> l.onResponse(
-                                attachMetadataAndVersion(
-                                    r,
-                                    columnMetadata.get(),
-                                    minimumVersion,
-                                    unmappedResolution == UnmappedResolution.LOAD_ALL
-                                )
-                            )
+                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
                         )
                         .addListener(listener);
                 }
@@ -596,8 +589,7 @@ public class EsqlSession {
     private static Versioned<Result> attachMetadataAndVersion(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
-        TransportVersion minimumVersion,
-        boolean toExpand
+        TransportVersion minimumVersion
     ) {
         return new Versioned<>(
             new Result(
@@ -606,8 +598,7 @@ public class EsqlSession {
                 columnMetadata,
                 result.configuration(),
                 result.completionInfo(),
-                result.executionInfo(),
-                toExpand
+                result.executionInfo()
             ),
             minimumVersion
         );
@@ -976,7 +967,7 @@ public class EsqlSession {
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
                             reconcileCapturedSourceStats(merged);
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, false)
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );
                         })
                     );

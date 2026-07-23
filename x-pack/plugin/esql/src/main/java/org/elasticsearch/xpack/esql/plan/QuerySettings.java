@@ -123,19 +123,18 @@ public class QuerySettings {
         false,
         (value, ctx) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
-            UnmappedResolution parsed;
             try {
-                parsed = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                UnmappedResolution parsed = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                if (parsed == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false) {
+                    return "unmapped_fields value [" + resolution + "] requires a snapshot build";
+                }
+                return null;
             } catch (Exception exc) {
                 return "Invalid unmapped_fields resolution ["
                     + resolution
                     + "], must be one of "
                     + Arrays.toString(UnmappedResolution.values());
             }
-            if (parsed == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false) {
-                return "unmapped_fields value [" + resolution + "] requires a snapshot build";
-            }
-            return null;
         },
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");

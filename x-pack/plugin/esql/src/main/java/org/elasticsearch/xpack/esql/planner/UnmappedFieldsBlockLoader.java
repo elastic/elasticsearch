@@ -12,7 +12,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
@@ -98,33 +97,15 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
             Map<String, Object> sourceMap = XContentHelper.convertToMap(source.internalSourceRef(), false, source.sourceContentType()).v2();
-            TreeMap<String, Object> filtered = new TreeMap<>();
-            for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                if (included(entry.getKey())) {
-                    filtered.put(entry.getKey(), entry.getValue());
-                }
-            }
+            // Not Collectors.toMap: _source may carry null values, which its merge function rejects.
+            TreeMap<String, Object> filtered = sourceMap.entrySet()
+                .stream()
+                .filter(entry -> pattern.matches(entry.getKey()))
+                .collect(TreeMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()), TreeMap::putAll);
             try (XContentBuilder json = XContentFactory.jsonBuilder()) {
                 json.map(filtered);
                 ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
             }
-        }
-
-        private boolean included(String fieldName) {
-            if (pattern.includes().isEmpty()) {
-                return false;
-            }
-            for (String exclude : pattern.excludes()) {
-                if (Regex.simpleMatch(exclude, fieldName)) {
-                    return false;
-                }
-            }
-            for (String include : pattern.includes()) {
-                if (Regex.simpleMatch(include, fieldName) == false) {
-                    return false;
-                }
-            }
-            return true;
         }
 
         @Override

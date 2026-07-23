@@ -11,12 +11,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -59,10 +59,7 @@ public class ResolvingProject extends Project {
         if (unmappedAttrs.isEmpty()) {
             return resolved;
         }
-        List<NamedExpression> combined = new ArrayList<>(resolved.size() + unmappedAttrs.size());
-        combined.addAll(resolved);
-        combined.addAll(unmappedAttrs);
-        return combined;
+        return CollectionUtils.combine(resolved, unmappedAttrs);
     }
 
     private ResolvingProject(
@@ -95,11 +92,6 @@ public class ResolvingProject extends Project {
         return unmappedFieldsPattern;
     }
 
-    /**
-     * Static factory used by {@link NodeInfo} so that {@code projections()} is included as a
-     * property. This lets {@link org.elasticsearch.xpack.esql.core.tree.NodeInfo#transform} visit
-     * expressions inside the projections (needed by ResolveRefs).
-     */
     private static ResolvingProject create(
         Source source,
         LogicalPlan child,

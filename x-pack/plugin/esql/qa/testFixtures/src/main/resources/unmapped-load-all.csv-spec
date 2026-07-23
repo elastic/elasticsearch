@@ -1,10 +1,4 @@
 ############################
-# LOAD_ALL mode — loads all unmapped source fields and expands each into its own keyword column.
-# The _unmapped_fields column itself is suppressed; one dedicated column per unique field name is
-# appended at the end of the schema in alphabetical order.
-############################
-
-############################
 # Baseline: all unmapped fields expanded
 ############################
 
@@ -26,7 +20,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-keepStar
+keepStarIsIdempotent
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -64,6 +58,27 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | DISCONNECTED FROM 10.1.0.1      | 1                     | a                       | 1756468
 ;
 
+// EVAL shadows an unmapped source field name without referencing it (assigns a literal): the shadowed
+// field becomes a regular output column and is excluded from expansion.
+evalShadowsUnmappedFieldWithLiteral
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL unmapped_message = "x"
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | x                        | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | x                        | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | x                        | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | x                        | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | x                        | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | x                        | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | x                        | 1                     | a                       | 1756468
+;
+
 keepUnmappedFieldByName
 required_capability: optional_fields_load_all
 
@@ -81,6 +96,23 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | Disconnection error
 2024-10-23T13:53:55.832Z | Disconnection error
 2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
+;
+
+// KEEP a field that is present in neither the mapping nor _source: it is demand-loaded as a null keyword column.
+keepFieldAbsentFromSource
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, does_not_exist
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | does_not_exist:keyword
+2024-10-23T12:15:03.360Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T13:33:34.937Z | null
 ;
 
 ############################
@@ -104,6 +136,23 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
 2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// DROP a field that is present in neither the mapping nor _source: a no-op, all unmapped fields still expand.
+dropFieldAbsentFromSource
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP does_not_exist
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
 ;
 
 whereReducesDocumentSet
@@ -259,4 +308,50 @@ FROM cross_mapping_a, cross_mapping_b METADATA _index
 bar:keyword | foo:keyword | _index:keyword
 b1          | a1          | cross_mapping_a
 b2          | a2          | cross_mapping_b
+;
+
+// (gap): a KEEP wildcard that only matches unmapped source fields throws
+// "No matches found for pattern [unmapped_*]" because unmapped fields are not yet visible to the
+// analyzer as columns (expansion happens after analysis). Intended: keep @timestamp plus every
+// unmapped source field matching unmapped_* (unmapped.nested does not match the underscore).
+keepUnmappedWildcardPrefix
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_*
+| SORT @timestamp
+;
+
+@timestamp:datetime      | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// (gap): a DROP pattern that only matches unmapped source fields throws
+// "No matches found for pattern [unmapped_*]" for the same reason as keepUnmappedWildcardPrefix.
+// Intended: exclude the unmapped source fields matching unmapped_* from expansion, leaving
+// unmapped.nested (which does not match the underscore).
+dropUnmappedByPattern
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP unmapped_*
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a
 ;

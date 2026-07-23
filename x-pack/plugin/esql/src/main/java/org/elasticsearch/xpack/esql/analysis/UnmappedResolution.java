@@ -31,9 +31,8 @@ public enum UnmappedResolution {
     LOAD,
 
     /**
-     * Load all source fields that are not present in the index mapping, without requiring individual unmapped fields to be
-     * referenced in the query. Each unique unmapped field name is expanded into its own dedicated {@code keyword} output column on
-     * the coordinator; the intermediate {@code _unmapped_fields} JSON column used to carry the values is suppressed from the result.
+     * Load every source field that is not present in the index mapping, without requiring each unmapped field to be
+     * referenced in the query. Each such field becomes its own {@code keyword} output column.
      */
     LOAD_ALL
 }

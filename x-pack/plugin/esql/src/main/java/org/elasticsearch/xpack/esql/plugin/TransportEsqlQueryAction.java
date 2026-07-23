@@ -458,9 +458,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
         var rawResult = versionedResult.inner();
-        var result = rawResult.toExpand()
-            ? ExpandUnmappedFieldsPostProcessor.expand(rawResult, services.blockFactoryProvider().blockFactory())
-            : rawResult;
+        // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e. unmapped_fields="LOAD_ALL").
+        var result = ExpandUnmappedFieldsPostProcessor.expand(rawResult, services.blockFactoryProvider().blockFactory());
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {

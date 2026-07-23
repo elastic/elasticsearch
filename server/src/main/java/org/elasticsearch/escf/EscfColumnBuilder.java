@@ -35,11 +35,10 @@ import java.util.List;
  */
 final class EscfColumnBuilder {
 
+    /** Sentinel for an array column whose child kind has not yet been resolved (only empty arrays seen so far). */
+    private static final byte UNSET_ARRAY_KIND = -1;
     /** Sentinel returned by {@link #arrayChildKind} for arrays that aren't a single fixed primitive kind. */
-    private static final byte NO_CHILD_KIND = -1;
-
-    /** Sentinel returned by {@link #arrayChildKind} for empty arrays (zero elements, compatible with any child kind). */
-    private static final byte EMPTY_ARRAY_CHILD = -2;
+    private static final byte UNION_CHILD_KIND = -2;
 
     private final Recycler<BytesRef> recycler;
     private TypedBuilder current;
@@ -95,15 +94,13 @@ final class EscfColumnBuilder {
      */
     void addArray(byte arrayType, byte[] packed) {
         byte childKind = arrayChildKind(arrayType, packed);
-        if (childKind == NO_CHILD_KIND) {
+        if (childKind == UNION_CHILD_KIND) {
             promoteToUnion();
             current.addInlineArray(arrayType, packed);
             return;
         }
-        // childKind is either EMPTY_ARRAY_CHILD or a concrete kind (LONG, DOUBLE, STRING).
         if (current == null) {
-            byte initialKind = (childKind == EMPTY_ARRAY_CHILD) ? ArrayBuilder.UNSET_KIND : childKind;
-            ArrayBuilder array = new ArrayBuilder(initialKind, recycler);
+            ArrayBuilder array = new ArrayBuilder(childKind, recycler);
             for (int i = 0; i < leadingAbsents; i++) {
                 array.addAbsent();
             }
@@ -112,8 +109,8 @@ final class EscfColumnBuilder {
             array.addColumnarArray(packed);
         } else if (current.kind() == EscfColumnKind.ARRAY) {
             byte currentChildKind = current.childKind();
-            if (childKind == EMPTY_ARRAY_CHILD || currentChildKind == ArrayBuilder.UNSET_KIND || currentChildKind == childKind) {
-                // Empty arrays are compatible with any existing array kind; a concrete kind resolves UNSET.
+            if (childKind == UNSET_ARRAY_KIND || currentChildKind == UNSET_ARRAY_KIND || currentChildKind == childKind) {
+                // Incoming empty (UNSET_ARRAY_KIND) is compatible with any existing kind; a concrete kind resolves an existing UNSET.
                 current.addColumnarArray(packed);
             } else {
                 promoteToUnion();
@@ -200,21 +197,21 @@ final class EscfColumnBuilder {
     }
 
     /**
-     * Returns the fixed columnar child kind for a packed array, {@link #EMPTY_ARRAY_CHILD} for an empty array
-     * (zero elements, compatible with any child kind), or {@link #NO_CHILD_KIND} if the array must go inline.
+     * Returns the fixed columnar child kind for a packed array, {@link #UNSET_ARRAY_KIND} for an empty
+     * array (zero elements, compatible with any child kind), or {@link #UNION_CHILD_KIND} if the array must go inline.
      */
     private static byte arrayChildKind(byte arrayType, byte[] packed) {
         if (packed.length == 0) {
-            return EMPTY_ARRAY_CHILD;
+            return UNSET_ARRAY_KIND;
         }
         if (arrayType != SourceValueType.FIXED_ARRAY) {
-            return NO_CHILD_KIND;
+            return UNION_CHILD_KIND;
         }
         return switch (packed[0]) {
             case SourceValueType.INT, SourceValueType.LONG -> EscfColumnKind.LONG;
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> EscfColumnKind.DOUBLE;
             case SourceValueType.STRING -> EscfColumnKind.STRING;
-            default -> NO_CHILD_KIND;
+            default -> UNION_CHILD_KIND;
         };
     }
 
@@ -517,20 +514,13 @@ final class EscfColumnBuilder {
 
     /**
      * ARRAY: arrays of a single fixed primitive child kind, kept as their inline bytes per row
-     * during building (so promotion to a union is a cheap replay) and materialised into a native
+     * during building (so promotion to a union is a cheap replay) and materialized into a native
      * {@code child} sub-column at {@link #finish}.
-     *
-     * <p>The child kind starts as {@link #UNSET_KIND} when only empty arrays have been seen so far.
-     * It is resolved to a concrete kind on the first non-empty row, or stays {@link #UNSET_KIND}
-     * until {@link #finish}, at which point the builder promotes to a union.
      */
     private static final class ArrayBuilder extends BaseBuilder {
-        /** Sentinel used before any non-empty array has established the concrete child kind. */
-        static final byte UNSET_KIND = -3;
-
         private byte childKind;
         private final Recycler<BytesRef> recycler;
-        /** Per-row inline FIXED_ARRAY bytes; {@code null} marks an absent row; {@code byte[0]} marks an empty array. */
+        /** Per-row inline FIXED_ARRAY bytes; {@code null} marks an absent row. */
         private final List<byte[]> rows = new ArrayList<>();
 
         ArrayBuilder(byte childKind, Recycler<BytesRef> recycler) {
@@ -550,12 +540,12 @@ final class EscfColumnBuilder {
 
         @Override
         public void addColumnarArray(byte[] packed) {
-            if (childKind == UNSET_KIND && packed.length > 0) {
+            if (childKind == UNSET_ARRAY_KIND && packed.length > 0) {
                 childKind = switch (packed[0]) {
                     case SourceValueType.INT, SourceValueType.LONG -> EscfColumnKind.LONG;
                     case SourceValueType.FLOAT, SourceValueType.DOUBLE -> EscfColumnKind.DOUBLE;
                     case SourceValueType.STRING -> EscfColumnKind.STRING;
-                    default -> UNSET_KIND;
+                    default -> UNSET_ARRAY_KIND;
                 };
             }
             rows.add(packed);
@@ -575,7 +565,6 @@ final class EscfColumnBuilder {
                 if (packed == null) {
                     union.addAbsent();
                 } else if (packed.length == 0) {
-                    // Empty arrays were originally UNION_ARRAY with zero elements.
                     union.addInlineArray(SourceValueType.UNION_ARRAY, packed);
                 } else {
                     union.addInlineArray(SourceValueType.FIXED_ARRAY, packed);
@@ -587,7 +576,7 @@ final class EscfColumnBuilder {
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            if (childKind == UNSET_KIND) {
+            if (childKind == UNSET_ARRAY_KIND) {
                 // Only empty arrays and absents were accumulated; no concrete kind was ever established.
                 return promote(recycler).finish(docCount);
             }

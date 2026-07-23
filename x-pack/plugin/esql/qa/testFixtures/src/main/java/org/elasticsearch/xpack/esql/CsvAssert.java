@@ -277,6 +277,12 @@ public final class CsvAssert {
                     if ("NaN".equals(s)) {
                         return Double.NaN;
                     }
+                    if ("Infinity".equals(s)) {
+                        return Double.POSITIVE_INFINITY;
+                    }
+                    if ("-Infinity".equals(s)) {
+                        return Double.NEGATIVE_INFINITY;
+                    }
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
             }
@@ -286,8 +292,13 @@ public final class CsvAssert {
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
+                if (value instanceof String s) {
+                    return switch (s) {
+                        case "NaN" -> Double.NaN;
+                        case "Infinity" -> Double.POSITIVE_INFINITY;
+                        case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                        default -> Double.parseDouble(s);
+                    };
                 }
                 return ((Number) value).doubleValue();
             }

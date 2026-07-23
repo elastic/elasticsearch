@@ -283,6 +283,14 @@ public final class MultiRowTestCaseSupplier {
             });
         }
 
+        // Non-finite IEEE-754 values — added for investigation of ES|QL behavior with non-finite doubles.
+        // Only added when the caller uses the fully unbounded range, so bounded callers are unaffected.
+        if (min == -Double.MAX_VALUE && max == Double.MAX_VALUE) {
+            addSuppliers(cases, minRows, maxRows, "NaN double", DataType.DOUBLE, () -> Double.NaN);
+            addSuppliers(cases, minRows, maxRows, "+Infinity double", DataType.DOUBLE, () -> Double.POSITIVE_INFINITY);
+            addSuppliers(cases, minRows, maxRows, "-Infinity double", DataType.DOUBLE, () -> Double.NEGATIVE_INFINITY);
+        }
+
         return cases;
     }
 

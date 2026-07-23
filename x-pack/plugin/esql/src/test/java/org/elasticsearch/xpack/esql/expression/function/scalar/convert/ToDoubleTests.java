@@ -114,6 +114,21 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
+        // Non-finite IEEE-754 values as keyword inputs — now accepted by TO_DOUBLE.
+        TestCaseSupplier.unary(
+            suppliers,
+            evaluatorName("String", "in"),
+            List.of(
+                new TestCaseSupplier.TypedDataSupplier("<NaN string>", () -> new BytesRef("NaN"), DataType.KEYWORD),
+                new TestCaseSupplier.TypedDataSupplier("<+Infinity string>", () -> new BytesRef("Infinity"), DataType.KEYWORD),
+                new TestCaseSupplier.TypedDataSupplier("<-Infinity string>", () -> new BytesRef("-Infinity"), DataType.KEYWORD),
+                new TestCaseSupplier.TypedDataSupplier("<+Infinity string (explicit +)>", () -> new BytesRef("+Infinity"), DataType.KEYWORD)
+            ),
+            DataType.DOUBLE,
+            bytesRef -> Double.parseDouble(((BytesRef) bytesRef).utf8ToString()),
+            List.of()
+        );
+
         TestCaseSupplier.unary(
             suppliers,
             "Attribute[channel=0]",

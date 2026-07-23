@@ -335,7 +335,11 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
-        new TestDataset("trim_test")
+        new TestDataset("trim_test"),
+        // Experimental dataset for investigating non-finite IEEE-754 doubles in ES|QL.
+        new TestDataset("non_finite", "mapping-non_finite.json", "non_finite.csv").withRequiredCapabilities(
+            EsqlCapabilities.Cap.TO_DOUBLE_NON_FINITE
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

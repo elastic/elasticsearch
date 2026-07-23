@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDoubleAllowNonFinite;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class ToDouble extends AbstractConvertFunction {
@@ -134,7 +134,9 @@ public class ToDouble extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class })
     static double fromKeyword(BytesRef in) {
-        return stringToDouble(in.utf8ToString());
+        // Accepts non-finite IEEE-754 values (NaN, Infinity, -Infinity) as an investigation into
+        // what happens when ES|QL blocks carry non-finite doubles.
+        return stringToDoubleAllowNonFinite(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")

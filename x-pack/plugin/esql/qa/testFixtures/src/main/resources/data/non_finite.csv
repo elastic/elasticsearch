@@ -1,0 +1,11 @@
+ label:keyword,     val_str:keyword, grp_str:keyword, n:integer
+ nan,               NaN,             NaN,             1
+ pos_inf,           Infinity,        Infinity,        2
+ neg_inf,           -Infinity,       -Infinity,       3
+ neg_zero,          -0.0,            zero,            4
+ pos_zero,          0.0,             zero,            5
+ one,               1.0,             finite,          6
+ neg_one,           -1.0,            finite,          7
+ large,             1.7976931348623157E308, finite,  8
+ neg_nan,           NaN,             NaN,             9
+ pos_inf2,          Infinity,        Infinity,        10

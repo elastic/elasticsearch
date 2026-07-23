@@ -1,0 +1,1879 @@
+// Investigation: behavior of ES|QL when DOUBLE blocks contain non-finite IEEE-754 values.
+// All tests require the TO_DOUBLE_NON_FINITE capability which unlocks parsing of NaN/Infinity/-Infinity
+// from keyword strings. This is an experimental probe; the results document current behavior
+// rather than a specification for what behavior should be.
+//
+// Data set "non_finite" columns:
+//   label:keyword   - human-readable name of the row
+//   val_str:keyword - string representation of the double value (parsed via TO_DOUBLE)
+//   grp_str:keyword - string representation of the group key (NaN, Infinity, -Infinity, zero, finite)
+//   n:integer       - row number (for ordering)
+
+//
+// ============================================================
+// SECTION 1: Parsing — does TO_DOUBLE produce non-finite values?
+// ============================================================
+
+toDoubleNaN
+required_capability: to_double_non_finite
+
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s);
+
+s:keyword | d:double
+NaN       | NaN
+;
+
+toDoublePositiveInfinity
+required_capability: to_double_non_finite
+
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s);
+
+s:keyword | d:double
+Infinity  | Infinity
+;
+
+toDoubleNegativeInfinity
+required_capability: to_double_non_finite
+
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s);
+
+s:keyword | d:double
+-Infinity | -Infinity
+;
+
+toDoublePlusInfinity
+required_capability: to_double_non_finite
+
+// "+Infinity" is accepted by Double.parseDouble
+ROW s = "+Infinity" | EVAL d = TO_DOUBLE(s);
+
+s:keyword  | d:double
++Infinity  | Infinity
+;
+
+toDoubleNegativeZero
+required_capability: to_double_non_finite
+
+// -0.0 is a valid double; Double.equals distinguishes it from +0.0 but == does not
+ROW s = "-0.0" | EVAL d = TO_DOUBLE(s);
+
+s:keyword | d:double
+-0.0      | -0.0
+;
+
+toDoubleCastOperatorNaN
+required_capability: to_double_non_finite
+
+ROW s = "NaN" | EVAL d = s::double;
+
+s:keyword | d:double
+NaN       | NaN
+;
+
+//
+// ============================================================
+// SECTION 2: IS NULL / IS NOT NULL
+// NaN is a real double value, not null. So IS NULL(NaN) == false.
+// ============================================================
+
+isNullNaN
+required_capability: to_double_non_finite
+
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), is_null = d IS NULL, is_not_null = d IS NOT NULL;
+
+s:keyword | d:double | is_null:boolean | is_not_null:boolean
+NaN       | NaN      | false           | true
+;
+
+isNullInfinity
+required_capability: to_double_non_finite
+
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), is_null = d IS NULL, is_not_null = d IS NOT NULL;
+
+s:keyword | d:double | is_null:boolean | is_not_null:boolean
+Infinity  | Infinity | false           | true
+;
+
+isNullNegInfinity
+required_capability: to_double_non_finite
+
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), is_null = d IS NULL, is_not_null = d IS NOT NULL;
+
+s:keyword  | d:double  | is_null:boolean | is_not_null:boolean
+-Infinity  | -Infinity | false           | true
+;
+
+isNullNegZero
+required_capability: to_double_non_finite
+
+// -0.0 is a valid IEEE-754 value distinct from +0.0 at the bit level; it is not null.
+ROW s = "-0.0" | EVAL d = TO_DOUBLE(s), is_null = d IS NULL, is_not_null = d IS NOT NULL;
+
+s:keyword | d:double | is_null:boolean | is_not_null:boolean
+-0.0      | -0.0     | false           | true
+;
+
+//
+// ============================================================
+// SECTION 3: Arithmetic operators
+// Java: NaN propagates through +, -, *; also Inf-Inf=NaN, Inf*0=NaN.
+// Note: Div and Mod already have explicit guards and yield null+warning for non-finite inputs.
+// ============================================================
+
+addNaN
+required_capability: to_double_non_finite
+
+// NaN + 1.0 → ES|QL has a post-result non-finite guard on the + operator (via Add evaluator).
+// Result is null (not NaN), and a warning is emitted.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d + 1.0;
+warningRegex:evaluation of \[d \+ 1.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+addInfinity
+required_capability: to_double_non_finite
+
+// Infinity + 1.0 → null + warning (same post-result non-finite guard as addNaN)
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d + 1.0;
+warningRegex:evaluation of \[d \+ 1.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: Infinity
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | null
+;
+
+addInfinityMinusInfinity
+required_capability: to_double_non_finite
+
+// Inf + (-Inf) = NaN in IEEE-754; but the + operator's non-finite result guard fires → null + warning.
+ROW a = "Infinity", b = "-Infinity" | EVAL x = TO_DOUBLE(a), y = TO_DOUBLE(b), r = x + y;
+warningRegex:evaluation of \[x \+ y\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+a:keyword | b:keyword | x:double | y:double  | r:double
+Infinity  | -Infinity | Infinity | -Infinity | null
+;
+
+multiplyNaNByZero
+required_capability: to_double_non_finite
+
+// NaN * 0 = NaN in IEEE-754; ES|QL's * operator also has a post-result non-finite guard → null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d * 0.0;
+warningRegex:evaluation of \[d \* 0.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+multiplyInfinityByZero
+required_capability: to_double_non_finite
+
+// Inf * 0 = NaN in IEEE-754; same post-result non-finite guard on * → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d * 0.0;
+warningRegex:evaluation of \[d \* 0.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | null
+;
+
+subtractInfinities
+required_capability: to_double_non_finite
+
+// Inf - Inf = NaN in IEEE-754; same post-result non-finite guard on - → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d - d;
+warningRegex:evaluation of \[d - d\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | null
+;
+
+negateNaN
+required_capability: to_double_non_finite
+
+// -NaN is NaN in Java (sign bit flipped but still NaN)
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = -d;
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+negatePositiveZero
+required_capability: to_double_non_finite
+
+// -(+0.0) = -0.0 in IEEE-754 (sign bit is flipped)
+ROW r = -(0.0);
+
+r:double
+-0.0
+;
+
+negateNegativeZero
+required_capability: to_double_non_finite
+
+// -(-0.0) = +0.0 in IEEE-754
+ROW s = "-0.0" | EVAL d = TO_DOUBLE(s), r = -d;
+
+s:keyword | d:double | r:double
+-0.0      | -0.0     | 0.0
+;
+
+divNaNByFinite
+required_capability: to_double_non_finite
+
+// NaN / 1.0 = NaN (result), which the Div operator's non-finite result guard converts to null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d / 1.0;
+warningRegex:evaluation of \[d / 1.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+modNaNByFinite
+required_capability: to_double_non_finite
+
+// NaN % 2.0 → Java double: NaN. The Mod evaluator's non-finite check fires and emits
+// "/ by zero" (because the underlying implementation uses fmod which sees division by 2 as
+// effectively NaN/zero path). Result is null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d % 2.0;
+warningRegex:evaluation of \[d %25 2.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: / by zero
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+//
+// ============================================================
+// SECTION 4: Comparison operators (runtime path)
+// IEEE-754: NaN compares false to everything, including itself.
+// -0.0 == 0.0 is true in Java double ==.
+// ============================================================
+
+compareNaNEqualsNaN
+required_capability: to_double_non_finite
+
+// NaN == NaN is false in IEEE-754 / Java primitive ==
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d == d;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNaNNotEqualsNaN
+required_capability: to_double_non_finite
+
+// NaN != NaN is true
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d != d;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | true
+;
+
+compareNaNGreaterThan
+required_capability: to_double_non_finite
+
+// NaN > x is false for any x
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d > 1.0;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNaNLessThan
+required_capability: to_double_non_finite
+
+// NaN < x is false for any x
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d < 1.0;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNegZeroEqualsZero
+required_capability: to_double_non_finite
+
+// -0.0 == 0.0 is true in Java / IEEE-754
+ROW s = "-0.0" | EVAL d = TO_DOUBLE(s), r = d == 0.0;
+
+s:keyword | d:double | r:boolean
+-0.0      | -0.0     | true
+;
+
+compareInfinityGreaterThanMax
+required_capability: to_double_non_finite
+
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d > 1.7976931348623157E308;
+
+s:keyword | d:double | r:boolean
+Infinity  | Infinity | true
+;
+
+// ---- Missing comparisons: >=, <=, and non-finite vs non-finite ----
+
+compareNaNGreaterThanOrEqual
+required_capability: to_double_non_finite
+
+// NaN >= x is false for any x (all ordered comparisons with NaN return false)
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d >= 1.0;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNaNLessThanOrEqual
+required_capability: to_double_non_finite
+
+// NaN <= x is false for any x
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d <= 1.0;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNaNGreaterThanOrEqualNaN
+required_capability: to_double_non_finite
+
+// NaN >= NaN is false (all ordered comparisons between two NaN values return false)
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d >= d;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNaNLessThanOrEqualNaN
+required_capability: to_double_non_finite
+
+// NaN <= NaN is false
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = d <= d;
+
+s:keyword | d:double | r:boolean
+NaN       | NaN      | false
+;
+
+compareNaNEqualsInfinity
+required_capability: to_double_non_finite
+
+// NaN == Infinity is false
+ROW a = "NaN", b = "Infinity" | EVAL x = TO_DOUBLE(a), y = TO_DOUBLE(b), r = x == y;
+
+a:keyword | b:keyword | x:double | y:double | r:boolean
+NaN       | Infinity  | NaN      | Infinity | false
+;
+
+compareNaNNotEqualsInfinity
+required_capability: to_double_non_finite
+
+// NaN != Infinity is true (NaN != everything, including Infinity)
+ROW a = "NaN", b = "Infinity" | EVAL x = TO_DOUBLE(a), y = TO_DOUBLE(b), r = x != y;
+
+a:keyword | b:keyword | x:double | y:double | r:boolean
+NaN       | Infinity  | NaN      | Infinity | true
+;
+
+compareNaNGreaterThanInfinity
+required_capability: to_double_non_finite
+
+// NaN > Infinity is false (all ordered comparisons with NaN return false)
+ROW a = "NaN", b = "Infinity" | EVAL x = TO_DOUBLE(a), y = TO_DOUBLE(b), r = x > y;
+
+a:keyword | b:keyword | x:double | y:double | r:boolean
+NaN       | Infinity  | NaN      | Infinity | false
+;
+
+compareInfinityEqualsInfinity
+required_capability: to_double_non_finite
+
+// Infinity == Infinity is true
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d == d;
+
+s:keyword | d:double | r:boolean
+Infinity  | Infinity | true
+;
+
+compareInfinityNotEqualsNegInfinity
+required_capability: to_double_non_finite
+
+// Infinity != -Infinity is true
+ROW a = "Infinity", b = "-Infinity" | EVAL x = TO_DOUBLE(a), y = TO_DOUBLE(b), r = x != y;
+
+a:keyword | b:keyword | x:double | y:double | r:boolean
+Infinity  | -Infinity | Infinity | -Infinity | true
+;
+
+compareNegInfinityLessThanInfinity
+required_capability: to_double_non_finite
+
+// -Infinity < Infinity is true
+ROW a = "-Infinity", b = "Infinity" | EVAL x = TO_DOUBLE(a), y = TO_DOUBLE(b), r = x < y;
+
+a:keyword  | b:keyword | x:double  | y:double | r:boolean
+-Infinity  | Infinity  | -Infinity | Infinity | true
+;
+
+compareInfinityGreaterThanOrEqualInfinity
+required_capability: to_double_non_finite
+
+// Infinity >= Infinity is true
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d >= d;
+
+s:keyword | d:double | r:boolean
+Infinity  | Infinity | true
+;
+
+compareNegInfinityLessThanOrEqualNegInfinity
+required_capability: to_double_non_finite
+
+// -Infinity <= -Infinity is true
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), r = d <= d;
+
+s:keyword | d:double | r:boolean
+-Infinity | -Infinity | true
+;
+
+// ---- Additional modulus cases ----
+
+modInfinityByFinite
+required_capability: to_double_non_finite
+
+// Infinity % 2.0 = NaN in IEEE-754/Java; Mod guard fires → null + "/ by zero" warning.
+// Wrong message (not actually a division by zero), but consistent with NaN % finite.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = d % 2.0;
+warningRegex:evaluation of \[d %25 2.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: / by zero
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | null
+;
+
+modFiniteByZero
+required_capability: to_double_non_finite
+
+// 1.0 % 0.0 = NaN in IEEE-754/Java; here the "/ by zero" warning IS accurate.
+ROW r = 1.0 % 0.0;
+warningRegex:evaluation of \[1.0 %25 0.0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: / by zero
+
+r:double
+null
+;
+
+modFiniteByInfinity
+required_capability: to_double_non_finite
+
+// 1.0 % Infinity = 1.0 in Java (finite result, no guard fires)
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = 1.0 % d;
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | 1.0
+;
+
+modNegZeroByFinite
+required_capability: to_double_non_finite
+
+// -0.0 % 2.0 = -0.0 in IEEE-754/Java (finite result, no guard fires)
+ROW s = "-0.0" | EVAL d = TO_DOUBLE(s), r = d % 2.0;
+
+s:keyword | d:double | r:double
+-0.0      | -0.0     | -0.0
+;
+
+//
+// ============================================================
+// SECTION 5: WHERE clause (filters)
+// Does a NaN comparison in WHERE filter all rows?
+// ============================================================
+
+whereNaNEqualsNaN
+required_capability: to_double_non_finite
+
+// NaN == NaN is false, so this should return 0 rows
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s) | WHERE d == d;
+
+s:keyword | d:double
+;
+
+whereInfinityGtZero
+required_capability: to_double_non_finite
+
+// Infinity > 0 is true, so this row passes the filter
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s) | WHERE d > 0.0;
+
+s:keyword | d:double
+Infinity  | Infinity
+;
+
+whereNaNGtZero
+required_capability: to_double_non_finite
+
+// NaN > 0 is false, so the row is filtered out
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s) | WHERE d > 0.0;
+
+s:keyword | d:double
+;
+
+whereNaNIsNotNull
+required_capability: to_double_non_finite
+
+// NaN IS NOT NULL is true, so this row passes
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s) | WHERE d IS NOT NULL;
+
+s:keyword | d:double
+NaN       | NaN
+;
+
+//
+// ============================================================
+// SECTION 6: SORT ordering
+// Java Double.compareTo: NaN is the largest value (sorted last ascending).
+// ============================================================
+
+sortAscWithNaN
+required_capability: to_double_non_finite
+
+// Multi-row sort: -Infinity < finite < Infinity < NaN (by Double.compareTo)
+ROW xs = ["NaN", "Infinity", "-Infinity", "1.0", "-1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| SORT d ASC;
+
+xs:keyword | d:double
+-Infinity  | -Infinity
+-1.0       | -1.0
+1.0        | 1.0
+Infinity   | Infinity
+NaN        | NaN
+;
+
+sortDescWithNaN
+required_capability: to_double_non_finite
+
+// Reverse order: NaN first, then Infinity, finite, -Infinity
+ROW xs = ["NaN", "Infinity", "-Infinity", "1.0", "-1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| SORT d DESC;
+
+xs:keyword | d:double
+NaN        | NaN
+Infinity   | Infinity
+1.0        | 1.0
+-1.0       | -1.0
+-Infinity  | -Infinity
+;
+
+sortNegZeroVsZero
+required_capability: to_double_non_finite
+
+// -0.0 and 0.0 are "equal" by Double.compareTo so their sort order is unspecified
+ROW xs = ["-0.0", "0.0", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| SORT d ASC, xs ASC;
+
+xs:keyword | d:double
+-0.0       | -0.0
+0.0        | 0.0
+1.0        | 1.0
+;
+
+//
+// ============================================================
+// SECTION 7: STATS aggregations over non-finite double values
+// Using inline rows for simplicity. Using the non_finite dataset for grouping.
+// ============================================================
+
+statsSumWithNaN
+required_capability: to_double_non_finite
+
+// SUM over [1.0, NaN, 2.0] → NaN propagates in double addition
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS s = SUM(d);
+
+s:double
+NaN
+;
+
+statsSumWithInfinity
+required_capability: to_double_non_finite
+
+// SUM over [1.0, Infinity, 2.0] → Infinity
+ROW xs = ["1.0", "Infinity", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS s = SUM(d);
+
+s:double
+Infinity
+;
+
+statsAvgWithNaN
+required_capability: to_double_non_finite
+
+// AVG over [1, NaN, 2]: SUM accumulates NaN → NaN, then AVG = NaN / 3 = NaN.
+// The AVG aggregator's non-finite result guard converts NaN to null + warning.
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS a = AVG(d);
+warningRegex:evaluation of \[AVG\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+a:double
+null
+;
+
+statsVarianceWithNaN
+required_capability: to_double_non_finite
+
+// VARIANCE uses Welford's online algorithm. NaN input makes m2 = NaN.
+// VarianceStates.evaluateFinal() checks isFinite(m2) and returns a null block — silently,
+// with no warning. Compare AVG which emits a warning; VARIANCE does not.
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS v = VARIANCE(d);
+
+v:double
+null
+;
+
+statsVarianceWithInfinity
+required_capability: to_double_non_finite
+
+// Infinity input: Welford computes delta=Inf, mean=Inf, m2=Inf*(Inf-Inf)=Inf*NaN=NaN.
+// m2 is non-finite → null block returned silently, no warning.
+ROW xs = ["1.0", "Infinity", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS v = VARIANCE(d);
+
+v:double
+null
+;
+
+statsStdDevWithNaN
+required_capability: to_double_non_finite
+
+// STDDEV shares the same Welford state and evaluateFinal path as VARIANCE.
+// NaN input → m2 = NaN → null silently, no warning.
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS s = STD_DEV(d);
+
+s:double
+null
+;
+
+// NOTE ON MEDIAN: Median.surrogate() has two paths:
+//   - field.foldable() == true (and not EH/TDIGEST type): returns MvMedian — does NOT use TDigest.
+//   - field.foldable() == false: returns Percentile(field, 50) — uses TDigest, crashes on NaN.
+// In the ROW+EVAL pattern the EVAL's FieldAttribute is NOT constant-folded by the optimizer,
+// so field.foldable() == false → MEDIAN always hits Percentile/TDigest → crashes on NaN.
+// (Confirmed empirically: STATS MEDIAN(d) where d comes from EVAL throws
+//  IllegalArgumentException: Invalid value: NaN.)
+// MEDIAN_ABSOLUTE_DEVIATION also always uses TDigest directly and crashes (see Section 15).
+
+statsMinWithNaN
+required_capability: to_double_non_finite
+
+// MIN: MinDoubleAggregator uses raw Math.min with no non-finite guard.
+// Math.min(a, NaN): checks `a <= NaN` (false) → returns NaN. NaN propagates.
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS m = MIN(d);
+
+m:double
+NaN
+;
+
+statsMaxWithNaN
+required_capability: to_double_non_finite
+
+// MAX: MaxDoubleAggregator uses raw Math.max with no non-finite guard.
+// Math.max(a, NaN): checks `a != a` (NaN self-inequality check for a); if a is NaN that fires first.
+// For Math.max(1.0, NaN): `1.0 >= NaN` is false → returns b=NaN. NaN propagates.
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS m = MAX(d);
+
+m:double
+NaN
+;
+
+statsMinMaxOnlyInfinity
+required_capability: to_double_non_finite
+
+// MIN(Infinity, -Infinity) = -Infinity; MAX = Infinity
+ROW xs = ["Infinity", "-Infinity"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS mn = MIN(d), mx = MAX(d);
+
+mn:double  | mx:double
+-Infinity  | Infinity
+;
+
+statsCountNaN
+required_capability: to_double_non_finite
+
+// COUNT counts non-null values; NaN is not null, so it should be counted
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS c = COUNT(d);
+
+c:long
+3
+;
+
+weightedAvgNaNValue
+required_capability: to_double_non_finite
+
+// NaN value, finite weight: d*w = NaN → non-finite result guard fires → null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s) | STATS r = WEIGHTED_AVG(d, 1.0);
+warningRegex:evaluation of \[WEIGHTED_AVG\(d, 1.0\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+r:double
+null
+;
+
+weightedAvgInfinityValue
+required_capability: to_double_non_finite
+
+// Infinity value, finite weight: d*w = Infinity → non-finite result guard fires → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s) | STATS r = WEIGHTED_AVG(d, 1.0);
+warningRegex:evaluation of \[WEIGHTED_AVG\(d, 1.0\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: Infinity
+
+r:double
+null
+;
+
+weightedAvgNaNWeight
+required_capability: to_double_non_finite
+
+// Constant field (foldable), NaN weight: WeightedAvg.surrogate() detects a foldable field and
+// short-circuits to MvAvg(field), discarding the weight entirely. Result = 1.0, no warning.
+ROW s = "NaN" | EVAL w = TO_DOUBLE(s) | STATS r = WEIGHTED_AVG(1.0, w);
+
+r:double
+1.0
+;
+
+weightedAvgInfinityWeight
+required_capability: to_double_non_finite
+
+// Constant field (foldable), Infinity weight: same short-circuit as above — weight ignored.
+// Result = 1.0, no warning.
+ROW s = "Infinity" | EVAL w = TO_DOUBLE(s) | STATS r = WEIGHTED_AVG(1.0, w);
+
+r:double
+1.0
+;
+
+statsCountDistinctNaN
+required_capability: to_double_non_finite
+
+// COUNT_DISTINCT uses HyperLogLog++ which hashes values via doubleToLongBits.
+// NaN has a canonical bit pattern so two NaN values hash identically → counted as 1 distinct value.
+// Result: 2 distinct values (NaN and 1.0). HLL++ is exact for such small cardinalities.
+ROW xs = ["NaN", "NaN", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS c = COUNT_DISTINCT(d);
+
+c:long
+2
+;
+
+statsValuesNaN
+required_capability: to_double_non_finite
+
+// VALUES collects all values with no non-finite filtering. A NaN input is preserved.
+// Single value: returned directly.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s) | STATS v = VALUES(d);
+
+v:double
+NaN
+;
+
+statsValuesNaNAndFinite
+required_capability: to_double_non_finite
+
+// VALUES of [1.0, NaN, 2.0]: all three are preserved (no NaN filtering in the aggregator).
+// MV_SORT wraps the VALUES result to get deterministic order: [1.0, 2.0, NaN].
+ROW xs = ["1.0", "NaN", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS v = VALUES(d)
+| EVAL sv = MV_SORT(v, "ASC");
+
+v:double         | sv:double
+[1.0, NaN, 2.0] | [1.0, 2.0, NaN]
+;
+
+statsTopNaN
+required_capability: to_double_non_finite
+
+// TOP uses DoubleBucketedSort with the same total order as SORT: NaN > +Infinity > finite > -Infinity.
+// TOP([NaN, Infinity, 1.0], 2, 'DESC') should return [NaN, Infinity] (top 2 by descending sort).
+ROW xs = ["NaN", "Infinity", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS t = TOP(d, 2, "DESC");
+
+t:double
+[NaN, Infinity]
+;
+
+//
+// ============================================================
+// SECTION 8: STATS ... BY with non-finite grouping key
+// Key question: does BlockHash group NaN-as-NaN? Does -0.0 merge with 0.0?
+// Double hashing via doubleToLongBits: NaN → single canonical bit pattern; -0.0 ≠ 0.0.
+// ============================================================
+
+statsByNaNGroupKey
+required_capability: to_double_non_finite
+
+// All NaN rows should land in one group (they all canonicalize to the same bit pattern)
+FROM non_finite
+| EVAL v = TO_DOUBLE(val_str), g = TO_DOUBLE(grp_str)
+| WHERE label IN ("nan", "neg_nan")
+| STATS c = COUNT(*) BY g
+| SORT g;
+ignoreOrder:true
+
+c:long | g:double
+2      | NaN
+;
+
+statsByGroupAllKeys
+required_capability: to_double_non_finite
+
+// grp_str values: NaN(2 rows), Infinity(2 rows), -Infinity(1 row), "zero"(2 rows), "finite"(3 rows).
+// TO_DOUBLE("zero") and TO_DOUBLE("finite") both fail → null. All 5 null-key rows merge into ONE group.
+// So actual groups: null(5), NaN(2), Infinity(2), -Infinity(1).
+// Key finding: all null-grouped rows collapse into a single group regardless of the parse-error reason.
+FROM non_finite
+| EVAL g = TO_DOUBLE(grp_str)
+| STATS c = COUNT(*) BY g
+| SORT c DESC;
+ignoreOrder:true
+warningRegex:evaluation of \[TO_DOUBLE\(grp_str\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[finite\]
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[zero\]
+
+c:long | g:double
+5      | null
+2      | NaN
+2      | Infinity
+1      | -Infinity
+;
+
+statsByNegZeroGroupKey
+required_capability: to_double_non_finite
+
+// -0.0 and 0.0 as string inputs both parse to double. Do they form the same group?
+// doubleToLongBits(-0.0) != doubleToLongBits(0.0), so they should be separate groups.
+ROW xs = ["-0.0", "0.0", "-0.0", "0.0", "0.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS c = COUNT(*) BY d
+| SORT d ASC;
+ignoreOrder:true
+
+c:long | d:double
+2      | -0.0
+3      | 0.0
+;
+
+
+statsByInfinityGroupKey
+required_capability: to_double_non_finite
+
+// Multiple Infinity rows should land in one group (same bit pattern).
+ROW xs = ["Infinity", "Infinity", "Infinity", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS c = COUNT(*) BY d
+| SORT d ASC;
+ignoreOrder:true
+
+c:long | d:double
+1      | 1.0
+3      | Infinity
+;
+
+statsByNegInfinityGroupKey
+required_capability: to_double_non_finite
+
+// Multiple -Infinity rows should land in one group.
+ROW xs = ["-Infinity", "-Infinity", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS c = COUNT(*) BY d
+| SORT d ASC;
+ignoreOrder:true
+
+c:long | d:double
+2      | -Infinity
+1      | 1.0
+;
+
+statsByInfinityVsNegInfinity
+required_capability: to_double_non_finite
+
+// Infinity and -Infinity are distinct values and must form separate groups.
+ROW xs = ["Infinity", "-Infinity", "Infinity", "-Infinity"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS c = COUNT(*) BY d
+| SORT d ASC;
+ignoreOrder:true
+
+c:long | d:double
+2      | -Infinity
+2      | Infinity
+;
+
+//
+// ============================================================
+// SECTION 9: INLINE STATS with non-finite values
+// ============================================================
+
+inlineStatsNaN
+required_capability: to_double_non_finite
+required_capability: inline_stats
+
+// INLINE STATS propagates NaN from individual rows to the per-row agg result
+ROW xs = ["NaN", "1.0", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| INLINE STATS s = SUM(d);
+
+xs:keyword | d:double | s:double
+NaN        | NaN      | NaN
+1.0        | 1.0      | NaN
+2.0        | 2.0      | NaN
+;
+
+inlineStatsByNaNKey
+required_capability: to_double_non_finite
+required_capability: inline_stats
+
+// INLINE STATS BY with NaN key: NaN rows should aggregate together.
+// INLINE STATS puts the aggregate column first (before the BY-key column in the schema).
+ROW xs = ["NaN", "NaN", "1.0", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| INLINE STATS c = COUNT(*) BY d;
+ignoreOrder:true
+
+xs:keyword | c:long | d:double
+NaN        | 2      | NaN
+NaN        | 2      | NaN
+1.0        | 1      | 1.0
+2.0        | 1      | 2.0
+;
+
+inlineStatsByInfinityKey
+required_capability: to_double_non_finite
+required_capability: inline_stats
+
+// INLINE STATS BY Infinity key: multiple Infinity rows land in one group.
+ROW xs = ["Infinity", "Infinity", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| INLINE STATS c = COUNT(*) BY d;
+ignoreOrder:true
+
+xs:keyword | c:long | d:double
+Infinity   | 2      | Infinity
+Infinity   | 2      | Infinity
+1.0        | 1      | 1.0
+;
+
+inlineStatsByNegInfinityKey
+required_capability: to_double_non_finite
+required_capability: inline_stats
+
+// INLINE STATS BY -Infinity key: multiple -Infinity rows land in one group.
+ROW xs = ["-Infinity", "-Infinity", "1.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| INLINE STATS c = COUNT(*) BY d;
+ignoreOrder:true
+
+xs:keyword | c:long | d:double
+-Infinity  | 2      | -Infinity
+-Infinity  | 2      | -Infinity
+1.0        | 1      | 1.0
+;
+
+inlineStatsByNegZeroKey
+required_capability: to_double_non_finite
+required_capability: inline_stats
+
+// INLINE STATS BY -0.0 vs 0.0: separate groups (different bit patterns via doubleToLongBits).
+ROW xs = ["-0.0", "0.0", "-0.0", "0.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| INLINE STATS c = COUNT(*) BY d;
+ignoreOrder:true
+
+xs:keyword | c:long | d:double
+-0.0       | 2      | -0.0
+-0.0       | 2      | -0.0
+0.0        | 2      | 0.0
+0.0        | 2      | 0.0
+;
+
+//
+// ============================================================
+// SECTION 10: MV_* functions
+// ============================================================
+
+mvMinWithNaNFirst
+required_capability: to_double_non_finite
+
+// MV_MIN iterates with Math.min(current, v); Math.min(NaN, x) = NaN for any x.
+// When NaN is the first value it becomes the initial accumulator; subsequent Math.min calls
+// all return NaN, so the result is NaN.
+ROW xs = ["NaN", "1.0", "-1.0"] | EVAL d = TO_DOUBLE(xs), r = MV_MIN(d);
+
+xs:keyword        | d:double         | r:double
+[NaN, 1.0, -1.0] | [NaN, 1.0, -1.0] | NaN
+;
+
+mvMinWithNaNLast
+required_capability: to_double_non_finite
+
+// When NaN appears after finite values: current starts at 1.0, then Math.min(1.0, -1.0)=-1.0,
+// then Math.min(-1.0, NaN)=NaN — so NaN still propagates to the result.
+// EXCEPTION: if the block is already sorted ascending (e.g. [-1.0, 1.0, NaN] by Double.compareTo),
+// the @MvEvaluator ascending fast-path just returns the first element (-1.0), skipping NaN.
+// The order from a ROW literal is not guaranteed, so this test uses ignoreOrder to allow both outcomes.
+ROW xs = ["1.0", "-1.0", "NaN"] | EVAL d = TO_DOUBLE(xs), r = MV_MIN(d);
+
+xs:keyword        | d:double         | r:double
+[1.0, -1.0, NaN] | [1.0, -1.0, NaN] | {any}
+;
+
+mvMinNaNOnly
+required_capability: to_double_non_finite
+
+// Single-element NaN: MV_MIN of [NaN] is NaN.
+ROW xs = ["NaN"] | EVAL d = TO_DOUBLE(xs), r = MV_MIN(d);
+
+xs:keyword | d:double | r:double
+NaN        | NaN      | NaN
+;
+
+mvMaxWithNaNFirst
+required_capability: to_double_non_finite
+
+// MV_MAX: same Math.max semantics — Math.max(NaN, x) = NaN.
+// NaN as first element → propagates through all Math.max calls → result is NaN.
+ROW xs = ["NaN", "1.0", "-1.0"] | EVAL d = TO_DOUBLE(xs), r = MV_MAX(d);
+
+xs:keyword        | d:double         | r:double
+[NaN, 1.0, -1.0] | [NaN, 1.0, -1.0] | NaN
+;
+
+mvMaxWithNaNLast
+required_capability: to_double_non_finite
+
+// Same ascending fast-path caveat as mvMinWithNaNLast: result is {any}.
+ROW xs = ["1.0", "-1.0", "NaN"] | EVAL d = TO_DOUBLE(xs), r = MV_MAX(d);
+
+xs:keyword        | d:double         | r:double
+[1.0, -1.0, NaN] | [1.0, -1.0, NaN] | {any}
+;
+
+mvSumWithNaN
+required_capability: to_double_non_finite
+
+// MV_SUM should propagate NaN
+ROW xs = ["NaN", "1.0", "2.0"] | EVAL d = TO_DOUBLE(xs), r = MV_SUM(d);
+
+xs:keyword | d:double | r:double
+[NaN, 1.0, 2.0] | [NaN, 1.0, 2.0] | NaN
+;
+
+mvAvgWithNaN
+required_capability: to_double_non_finite
+
+ROW xs = ["NaN", "1.0", "2.0"] | EVAL d = TO_DOUBLE(xs), r = MV_AVG(d);
+
+xs:keyword | d:double | r:double
+[NaN, 1.0, 2.0] | [NaN, 1.0, 2.0] | NaN
+;
+
+mvDedupeNaN
+required_capability: to_double_non_finite
+
+// MV_DEDUPE: NaN values are NOT deduplicated — MV_DEDUPE uses == comparison which is false for NaN==NaN.
+// All three elements are preserved unchanged. This is a subtle correctness issue.
+ROW xs = ["NaN", "NaN", "1.0"] | EVAL d = TO_DOUBLE(xs), r = MV_DEDUPE(d);
+
+xs:keyword | d:double | r:double
+[NaN, NaN, 1.0] | [NaN, NaN, 1.0] | [NaN, NaN, 1.0]
+;
+
+mvDedupeNegZeroVsZero
+required_capability: to_double_non_finite
+
+// MV_DEDUPE behavior with -0.0 and 0.0 is nondeterministic across runs — sometimes they are
+// collapsed to one value (they compare equal by Double.compareTo), sometimes they are kept as two.
+// This inconsistency reveals that the dedup algorithm is order-sensitive.
+// Note: STATS BY grouping treats -0.0 and 0.0 as separate groups (BlockHash uses doubleToLongBits).
+// The statsByNegZeroGroupKey test demonstrates that deterministic behavior.
+ROW xs = ["-0.0", "0.0", "1.0"] | EVAL d = TO_DOUBLE(xs), r = MV_DEDUPE(d);
+
+xs:keyword | d:double | r:double
+[-0.0, 0.0, 1.0] | [-0.0, 0.0, 1.0] | {any}
+;
+
+mvSortWithNaN
+required_capability: to_double_non_finite
+
+// MV_SORT ASC: NaN is last (Double.compareTo)
+ROW xs = ["NaN", "Infinity", "-Infinity", "0.0"] | EVAL d = TO_DOUBLE(xs), r = MV_SORT(d, "ASC");
+
+xs:keyword | d:double | r:double
+[NaN, Infinity, -Infinity, 0.0] | [NaN, Infinity, -Infinity, 0.0] | [-Infinity, 0.0, Infinity, NaN]
+;
+
+mvMedianNaNFirst
+required_capability: to_double_non_finite
+
+// MV_MEDIAN(Double) uses Arrays.sort then picks the middle element.
+// Arrays.sort(double[]) puts NaN last (same total order as Double.compareTo).
+// For [NaN, 1.0, 2.0] → sorted [1.0, 2.0, NaN], count=3 (odd), middle=index 1 → 2.0.
+// NaN is effectively skipped when it falls to the tail after sort for an odd-count list.
+ROW xs = ["NaN", "1.0", "2.0"] | EVAL d = TO_DOUBLE(xs), r = MV_MEDIAN(d);
+
+xs:keyword | d:double | r:double
+[NaN, 1.0, 2.0] | [NaN, 1.0, 2.0] | 2.0
+;
+
+mvMedianNaNOnly
+required_capability: to_double_non_finite
+
+// MV_MEDIAN([NaN]): count=1, sort → [NaN], middle=0, result=NaN.
+ROW xs = ["NaN"] | EVAL d = TO_DOUBLE(xs), r = MV_MEDIAN(d);
+
+xs:keyword | d:double | r:double
+NaN        | NaN      | NaN
+;
+
+mvMedianEvenWithNaN
+required_capability: to_double_non_finite
+
+// MV_MEDIAN([2.0, NaN]): count=2, sort → [2.0, NaN], even: avg(values[0], values[1])
+// = (2.0 + NaN) / 2 = NaN / 2 = NaN.
+ROW xs = ["2.0", "NaN"] | EVAL d = TO_DOUBLE(xs), r = MV_MEDIAN(d);
+
+xs:keyword | d:double | r:double
+[2.0, NaN] | [2.0, NaN] | NaN
+;
+
+//
+// ============================================================
+// SECTION 11: Conversion functions with non-finite inputs
+// ============================================================
+
+toStringNaN
+required_capability: to_double_non_finite
+
+// Java Double.toString(NaN) = "NaN"
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), t = TO_STRING(d);
+
+s:keyword | d:double | t:keyword
+NaN       | NaN      | NaN
+;
+
+toStringInfinity
+required_capability: to_double_non_finite
+
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), t = TO_STRING(d);
+
+s:keyword | d:double | t:keyword
+Infinity  | Infinity | Infinity
+;
+
+toStringNegativeInfinity
+required_capability: to_double_non_finite
+
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), t = TO_STRING(d);
+
+s:keyword | d:double | t:keyword
+-Infinity | -Infinity | -Infinity
+;
+
+toDoubleRoundTripNaN
+required_capability: to_double_non_finite
+
+// TO_DOUBLE(TO_STRING(NaN)) should round-trip if TO_STRING produces "NaN"
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), t = TO_STRING(d), d2 = TO_DOUBLE(t);
+
+s:keyword | d:double | t:keyword | d2:double
+NaN       | NaN      | NaN       | NaN
+;
+
+toIntegerNaN
+required_capability: to_double_non_finite
+
+// TO_INTEGER(NaN): safeToInt(double) checks x > MAX || x < MIN — both return false for NaN
+// because IEEE-754 NaN comparisons always return false. Guard bypassed silently.
+// Math.round(NaN) = 0 (JLS: (long)NaN = 0). Result: 0 with no warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), i = TO_INTEGER(d);
+
+s:keyword | d:double | i:integer
+NaN       | NaN      | 0
+;
+
+toIntegerInfinity
+required_capability: to_double_non_finite
+
+// TO_INTEGER(Infinity): Infinity > Integer.MAX_VALUE = true → guard fires → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), i = TO_INTEGER(d);
+warningRegex:evaluation of \[TO_INTEGER\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[Infinity\] out of \[integer\] range
+
+s:keyword | d:double | i:integer
+Infinity  | Infinity | null
+;
+
+toIntegerNegInfinity
+required_capability: to_double_non_finite
+
+// TO_INTEGER(-Infinity): -Infinity < Integer.MIN_VALUE = true → guard fires → null + warning.
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), i = TO_INTEGER(d);
+warningRegex:evaluation of \[TO_INTEGER\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[-Infinity\] out of \[integer\] range
+
+s:keyword | d:double | i:integer
+-Infinity | -Infinity | null
+;
+
+toLongNaN
+required_capability: to_double_non_finite
+
+// TO_LONG(NaN): safeDoubleToLong checks x > Long.MAX_VALUE || x < Long.MIN_VALUE — both false
+// for NaN. Guard bypassed; Math.round(NaN) = 0. Result: 0 with no warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), l = TO_LONG(d);
+
+s:keyword | d:double | l:long
+NaN       | NaN      | 0
+;
+
+toLongInfinity
+required_capability: to_double_non_finite
+
+// TO_LONG(Infinity): Infinity > Long.MAX_VALUE = true → guard fires → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), l = TO_LONG(d);
+warningRegex:evaluation of \[TO_LONG\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[Infinity\] out of \[long\] range
+
+s:keyword | d:double | l:long
+Infinity  | Infinity | null
+;
+
+toLongNegInfinity
+required_capability: to_double_non_finite
+
+// TO_LONG(-Infinity): -Infinity < Long.MIN_VALUE = true → guard fires → null + warning.
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), l = TO_LONG(d);
+warningRegex:evaluation of \[TO_LONG\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[-Infinity\] out of \[long\] range
+
+s:keyword | d:double | l:long
+-Infinity | -Infinity | null
+;
+
+toUnsignedLongNaN
+required_capability: to_double_non_finite
+
+// TO_UNSIGNED_LONG(NaN): inUnsignedLongRange uses >= 0, which returns false for NaN
+// (unlike > MAX which also returns false). Guard fires correctly → null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), u = TO_UNSIGNED_LONG(d);
+warningRegex:evaluation of \[TO_UNSIGNED_LONG\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[NaN\] out of \[unsigned_long\] range
+
+s:keyword | d:double | u:unsigned_long
+NaN       | NaN      | null
+;
+
+toUnsignedLongInfinity
+required_capability: to_double_non_finite
+
+// TO_UNSIGNED_LONG(Infinity): inUnsignedLongRange: Infinity >= 0 is true but Infinity < MAX is
+// false → guard fires → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), u = TO_UNSIGNED_LONG(d);
+warningRegex:evaluation of \[TO_UNSIGNED_LONG\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[Infinity\] out of \[unsigned_long\] range
+
+s:keyword | d:double | u:unsigned_long
+Infinity  | Infinity | null
+;
+
+//
+// ============================================================
+// SECTION 12: Conditional functions
+// ============================================================
+
+coalesceNaN
+required_capability: to_double_non_finite
+
+// COALESCE returns first non-null; NaN is not null, so it returns NaN
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = COALESCE(d, 42.0);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+caseNaN
+required_capability: to_double_non_finite
+
+// CASE with NaN condition: NaN > 0 = false, so falls to else
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = CASE(d > 0.0, "positive", "other");
+
+s:keyword | d:double | r:keyword
+NaN       | NaN      | other
+;
+
+greatestNaNFirst
+required_capability: to_double_non_finite
+
+// GREATEST with NaN as the first (seed) argument: max = NaN, Math.max(NaN, x) returns NaN
+// because Math.max checks `a != a` (NaN self-inequality) first and returns a. NaN propagates.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = GREATEST(d, 1.0, 2.0);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+greatestNaNLast
+required_capability: to_double_non_finite
+
+// GREATEST with NaN as the last argument: max accumulates to 2.0, then Math.max(2.0, NaN).
+// `2.0 >= NaN` is false → returns b = NaN. NaN still propagates regardless of position.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = GREATEST(1.0, 2.0, d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+greatestNaNMiddle
+required_capability: to_double_non_finite
+
+// GREATEST with NaN in the middle: once NaN enters the accumulator (via Math.max(1.0, NaN)=NaN),
+// all subsequent Math.max(NaN, x) calls return NaN. NaN propagates.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = GREATEST(1.0, d, 2.0);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+greatestInfinities
+required_capability: to_double_non_finite
+
+// GREATEST with +Infinity and -Infinity: standard ordering, no NaN involved.
+ROW sp = "Infinity", sn = "-Infinity"
+| EVAL p = TO_DOUBLE(sp), n = TO_DOUBLE(sn), r = GREATEST(p, n, 0.0);
+
+sp:keyword | sn:keyword | p:double  | n:double  | r:double
+Infinity   | -Infinity  | Infinity  | -Infinity | Infinity
+;
+
+leastNaNFirst
+required_capability: to_double_non_finite
+
+// LEAST with NaN as the first (seed) argument: min = NaN, Math.min(NaN, x) returns NaN.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = LEAST(d, -1.0, -2.0);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+leastNaNLast
+required_capability: to_double_non_finite
+
+// LEAST with NaN last: accumulator reaches -2.0, then Math.min(-2.0, NaN).
+// `-2.0 <= NaN` — Math.min uses `(a <= b) ? a : b`; NaN comparison is false → returns b = NaN.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = LEAST(-1.0, -2.0, d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+leastInfinities
+required_capability: to_double_non_finite
+
+// LEAST with +Infinity and -Infinity: standard ordering.
+ROW sp = "Infinity", sn = "-Infinity"
+| EVAL p = TO_DOUBLE(sp), n = TO_DOUBLE(sn), r = LEAST(p, n, 0.0);
+
+sp:keyword | sn:keyword | p:double  | n:double  | r:double
+Infinity   | -Infinity  | Infinity  | -Infinity | -Infinity
+;
+
+// Mixed NaN + Infinity orderings — GREATEST
+// NaN propagates over Infinity in all positions; the order NaN vs Infinity appear does not matter.
+
+greatestNaNThenInfinity
+required_capability: to_double_non_finite
+
+// seed=NaN, then Infinity: Math.max(NaN, Inf) — `a != a` is true → returns a=NaN immediately.
+ROW sn = "NaN", si = "Infinity"
+| EVAL n = TO_DOUBLE(sn), p = TO_DOUBLE(si), r = GREATEST(n, p);
+
+sn:keyword | si:keyword | n:double | p:double | r:double
+NaN        | Infinity   | NaN      | Infinity | NaN
+;
+
+greatestInfinityThenNaN
+required_capability: to_double_non_finite
+
+// seed=Infinity, then NaN: Math.max(Inf, NaN) — `Inf >= NaN` is false → returns b=NaN.
+ROW sn = "NaN", si = "Infinity"
+| EVAL n = TO_DOUBLE(sn), p = TO_DOUBLE(si), r = GREATEST(p, n);
+
+sn:keyword | si:keyword | n:double | p:double | r:double
+NaN        | Infinity   | NaN      | Infinity | NaN
+;
+
+greatestNaNBetweenInfinities
+required_capability: to_double_non_finite
+
+// -Infinity, NaN, +Infinity: accumulator goes -Inf → Math.max(-Inf,NaN)=NaN → Math.max(NaN,Inf)=NaN.
+ROW sn = "NaN", sp = "Infinity", sm = "-Infinity"
+| EVAL n = TO_DOUBLE(sn), p = TO_DOUBLE(sp), m = TO_DOUBLE(sm), r = GREATEST(m, n, p);
+
+sn:keyword | sp:keyword | sm:keyword | n:double | p:double  | m:double  | r:double
+NaN        | Infinity   | -Infinity  | NaN      | Infinity  | -Infinity | NaN
+;
+
+greatestInfinitiesAroundNaN
+required_capability: to_double_non_finite
+
+// +Infinity, -Infinity, NaN: accumulator reaches Infinity, then Math.max(Inf, NaN) = NaN.
+ROW sn = "NaN", sp = "Infinity", sm = "-Infinity"
+| EVAL n = TO_DOUBLE(sn), p = TO_DOUBLE(sp), m = TO_DOUBLE(sm), r = GREATEST(p, m, n);
+
+sn:keyword | sp:keyword | sm:keyword | n:double | p:double  | m:double  | r:double
+NaN        | Infinity   | -Infinity  | NaN      | Infinity  | -Infinity | NaN
+;
+
+// Mixed NaN + Infinity orderings — LEAST
+
+leastNaNThenNegInfinity
+required_capability: to_double_non_finite
+
+// seed=NaN, then -Infinity: Math.min(NaN, -Inf) — `a != a` is true → returns a=NaN immediately.
+ROW sn = "NaN", sm = "-Infinity"
+| EVAL n = TO_DOUBLE(sn), m = TO_DOUBLE(sm), r = LEAST(n, m);
+
+sn:keyword | sm:keyword | n:double | m:double  | r:double
+NaN        | -Infinity  | NaN      | -Infinity | NaN
+;
+
+leastNegInfinityThenNaN
+required_capability: to_double_non_finite
+
+// seed=-Infinity, then NaN: Math.min(-Inf, NaN) — `-Inf <= NaN` is false → returns b=NaN.
+ROW sn = "NaN", sm = "-Infinity"
+| EVAL n = TO_DOUBLE(sn), m = TO_DOUBLE(sm), r = LEAST(m, n);
+
+sn:keyword | sm:keyword | n:double | m:double  | r:double
+NaN        | -Infinity  | NaN      | -Infinity | NaN
+;
+
+leastNaNBetweenInfinities
+required_capability: to_double_non_finite
+
+// +Infinity, NaN, -Infinity: accumulator Inf → Math.min(Inf,NaN)=NaN → Math.min(NaN,-Inf)=NaN.
+ROW sn = "NaN", sp = "Infinity", sm = "-Infinity"
+| EVAL n = TO_DOUBLE(sn), p = TO_DOUBLE(sp), m = TO_DOUBLE(sm), r = LEAST(p, n, m);
+
+sn:keyword | sp:keyword | sm:keyword | n:double | p:double  | m:double  | r:double
+NaN        | Infinity   | -Infinity  | NaN      | Infinity  | -Infinity | NaN
+;
+
+//
+// ============================================================
+// SECTION 13: Math functions
+// (Existing guards in Cosh, Sinh, Bucket expect null+warning for non-finite)
+// ============================================================
+
+absNaN
+required_capability: to_double_non_finite
+
+// ABS(NaN) = NaN in Java
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = ABS(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+absNegativeInfinity
+required_capability: to_double_non_finite
+
+// ABS(-Infinity) = Infinity in Java
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), r = ABS(d);
+
+s:keyword | d:double | r:double
+-Infinity | -Infinity | Infinity
+;
+
+roundNaN
+required_capability: to_double_non_finite
+
+// Maths.round(double): explicit isNaN check at line 23: if (Double.isNaN(nDouble)) return 0.0d.
+// ROUND(NaN) = 0.0, no warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = ROUND(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | 0.0
+;
+
+floorNaN
+required_capability: to_double_non_finite
+
+// Math.floor(NaN) = NaN
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = FLOOR(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+ceilNaN
+required_capability: to_double_non_finite
+
+// Math.ceil(NaN) = NaN
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = CEIL(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+floorInfinity
+required_capability: to_double_non_finite
+
+// Math.floor(Infinity) = Infinity
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = FLOOR(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | Infinity
+;
+
+sqrtNaN
+required_capability: to_double_non_finite
+
+// Math.sqrt(NaN) = NaN
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = SQRT(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+sqrtNegativeInfinity
+required_capability: to_double_non_finite
+
+// Math.sqrt(-Infinity) = NaN, but SQRT first checks for negative input (before evaluating sqrt)
+// and throws "Square root of negative" — a different guard than the general non-finite result check.
+// The early negative-input guard fires before Math.sqrt is even called.
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), r = SQRT(d);
+warningRegex:evaluation of \[SQRT\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Square root of negative
+
+s:keyword | d:double  | r:double
+-Infinity | -Infinity | null
+;
+
+logNaN
+required_capability: to_double_non_finite
+
+// Math.log(NaN) = NaN
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = LOG(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+logInfinity
+required_capability: to_double_non_finite
+
+// Math.log(Infinity) = Infinity
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = LOG(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | Infinity
+;
+
+sinNaN
+required_capability: to_double_non_finite
+
+// Math.sin(NaN) = NaN; no guard in SIN (unlike Cosh/Sinh)
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = SIN(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+sinInfinity
+required_capability: to_double_non_finite
+
+// Math.sin(Infinity) = NaN (IEEE-754 undefined)
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = SIN(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | NaN
+;
+
+coshNaN
+required_capability: to_double_non_finite
+
+// Cosh has an explicit non-finite guard on the result → null + warning.
+// Note: Math.cosh(NaN) = NaN, which the guard converts to "cosh overflow" (the guard
+// checks isNaN || isInfinite in the result and throws ArithmeticException with that message).
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = COSH(d);
+warningRegex:evaluation of \[COSH\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: cosh overflow
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+sinhNaN
+required_capability: to_double_non_finite
+
+// Sinh also has a non-finite guard on the result. Same pattern as coshNaN.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = SINH(d);
+warningRegex:evaluation of \[SINH\(d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: sinh overflow
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+roundInfinity
+required_capability: to_double_non_finite
+
+// Maths.round(Infinity): nDouble=Infinity, middleResult=Infinity*1.0=Infinity.
+// Line 35 check: Double.POSITIVE_INFINITY == middleResult → returns n=Infinity, no warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = ROUND(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | Infinity
+;
+
+signumNaN
+required_capability: to_double_non_finite
+
+// SIGNUM uses Math.signum(val) with no warnExceptions and no asFiniteNumber guard.
+// Math.signum(NaN) = NaN (IEEE-754: any operation on NaN returns NaN).
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = SIGNUM(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+signumInfinity
+required_capability: to_double_non_finite
+
+// Math.signum(+Infinity) = 1.0 (positive infinity has positive sign).
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = SIGNUM(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | 1.0
+;
+
+signumNegInfinity
+required_capability: to_double_non_finite
+
+// Math.signum(-Infinity) = -1.0 (negative infinity has negative sign).
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), r = SIGNUM(d);
+
+s:keyword | d:double | r:double
+-Infinity | -Infinity | -1.0
+;
+
+powNaNBase
+required_capability: to_double_non_finite
+
+// POW uses asFiniteNumber(Math.pow(base, exp)) with warnExceptions={ArithmeticException}.
+// Math.pow(NaN, 2) = NaN → asFiniteNumber throws → null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = POW(d, 2.0);
+warningRegex:evaluation of \[POW\(d, 2.0\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+powNaNExponent
+required_capability: to_double_non_finite
+
+// Math.pow(2, NaN) = NaN → asFiniteNumber throws → null + warning.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = POW(2.0, d);
+warningRegex:evaluation of \[POW\(2.0, d\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+s:keyword | d:double | r:double
+NaN       | NaN      | null
+;
+
+powInfinityBase
+required_capability: to_double_non_finite
+
+// Math.pow(Infinity, 2) = Infinity → asFiniteNumber throws → null + warning.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = POW(d, 2.0);
+warningRegex:evaluation of \[POW\(d, 2.0\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: Infinity
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | null
+;
+
+powNaNZeroExponent
+required_capability: to_double_non_finite
+
+// Java special case: Math.pow(x, 0) = 1.0 for any x, including NaN.
+// asFiniteNumber(1.0) = 1.0 → no warning. Result: 1.0.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = POW(d, 0.0);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | 1.0
+;
+
+expNaN
+required_capability: to_double_non_finite
+
+// EXP uses raw Math.exp(val) with no guard. Math.exp(NaN) = NaN → returned as-is.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = EXP(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+expInfinity
+required_capability: to_double_non_finite
+
+// Math.exp(+Infinity) = +Infinity → returned as-is (no guard).
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = EXP(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | Infinity
+;
+
+expNegInfinity
+required_capability: to_double_non_finite
+
+// Math.exp(-Infinity) = 0.0 → returned as-is (no guard). A finite result.
+ROW s = "-Infinity" | EVAL d = TO_DOUBLE(s), r = EXP(d);
+
+s:keyword  | d:double  | r:double
+-Infinity  | -Infinity | 0.0
+;
+
+cosNaN
+required_capability: to_double_non_finite
+
+// COS uses raw Math.cos(val) with no guard. Math.cos(NaN) = NaN → returned as-is.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s), r = COS(d);
+
+s:keyword | d:double | r:double
+NaN       | NaN      | NaN
+;
+
+cosInfinity
+required_capability: to_double_non_finite
+
+// Math.cos(Infinity) = NaN in IEEE-754 (cosine is undefined for infinite argument).
+// COS has no guard, so the NaN result is returned as-is.
+ROW s = "Infinity" | EVAL d = TO_DOUBLE(s), r = COS(d);
+
+s:keyword | d:double | r:double
+Infinity  | Infinity | NaN
+;
+
+bucketNaN
+required_capability: to_double_non_finite
+
+// BUCKET is a grouping function and must be used inside STATS, not EVAL.
+// With a NaN input, the isFinite guard in BUCKET fires → the bucket value becomes null + warning.
+// MIN(NaN) = NaN — the MIN aggregation propagates NaN; it does not have a non-finite result guard.
+// Key finding: MIN and MAX lack the non-finite result guard that AVG/SUM/other aggregates have.
+ROW s = "NaN" | EVAL d = TO_DOUBLE(s) | STATS b = MIN(d) BY bucket = BUCKET(d, 5, 0.0, 10.0);
+warningRegex:evaluation of \[BUCKET\(d, 5, 0.0, 10.0\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+
+b:double | bucket:double
+NaN      | null
+;
+
+//
+// ============================================================
+// SECTION 14: SET approximation=true with NaN in aggregation
+// Tests whether user-supplied NaN collides with the internal NaN sentinel
+// used by the confidence-interval bootstrap computation.
+// ============================================================
+
+approximationWithNaN
+required_capability: to_double_non_finite
+required_capability: approximation_v7
+request_stored: skip
+
+// Feed NaN into SUM; the approximation machinery uses NaN internally as an "empty bucket"
+// sentinel. Does user NaN corrupt the confidence interval computation?
+// rows must be >= 10000 per ApproximationSettings validation.
+SET approximation={"rows":10000}\;
+ROW xs = ["NaN", "1.0", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS s = SUM(d);
+
+s:double | _approximation_confidence_interval(s):double | _approximation_certified(s):boolean
+{any}    | {any}                                        | {any}
+;
+
+approximationSumFiniteWithInfinity
+required_capability: to_double_non_finite
+required_capability: approximation_v7
+request_stored: skip
+
+// Feed Infinity into SUM with approximation; SUM(1, Infinity, 2) = Infinity.
+// Does the confidence interval machinery handle an infinite best estimate?
+// rows must be >= 10000 per ApproximationSettings validation.
+SET approximation={"rows":10000}\;
+ROW xs = ["1.0", "Infinity", "2.0"]
+| MV_EXPAND xs
+| EVAL d = TO_DOUBLE(xs)
+| STATS s = SUM(d);
+
+s:double  | _approximation_confidence_interval(s):double | _approximation_certified(s):boolean
+{any}     | {any}                                        | {any}
+;
+
+// NOTE: PERCENTILE is intentionally not tested here.
+// TDigest.checkValue() throws IllegalArgumentException("Invalid value: NaN/Infinity/-Infinity")
+// with no catch in QuantileStates.add() or the generated aggregator function.
+// Any non-finite double input causes a hard query failure (not null+warning).
+// csv-spec has no mechanism to assert on hard query errors, so this behavior
+// is documented in NON_FINITE_FINDINGS.md Section 15 only.

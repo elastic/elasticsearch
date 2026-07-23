@@ -1240,6 +1240,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         } else if (lower4 == upper4) {
             cases.add(new TypedDataSupplier("<big negative double>", () -> lower4, DataType.DOUBLE));
         }
+
+        // Non-finite IEEE-754 values — added for investigation of ES|QL behavior with non-finite doubles.
+        // Only added when the caller uses the fully unbounded range, so bounded callers are unaffected.
+        if (min == -Double.MAX_VALUE && max == Double.MAX_VALUE) {
+            cases.add(new TypedDataSupplier("<NaN double>", () -> Double.NaN, DataType.DOUBLE));
+            cases.add(new TypedDataSupplier("<+Infinity double>", () -> Double.POSITIVE_INFINITY, DataType.DOUBLE));
+            cases.add(new TypedDataSupplier("<-Infinity double>", () -> Double.NEGATIVE_INFINITY, DataType.DOUBLE));
+        }
         return cases;
     }
 

@@ -52,6 +52,7 @@ import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD
  *        and the return struct declares an {@code @ArrayField} accessor
  * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
  *        specs); always {@code false} for interface-based specs
+ * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
  */
 public record MethodModel(
     String methodName,
@@ -65,7 +66,8 @@ public record MethodModel(
     boolean isStructFactory,
     String structReturnSimpleName,
     String packedElementSimpleName,
-    boolean isProtected
+    boolean isProtected,
+    List<BoundsCheckModel> boundsChecks
 ) {
 
     /**
@@ -148,6 +150,11 @@ public record MethodModel(
             }
         }
 
+        List<BoundsCheckModel> boundsChecks = BoundsCheckModel.from(method, paramTypes, messager);
+        if (boundsChecks == null) {
+            return null;
+        }
+
         return new MethodModel(
             methodName,
             function.value(),
@@ -160,7 +167,8 @@ public record MethodModel(
             false,
             null,
             null,
-            isProtected
+            isProtected,
+            boundsChecks
         );
     }
 
@@ -245,7 +253,8 @@ public record MethodModel(
             true,
             structReturnSimpleName,
             packedElementSimpleName,
-            isProtected
+            isProtected,
+            List.of()
         );
     }
 

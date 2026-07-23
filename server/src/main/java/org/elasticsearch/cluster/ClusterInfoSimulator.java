@@ -45,6 +45,7 @@ public class ClusterInfoSimulator {
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
+    private final ShardMoveNodeCacheCommitmentSimulator shardMoveNodeCacheCommitmentSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
@@ -55,6 +56,7 @@ public class ClusterInfoSimulator {
         this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
         this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        this.shardMoveNodeCacheCommitmentSimulator = new ShardMoveNodeCacheCommitmentSimulator(allocation.clusterInfo());
     }
 
     /**
@@ -134,6 +136,7 @@ public class ClusterInfoSimulator {
         }
 
         simulateHeapUsageChangeAfterShardStarted(shard, includeIndexUsage);
+        shardMoveNodeCacheCommitmentSimulator.simulateShardStarted(shard);
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
@@ -300,7 +303,9 @@ public class ClusterInfoSimulator {
                 Map.of(),
                 nodeHeapMetrics,
                 estimatedShardHeapUsages,
-                shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools()
+                shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
+                shardMoveNodeCacheCommitmentSimulator.getShardCacheRequirements(),
+                shardMoveNodeCacheCommitmentSimulator.getSimulatedNodeCacheSizeAndCommitments()
             );
     }
 }

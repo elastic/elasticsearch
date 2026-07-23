@@ -4,3 +4,7 @@
 
 Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+

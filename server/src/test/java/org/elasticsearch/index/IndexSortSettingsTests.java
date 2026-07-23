@@ -96,6 +96,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+
             .put("index.sort.field", "field1")
             .put("index.sort.order", "desc")
             .put("index.sort.mode", "max")
@@ -120,6 +121,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+
             .putList("index.sort.field", RoutingFieldMapper.NAME, "field1")
             .putList("index.sort.order", "desc", "asc")
             .putList("index.sort.mode", "max", "min")
@@ -133,6 +135,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+
             .putList("index.sort.field", SliceIndexing.PARAM_NAME, "field1")
             .putList("index.sort.order", "desc", "asc")
             .putList("index.sort.mode", "max", "min")
@@ -148,6 +151,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
             .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+
             .build();
         IndexSettings indexSettings = indexSettings(settings);
         IndexSortConfig config = indexSettings.getIndexSortConfig();

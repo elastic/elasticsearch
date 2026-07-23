@@ -115,7 +115,7 @@ public final class PlainParquetReadOptions {
             return this;
         }
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({ "unchecked", "cast" })
         public ParquetReadOptions build() {
             try {
                 return (ParquetReadOptions) CONSTRUCTOR.invokeExact(

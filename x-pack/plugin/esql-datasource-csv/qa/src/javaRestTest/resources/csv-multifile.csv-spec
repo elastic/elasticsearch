@@ -4,11 +4,16 @@
 // multi-file split fixture with multi_value_syntax: brackets declared explicitly — they're about glob
 // reading + per-file schema, not standard-CSV-default parsing. Standard-CSV reads are covered by
 // csv-basic.csv-spec on the bracket-free twin.
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes the WITH
+// options (brackets) so the same name always carries the same settings.
 
 multiFileFilterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -23,16 +28,18 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 multiFileAggregate
-required_capability: external_command
+required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets
 | STATS count = COUNT(*) BY gender
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 // ---- File-metadata projections under multi-file glob (relocated from external-multifile.csv-spec) ----
@@ -43,10 +50,11 @@ count:long | gender:keyword
 // If that constant changes, update the names:long expectation here.
 
 multiFileDistinctFileCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets METADATA _file.name
 | STATS names = COUNT_DISTINCT(`_file.name`);
 
 names:long
@@ -54,10 +62,11 @@ names:long
 ;
 
 multiFileGroupByFile
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets METADATA _file.name
 | STATS count = COUNT(*) BY `_file.name`
 | STATS files = COUNT(*), total = SUM(count);
 
@@ -66,10 +75,11 @@ files:long | total:long
 ;
 
 multiFileMetadataSizePositive
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets METADATA _file.size
 | WHERE `_file.size` > 0
 | STATS count = COUNT(*);
 

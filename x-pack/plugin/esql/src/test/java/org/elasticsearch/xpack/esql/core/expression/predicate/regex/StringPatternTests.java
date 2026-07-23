@@ -278,4 +278,12 @@ public class StringPatternTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> like("*a?????????????").createAutomaton(false));
         assertEquals("Pattern was too complex to determinize", e.getMessage());
     }
+
+    public void testDeeplyNestedRLikePattern() {
+        // A deeply nested regex pattern (thousands of nested parentheses) previously caused a
+        // StackOverflowError in Lucene's RegExp.findLeaves(), surfacing as a 500 instead of a 400.
+        String deepPattern = "(".repeat(5000) + "a" + ")".repeat(5000);
+        var e = expectThrows(IllegalArgumentException.class, () -> rlike(deepPattern).createAutomaton(false));
+        assertEquals("Pattern nesting is too deep to evaluate", e.getMessage());
+    }
 }

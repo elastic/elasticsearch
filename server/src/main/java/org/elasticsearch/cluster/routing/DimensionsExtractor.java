@@ -10,8 +10,8 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.eirf.EirfEncoder;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
 /**
@@ -24,14 +24,14 @@ import org.elasticsearch.xcontent.XContentString;
  * <p>Tsid parity with the source-parser-based path
  * ({@link IndexRouting.ExtractFromSource.ForIndexDimensions#buildTsid(org.elasticsearch.xcontent.XContentType,
  * org.elasticsearch.common.bytes.BytesReference) ForIndexDimensions.buildTsid}, which feeds
- * {@link XContentParserTsidFunnel}) is preserved by mapping each {@link EirfType} the encoder
+ * {@link XContentParserTsidFunnel}) is preserved by mapping each {@link SourceValueType} the encoder
  * produces to the same {@link TsidBuilder} call the funnel would have made for the same parser
- * token. The extractor returns {@code false} from {@link EirfEncoder.LeafSink#passRawText()} so
+ * token. The extractor returns {@code false} from {@link LeafSink#passRawText()} so
  * the encoder hands it unboxed values directly, avoiding a wasteful
  * {@code parser.optimizedText().bytes()} call per numeric / boolean leaf.
  *
  * <p>The encoder narrows numeric values by range — values that fit in an int land at
- * {@code EirfType.INT} regardless of how Jackson reported {@code numberType()}; values that don't
+ * {@code SourceValueType.INT} regardless of how Jackson reported {@code numberType()}; values that don't
  * land at {@code LONG}. That matches Jackson's own {@code numberType()} discrimination (which the
  * funnel uses) because Jackson reports the smallest integral type that fits the value, so the
  * resulting tsid bytes are identical. Floating-point values that the encoder narrowed from
@@ -67,17 +67,17 @@ final class DimensionsExtractor extends RoutingExtractor {
     @Override
     protected void handleTextPrimitive(String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {
         // The encoder funnels every text-typed leaf (including BIG_INTEGER / BIG_DECIMAL) through
-        // here as EirfType.STRING; anything else would indicate an encoder bug.
-        assert type == EirfType.STRING : "expected STRING, got type=" + type;
+        // here as SourceValueType.STRING; anything else would indicate an encoder bug.
+        assert type == SourceValueType.STRING : "expected STRING, got type=" + type;
         tsidBuilder.addStringDimension(dottedPath, textBytes);
     }
 
     @Override
     protected void handleLongPrimitive(String dottedPath, byte type, long value) {
-        if (type == EirfType.INT) {
+        if (type == SourceValueType.INT) {
             tsidBuilder.addIntDimension(dottedPath, (int) value);
         } else {
-            // EirfType.LONG (the only other type the encoder can hand us in this method).
+            // SourceValueType.LONG (the only other type the encoder can hand us in this method).
             tsidBuilder.addLongDimension(dottedPath, value);
         }
     }

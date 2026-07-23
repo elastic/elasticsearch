@@ -69,7 +69,6 @@ setup:
         index: test_dynamic_strings_no_text
 
   - match: { test_dynamic_strings_no_text.mappings.properties.new_field.type: keyword }
-  - match: { test_dynamic_strings_no_text.mappings.properties.new_field.doc_values.cardinality: high }
   - is_false: test_dynamic_strings_no_text.mappings.properties.new_field.fields
 
 ---
@@ -137,5 +136,4 @@ setup:
   - match: { test_dynamic_strings.mappings.properties.new_field.fields.keyword.type: keyword }
 
   - match: { test_dynamic_strings.mappings.properties.new_field_2.type: keyword }
-  - match: { test_dynamic_strings.mappings.properties.new_field_2.doc_values.cardinality: high }
   - is_false: test_dynamic_strings.mappings.properties.new_field_2.fields

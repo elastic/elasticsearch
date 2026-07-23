@@ -480,7 +480,13 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
             settings.dimensions(),
             settings.similarity(),
             settings.elementType(),
-            new EndpointMetadata(settings.endpointMetadata().heuristics(), internal, settings.endpointMetadata().display())
+            new EndpointMetadata(
+                settings.endpointMetadata().heuristics(),
+                internal,
+                settings.endpointMetadata().display(),
+                settings.endpointMetadata().regions(),
+                settings.endpointMetadata().deniedByRegionPolicy()
+            )
         );
     }
 }

@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType
 /**
  * Tests for {@link ParquetRsAggregatePushdownSupport}. Verifies the predicate
  * advertises a form as pushable iff
- * {@code PushAggregatesToExternalSource.resolveFromStats} can actually answer it
+ * {@code ExternalSourceAggregatePushdown.resolveFromStats} can actually answer it
  * from file-level statistics.
  */
 public class ParquetRsAggregatePushdownSupportTests extends ESTestCase {

@@ -108,29 +108,41 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             {
                 "model": "%s",
                 "messages": [{"content": "%s", "role": "%s"}],
-                "tools": [{"name": "get_price", "description": "Get the price of an item", "input_schema": {"type": "object"}}],
+                "tools": [
+                    {
+                        "name": "get_price",
+                        "description": "Get the price of an item",
+                        "input_schema": {"type": "object", "properties": {}}
+                    }
+                ],
                 "stream": true,
                 "max_tokens": %d
             }
             """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
     }
 
-    public void testToXContent_WithToolStrictFieldRejected() throws IOException {
+    public void testToXContent_WithToolStrictFieldIgnored() throws IOException {
+        // The OpenAI "strict" field has no Anthropic equivalent, so it is silently dropped rather than rejected.
+        var maxTokens = 1024;
         var tool = new Tool(
             "function",
             new Tool.FunctionField("Get the price of an item", "get_price", Map.of("type", "object"), randomBoolean())
         );
-        var entity = entity(true, null, null, null, List.of(tool), null, taskSettings(1024, null, null, null));
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> {
-            try (var builder = JsonXContent.contentBuilder()) {
-                entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        testToXContent(true, null, null, null, List.of(tool), null, taskSettings(maxTokens, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "messages": [{"content": "%s", "role": "%s"}],
+                "tools": [
+                    {
+                        "name": "get_price",
+                        "description": "Get the price of an item",
+                        "input_schema": {"type": "object", "properties": {}}
+                    }
+                ],
+                "stream": true,
+                "max_tokens": %d
             }
-        });
-        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(
-            exception.getMessage(),
-            is("The [strict] field in tool function definitions is not supported by the Anthropic chat completion API.")
-        );
+            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceObjectEmitsAnthropicShape() throws IOException {

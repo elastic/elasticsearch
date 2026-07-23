@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+public final class ConstantNullBlock extends AbstractBlockRefCounted
     implements
         BooleanBlock,
         IntBlock,
@@ -93,8 +93,13 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ConstantNullBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(length);
+    }
+
+    @Override
     public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
-        return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override
@@ -391,6 +396,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         blockFactory = blockFactory.parent();
     }
 }

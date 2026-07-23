@@ -63,8 +63,7 @@ public class InboundHandlerTests extends ESTestCase {
     private MockBytesRefRecycler recycler;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHandler() throws Exception {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -102,10 +101,9 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         Releasables.closeExpectNoException(recycler);
-        super.tearDown();
     }
 
     public void testPing() throws Exception {

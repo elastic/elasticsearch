@@ -58,7 +58,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
         BiFunction<TestConfiguration, Boolean, Map<String, Object>> createRequestConfig,
         ServiceParser serviceParser,
         TaskType expectedTaskType,
-        TriConsumer<TestConfiguration, Boolean, TestPlainActionFuture<Model>> expectedExceptionAssertions,
+        TriConsumer<TestConfiguration, InferenceService, TestPlainActionFuture<Model>> expectedExceptionAssertions,
         boolean minimalSettings
     ) {}
 
@@ -74,7 +74,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
         private final BiFunction<TestConfiguration, Boolean, Map<String, Object>> createRequestConfig;
         private final ServiceParser serviceParser;
         private final TaskType expectedTaskType;
-        private TriConsumer<TestConfiguration, Boolean, TestPlainActionFuture<Model>> expectedExceptionAssertions;
+        private TriConsumer<TestConfiguration, InferenceService, TestPlainActionFuture<Model>> expectedExceptionAssertions;
         private final boolean minimalSettings;
 
         TestCaseBuilder(
@@ -92,7 +92,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
         }
 
         public TestCaseBuilder expectException(
-            TriConsumer<TestConfiguration, Boolean, TestPlainActionFuture<Model>> expectedExceptionAssertions
+            TriConsumer<TestConfiguration, InferenceService, TestPlainActionFuture<Model>> expectedExceptionAssertions
         ) {
             this.expectedExceptionAssertions = expectedExceptionAssertions;
             return this;
@@ -261,8 +261,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
                         // We expect failure, so the expected task type is irrelevant
                         null,
                         true
-                    ).expectException((t, usesParserForTaskSettings, listener) -> assertUnsupportedTaskTypeException(t, listener))
-                        .build() },
+                    ).expectException((t, service, listener) -> assertUnsupportedTaskTypeException(t, listener)).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing request config throws when an extra key exists in config",
@@ -280,8 +279,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
                         // We expect failure, so the expected task type is irrelevant
                         null,
                         true
-                    ).expectException((t, usesParserForTaskSettings, listener) -> assertNonParserExtraValueException(t, listener))
-                        .build() },
+                    ).expectException((t, service, listener) -> assertNonParserExtraValueException(t, listener)).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing request config throws when an extra key exists in service settings",
@@ -307,8 +305,13 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
                         // We expect failure, so the expected task type is irrelevant
                         null,
                         true
-                    ).expectException((t, usesParserForTaskSettings, listener) -> assertNonParserExtraValueException(t, listener))
-                        .build() },
+                    ).expectException((t, service, listener) -> {
+                        if (service.usesParserForServiceSettings()) {
+                            assertParserExtraValueException(t, listener);
+                        } else {
+                            assertNonParserExtraValueException(t, listener);
+                        }
+                    }).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing request config throws when an extra key exists in task settings",
@@ -334,8 +337,8 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
                         // We expect failure, so the expected task type is irrelevant
                         null,
                         true
-                    ).expectException((t, usesParserForTaskSettings, listener) -> {
-                        if (usesParserForTaskSettings) {
+                    ).expectException((t, service, listener) -> {
+                        if (service.usesParserForTaskSettings()) {
                             assertParserExtraValueException(t, listener);
                         } else {
                             assertNonParserExtraValueException(t, listener);
@@ -366,8 +369,13 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
                         // We expect failure, so the expected task type is irrelevant
                         null,
                         true
-                    ).expectException((t, usesParserForTaskSettings, listener) -> assertRateLimitExtraValueException(t, listener))
-                        .build() } }
+                    ).expectException((t, service, listener) -> {
+                        if (service.usesParserForServiceSettings()) {
+                            assertParserRateLimitExtraValueException(t, listener);
+                        } else {
+                            assertRateLimitExtraValueException(t, listener);
+                        }
+                    }).build() } }
         );
     }
 
@@ -404,6 +412,32 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
     private static void assertParserExtraValueException(TestConfiguration t, TestPlainActionFuture<Model> listener) {
         var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), containsString(Strings.format("unknown field [%s]", EXTRA_KEY)));
+    }
+
+    /**
+     * For services that parse the rate limit settings with a parser, an unknown entry within the {@code rate_limit} object is rejected by
+     * the nested parser. The top-level exception reports a failure to parse the {@code rate_limit} field while the
+     * {@code unknown field [...]} detail is wrapped in the cause chain.
+     */
+    private static void assertParserRateLimitExtraValueException(TestConfiguration t, TestPlainActionFuture<Model> listener) {
+        var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(exception.getMessage(), containsString(Strings.format("failed to parse field [%s]", RateLimitSettings.FIELD_NAME)));
+
+        var expectedUnknownField = Strings.format("unknown field [%s]", EXTRA_KEY);
+        Throwable current = exception;
+        boolean foundUnknownField = false;
+        while (current != null) {
+            if (current.getMessage() != null && current.getMessage().contains(expectedUnknownField)) {
+                foundUnknownField = true;
+                break;
+            }
+            current = current.getCause();
+        }
+        assertThat(
+            Strings.format("expected [%s] in the cause chain, but was: [%s]", expectedUnknownField, exception.getMessage()),
+            foundUnknownField,
+            is(true)
+        );
     }
 
     private static Map<String, Object> requestConfig(
@@ -476,7 +510,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
     }
 
     private void assertFailedParse(InferenceService service, TestPlainActionFuture<Model> listener) {
-        testCase.expectedExceptionAssertions.apply(testConfiguration, service.usesParserForTaskSettings(), listener);
+        testCase.expectedExceptionAssertions.apply(testConfiguration, service, listener);
     }
 
     private void assertSuccessfulParse(TestPlainActionFuture<Model> listener, ChunkingSettings expectedChunkingSettings) {

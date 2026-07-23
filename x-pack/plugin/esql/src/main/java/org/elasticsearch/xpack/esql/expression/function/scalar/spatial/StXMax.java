@@ -56,6 +56,7 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Extracts the maximum x coordinate from the supplied geometry.",
         description = "Extracts the maximum value of the `x` coordinates from the supplied geometry.\n"
             + "If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum `longitude` value.",
         examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max"),

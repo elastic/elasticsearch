@@ -792,6 +792,23 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.removeListener(listener);
     }
 
+    /**
+     * Sends a request to the specified {@code node}. The provided {@code handler} is completed, eventually, even on failure paths.
+     * <p>
+     * This method serializes {@code request} and enqueues the resulting bytes for outbound transmission. There is no bound on this outbound
+     * queue, because there's no reasonable way for {@link TransportService} to react to this queue having reached capacity without causing
+     * harm to callers, likely making any problems worse. Most usages are relatively lightweight, but high-volume callers must track the
+     * resources needed for their in-flight calls, and apply backpressure or load-shedding as appropriate, before calling into
+     * {@link TransportService}.
+     * <p>
+     * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
+     * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
+     * <p>
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
+     * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
+     * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
+     * resources.
+     */
     @Override
     public <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
@@ -802,6 +819,23 @@ public class TransportService extends AbstractLifecycleComponent
         sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
+    /**
+     * Sends a request to the specified {@code node}. The provided {@code handler} is completed, eventually, even on failure paths.
+     * <p>
+     * This method serializes {@code request} and enqueues the resulting bytes for outbound transmission. There is no bound on this outbound
+     * queue, because there's no reasonable way for {@link TransportService} to react to this queue having reached capacity without causing
+     * harm to callers, likely making any problems worse. Most usages are relatively lightweight, but high-volume callers must track the
+     * resources needed for their in-flight calls, and apply backpressure or load-shedding as appropriate, before calling into
+     * {@link TransportService}.
+     * <p>
+     * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
+     * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
+     * <p>
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
+     * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
+     * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
+     * resources.
+     */
     public final <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
         final String action,
@@ -855,7 +889,21 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
-     * Sends a request on the specified connection. If there is a failure sending the request, the specified handler is invoked.
+     * Sends a request on the specified connection. The provided {@code handler} is completed, eventually, even on failure paths.
+     * <p>
+     * This method serializes {@code request} and enqueues the resulting bytes for outbound transmission. There is no bound on this outbound
+     * queue, because there's no reasonable way for {@link TransportService} to react to this queue having reached capacity without causing
+     * harm to callers, likely making any problems worse. Most usages are relatively lightweight, but high-volume callers must track the
+     * resources needed for their in-flight calls, and apply backpressure or load-shedding as appropriate, before calling into
+     * {@link TransportService}.
+     * <p>
+     * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
+     * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
+     * <p>
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
+     * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
+     * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
+     * resources.
      *
      * @param connection the connection to send the request on
      * @param action     the name of the action
@@ -933,6 +981,24 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * Sends a request to the specified {@code node}. The provided {@code handler} is completed, eventually, even on failure paths. The
+     * request will be handled by a task which is a child of the given {@code parentTask}.
+     * <p>
+     * This method serializes {@code request} and enqueues the resulting bytes for outbound transmission. There is no bound on this outbound
+     * queue, because there's no reasonable way for {@link TransportService} to react to this queue having reached capacity without causing
+     * harm to callers, likely making any problems worse. Most usages are relatively lightweight, but high-volume callers must track the
+     * resources needed for their in-flight calls, and apply backpressure or load-shedding as appropriate, before calling into
+     * {@link TransportService}.
+     * <p>
+     * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
+     * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
+     * <p>
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
+     * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
+     * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
+     * resources.
+     */
     public final <T extends TransportResponse> void sendChildRequest(
         final DiscoveryNode node,
         final String action,
@@ -947,6 +1013,24 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * Sends a request on the specified connection. The provided {@code handler} is completed, eventually, even on failure paths. The
+     * request will be handled by a task which is a child of the given {@code parentTask}.
+     * <p>
+     * This method serializes {@code request} and enqueues the resulting bytes for outbound transmission. There is no bound on this outbound
+     * queue, because there's no reasonable way for {@link TransportService} to react to this queue having reached capacity without causing
+     * harm to callers, likely making any problems worse. Most usages are relatively lightweight, but high-volume callers must track the
+     * resources needed for their in-flight calls, and apply backpressure or load-shedding as appropriate, before calling into
+     * {@link TransportService}.
+     * <p>
+     * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
+     * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
+     * <p>
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
+     * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
+     * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
+     * resources.
+     */
     public <T extends TransportResponse> void sendChildRequest(
         final Transport.Connection connection,
         final String action,
@@ -957,6 +1041,24 @@ public class TransportService extends AbstractLifecycleComponent
         sendChildRequest(connection, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
     }
 
+    /**
+     * Sends a request on the specified connection. The provided {@code handler} is completed, eventually, even on failure paths. The
+     * request will be handled by a task which is a child of the given {@code parentTask}.
+     * <p>
+     * This method serializes {@code request} and enqueues the resulting bytes for outbound transmission. There is no bound on this outbound
+     * queue, because there's no reasonable way for {@link TransportService} to react to this queue having reached capacity without causing
+     * harm to callers, likely making any problems worse. Most usages are relatively lightweight, but high-volume callers must track the
+     * resources needed for their in-flight calls, and apply backpressure or load-shedding as appropriate, before calling into
+     * {@link TransportService}.
+     * <p>
+     * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
+     * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
+     * <p>
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
+     * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
+     * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
+     * resources.
+     */
     public <T extends TransportResponse> void sendChildRequest(
         final Transport.Connection connection,
         final String action,

@@ -17,7 +17,12 @@ $endif$
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(long)$
+$if(LongRange)$
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$BlockBuilder;
+$elseif(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
@@ -66,6 +71,8 @@ $endif$
         $Type$Block block = page.getBlock(channel);
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
+$elseif(LongRange)$
+        $Type$BlockBuilder.LongRange scratch = new $Type$BlockBuilder.LongRange();
 $endif$
         for (int i = 0; i < positions.getPositionCount(); i++) {
             int valueCount = block.getValueCount(i);
@@ -87,6 +94,12 @@ $if(BytesRef)$
                 bytes.append(scratch);
                 newCell[dstIndex + v] = bytesOrd + v;
             }
+$elseif(LongRange)$
+            for (int v = 0; v < valueCount; v++) {
+                scratch = block.getLongRange(firstValueIndex + v, scratch);
+                newCell[dstIndex + v * 2] = scratch.from();
+                newCell[dstIndex + v * 2 + 1] = scratch.to();
+            }
 $else$
             for (int v = 0; v < valueCount; v++) {
                 newCell[dstIndex + v] = block.get$Type$(firstValueIndex + v);
@@ -97,9 +110,9 @@ $endif$
 
     private $if(BytesRef)$int$else$$type$$endif$[] extendCell($if(BytesRef)$int$else$$type$$endif$[] oldCell, int newValueCount) {
         if (oldCell == null) {
-            return new $if(BytesRef)$int$else$$type$$endif$[newValueCount];
+            return new $if(BytesRef)$int$else$$type$$endif$[$if(LongRange)$newValueCount * 2$else$newValueCount$endif$];
         } else {
-            return Arrays.copyOf(oldCell, oldCell.length + newValueCount);
+            return Arrays.copyOf(oldCell, oldCell.length + $if(LongRange)$newValueCount * 2$else$newValueCount$endif$);
         }
     }
 
@@ -119,6 +132,18 @@ $endif$
     private void appendGroupToBlockBuilder($Type$Block.Builder builder, $if(BytesRef)$int$else$$type$$endif$[] group) {
         if (group == null) {
             builder.appendNull();
+$if(LongRange)$
+        } else if (group.length == 2) {
+            builder.appendLongRange(group[0], group[1]);
+        } else {
+            builder.beginPositionEntry();
+            // TODO: sort and dedup and set MvOrdering
+            for (int v = 0; v < group.length / 2; v++) {
+                builder.appendLongRange(group[v * 2], group[v * 2 + 1]);
+            }
+            builder.endPositionEntry();
+        }
+$else$
         } else if (group.length == 1) {
 $if(BytesRef)$
             builder.appendBytesRef(bytes.get(group[0], scratch));
@@ -137,6 +162,7 @@ $endif$
             }
             builder.endPositionEntry();
         }
+$endif$
     }
 
     private $if(BytesRef)$int$else$$type$$endif$[] getCellOrNull(int position) {

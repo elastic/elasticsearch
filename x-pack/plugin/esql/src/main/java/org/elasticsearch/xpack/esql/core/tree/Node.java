@@ -450,13 +450,16 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Configuration for rendering the string representation.
+     * Output-shape configuration for the {@code nodeString} render pipeline. Controls truncation,
+     * width, and property-count limits. Orthogonal to identifier mapping — anonymization or any
+     * other identifier-substitution variant flows through a separately-passed
+     * {@link NodeStringMapper}.
      */
     public enum NodeStringFormat {
-        /** No list truncation, no line breaks due to string width. */
-        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
-        /** List truncation, line breaks, and limited number of lines. */
-        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
+        /** Bounded width / lines / property count for human-readable debug toString. The default. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES),
+        /** No truncation; renders everything. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         final int maxProperties;
         final int maxWidth;
@@ -471,39 +474,45 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     /**
      * Render this {@link Node} to a {@link String} with the
-     * {@link NodeStringFormat#LIMITED limited} format. This does not include
-     * this node's {@link #children()}.
+     * {@link NodeStringFormat#LIMITED limited} format and the identity mapper. This does not
+     * include this node's {@link #children()}.
      */
     public final String nodeString() {
         StringBuilder sb = new StringBuilder();
-        nodeString(sb, NodeStringFormat.LIMITED);
+        nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
         return sb.toString();
     }
 
     /**
      * Append this {@link Node}'s string representation to {@code sb}. This
      * does not include this node's {@link #children()}.
-     * @param sb target for the string
-     * @param format configuration for rendering the string representation
+     * @param sb     target for the string
+     * @param format output-shape configuration (width / lines / property count)
+     * @param mapper identifier-mapping strategy (raw via {@link NodeStringMapper#IDENTITY},
+     *               anonymized via the failure-path anonymizer, etc.)
      */
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
         sb.append("[");
-        propertiesToString(sb, true, format);
+        propertiesToString(sb, true, format, mapper);
         sb.append("]");
     }
 
     @Override
     public String toString() {
-        return toString(NodeStringFormat.LIMITED);
+        return toString(NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     public String toString(NodeStringFormat format) {
-        return new NodeToString(format).treeString(this, 0).toString();
+        return toString(format, NodeStringMapper.IDENTITY);
     }
 
-    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
-        new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
+    public String toString(NodeStringFormat format, NodeStringMapper mapper) {
+        return new NodeToString(format, mapper).treeString(this, 0).toString();
+    }
+
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, NodeStringMapper mapper) {
+        new NodePropertiesToString(sb, format, mapper, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {

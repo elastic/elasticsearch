@@ -99,7 +99,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
 
         // subproject2 partially failed — exclude the 2 successful tests
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
-        result.output.contains("excluding 2 successful tests")
+        result.output.contains("excluding 0 successful suites and 2 successful tests")
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest2")
         testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
@@ -117,7 +117,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
-        result.output.contains("excluding 1 successful tests")
+        result.output.contains("excluding 0 successful suites and 1 successful tests")
         testNotExecuted(result.output, "SubProject2TestClazz2 > someTest1")
         testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
         // Other classes in the same task still run

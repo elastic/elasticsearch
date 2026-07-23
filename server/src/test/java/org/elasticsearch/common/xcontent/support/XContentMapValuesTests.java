@@ -582,6 +582,21 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] { "搜索" }));
     }
 
+    public void testNonBmpCharactersInPaths() {
+        // Unlike the BMP CJK chars in testSupplementaryCharactersInPaths above, these are above U+FFFF (surrogate pairs).
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X
+        final String y = "\uD835\uDD50"; // U+1D550 MATHEMATICAL DOUBLE-STRUCK CAPITAL Y
+
+        Map<String, Object> map = new HashMap<>();
+        map.put(x, 2);
+        map.put(y, 3);
+
+        // include: only the requested non-BMP field is retained
+        assertEquals(Map.of(x, 2), XContentMapValues.filter(map, new String[] { x }, new String[0]));
+        // exclude: the excluded non-BMP field is dropped, the other is retained
+        assertEquals(Map.of(y, 3), XContentMapValues.filter(map, new String[0], new String[] { x }));
+    }
+
     /**
      * Tests that we can extract paths which share a prefix with other paths.
      * See {@link AbstractFilteringTestCase#testFilterSharedPrefixes()}

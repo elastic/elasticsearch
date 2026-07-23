@@ -27,8 +27,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,7 +47,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAlloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
-import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.STATE_MACHINE_RETRY_DELAY;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptionBaseIT {
@@ -62,8 +63,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             public void start(Index index, int clusterSize, int shardCount, String coordinator) {
                 var thread = new Thread(() -> {
                     do {
-                        // We don't stop/restart nodes due to #147842.
-                        Failure randomFailure = randomFrom(Failure.LOCAL_FAIL_SHARD, Failure.RELOCATE_SHARD);
+                        Failure randomFailure = randomFrom(Failure.values());
                         try {
                             induceFailure(randomFailure, index, coordinator);
                         } catch (Exception e) {
@@ -96,7 +96,14 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             // We should not see requests that were queued for a long time in a local cluster setup anyway.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100))
             // Reduce the delay between retries to speed up the test.
-            .put(STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10));
+            .put(SplitSourceService.STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10))
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5))
+            // Reader contexts are only cleaned up (outside of search execution) if a shard is reassigned to a node
+            // or when keepalive expires.
+            // With `ISOLATE_NODE` disruption it is possible that a reader context is opened
+            // to execute a search but not closed since the node is isolated and search failed on this shard.
+            // To prevent asserts for leaked reader contexts we shorten the keepalive.
+            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1));
     }
 
     @Override
@@ -107,7 +114,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
     public static class AddSettingPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(STATE_MACHINE_RETRY_DELAY);
+            return List.of(SplitSourceService.STATE_MACHINE_RETRY_DELAY, SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
         }
     }
 
@@ -605,9 +612,10 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
 
         int shards = randomIntBetween(2, 5);
 
-        int indexNodes = randomIntBetween(1, shards * 2);
+        // At least two of each role so we still have usable nodes when `ISOLATE_NODE` disruption is applied.
+        int indexNodes = randomIntBetween(2, shards * 2);
         startIndexNodes(indexNodes);
-        int searchNodes = randomIntBetween(1, shards * 2);
+        int searchNodes = randomIntBetween(2, shards * 2);
         startSearchNodes(searchNodes);
 
         int clusterSize = 1 + 1 + indexNodes + searchNodes;
@@ -667,6 +675,11 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                 logger.info("--> Split round complete");
             }
 
+            logger.info("--> Stopping disruption");
+            disruptor.stop();
+            ensureStableCluster(clusterSize, masterNode);
+            logger.info("--> Disruptions stopped");
+
             var threadExceptions = Collections.synchronizedList(new ArrayList<>());
 
             // We need to join all threads even if there are failures so that they don't continue doing operations
@@ -674,20 +687,24 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             logger.info("--> Waiting for operations to complete");
             for (int i = 0; i < threadsCount; i++) {
                 try {
-                    threads.get(i).join(SAFE_AWAIT_TIMEOUT.millis());
+                    Thread thread = threads.get(i);
+                    // The amount of work threads do is finite and limited by `threadOperations`.
+                    // This timeout is to detect rogue threads without waiting for suite timeout.
+                    boolean terminated = thread.join(Duration.ofMinutes(5));
+                    if (terminated == false) {
+                        for (int j = i; j < threadsCount; j++) {
+                            threads.get(j).interrupt();
+                        }
+                        fail("Operations thread did not terminate in time");
+                    }
                 } catch (Exception e) {
                     threadExceptions.add(e);
                 }
             }
             logger.info("--> Operations are done");
 
-            assertTrue("There are failed operations: " + Arrays.toString(threadExceptions.toArray()), threadExceptions.isEmpty());
+            assertTrue("--> There are failed operations: " + Arrays.toString(threadExceptions.toArray()), threadExceptions.isEmpty());
         } finally {
-            logger.info("--> Stopping disruption");
-            disruptor.stop();
-            ensureStableCluster(clusterSize, masterNode);
-            logger.info("--> Disruptions stopped");
-
             /// This is a workaround for assertion that `REQUEST` circuit breaker has outstanding bytes in
             /// [InternalTestCluster#ensureEstimatedStats()].
             /// Under disruption it is possible that shard fails in the middle of a bulk request.

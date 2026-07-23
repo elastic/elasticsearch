@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144121
+pr: 152200
+summary: "Support full-text search functions for unmapped fields with `LOAD` and return `null` for partially unmapped fields that cannot be implicitly converted"
+type: feature

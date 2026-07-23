@@ -1605,6 +1605,41 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testSortColumnarId() {
+        if (randomBoolean()) {
+            prepareCreate("test", Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true)).get();
+        } else {
+            prepareCreate("test").setMapping("""
+                {
+                    "_id": { "mode": "columnar" }
+                }
+                """).get();
+        }
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 20);
+        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            indexReqs[i] = prepareIndex("test").setId(Integer.toString(i)).setSource();
+        }
+        indexRandom(true, indexReqs);
+
+        SortOrder order = randomFrom(SortOrder.values());
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(randomIntBetween(1, numDocs + 5)).addSort("_id", order),
+            response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+                for (int i = 0; i < hits.length; ++i) {
+                    String idString = hits[i].getId();
+                    final BytesRef id = new BytesRef(idString);
+                    assertEquals(idString, hits[i].getSortValues()[0]);
+                    assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+                    previous = id;
+                }
+            }
+        );
+    }
+
     /**
      * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */

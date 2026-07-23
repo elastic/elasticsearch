@@ -402,7 +402,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             (int) length,
             factory
         );
-        s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
+        onReadComplete(s3AsyncClient.getObject(request, transformer), (buffer, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
@@ -423,17 +423,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 }
             }
 
-            counters.addRequest(System.nanoTime() - startNanos, buffer.buffer().remaining());
-            try {
-                listener.onResponse(buffer);
-            } catch (Exception e) {
-                try {
-                    buffer.close();
-                } catch (Exception closeEx) {
-                    e.addSuppressed(closeEx);
-                }
-                throw e;
-            }
+            deliverRead(listener, buffer, startNanos);
         });
     }
 

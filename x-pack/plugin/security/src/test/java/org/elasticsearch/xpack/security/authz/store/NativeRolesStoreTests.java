@@ -53,6 +53,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -66,6 +67,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
@@ -95,6 +98,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -460,6 +464,53 @@ public class NativeRolesStoreTests extends ESTestCase {
         putRole(rolesStore, flsDlsRole, future);
         e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("field and document level security"));
+    }
+
+    public void testPutRoleWithDatasourcePrivilegeRejectedInMixedCluster() throws IOException {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final Client client = mock(Client.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(
+            TransportVersionUtils.getPreviousVersion(ESQL_DATASOURCE_PRIVILEGE)
+        );
+        final FeatureService featureService = mock(FeatureService.class);
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
+        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+        new ReservedRolesStore(Set.of("superuser"));
+        final NativeRolesStore rolesStore = new NativeRolesStore(
+            Settings.EMPTY,
+            client,
+            TestUtils.newTestLicenseState(),
+            securityIndex,
+            clusterService,
+            mock(ReservedRoleNameChecker.class),
+            mock(NamedXContentRegistry.class)
+        );
+        securityIndex.clusterChanged(new ClusterChangedEvent("test", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState()));
+
+        final var datasourcePrivileges = new ConfigurableClusterPrivileges.DatasourcePrivileges(
+            List.of(
+                new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                    new String[] { "my-ds" },
+                    new String[] { "read" }
+                )
+            )
+        );
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "test-role",
+            null,
+            null,
+            null,
+            new ConfigurableClusterPrivilege[] { datasourcePrivileges },
+            null,
+            null,
+            null
+        );
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        putRole(rolesStore, roleDescriptor, future);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("datasource privilege"));
     }
 
     public void testGetRoleWhenDisabled() throws Exception {

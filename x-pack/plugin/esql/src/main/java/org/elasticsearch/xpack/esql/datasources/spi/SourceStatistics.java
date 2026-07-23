@@ -44,6 +44,15 @@ public interface SourceStatistics {
 
     /**
      * Statistics for an individual column.
+     * <p>
+     * Contract for {@link #minValue()}/{@link #maxValue()}: the values must already be in ESQL's
+     * in-memory representation for the column's data type — i.e. exactly what a scan of the same
+     * column would produce. In particular temporal columns must be normalized (e.g. {@code DATETIME}
+     * as epoch-milliseconds, not raw parquet days/micros), because {@code PushStatsToExternalSource}
+     * substitutes these values directly into MIN/MAX aggregations without any further conversion.
+     * A format reader that cannot produce a scan-equivalent value for a column (e.g. statistics that
+     * are not ordered by the column's logical type) must omit min/max for that column
+     * ({@code Optional.empty()}) so the query falls back to a scan.
      */
     interface ColumnStatistics {
         /**
@@ -52,19 +61,29 @@ public interface SourceStatistics {
         OptionalLong nullCount();
 
         /**
+         * Returns the number of non-null values in this column, if known. Multivalue-aware:
+         * a multivalued cell contributes one per value, so this is what {@code COUNT(col)}
+         * returns and is served directly instead of being derived from {@code rowCount - nullCount}
+         * (which under-counts multivalued columns).
+         */
+        default OptionalLong valueCount() {
+            return OptionalLong.empty();
+        }
+
+        /**
          * Returns the number of distinct values in this column, if known.
          */
         OptionalLong distinctCount();
 
         /**
-         * Returns the minimum value as a comparable object, if known.
-         * The type depends on the column data type.
+         * Returns the minimum value as a comparable object, if known. The type and representation
+         * must match ESQL's in-memory form for the column's data type (see the interface contract).
          */
         Optional<Object> minValue();
 
         /**
-         * Returns the maximum value as a comparable object, if known.
-         * The type depends on the column data type.
+         * Returns the maximum value as a comparable object, if known. The type and representation
+         * must match ESQL's in-memory form for the column's data type (see the interface contract).
          */
         Optional<Object> maxValue();
 

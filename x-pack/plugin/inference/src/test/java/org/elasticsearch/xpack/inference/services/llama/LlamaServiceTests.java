@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests.createChatCompletionModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
@@ -313,22 +314,19 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", getUrl(webServer), "api_key");
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", getUrl(webServer), "api_key");
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_noInputs() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", getUrl(webServer), "api_key");
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -500,7 +498,14 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
     }
 
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
-        var settings = new LlamaEmbeddingsServiceSettings(randomAlphaOfLength(8), randomAlphaOfLength(8), null, similarity, null, null);
+        var settings = new LlamaEmbeddingsServiceSettings(
+            randomAlphaOfLength(8),
+            createUri(randomAlphaOfLength(8)),
+            null,
+            similarity,
+            null,
+            null
+        );
         return new LlamaEmbeddingsModel(
             randomAlphaOfLength(8),
             TaskType.TEXT_EMBEDDING,

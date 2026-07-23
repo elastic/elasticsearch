@@ -34,6 +34,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -52,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,45 +94,45 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertSameDocIdsOnShards();
     }
 
+    /// Waits until the given recovery stats predicates are all satisfied, re-checking on every recovery scheduling
+    /// event on all given nodes.
     protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();
 
         final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
-        final Map<String, PeerRecoverySourceService> peerRecoverySourceServices = new ConcurrentHashMap<>();
-        final Map<String, PeerRecoveryTargetService> peerRecoveryTargetServices = new ConcurrentHashMap<>();
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
         for (String nodeName : predicatePerNode.keySet()) {
             indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
-            peerRecoverySourceServices.put(nodeName, internalCluster().getInstance(PeerRecoverySourceService.class, nodeName));
-            peerRecoveryTargetServices.put(nodeName, internalCluster().getInstance(PeerRecoveryTargetService.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
         }
 
-        final RecoverySchedulingListener listener = () -> {
-            if (success.get()) {
-                return;
-            }
-            // Check if all conditions are met
-            for (final var nodePredicate : predicatePerNode.entrySet()) {
-                final var indicesService = indicesServices.get(nodePredicate.getKey());
-
-                final var stats = new RecoveryStats();
-                for (IndexService indexService : indicesService) {
-                    for (IndexShard shard : indexService) {
-                        stats.add(shard.recoveryStats());
-                    }
-                }
-                if (nodePredicate.getValue().test(stats) == false) {
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
                     return;
                 }
-            }
-            conditionLatch.countDown();
-            success.set(true);
-        };
+                // Check if all conditions are met
+                for (final var nodePredicate : predicatePerNode.entrySet()) {
+                    final var indicesService = indicesServices.get(nodePredicate.getKey());
 
-        // Plug in listener on all nodes
+                    final var stats = new RecoveryStats();
+                    for (IndexService indexService : indicesService) {
+                        for (IndexShard shard : indexService) {
+                            stats.add(shard.recoveryStats());
+                        }
+                    }
+                    if (nodePredicate.getValue().test(stats) == false) {
+                        return;
+                    }
+                }
+                conditionLatch.countDown();
+                success.set(true);
+            }
+        };
         for (final var nodeName : predicatePerNode.keySet()) {
-            peerRecoverySourceServices.get(nodeName).ongoingRecoveries.addRecoverySchedulingListener(listener);
-            peerRecoveryTargetServices.get(nodeName).onGoingRecoveries.addRecoverySchedulingListener(listener);
+            schedulingListeners.get(nodeName).addListener(listener);
         }
         try {
             // In case conditions were already met before we added the listener everywhere
@@ -138,10 +141,67 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         } finally {
             // Clean up all listeners
             for (final var nodeName : predicatePerNode.keySet()) {
-                peerRecoverySourceServices.get(nodeName).ongoingRecoveries.removeRecoverySchedulingListener(listener);
-                peerRecoveryTargetServices.get(nodeName).onGoingRecoveries.removeRecoverySchedulingListener(listener);
+                schedulingListeners.get(nodeName).removeListener(listener);
             }
         }
+    }
+
+    protected void awaitNoCurrentRecoveriesInStats(Collection<String> nodeNames) {
+        final Map<String, Predicate<RecoveryStats>> predicates = new HashMap<>();
+        for (final var nodeName : nodeNames) {
+            predicates.put(nodeName, RecoveryStats::noCurrentRecoveries);
+        }
+        awaitRecoveryCountStats(predicates);
+    }
+
+    protected void awaitRecoveryCountMetrics(String nodeName, TestTelemetryPlugin nodeTelemetry, Map<String, Long> expectedMetrics) {
+        awaitRecoveryCountMetrics(Map.of(nodeName, nodeTelemetry), Map.of(nodeName, expectedMetrics));
+    }
+
+    /// Waits until `expectedMetrics` matches the provided telemetries' values, re-checking on every recovery
+    /// scheduling event on the given nodes.
+    protected void awaitRecoveryCountMetrics(Map<String, TestTelemetryPlugin> telemetries, Map<String, Map<String, Long>> expectedMetrics) {
+        final var conditionLatch = new CountDownLatch(1);
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
+        for (String nodeName : expectedMetrics.keySet()) {
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
+        }
+
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (conditionLatch.getCount() == 0) {
+                    return;
+                }
+                for (var entry : expectedMetrics.entrySet()) {
+                    final var telemetry = telemetries.get(entry.getKey());
+                    final var nodeExpectedMetrics = entry.getValue();
+                    for (var expectedMetric : nodeExpectedMetrics.entrySet()) {
+                        if (getLongUpDownCounter(telemetry, expectedMetric.getKey()) != expectedMetric.getValue()
+                            && getLongCounter(telemetry, expectedMetric.getKey()) != expectedMetric.getValue()) {
+                            return;
+                        }
+                    }
+                }
+                conditionLatch.countDown();
+            }
+        };
+
+        schedulingListeners.values().forEach(s -> s.addListener(listener));
+        try {
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            schedulingListeners.values().forEach(s -> s.removeListener(listener));
+        }
+    }
+
+    private long getLongUpDownCounter(TestTelemetryPlugin telemetry, String key) {
+        return telemetry.getLongUpDownCounterMeasurement(key).stream().mapToLong(Measurement::getLong).sum();
+    }
+
+    private long getLongCounter(TestTelemetryPlugin telemetry, String key) {
+        return telemetry.getLongCounterMeasurement(key).stream().mapToLong(Measurement::getLong).sum();
     }
 
     protected void checkTransientErrorsDuringRecoveryAreRetried(String recoveryActionToBlock) throws Exception {

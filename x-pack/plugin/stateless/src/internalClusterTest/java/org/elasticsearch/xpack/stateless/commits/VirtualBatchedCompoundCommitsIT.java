@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -53,6 +54,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -83,6 +85,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -103,7 +106,10 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_MISSING_TIMESTAMP_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
@@ -111,6 +117,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -1129,11 +1136,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         ensureSearchable(indexName);
     }
 
-    public void testVirtualBatchedCompoundCommitChunksPressure() {
-        // The test admits a first refresh that requests a 1-page chunk, and halts it mid-way before returning the chunk response.
-        // Then, a second refresh comes in, that requests another 1-page chunk. It is rejected two times in a row, and the third retry
-        // attempt is halted mid-way before processing the chunk request (and thus is not yet counted by the pressure). Then, we complete
-        // the first refresh, which resets the pressure, and allow the second refresh to complete successfully.
+    public void testVirtualBatchedCompoundCommitChunksPressure() throws Exception {
+        // Phase 1: first refresh builds a VBCC chunk response but blocks before real channel.sendResponse (pressure counted).
+        // Phase 2: second refresh is rejected twice while chunk1 pressure is still held; third attempt halts before admit.
+        // Phase 3: allow transport send to complete the first refresh and ultimately the second refresh.
 
         startMasterOnlyNode();
         final var indexNode = startIndexNode(
@@ -1177,13 +1183,28 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         evictSearchShardCache(indexName1);
         evictSearchShardCache(indexName2);
 
-        // Infrastructure to be able to catch the chunks of the refreshes mid-way.
+        // Infrastructure to catch refreshes mid-way and observe transport send completion.
         AtomicInteger pagesRead = new AtomicInteger(0);
-        CountDownLatch chunk1ResponseProduced = new CountDownLatch(1); // chunk of first refresh counted by pressure, and halted mid-way
-        CountDownLatch chunk1ToSendResponse = new CountDownLatch(1); // to send the response for the first refresh and release the pressure
-        CountDownLatch chunk2Attempts = new CountDownLatch(3); // to count the chunk requests of the second refresh before halting
-        CountDownLatch chunk2ToProcess = new CountDownLatch(1); // to halt before processing the third request of the second refresh
+        CountDownLatch chunk1ResponseBuilt = new CountDownLatch(1);
+        CountDownLatch chunk1ToStartTransportSend = new CountDownLatch(1);
+        CountDownLatch chunk1TransportSendComplete = new CountDownLatch(1);
+        CountDownLatch chunk2Attempts = new CountDownLatch(3);
+        CountDownLatch chunk2ToProcess = new CountDownLatch(1);
+        final AtomicBoolean awaitingChunk1TransportSendComplete = new AtomicBoolean(false);
+        final AtomicLong chunk1PressureAtOnResponseSent = new AtomicLong(-1);
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action) {
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
+                    && awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
+                    // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.
+                    // Pressure must still be counted at onResponseSent.
+                    chunk1PressureAtOnResponseSent.set(vbccChunksPressure.getCurrentChunksBytes());
+                    chunk1TransportSendComplete.countDown();
+                }
+            }
+        });
         indexNodeTransportService.addRequestHandlingBehavior(
             TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
             (handler, request, channel, task) -> {
@@ -1202,8 +1223,9 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
                         @Override
                         public void sendResponse(TransportResponse response) {
-                            chunk1ResponseProduced.countDown();
-                            safeAwait(chunk1ToSendResponse);
+                            chunk1ResponseBuilt.countDown();
+                            safeAwait(chunk1ToStartTransportSend);
+                            awaitingChunk1TransportSendComplete.set(true);
                             channel.sendResponse(response);
                             pagesRead.incrementAndGet();
                         }
@@ -1249,8 +1271,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         // Refresh first index
         var refresh1 = client().admin().indices().prepareRefresh(indexName1).execute();
-        safeAwait(chunk1ResponseProduced);
-        logger.info("--> chunk produced for the first refresh");
+        safeAwait(chunk1ResponseBuilt);
+        logger.info("--> chunk response built for the first refresh");
         assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo((long) PAGE_SIZE));
 
         logger.info("--> issuing second refresh");
@@ -1259,15 +1281,23 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // wait until the third attempt of the second refresh is halted
         safeAwait(chunk2Attempts);
 
-        logger.info("--> continuing sending chunk for the first refresh");
-        chunk1ToSendResponse.countDown();
+        logger.info("--> starting transport send for the first refresh chunk");
+        chunk1ToStartTransportSend.countDown();
+        safeAwait(chunk1TransportSendComplete);
+
+        // OutboundHandler invokes onResponseSent before releasing zero-copy chunk bytes; pressure must still be counted then.
+        assertThat(
+            "pressure must stay held at onResponseSent until outbound bytes are released",
+            chunk1PressureAtOnResponseSent.get(),
+            equalTo((long) PAGE_SIZE)
+        );
+        assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
         assertNoFailures(safeGet(refresh1));
-        assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L));
 
         logger.info("--> continuing processing chunk for the second refresh");
         chunk2ToProcess.countDown();
         assertNoFailures(safeGet(refresh2));
-        assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L));
+        assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
 
         // Confirm that the pressure metrics were correctly set
         final int pages = pagesRead.get();
@@ -1332,6 +1362,86 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 metricsPlugin.resetMeter();
             }
         }
+    }
+
+    public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        assertAcked(client().admin().indices().preparePutMapping(indexName).setSource("""
+                     {
+                       "properties": {
+                         "@timestamp": {
+                           "type": "date",
+                           "format": "epoch_millis"
+                         }
+                       }
+                     }
+            """, XContentType.JSON).get());
+
+        // Constrained positive epoch-millis so the exact minutes assertion stays clean.
+        final long tenYearsMillis = TimeValue.timeValueDays(3650).millis();
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        final int refreshCycles = randomIntBetween(1, 4);
+        for (int cycle = 0; cycle < refreshCycles; cycle++) {
+            final var bulkRequest = client().prepareBulk();
+            final int newDocs = randomIntBetween(1, 10);
+            for (int j = 0; j < newDocs; j++) {
+                final long timestamp = randomLongBetween(1, tenYearsMillis);
+                min = Math.min(min, timestamp);
+                max = Math.max(max, timestamp);
+                bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp));
+            }
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            assertNoFailures(bulkRequest.get());
+        }
+
+        final var shardId = findIndexShard(indexName).shardId();
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        // Capture the size before the flush freezes and uploads the VBCC; the size bucket is derived from it.
+        final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
+        assertNotNull(virtualBcc);
+        final long totalSize = virtualBcc.getTotalSizeInBytes();
+
+        flush(indexName);
+
+        final List<Measurement> measurements = metricsPlugin.getDoubleHistogramMeasurement(BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getDouble(), closeTo((double) (max - min) / 60_000d, 1e-6));
+        assertThat(
+            measurements.get(0).attributes(),
+            equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(totalSize)))
+        );
+        assertThat(metricsPlugin.getLongCounterMeasurement(BCC_MISSING_TIMESTAMP_METRIC), empty());
+    }
+
+    public void testBccMissingTimestampMetricRecordedWhenNoTimestampField() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+
+        // None of the indexed docs carry a @timestamp field, so every compound commit has a null range.
+        indexDocsAndRefresh(indexName);
+
+        final var shardId = findIndexShard(indexName).shardId();
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
+
+        flush(indexName);
+
+        final List<Measurement> missing = metricsPlugin.getLongCounterMeasurement(BCC_MISSING_TIMESTAMP_METRIC);
+        assertThat(missing, hasSize(1));
+        assertThat(missing.get(0).getLong(), equalTo(1L));
+        assertThat(metricsPlugin.getDoubleHistogramMeasurement(BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC), empty());
     }
 
     // Corrupt lucene files should be detected on upload and trigger shard failure.

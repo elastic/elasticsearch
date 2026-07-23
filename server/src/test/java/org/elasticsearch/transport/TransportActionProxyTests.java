@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -79,10 +80,8 @@ public class TransportActionProxyTests extends ESTestCase {
     protected DiscoveryNode nodeD;
     protected MockTransportService serviceD;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         serviceA = buildService(version0, transportVersion0); // this one supports dynamic tracer updates
         serviceA.taskManager.setTaskCancellationService(new TaskCancellationService(serviceA));
@@ -97,9 +96,8 @@ public class TransportActionProxyTests extends ESTestCase {
         nodeD = serviceD.getLocalNode();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeServices() throws Exception {
         IOUtils.close(serviceA, serviceB, serviceC, serviceD, () -> { terminate(threadPool); });
     }
 

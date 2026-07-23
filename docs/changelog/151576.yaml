@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 151576
+summary: Add cache-miss wait time to search response
+type: feature

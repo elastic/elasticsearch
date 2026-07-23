@@ -1,0 +1,6 @@
+pr: 148583
+issues:
+  - 144836
+area: Machine Learning
+type: enhancement
+summary: Add ECS event.ingested to ML anomaly detection result documents

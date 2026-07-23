@@ -79,6 +79,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         ElasticsearchMappings.PATH,
         ElasticsearchMappings.PROPERTIES,
         ElasticsearchMappings.TYPE,
+        ElasticsearchMappings.FORMAT,
         ElasticsearchMappings.WHITESPACE,
         SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
     );

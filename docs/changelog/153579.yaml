@@ -1,0 +1,6 @@
+pr: 153579
+summary: Fix `SORT` crash and partition-column `WHERE` wrong answers on Hive-partitioned external datasets
+area: ES|QL
+type: bug
+issues:
+ - 153503

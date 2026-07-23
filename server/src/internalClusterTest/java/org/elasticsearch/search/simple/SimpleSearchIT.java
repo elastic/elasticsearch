@@ -16,9 +16,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -123,44 +124,12 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
     }
 
-    public void testHighCardinalityIp() throws Exception {
-        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        createIndex("test");
-
-        indicesAdmin().preparePutMapping("test")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("from")
-                    .field("type", "ip")
-                    .field("index", false)
-                    .startObject("doc_values")
-                    .field("cardinality", "high")
-                    .endObject()
-                    .endObject()
-                    .startObject("to")
-                    .field("type", "ip")
-                    .startObject("doc_values")
-                    .field("cardinality", "high")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .get();
-
-        prepareIndex("test").setId("1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE).get();
-        assertHitCount(
-            prepareSearch().setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7"))),
-            1L
-        );
+    private void testIpCidr(XContentBuilder mapping) throws Exception {
+        testIpCidr(Settings.EMPTY, mapping);
     }
 
-    private void testIpCidr(XContentBuilder mapping) throws Exception {
-        createIndex("test");
+    private void testIpCidr(Settings settings, XContentBuilder mapping) throws Exception {
+        createIndex("test", settings);
 
         indicesAdmin().preparePutMapping("test").setSource(mapping).get();
         ensureGreen();
@@ -212,17 +181,21 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testIpCidrHighCardinality() throws Exception {
-        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        // In strict-columnar mode an ip field defaults to HIGH-cardinality (binary) doc values, exercising the same path the explicit
+        // cardinality option used to provide.
+        // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+        // — incompatible with the disable_sequence_numbers default that columnar mode enables.
         testIpCidr(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .build(),
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("_doc")
                 .startObject("properties")
                 .startObject("ip")
                 .field("type", "ip")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

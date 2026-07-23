@@ -16,9 +16,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
@@ -28,6 +32,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -96,10 +101,17 @@ public class EndpointMetadataParserTests extends ESTestCase {
         displayMap.put(NAME_FIELD, MY_ENDPOINT);
         displayMap.put(MODEL_CREATOR_FIELD, MY_ENDPOINT_CREATOR);
 
+        var regionMap = new HashMap<String, Object>();
+        regionMap.put(CSP_FIELD.getPreferredName(), "aws");
+        regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
+        regionMap.put(GEO_FIELD.getPreferredName(), "us");
+
         var metadataMap = new HashMap<String, Object>();
         metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
         metadataMap.put(INTERNAL_FIELD_NAME, internalMap);
         metadataMap.put(DISPLAY_FIELD_NAME, displayMap);
+        metadataMap.put(REGIONS_FIELD_NAME, List.of(regionMap));
+        metadataMap.put(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
 
         var rootMap = new HashMap<String, Object>();
         rootMap.put(METADATA_FIELD_NAME, metadataMap);
@@ -115,6 +127,9 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(result.internal().version(), equalTo(version));
 
         assertThat(result.display(), equalTo(new EndpointMetadata.Display(MY_ENDPOINT, MY_ENDPOINT_CREATOR)));
+
+        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertTrue(result.deniedByRegionPolicy());
     }
 
     public void testFromMap_ParsesPartialMetadata() {
@@ -270,5 +285,99 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(MODEL_CREATOR_FIELD));
         assertThat(e.getMessage(), containsString(String.valueOf(WRONG_TYPE_DISPLAY)));
         assertThat(e.getMessage(), containsString(STRING_CLASS_FAILURE));
+    }
+
+    public void testRegionsFromMap_ReturnsEmpty_WhenMapIsNull() {
+        assertThat(EndpointMetadataParser.regionsFromMap(null, ROOT), equalTo(List.of()));
+    }
+
+    public void testRegionsFromMap_ReturnsEmpty_WhenMapIsEmpty() {
+        assertThat(EndpointMetadataParser.regionsFromMap(Map.of(), ROOT), equalTo(List.of()));
+    }
+
+    public void testRegionsFromMap_ReturnsEmpty_WhenRegionsKeyMissing() {
+        var map = new HashMap<String, Object>();
+        map.put(OTHER_KEY, VALUE);
+        assertThat(EndpointMetadataParser.regionsFromMap(map, ROOT), equalTo(List.of()));
+    }
+
+    public void testRegionsFromMap_ParsesSingleRegion() {
+        var regionMap = new HashMap<String, Object>();
+        regionMap.put(CSP_FIELD.getPreferredName(), "aws");
+        regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
+        regionMap.put(GEO_FIELD.getPreferredName(), "us");
+
+        var map = new HashMap<String, Object>();
+        map.put(REGIONS_FIELD_NAME, List.of(regionMap));
+
+        var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
+
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+    }
+
+    public void testRegionsFromMap_ParsesMultipleRegions() {
+        var region1 = new HashMap<String, Object>();
+        region1.put(CSP_FIELD.getPreferredName(), "aws");
+        region1.put(REGION_FIELD.getPreferredName(), "us-east-1");
+        region1.put(GEO_FIELD.getPreferredName(), "us");
+
+        var region2 = new HashMap<String, Object>();
+        region2.put(CSP_FIELD.getPreferredName(), "gcp");
+        region2.put(REGION_FIELD.getPreferredName(), "europe-west1");
+        region2.put(GEO_FIELD.getPreferredName(), "eu");
+
+        var map = new HashMap<String, Object>();
+        map.put(REGIONS_FIELD_NAME, List.of(region1, region2));
+
+        var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
+
+        assertThat(
+            result,
+            equalTo(
+                List.of(
+                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
+                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+                )
+            )
+        );
+    }
+
+    public void testRegionsFromMap_HandlesNullFields() {
+        var map = new HashMap<String, Object>();
+        map.put(REGIONS_FIELD_NAME, List.of(new HashMap<String, Object>()));
+
+        var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
+
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null))));
+    }
+
+    public void testRegionsFromMap_Throws_WhenItemIsNotAMap() {
+        var map = new HashMap<String, Object>();
+        map.put(REGIONS_FIELD_NAME, List.of("not-a-map"));
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.regionsFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(REGIONS_FIELD_NAME));
+    }
+
+    public void testDeniedByRegionPolicyFromMap_ReturnsFalse_WhenMapIsNull() {
+        assertFalse(EndpointMetadataParser.deniedByRegionPolicyFromMap(null, ROOT));
+    }
+
+    public void testDeniedByRegionPolicyFromMap_ReturnsFalse_WhenKeyMissing() {
+        assertFalse(EndpointMetadataParser.deniedByRegionPolicyFromMap(Map.of(), ROOT));
+    }
+
+    public void testDeniedByRegionPolicyFromMap_ReturnsTrue_WhenTrue() {
+        var map = new HashMap<String, Object>();
+        map.put(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
+
+        assertTrue(EndpointMetadataParser.deniedByRegionPolicyFromMap(map, ROOT));
+    }
+
+    public void testDeniedByRegionPolicyFromMap_ReturnsFalse_WhenFalse() {
+        var map = new HashMap<String, Object>();
+        map.put(DENIED_BY_REGION_POLICY_FIELD_NAME, false);
+
+        assertFalse(EndpointMetadataParser.deniedByRegionPolicyFromMap(map, ROOT));
     }
 }

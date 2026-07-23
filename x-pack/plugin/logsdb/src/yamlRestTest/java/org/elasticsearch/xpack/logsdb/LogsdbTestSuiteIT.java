@@ -16,12 +16,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,8 +33,19 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
 
+    private static boolean columnarEnabled;
+
+    private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
+        @Override
+        protected void before() {
+            columnarEnabled = randomBoolean();
+        }
+    };
+
+    private static final ElasticsearchCluster cluster = createCluster();
+
     @ClassRule
-    public static final ElasticsearchCluster cluster = createCluster();
+    public static TestRule ruleChain = RuleChain.outerRule(randomizeColumnarRule).around(cluster);
 
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
@@ -41,7 +54,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
             .user(USER, PASS)
             .keystore("bootstrap.password", "x-pack-test-password")
             .setting("xpack.license.self_generated.type", "trial")
-            .feature(FeatureFlag.IGNORED_SOURCE_AS_DOC_VALUES_FF);
+            .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled));
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(1);
@@ -55,13 +68,13 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        // Filter out 52_esql_insist_operator_synthetic_source.yml suite for snapshot builds:
+        // Filter out 52_esql_unmapped_fields_synthetic_source.yml suite for non-snapshot builds:
         // (esql doesn't use feature flags and all experimental features are just enabled if build is snapshot)
 
         List<Object[]> filtered = new ArrayList<>();
         for (Object[] params : ESClientYamlSuiteTestCase.createParameters()) {
             ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) params[0];
-            if (candidate.getRestTestSuite().getName().equals("52_esql_insist_operator_synthetic_source")
+            if (candidate.getRestTestSuite().getName().equals("52_esql_unmapped_fields_synthetic_source")
                 && Build.current().isSnapshot() == false) {
                 continue;
             }

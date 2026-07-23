@@ -119,7 +119,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     }
 
     @Override
-    BytesRefBlock filter(boolean mayContainDuplicates, int... positions);
+    BytesRefBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

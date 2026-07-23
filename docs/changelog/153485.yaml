@@ -1,0 +1,6 @@
+pr: 153485
+summary: Fix declared-schema read correctness on external datasets (Parquet filter-pushdown
+  unit, scale, and rounding mismatches)
+area: ES|QL
+type: bug
+issues: []

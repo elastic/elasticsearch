@@ -10,11 +10,13 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;
@@ -83,6 +85,64 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
         assertEquals(routing, index.routing());
+        assertFalse(index.isRoutingFromSlice());
+    }
+
+    public void testSetRoutingKeepsSliceAliasReadableButNotProvenance() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
+        IndexRequest index = applyScript((Map<String, Object> ctx) -> {
+            ctx.put("_routing", routing);
+            assertEquals(routing, ctx.get(SliceIndexing.PARAM_NAME));
+            assertTrue(ctx.containsKey(SliceIndexing.PARAM_NAME));
+        });
+        assertEquals(routing, index.routing());
+        assertFalse(index.isRoutingFromSlice());
+    }
+
+    public void testSetRoutingSameValueClearsSliceProvenance() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing(routing).setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(routing);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", routing), request, index, doc);
+        assertEquals(routing, result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    public void testSetRoutingFromSourceCanOverridePrepopulatedRequestRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String sourceRouting = randomRealisticUnicodeOfLengthBetween(5, 20);
+        String prepopulatedRouting = randomValueOtherThan(sourceRouting, () -> randomRealisticUnicodeOfLengthBetween(5, 20));
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing(prepopulatedRouting)
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(sourceRouting);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", sourceRouting), request, index, doc);
+        assertEquals(sourceRouting, result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    public void testSetSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String slice = randomRealisticUnicodeOfLengthBetween(5, 20);
+        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, slice));
+        assertEquals(slice, index.routing());
+        assertTrue(index.isRoutingFromSlice());
+    }
+
+    public void testSetSliceRejectedWhenFeatureFlagDisabled() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, "slice1"))
+        );
+        assertThat(e.getMessage(), containsString("Cannot put key [" + SliceIndexing.PARAM_NAME + "]"));
     }
 
     @Override
@@ -112,5 +172,52 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
             new ReindexSettings(),
             new NoopCircuitBreaker("test")
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends ActionRequest> T applyScriptToRequest(
+        java.util.function.Consumer<Map<String, Object>> scriptBody,
+        ReindexRequest request,
+        IndexRequest index,
+        PaginatedHitSource.Hit doc
+    ) {
+        Mockito.when(
+            scriptService.compile(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(org.elasticsearch.script.UpdateScript.CONTEXT)
+            )
+        ).thenReturn((params, ctx) -> new org.elasticsearch.script.UpdateScript(java.util.Collections.emptyMap(), ctx) {
+            @Override
+            public void execute() {
+                scriptBody.accept(ctx);
+            }
+        });
+        Mockito.when(
+            scriptService.compile(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(org.elasticsearch.script.UpdateByQueryScript.CONTEXT)
+            )
+        ).thenReturn((params, ctx) -> new org.elasticsearch.script.UpdateByQueryScript(java.util.Collections.emptyMap(), ctx) {
+            @Override
+            public void execute() {
+                scriptBody.accept(getCtx());
+            }
+        });
+        Mockito.when(
+            scriptService.compile(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(org.elasticsearch.script.ReindexScript.CONTEXT)
+            )
+        ).thenReturn((params, ctx) -> new org.elasticsearch.script.ReindexScript(java.util.Collections.emptyMap(), ctx) {
+            @Override
+            public void execute() {
+                scriptBody.accept(getCtx());
+            }
+        });
+
+        AbstractAsyncBulkByPaginatedSearchAction<ReindexRequest, ?> action = action(scriptService, request.setScript(mockScript("")));
+        AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> wrapped = action.buildScriptApplier()
+            .apply(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc);
+        return (wrapped != null) ? (T) wrapped.self() : null;
     }
 }

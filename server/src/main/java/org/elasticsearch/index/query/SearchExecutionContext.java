@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -77,6 +78,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -138,6 +141,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
+    private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -338,7 +342,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> defaultFields() {
-        return indexSettings.getDefaultFields();
+        List<String> fields = indexSettings.getDefaultFields();
+        if (indexSettings.getMode().isStrictColumnar() && fields.size() == 1 && "*".equals(fields.getFirst())) {
+            List<String> indexedFields = new ArrayList<>();
+            for (var mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    if (mapper instanceof MetadataFieldMapper) {
+                        continue;
+                    }
+                    var fieldType = fieldMapper.fieldType();
+                    if (fieldType.indexType().hasDenseIndex()) {
+                        indexedFields.add(fieldType.name());
+                    }
+                }
+            }
+            return indexedFields;
+        }
+        return fields;
     }
 
     public boolean queryStringLenient() {
@@ -817,9 +837,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (delta > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
         } else if (delta < 0) {
-            circuitBreaker.addWithoutBreaking(delta);
+            circuitBreaker.addWithoutBreaking(delta, label);
         }
-        queryConstructionMemoryUsed.addAndGet(delta);
+        if (delta != 0) {
+            queryConstructionMemoryByLabel.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(delta);
+            queryConstructionMemoryUsed.addAndGet(delta);
+        }
         if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
             CB_RESERVATION_LOGGER.debug(
                 "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
@@ -842,23 +865,38 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
-        if (memoryToRelease > 0 && circuitBreaker != null) {
-            circuitBreaker.addWithoutBreaking(-memoryToRelease);
+        if (circuitBreaker == null) {
+            return;
         }
+        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+            long held = entry.getValue().getAndSet(0);
+            if (held > 0) {
+                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+            }
+        }
+        queryConstructionMemoryByLabel.clear();
+        queryConstructionMemoryUsed.set(0);
     }
 
     /**
-     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker. The {@code label} must match the
+     * label the bytes were originally admitted under (see {@link #addCircuitBreakerMemory(long, String)}); otherwise the per-label
+     * bookkeeping drained by {@link #releaseQueryConstructionMemory()} at request end will not balance and the same bytes may be
+     * released twice from the underlying breaker.
      *
      * @param bytes the number of bytes to refund; must be {@code >= 0}
+     * @param label the label the bytes were originally admitted under
      */
-    public void releaseQueryConstructionMemory(long bytes) {
+    public void releaseQueryConstructionMemory(long bytes, String label) {
         assert bytes >= 0 : "negative refund: " + bytes;
         if (circuitBreaker == null || bytes <= 0) {
             return;
         }
-        circuitBreaker.addWithoutBreaking(-bytes);
+        circuitBreaker.addWithoutBreaking(-bytes, label);
+        AtomicLong held = queryConstructionMemoryByLabel.get(label);
+        if (held != null) {
+            held.addAndGet(-bytes);
+        }
         queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

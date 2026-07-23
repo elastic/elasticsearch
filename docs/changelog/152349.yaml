@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152184
+pr: 152349
+summary: Avoid implicit cast for `dense_vector` under LOAD
+type: bug

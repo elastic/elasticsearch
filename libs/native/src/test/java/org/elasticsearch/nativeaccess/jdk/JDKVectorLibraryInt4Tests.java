@@ -411,24 +411,11 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     }
 
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
-        try {
-            return (int) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT4,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(unpacked, packed, packedLen);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return getVectorDistance().dotProductI4(unpacked, packed, packedLen);
     }
 
     void similarityBulk(MemorySegment packedDocs, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT4, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(packedDocs, unpackedQuery, packedLen, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        getVectorDistance().dotProductI4Bulk(packedDocs, unpackedQuery, packedLen, count, result);
     }
 
     void similarityBulkWithOffsets(
@@ -440,27 +427,11 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT4,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(packedDocs, unpackedQuery, packedLen, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        getVectorDistance().dotProductI4BulkWithOffsets(packedDocs, unpackedQuery, packedLen, pitch, offsets, count, result);
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT4,
-                VectorSimilarityFunctions.Operation.BULK_SPARSE
-            ).invokeExact(addresses, unpackedQuery, packedLen, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        getVectorDistance().dotProductI4BulkSparse(addresses, unpackedQuery, packedLen, count, result);
     }
 
     static void scalarSimilarityBulk(byte[] unpackedQuery, byte[][] packedData, float[] scores) {

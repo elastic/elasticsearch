@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -105,6 +106,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private final HttpTracer httpLogger;
     private final Tracer tracer;
+    private final HttpServerInstrumentation instrumentation;
     private final MeterRegistry meterRegistry;
     private final List<AutoCloseable> metricsToClose = new ArrayList<>(2);
     private volatile boolean shuttingDown;
@@ -146,6 +148,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = telemetryProvider.getTracer();
+        this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.meterRegistry = telemetryProvider.getMeterRegistry();
         this.httpLogger = new HttpTracer(settings, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(
@@ -597,7 +600,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     maybeHttpLogger,
-                    tracer
+                    instrumentation
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -611,7 +614,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     httpLogger,
-                    tracer
+                    instrumentation
                 );
             }
             channel = innerChannel;

@@ -22,6 +22,25 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AzureRepositoryPluginTests extends ESTestCase {
 
+    public void testDefaultNettyEventLoopThreadCount() {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(Settings.EMPTY);
+        ThreadPool threadPool = null;
+        try {
+            threadPool = new ThreadPool(
+                Settings.builder().put("node.name", getTestName()).build(),
+                MeterRegistry.NOOP,
+                (settings, ap) -> Map.of(),
+                AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
+            );
+            assertThat(
+                threadPool.info(AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME).getMax(),
+                equalTo(Math.max(1, allocatedProcessors / 4))
+            );
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testRepositoryAzureMaxThreads() {
         final boolean isServerless = randomBoolean();
         final var settings = Settings.builder().put("node.name", getTestName()).put(STATELESS_ENABLED_SETTING_NAME, isServerless).build();

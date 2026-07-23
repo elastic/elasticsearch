@@ -84,6 +84,22 @@ We strongly recommend leaving this option disabled in production environments.
 ::::
 
 
+`datetime_conversion`
+:   How to handle MongoDB dates that fall outside the range supported by Python (years 1–9999). Available in the advanced configuration options. Available values:
+
+    * `DATETIME` — Raise an error (legacy). The sync fails when it encounters an out-of-range date. This preserves the historical behavior.
+    * `DATETIME_CLAMP` — Out-of-range dates are clamped to the minimum or maximum supported date and indexed as ordinary date strings, so the sync can continue.
+    * `DATETIME_AUTO` — In-range dates are indexed as date strings, while out-of-range dates are indexed as raw milliseconds since the epoch.
+    * `DATETIME_MS` — All dates are indexed as raw milliseconds since the epoch.
+
+    Default value is `DATETIME`.
+
+::::{note}
+The `DATETIME_AUTO` option can produce mixed types for the same field (date strings and numbers), which might cause Elasticsearch mapping conflicts. Prefer `DATETIME_CLAMP` if you need the sync to continue past out-of-range dates.
+
+::::
+
+
 
 ### Create a MongoDB connector [es-connectors-mongodb-create-connector-client]
 
@@ -373,7 +389,7 @@ Each sync is a "full" sync. For each MongoDB document discovered:
 This is recursive, because embedded documents can themselves contain embedded documents.
 
 ::::{note}
-* Files bigger than 10 MB won’t be extracted
+* Files bigger than 8 MiB won’t be extracted
 * Permissions are not synced. All documents indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

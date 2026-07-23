@@ -3,11 +3,18 @@
 // (web_logs). The failure path is the important case: multi-value data read with
 // multi_value_syntax: none misaligns columns — the commas inside [a,b,c] become field separators, so
 // the row has more columns than the schema and is rejected per the error policy.
+//
+// Authored as FROM <dataset>: the per-query CSV options that used to live in EXTERNAL ... WITH {...}
+// now live in `dataset:` directives. The external-source CSV format IT registers the dataset on every
+// storage backend and runs FROM verbatim; the general single/mixed/multi-cluster EsqlSpecTestCase families
+// that read this shared file have no fixture to back the dataset and skip it. Dataset names are distinct per
+// option set so each query's settings are unambiguous.
 
 csvBracketsParsesMultiValue
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: mv_sample_brackets: "{{mv_sample}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "brackets"}
+FROM mv_sample_brackets
 | EVAL cnt = MV_COUNT(tags)
 | KEEP id, tags, cnt
 | SORT id
@@ -19,9 +26,10 @@ id:integer | tags:keyword         | cnt:integer
 ;
 
 csvNoneOnMultiValueDataFailsColumnMismatch
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: mv_sample_none: "{{mv_sample}}" WITH {"multi_value_syntax": "none", "error_mode": "skip_row"}
 
-EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "none", "error_mode": "skip_row"}
+FROM mv_sample_none
 | KEEP id, tags
 | SORT id
 ;
@@ -33,9 +41,10 @@ id:integer | tags:keyword
 ;
 
 csvScalarWithNoneParses
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: web_logs_none: "{{web_logs}}" WITH {"multi_value_syntax": "none"}
 
-EXTERNAL "{{web_logs}}" WITH {"multi_value_syntax": "none"}
+FROM web_logs_none
 | STATS c = COUNT(*)
 ;
 
@@ -44,9 +53,10 @@ c:long
 ;
 
 csvScalarWithBracketsParsesSame
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: web_logs_brackets: "{{web_logs}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{web_logs}}" WITH {"multi_value_syntax": "brackets"}
+FROM web_logs_brackets
 | STATS c = COUNT(*)
 ;
 
@@ -75,9 +85,10 @@ c:long
 // adding / changing a query here, mirror it there (or vice versa).
 
 mvExpandFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | MV_EXPAND job_positions
 | KEEP emp_no, first_name, job_positions
 | SORT emp_no, job_positions
@@ -95,9 +106,10 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 // Split is already covered by mvExpandFromSplit
 
 mvCountFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10001
 | EVAL cnt = MV_COUNT(job_positions)
 | KEEP emp_no, job_positions, cnt
@@ -108,9 +120,10 @@ emp_no:integer | job_positions:keyword | cnt:integer
 ;
 
 mvConcatFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10001
 | EVAL joined = MV_CONCAT(job_positions, ", ")
 | KEEP emp_no, joined
@@ -121,9 +134,10 @@ emp_no:integer | joined:keyword
 ;
 
 mvDedupeFromSplit2
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10004
 | EVAL deduped = MV_SORT(MV_DEDUPE(salary_change))
 | KEEP emp_no, deduped, first_name
@@ -134,8 +148,10 @@ emp_no:integer | deduped:double          | first_name:keyword
 ;
 
 filterFirstRowAllColumns
-required_capability: external_command
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+
+FROM employees_brackets
 | WHERE emp_no < 10003
 | SORT emp_no
 ;
@@ -145,9 +161,10 @@ birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword 
 ;
 
 mvDedupeFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10002
 | EVAL deduped = MV_DEDUPE(job_positions)
 | KEEP emp_no, deduped
@@ -158,9 +175,10 @@ emp_no:integer | deduped:keyword
 ;
 
 mvMinFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10004
 | EVAL mn = MV_MIN(job_positions)
 | KEEP emp_no, mn
@@ -171,9 +189,10 @@ emp_no:integer | mn:keyword
 ;
 
 mvMaxFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10004
 | EVAL mx = MV_MAX(job_positions)
 | KEEP emp_no, mx
@@ -184,9 +203,10 @@ emp_no:integer | mx:keyword
 ;
 
 mvAppendFromScalars
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_brackets
 | WHERE emp_no == 10001
 | KEEP emp_no, job_positions
 ;
@@ -196,4 +216,3 @@ emp_no:integer | job_positions:keyword
 ;
 
 // TRANGE and TBUCKET require @timestamp; RENAME hire_date to @timestamp for these tests.
-

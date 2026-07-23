@@ -157,8 +157,10 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test011SecurityEnabledStatus() throws Exception {
         waitForElasticsearch(installation, "elastic", PASSWORD);
-        final int statusCode = makeRequestAsElastic("wrong_password");
-        assertThat(statusCode, equalTo(401));
+        // Authenticating the reserved `elastic` user consults the security index. Right after startup that index can briefly be
+        // unavailable, in which case the request fails with 503 (UnavailableShardsException) rather than the expected 401. Retry
+        // until the reserved realm is serving authentication decisions. See https://github.com/elastic/elasticsearch/issues/150438
+        assertBusy(() -> assertThat(makeRequestAsElastic("wrong_password"), equalTo(401)));
     }
 
     /**

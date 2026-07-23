@@ -1,0 +1,2 @@
+FROM employees, (ROW emp_no = "abc")
+| keep emp_no

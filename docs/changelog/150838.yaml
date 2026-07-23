@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 150838
+summary: Add resumable write buffer size client setting for GCS repository
+type: enhancement

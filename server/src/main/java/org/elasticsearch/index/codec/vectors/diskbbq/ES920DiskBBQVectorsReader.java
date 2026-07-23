@@ -642,7 +642,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     }
 
     @Override
-    public CentroidData readCentroidData(FieldInfo fieldInfo) {
+    public CentroidData readCentroidData(String fieldName) {
         // The 9.2.0 (ES920) on-disk layout interleaves centroid bytes with per-posting-list
         // metadata, which would require a bespoke streaming reader to surface here. Since the
         // adaptive merge strategy tolerates per-segment nulls (segments without priors simply

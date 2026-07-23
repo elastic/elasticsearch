@@ -92,7 +92,7 @@ public class Ai21ChatCompletionModel extends Ai21Model {
         DefaultSecretSettings secrets
     ) {
         this(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
     }

@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/cloud-aws-best-practices.html
 ---
 
-# Best Practices in AWS [cloud-aws-best-practices]
+# Best practices in AWS [cloud-aws-best-practices]
 
 This section contains some other information about designing and managing an {{es}} cluster on your own AWS infrastructure. If you would prefer to avoid these operational details then you may be interested in a hosted {{es}} installation available on AWS-based infrastructure from [https://www.elastic.co/cloud](https://www.elastic.co/cloud).
 

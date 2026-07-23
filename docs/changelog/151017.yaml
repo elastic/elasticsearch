@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 151017
+summary: Add Painless allocation-limit setting scaffolding
+type: enhancement

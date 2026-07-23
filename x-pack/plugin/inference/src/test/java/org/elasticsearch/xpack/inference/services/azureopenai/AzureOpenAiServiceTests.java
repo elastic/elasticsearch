@@ -1465,7 +1465,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                       "description": "The directory tenant that you want to request permission from.",
                                       "label": "OAuth2 Tenant ID",
                                       "required": false,
-                                      "sensitive": true,
+                                      "sensitive": false,
                                       "updatable": true,
                                       "type": "str",
                                       "supported_task_types": [

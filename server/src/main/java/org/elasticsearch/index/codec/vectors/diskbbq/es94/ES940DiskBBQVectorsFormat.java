@@ -60,7 +60,8 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
     public static final int VERSION_PACKED_INT4 = 2;
-    public static final int VERSION_CURRENT = VERSION_PACKED_INT4;
+    public static final int VERSION_PACKED_INT2 = 3;
+    public static final int VERSION_CURRENT = VERSION_PACKED_INT2;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -110,7 +111,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 ESVectorUtil.transposeHalfByte(quantized, destination);
             }
         },
-        TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
+        TWO_BIT_4BIT_QUERY_STRIPED(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
                 ESVectorUtil.packDibit(quantized, destination);
@@ -139,6 +140,28 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 // so we need twice as many bytes as single bit encoding
                 int discretized = discretizedDimensions(dimensions);
                 return 2 * ((discretized + 7) / 8);
+            }
+        },
+        TWO_BIT_4BIT_QUERY_PACKED(5, (byte) 2, (byte) 4) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.packDibitQuad(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                packNibblesForPackedDibit(quantized, destination);
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                int discretized = discretizedDimensions(dimensions);
+                return discretized / 4;
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
             }
         },
         FOUR_BIT_SYMMETRIC_STRIPED(2, (byte) 4, (byte) 4) {
@@ -172,12 +195,12 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -198,7 +221,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         FOUR_BIT_SYMMETRIC_PACKED(4, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -224,17 +247,23 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             }
         };
 
-        private static void packAsBytes(int[] quantized, byte[] destination) {
-            for (int i = 0; i < quantized.length; i++) {
-                destination[i] = (byte) quantized[i];
-            }
-        }
-
         private static void packNibbles(int[] quantized, byte[] destination) {
             assert quantized.length == destination.length * 2;
             int packedLength = destination.length;
             for (int i = 0; i < packedLength; i++) {
                 destination[i] = (byte) ((quantized[i] << 4) | (quantized[packedLength + i] & 0x0F));
+            }
+        }
+
+        private static void packNibblesForPackedDibit(int[] quantized, byte[] destination) {
+            assert quantized.length == destination.length;
+            assert destination.length % 4 == 0;
+            int packedLength = destination.length / 4;
+            for (int i = 0; i < packedLength; i++) {
+                destination[i] = (byte) quantized[4 * i];
+                destination[i + packedLength] = (byte) quantized[4 * i + 1];
+                destination[i + 2 * packedLength] = (byte) quantized[4 * i + 2];
+                destination[i + 3 * packedLength] = (byte) quantized[4 * i + 3];
             }
         }
 
@@ -305,7 +334,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         public static QuantEncoding fromBits(byte bits) {
             return switch (bits) {
                 case 1 -> ONE_BIT_4BIT_QUERY;
-                case 2 -> TWO_BIT_4BIT_QUERY;
+                case 2 -> TWO_BIT_4BIT_QUERY_PACKED;
                 case 4 -> FOUR_BIT_SYMMETRIC_PACKED;
                 case 7 -> SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
@@ -462,6 +491,12 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
         this.writeVersion = writeVersion;
+        if (writeVersion < VERSION_PACKED_INT2 && quantEncoding == QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED) {
+            throw new IllegalArgumentException("Packed 2-bit encoding requires version " + VERSION_PACKED_INT2 + " or later");
+        }
+        if (writeVersion >= VERSION_PACKED_INT2 && quantEncoding == QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED) {
+            throw new IllegalArgumentException("Striped 2-bit encoding requires version before " + VERSION_PACKED_INT2);
+        }
         if (writeVersion < VERSION_PACKED_INT4 && quantEncoding == QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
             throw new IllegalArgumentException("Packed 4-bit encoding requires version " + VERSION_PACKED_INT4 + " or later");
         }

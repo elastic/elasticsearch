@@ -20,6 +20,7 @@ import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -759,6 +760,59 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         generator.writeString(value);
         return this;
+    }
+
+    /**
+     * Writes a string value directly from a {@link CharSequence} (e.g. a {@link StringBuilder}), without
+     * requiring the caller to first call {@code toString()} and materialize a new {@link String}. Useful for
+     * callers formatting many values in a loop who reuse a single {@link StringBuilder} across the whole loop.
+     * <p>
+     * Lazily creates a single reusable {@link Reader} adapter the first time this is called on a given builder,
+     * and reuses it for every subsequent call on that same builder — the {@code CharSequence} itself must not
+     * be mutated again before the write completes, but nothing here retains the reference afterward.
+     */
+    public XContentBuilder value(CharSequence value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        if (charSequenceReader == null) {
+            charSequenceReader = new CharSequenceReader();
+        }
+        charSequenceReader.reset(value);
+        generator.writeString(charSequenceReader, value.length());
+        return this;
+    }
+
+    private CharSequenceReader charSequenceReader;
+
+    /** Adapts a {@link CharSequence} to {@link Reader} without copying its characters into a new array. */
+    private static final class CharSequenceReader extends Reader {
+        private CharSequence seq;
+        private int pos;
+
+        void reset(CharSequence seq) {
+            this.seq = seq;
+            this.pos = 0;
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) {
+            int remaining = seq.length() - pos;
+            if (remaining <= 0) {
+                return -1;
+            }
+            int n = Math.min(len, remaining);
+            for (int i = 0; i < n; i++) {
+                cbuf[off + i] = seq.charAt(pos + i);
+            }
+            pos += n;
+            return n;
+        }
+
+        @Override
+        public void close() {
+            seq = null;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////

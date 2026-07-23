@@ -10,4 +10,10 @@ package fixture.s3;
 
 import org.elasticsearch.common.bytes.BytesReference;
 
-public record BlobEntry(BytesReference contents, String storageClass) {}
+import java.time.Instant;
+
+public record BlobEntry(BytesReference contents, String storageClass, Instant lastModified) {
+    public BlobEntry(BytesReference contents, String storageClass) {
+        this(contents, storageClass, Instant.now());
+    }
+}

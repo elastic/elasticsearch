@@ -50,7 +50,7 @@ public class LlamaChatCompletionRequest implements OutboundUnifiedCompletionRequ
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new LlamaChatCompletionRequestEntity(chatInput, model.getServiceSettings().modelId()))
@@ -68,7 +68,7 @@ public class LlamaChatCompletionRequest implements OutboundUnifiedCompletionRequ
 
     @Override
     public URI getURI() {
-        return model.uri();
+        return model.getServiceSettings().uri();
     }
 
     @Override

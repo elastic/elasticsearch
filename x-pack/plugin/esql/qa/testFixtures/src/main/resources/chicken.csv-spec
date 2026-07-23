@@ -1,0 +1,39 @@
+chickenBasic
+required_capability: fn_chicken
+ROW result = SUBSTRING(CHICKEN("Hello", {"style": "ordinary"}), 2);
+
+result:keyword
+"_______\n< Hello >\n -------\n     \\n      \    MM\n       \ <' \___/|\n          \_  _/\n            ][\n"
+;
+
+chickenEmojiAlias
+required_capability: fn_chicken
+ROW result = SUBSTRING(`🐔`("Hello", {"style": "ordinary"}), 2);
+
+result:keyword
+"_______\n< Hello >\n -------\n     \\n      \    MM\n       \ <' \___/|\n          \_  _/\n            ][\n"
+;
+
+chickenMultiLine
+required_capability: fn_chicken
+ROW result = SUBSTRING(CHICKEN("Hello world", {"style": "ordinary", "width": 10}), 2);
+
+result:keyword
+"_______\n/ Hello \\n\ world /\n -------\n     \\n      \    MM\n       \ <' \___/|\n          \_  _/\n            ][\n"
+;
+
+chickenSoupStyle
+required_capability: fn_chicken
+ROW result = SUBSTRING(CHICKEN("Soup time", {"style": "soup"}), 2);
+
+result:keyword
+___________\n< Soup time >\n -----------\n     \\n      \       ______\n       \     /______\\n        \___________/\n
+;
+
+chickenNull
+required_capability: fn_chicken
+ROW result = CHICKEN(null, {"style": "ordinary"});
+
+result:keyword
+null
+;

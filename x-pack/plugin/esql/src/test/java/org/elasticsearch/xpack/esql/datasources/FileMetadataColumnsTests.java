@@ -39,7 +39,8 @@ public class FileMetadataColumnsTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, FileMetadataColumns.COLUMNS.get("_file.directory"));
         assertEquals(DataType.LONG, FileMetadataColumns.COLUMNS.get("_file.size"));
         assertEquals(DataType.DATETIME, FileMetadataColumns.COLUMNS.get("_file.modified"));
-        assertEquals(5, FileMetadataColumns.COLUMNS.size());
+        assertEquals(DataType.LONG, FileMetadataColumns.COLUMNS.get("_file.record_ref"));
+        assertEquals(6, FileMetadataColumns.COLUMNS.size());
     }
 
     public void testExtractValuesFromStorageEntry() {
@@ -100,12 +101,13 @@ public class FileMetadataColumnsTests extends ESTestCase {
     }
 
     public void testNamesSet() {
-        assertEquals(5, FileMetadataColumns.NAMES.size());
+        assertEquals(6, FileMetadataColumns.NAMES.size());
         assertTrue(FileMetadataColumns.NAMES.contains("_file.path"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.name"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.directory"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.size"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.modified"));
+        assertTrue(FileMetadataColumns.NAMES.contains("_file.record_ref"));
     }
 
     public void testDotNamingCannotCollideWithHivePartitions() {

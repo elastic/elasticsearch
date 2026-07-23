@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 151211
+summary: Estimate `PointRangeQuery` memory in the circuit breaker
+type: enhancement

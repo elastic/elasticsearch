@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -111,6 +112,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -610,6 +612,217 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var query = as(fieldExtract.child(), EsQueryExec.class);
         var expected = unscore(existsQuery(textField));
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * mv_in_range over an indexed numeric field pushes a bare (any-value) range query to Lucene and drops the FilterExec
+     * entirely (YES): the range matches exactly what the evaluator computes for a numeric field, so no row-level recheck
+     * is needed. The range is not wrapped in a SingleValueQuery — any-value semantics are exactly what a bare range gives.
+     */
+    public void testMvInRangePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("salary").from(25000, true).to(30000, true));
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * NOT mv_in_range over a numeric field pushes must_not(range) and drops the FilterExec (YES) — sound because the
+     * pushed range is exact, so negating it in Lucene is exact too.
+     */
+    public void testMvInRangeNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): byte-encoded
+     * types are held conservatively out of the exact-YES set, so the range surfaces candidate documents and the retained
+     * evaluator re-checks them. Contrast the numeric YES cases above, which drop the FilterExec.
+     */
+    public void testMvInRangeKeywordRecheck() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        var expected = boolQuery().filter(unscore(rangeQuery("first_name").from("a", true).to("m", true)));
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * A text field is never pushed: a Lucene range over analyzed tokens is not a superset of the whole-string
+     * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
+     */
+    public void testMvInRangeTextNotPushed() {
+        // job is a text field WITH a .raw keyword subfield, so it is otherwise pushable — only the text gate stops it.
+        // (A text range would push over analyzed tokens, not the whole value, which is unsound under NOT.)
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(job, \"a\", \"z\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(plan), nullValue());
+    }
+
+    /**
+     * A multivalued (or null) literal bound is never pushed: it has no well-defined range, so the predicate stays in
+     * the FilterExec rather than pushing a degenerate range that RECHECK could not correct under negation.
+     */
+    public void testMvInRangeMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, [25000, 26000], 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(plan), nullValue());
+    }
+
+    /**
+     * A date field is a YES type too — it drops the FilterExec and pins the date path through Range's per-type bound
+     * formatting, which the integer plan tests above do not exercise.
+     */
+    public void testMvInRangeDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(hire_date, \"2020-01-01\"::datetime, \"2021-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(
+            rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", true)
+                .to("2021-01-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
+        );
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /** long, date_nanos and unsigned_long are YES types with no recheck net, so pin their per-type pushed-range shape. */
+    public void testMvInRangeYesTypeFormatting() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var lng = plannerOptimizer.plan("from test | where mv_in_range(long, 10::long, 20::long)", IS_SV_STATS, analyzer);
+        assertThat(lng.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(mvInRangeQuery(lng).toString(), equalTo(unscore(rangeQuery("long").from(10, true).to(20, true)).toString()));
+
+        var dn = plannerOptimizer.plan(
+            "from test | where mv_in_range(date_nanos, \"2020-01-01\"::date_nanos, \"2021-01-01\"::date_nanos)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(dn.anyMatch(FilterExec.class::isInstance), is(false));
+        var expectedDn = unscore(
+            rangeQuery("date_nanos").from("2020-01-01T00:00:00.000Z", true)
+                .to("2021-01-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time_nanos")
+        );
+        assertThat(mvInRangeQuery(dn).toString(), equalTo(expectedDn.toString()));
+
+        var ul = plannerOptimizer.plan(
+            "from test | where mv_in_range(unsigned_long, 10::unsigned_long, 20::unsigned_long)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(ul.anyMatch(FilterExec.class::isInstance), is(false));
+        var expectedUl = unscore(rangeQuery("unsigned_long").from(10, true).to(20, true));
+        assertThat(mvInRangeQuery(ul).toString(), equalTo(expectedUl.toString()));
+    }
+
+    /**
+     * Double-family fields stay RECHECK, never YES: float/half_float/scaled_float all widen to DataType.DOUBLE, so the
+     * pushed range can be evaluated at reduced precision (the mapper rounds the bound to float/scaled precision) while the
+     * evaluator compares full doubles. Those roundings only over-match, so the range stays a superset and the retained
+     * evaluator re-checks the surfaced documents to drop the false positives — the FilterExec stays for exactly that.
+     */
+    public void testMvInRangeDoubleRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
+            assertThat("field " + field + " must RECHECK (retain the FilterExec)", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("field " + field + " must still push a range pre-filter", mvInRangeQuery(plan), is(not(nullValue())));
+        }
+    }
+
+    /** ip and version are byte-encoded, so like keyword they push the range but stay RECHECK (retain the FilterExec). */
+    public void testMvInRangeIpVersionRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(ip), is(not(nullValue())));
+        var version = plannerOptimizer.plan(
+            "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(version), is(not(nullValue())));
+    }
+
+    /**
+     * NOT of a RECHECK-typed mv_in_range (double / keyword / ip / version) is not pushed at all. The range is a superset,
+     * so must_not(range) would drop true matches and the retained recheck can't restore them — the whole predicate stays
+     * a filter (NO). Contrast the integral YES types, whose NOT pushes an exact must_not(range) (testMvInRangeNotPushdown).
+     */
+    public void testMvInRangeNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var bounds = Map.of(
+            "double",
+            "1.0, 2.0",
+            "keyword",
+            "\"a\", \"m\"",
+            "ip",
+            "\"1.1.1.1\"::ip, \"2.2.2.2\"::ip",
+            "version",
+            "\"1.0.0\"::version, \"2.0.0\"::version"
+        );
+        for (var field : bounds.keySet()) {
+            var plan = plannerOptimizer.plan(
+                "from test | where not mv_in_range(" + field + ", " + bounds.get(field) + ")",
+                IS_SV_STATS,
+                analyzer
+            );
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", mvInRangeQuery(plan), is(nullValue()));
+        }
+    }
+
+    /**
+     * Exclusive bounds via the options map. For an integral field the pushed range carries the exact exclusive endpoints
+     * (gt/lt) and the FilterExec is still dropped (YES). For a RECHECK field (double/keyword/…) the range is only a
+     * pre-filter, so the exclusive flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward
+     * rounding a reduced-precision mapper would apply to an exclusive bound) and the retained evaluator applies the
+     * exclusivity. (A zero double lower bound is widened outward to -0.0 to keep both signed zeros in the superset.)
+     */
+    public void testMvInRangeExclusivePushdown() {
+        var lower = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false})");
+        assertThat(lower.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(mvInRangeQuery(lower).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, true)).toString()));
+
+        var both = plannerOptimizer.plan(
+            "from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false, \"include_upper\": false})"
+        );
+        assertThat(both.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(mvInRangeQuery(both).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, false)).toString()));
+
+        // RECHECK type: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
+        var dbl = plannerOptimizer.plan(
+            "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false, \"include_upper\": false})",
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json")
+        );
+        assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(
+            mvInRangeQuery(dbl).toString(),
+            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
+        );
+
+        var kw = plannerOptimizer.plan(
+            "from test | where mv_in_range(keyword, \"a\", \"m\", {\"include_lower\": false})",
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json")
+        );
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(
+            mvInRangeQuery(kw).toString(),
+            equalTo(boolQuery().filter(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+        );
+    }
+
+    private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        return esQueryExec.query();
     }
 
     /**
@@ -2405,6 +2618,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         Exception e = expectThrows(VerificationException.class, () -> customRulesLocalPhysicalPlanOptimizer.localOptimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
         assertThat(e.getMessage(), containsString("additionalAttribute"));
+        assertThat(e.getMessage(), containsString("[integer]"));
     }
 
     public void testVerifierOnAttributeDatatypeChanged() throws Exception {
@@ -2456,6 +2670,55 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLocalPhysicalPlanOptimizer.localOptimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("integer -> datetime"));
+    }
+
+    public void testVerifierOnMultipleAttributeDatatypesChanged() throws Exception {
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats a = min(salary), b = max(salary)
+            """);
+
+        // The plan outputs two integer reference attributes: a (position 0) and b (position 1).
+        // Change both to different types to verify that all per-position diffs appear in the message.
+        Holder<Integer> appliedCount = new Holder<>(0);
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        LimitExec limit = as(plan, LimitExec.class);
+                        LimitExec newLimit = new LimitExec(
+                            plan.source(),
+                            limit.child(),
+                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            randomEstimatedRowSize()
+                        ) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                newOutput.set(1, oldOutput.get(1).withDataType(DataType.KEYWORD));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        LocalPhysicalPlanOptimizer customRulesLocalPhysicalPlanOptimizer = getCustomRulesLocalPhysicalPlanOptimizer(
+            List.of(customRuleBatch)
+        );
+        Exception e = expectThrows(VerificationException.class, () -> customRulesLocalPhysicalPlanOptimizer.localOptimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("integer -> datetime"));
+        assertThat(e.getMessage(), containsString("integer -> keyword"));
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {
@@ -2609,11 +2872,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
         assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
         assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.SORTED));
 
         var exchangeExec = as(topNBy.child(), ExchangeExec.class);
         var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
         var fieldExtractDataNode = as(projectDataNode.child(), FieldExtractExec.class);
         var topNExec = as(fieldExtractDataNode.child(), TopNByExec.class);
+        assertThat(topNExec.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));
         var fieldExtractExec = as(topNExec.child(), FieldExtractExec.class);
         var esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
     }
@@ -2742,17 +3007,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         final int k;
 
         KnnFunctionTestCase() {
-            super(Knn.class, "dense_vector", randomVector());
+            super(Knn.class, "dense_vector", randomVector(randomIntBetween(10, 20)));
             k = randomIntBetween(1, 10);
-        }
-
-        private static Object randomVector() {
-            int numDims = randomIntBetween(10, 20);
-            float[] vector = new float[numDims];
-            for (int i = 0; i < numDims; i++) {
-                vector[i] = randomFloat();
-            }
-            return vector;
         }
 
         @Override

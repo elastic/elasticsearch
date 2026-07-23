@@ -3,9 +3,9 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-azure-classic.html
 ---
 
-# Azure Classic discovery plugin [discovery-azure-classic]
+# Azure classic discovery plugin [discovery-azure-classic]
 
-The Azure Classic Discovery plugin uses the Azure Classic API to identify the addresses of seed hosts.
+The Azure classic discovery plugin uses the Azure classic API to identify the addresses of seed hosts.
 
 ::::{admonition} Deprecated in 5.0.0.
 :class: warning

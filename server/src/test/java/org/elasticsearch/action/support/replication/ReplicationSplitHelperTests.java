@@ -37,7 +37,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -556,18 +555,35 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         return clusterService;
     }
 
-    private static class TestReplicationRequest extends ReplicationRequest<TestReplicationRequest> {
+    private static class TestReplicationRequest extends ReplicationRequest<TestReplicationRequest>
+        implements
+            ReshardSplitAwareReplicationRequest {
+
+        private final SplitShardCountSummary splitShardCountSummary;
 
         TestReplicationRequest(ShardId shardId) {
-            super(shardId, SplitShardCountSummary.UNSET);
+            this(shardId, SplitShardCountSummary.UNSET);
         }
 
         TestReplicationRequest(ShardId shardId, SplitShardCountSummary splitSummary) {
-            super(shardId, splitSummary);
+            super(shardId);
+            this.splitShardCountSummary = splitSummary;
         }
 
         TestReplicationRequest(org.elasticsearch.common.io.stream.StreamInput in) throws IOException {
             super(in);
+            this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
+        }
+
+        @Override
+        public SplitShardCountSummary splitShardCountSummary() {
+            return splitShardCountSummary;
+        }
+
+        @Override
+        public void writeTo(org.elasticsearch.common.io.stream.StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeReshardSplitAwareSummary(out, splitShardCountSummary);
         }
 
         @Override
@@ -631,7 +647,6 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         @Override
         protected void shardOperationOnPrimary(
-            Task task,
             TestReplicationRequest shardRequest,
             IndexShard primary,
             ActionListener<PrimaryResult<TestReplicationRequest, TestResponse>> listener

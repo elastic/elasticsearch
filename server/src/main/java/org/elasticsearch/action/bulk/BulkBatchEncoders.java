@@ -16,10 +16,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -64,11 +67,11 @@ final class BulkBatchEncoders implements Releasable {
     static final int NOT_BATCHABLE = -1;
 
     private static final class IndexState {
-        final EirfEncoder encoder;
+        final SourceBatchEncoder encoder;
         final RoutingExtractor extractor;
         final Map<ShardId, List<PendingAttachment>> pendingByShard = new HashMap<>();
 
-        IndexState(EirfEncoder encoder, RoutingExtractor extractor) {
+        IndexState(SourceBatchEncoder encoder, RoutingExtractor extractor) {
             this.encoder = encoder;
             this.extractor = extractor;
         }
@@ -107,7 +110,7 @@ final class BulkBatchEncoders implements Releasable {
      * pre-scan logic can be exercised in isolation.
      */
     static boolean isItemBatchEligible(IndexRequest request) {
-        return request.indexSource().hasSource() && request.getContentType() != null && request.indexSource().hasEirfRow() == false;
+        return request.indexSource().hasSource() && request.getContentType() != null && request.indexSource().hasSourceRow() == false;
     }
 
     /**
@@ -136,12 +139,12 @@ final class BulkBatchEncoders implements Releasable {
         }
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
-            idx -> new IndexState(new EirfEncoder(), indexRouting.newRoutingExtractor())
+            idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
         );
         if (state.extractor != null) {
             state.extractor.reset();
         }
-        EirfEncoder.LeafSink sink = state.extractor != null ? state.extractor : EirfEncoder.LeafSink.NO_OP;
+        LeafSink sink = state.extractor != null ? state.extractor : LeafSink.NO_OP;
         XContentType contentType = request.getContentType();
         try {
             state.encoder.parseToScratch(request.indexSource().bytes(), contentType, sink);
@@ -176,11 +179,11 @@ final class BulkBatchEncoders implements Releasable {
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
      */
-    Map<ShardId, EirfBatch> finalizeBatches() {
+    Map<ShardId, SourceBatch> finalizeBatches() {
         if (disabled) {
             return Collections.emptyMap();
         }
-        Map<ShardId, EirfBatch> batchesByShard = new HashMap<>();
+        Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
         for (IndexState state : indexStates.values()) {
             for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
                 List<PendingAttachment> pending = entry.getValue();
@@ -188,10 +191,10 @@ final class BulkBatchEncoders implements Releasable {
                     continue;
                 }
                 ShardId shardId = entry.getKey();
-                EirfBatch batch = state.encoder.buildPartition(shardId.getId());
+                SourceBatch batch = state.encoder.buildPartition(shardId.getId());
                 batchesByShard.put(shardId, batch);
                 for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setEirfRow(batch, attachment.rowIndex);
+                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
                 }
             }
         }

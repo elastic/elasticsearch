@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,8 +21,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -97,6 +96,7 @@ public final class DatafeedManager {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final CredentialTransitions credentialTransitions;
     private final Supplier<CloudCredentialManager> credentialManagerSupplier;
+    private final AnomalyDetectionAuditor auditor;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
@@ -114,14 +114,16 @@ public final class DatafeedManager {
         this.settings = settings;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         MachineLearningExtension extension = Objects.requireNonNull(mlExtension);
+        this.auditor = Objects.requireNonNull(auditor);
         this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
-            Objects.requireNonNull(auditor),
+            this.auditor,
             () -> extension.getCloudApiKeyService(),
             credentialManagerSupplier,
             client,
             xContentRegistry,
-            datafeedConfigProvider
+            datafeedConfigProvider,
+            crossProjectModeDecider
         );
     }
 
@@ -281,12 +283,7 @@ public final class DatafeedManager {
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                 // Validate project_routing requires CPS to be enabled in the environment
                 if (updatedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                    validatorListener.onFailure(
-                        new ElasticsearchStatusException(
-                            "project_routing is only supported in environments that support cross-project calls",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
+                    validatorListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
                     return;
                 }
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
@@ -304,15 +301,35 @@ public final class DatafeedManager {
                         update.affectsCrossProjectSearchSurface(current)
                     );
                     CredentialTransitions.Intent intent = CredentialTransitions.decideForUpdate(ctx);
+                    UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
+                    final boolean defaultedProjectRoutingForMigration = effectiveRequest != request;
+                    final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
+                    ActionListener<PutDatafeedAction.Response> updateListener = defaultedProjectRoutingForMigration
+                        ? ActionListener.wrap(response -> {
+                            logger.info(
+                                "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
+                                current.getId(),
+                                defaultProjectRouting
+                            );
+                            auditor.info(
+                                current.getJobId(),
+                                Messages.getMessage(
+                                    Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED,
+                                    defaultProjectRouting
+                                )
+                            );
+                            l.onResponse(response);
+                        }, l::onFailure)
+                        : l;
                     credentialTransitions.executeUpdate(
                         intent,
-                        request,
+                        effectiveRequest,
                         current.getJobId(),
                         headers,
                         threadPool,
                         securityContext,
                         wrappedValidator,
-                        l
+                        updateListener
                     );
                 } catch (Exception e) {
                     l.onFailure(e);
@@ -331,6 +348,41 @@ public final class DatafeedManager {
             ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure),
             MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
+    }
+
+    /**
+     * Returns a (possibly augmented) update request that defaults {@code project_routing} to
+     * {@code _alias:_origin} when all of the following are true:
+     * <ul>
+     *   <li>The credential transition is {@link CredentialTransitions.Intent#REPLACE} for a
+     *       first-time UIAM migration (no stored {@code cloudInternalCredential}).</li>
+     *   <li>The existing config has no explicit {@code project_routing} already set.</li>
+     *   <li>The incoming update does not explicitly set {@code project_routing} either.</li>
+     * </ul>
+     * The default preserves parity with the pre-migration (local-only) search scope. Post-migration
+     * updates and re-keys of already-migrated datafeeds are never affected.
+     */
+    private UpdateDatafeedAction.Request maybeDefaultProjectRoutingForMigration(
+        UpdateDatafeedAction.Request request,
+        DatafeedConfig existingConfig,
+        CredentialTransitions.Intent intent
+    ) {
+        if (intent != CredentialTransitions.Intent.REPLACE) {
+            return request;
+        }
+        if (existingConfig.getCloudInternalCredential() != null) {
+            return request;
+        }
+        if (existingConfig.getProjectRouting() != null) {
+            return request;
+        }
+        if (request.getUpdate().getProjectRouting() != null) {
+            return request;
+        }
+        DatafeedUpdate augmentedUpdate = new DatafeedUpdate.Builder(request.getUpdate()).setProjectRouting(
+            ProjectRoutingResolver.LOCAL_ONLY
+        ).build();
+        return new UpdateDatafeedAction.Request(augmentedUpdate);
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
@@ -426,12 +478,7 @@ public final class DatafeedManager {
 
         // Validate project_routing requires CPS to be enabled in the environment.
         if (request.getDatafeed().getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "project_routing is only supported in environments that support cross-project calls",
-                    RestStatus.BAD_REQUEST
-                )
-            );
+            listener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
             return;
         }
 

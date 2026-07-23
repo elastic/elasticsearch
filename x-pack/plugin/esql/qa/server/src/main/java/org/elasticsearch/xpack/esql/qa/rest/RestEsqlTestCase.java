@@ -407,6 +407,27 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
     }
 
+    public void testMarkdownMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        assertEquals(expectedTextBody("md", count, null), runEsqlAsTextWithFormat(builder, "md", null, mode));
+    }
+
+    public void testMarkdownHeaderAbsentIsError() throws IOException {
+        bulkLoadTestData(1);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        Request request = prepareRequest(SYNC);
+        String mediaType = attachBody(builder.build(), request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", "text/markdown; header=absent");
+        request.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> performRequest(request));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("[header=absent] is not supported for the [md] format"));
+    }
+
     public void testOutOfRangeComparisons() throws IOException {
         final int NUM_SINGLE_VALUE_ROWS = 100;
         bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
@@ -1433,11 +1454,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             case "csv" -> sb.append("keyword").append(csvDelimiter).append("integer\r\n");
             case "tsv" -> sb.append("keyword\tinteger\n");
+            case "md" -> {
+                sb.append("| keyword | integer |\n");
+                sb.append("| --- | --- |\n");
+            }
             default -> {
                 assert false : "unexpected format type [" + format + "]";
             }
         }
         for (int i = 0; i < count; i++) {
+            if (format.equals("md")) {
+                sb.append("| keyword").append(i).append(" | ").append(i).append(" |\n");
+                continue;
+            }
             sb.append("keyword").append(i);
             int iLen = String.valueOf(i).length();
             switch (format) {
@@ -1618,7 +1647,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(result, profileEnabled);
         }
         assertWarnings(response, assertWarnings, result);
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return removeAsyncProperties(result);
     }
 
@@ -2049,7 +2078,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    static void assertDeletable(String id) throws IOException {
+    /**
+     * Removes the result of an async esql query. Asserts that it returned {@code 200 OK}
+     * and that deleting it a second time gives a {@code 404 Not Found}.
+     */
+    static void assertAsyncQueryResultDeleted(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);
 
@@ -2082,6 +2115,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 case "txt" -> options.addHeader("Accept", "text/plain");
                 case "csv" -> options.addHeader("Accept", "text/csv");
                 case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+                case "md" -> options.addHeader("Accept", "text/markdown");
             }
         }
         if (delimiter != null) {
@@ -2133,6 +2167,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         assertEquals("\n", initialValue);
                         initialValue = "";
                     }
+                    case "md" -> {
+                        // the markdown formatter always writes a header row and a separator row, even when no
+                        // columns are known yet (the still-running response has no column info)
+                        assertEquals("|\n|\n", initialValue);
+                        initialValue = "";
+                    }
                 }
             }
             // issue a second request to "async get" the results
@@ -2158,7 +2198,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValue, newValue);
         }
 
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return newValue;
     }
 

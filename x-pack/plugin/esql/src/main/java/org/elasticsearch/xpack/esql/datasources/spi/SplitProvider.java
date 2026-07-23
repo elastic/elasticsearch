@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.List;
-
 /**
  * Discovers parallelizable splits for an external data source.
  * File-based sources produce one split per file; connector-based sources
@@ -16,7 +14,7 @@ import java.util.List;
  */
 public interface SplitProvider {
 
-    List<ExternalSplit> discoverSplits(SplitDiscoveryContext context);
+    SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context);
 
-    SplitProvider SINGLE = ctx -> List.of();
+    SplitProvider SINGLE = ctx -> SplitDiscoveryResult.EMPTY;
 }

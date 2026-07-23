@@ -11,7 +11,6 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -27,9 +26,10 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -49,17 +49,9 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private ShardStateAction shardStateAction;
-    private final ReplicationTask replicationTask = new ReplicationTask(
-        randomLong(),
-        randomIdentifier(),
-        randomIdentifier(),
-        randomIdentifier(),
-        null,
-        Map.of()
-    );
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
@@ -76,13 +68,13 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void stopServices() throws Exception {
         try {
             IOUtils.close(transportService, clusterService, transport);
         } finally {
             terminate(threadPool);
         }
-        super.tearDown();
     }
 
     public void testTranslogSyncAfterGlobalCheckpointSync() throws Exception {
@@ -133,7 +125,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(replicationTask, primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
+            action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         } else {
             action.shardOperationOnReplica(
                 new GlobalCheckpointSyncAction.Request(indexShard.shardId()),

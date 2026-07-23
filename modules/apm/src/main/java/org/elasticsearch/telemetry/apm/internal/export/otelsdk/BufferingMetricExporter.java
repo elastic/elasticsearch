@@ -52,6 +52,10 @@ public class BufferingMetricExporter implements MetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
 
+    // File rotation windows for the disk-buffering library.
+    private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = TimeValue.timeValueSeconds(30).millis();
+    private static final long DISK_BUFFER_READ_MIN_AGE_MILLIS = TimeValue.timeValueSeconds(33).millis();
+
     private final MetricExporter delegate;
     private final BufferingMetrics bufferingMetrics;
 
@@ -71,13 +75,23 @@ public class BufferingMetricExporter implements MetricExporter {
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier
     ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, DISK_BUFFER_WRITE_WINDOW_MILLIS, DISK_BUFFER_READ_MIN_AGE_MILLIS);
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis,
+        long readMinAgeMillis
+    ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
-        long maxDiskBytes = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes();
-        long ttlMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL.get(settings).millis();
-        long writeWindowMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW.get(settings).millis();
-        long readMinAgeMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE.get(settings).millis();
-        this.sendTimeout = OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings);
+        long maxDiskBytes = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes();
+        long ttlMillis = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL.get(settings).millis();
+        this.sendTimeout = OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings);
         this.diskDir = bufferPath;
 
         FileStorageConfiguration config = FileStorageConfiguration.builder()

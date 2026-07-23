@@ -24,6 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -32,6 +33,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -504,6 +506,32 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             verify(statelessCommitService, never()).ensureMaxGenerationToUploadForFlush(any(), anyLong());
             verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
             assertThat(safeGet(flushListener), equalTo(generation));
+        }
+    }
+
+    /**
+     * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
+     * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
+     */
+    public void testStatelessMergeThrottleConfiguration() throws IOException {
+        int factor = randomIntBetween(1, 5);
+        Settings nodeSettings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), factor)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
+
+            // threshold = factor × allocatedProcessors (= thread pool merge max)
+            int maxConcurrentMerges = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertThat(scheduler.getMaxMergeCount(), equalTo(factor * maxConcurrentMerges));
+
+            // callbacks wire through to the engine's throttle state
+            assertFalse(engine.isThrottled());
+            scheduler.enableIndexingThrottling(0, 1, factor * maxConcurrentMerges);
+            assertTrue(engine.isThrottled());
+            scheduler.disableIndexingThrottling(0, 0, factor * maxConcurrentMerges);
+            assertFalse(engine.isThrottled());
         }
     }
 

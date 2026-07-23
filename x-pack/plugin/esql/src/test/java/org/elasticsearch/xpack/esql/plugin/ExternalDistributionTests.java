@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -162,58 +161,8 @@ public class ExternalDistributionTests extends ESTestCase {
         );
     }
 
-    // --- Request filter warning tests (elastic/esql-planning#1158) ---
-
-    public void testIntegrateEsFilterWarnsForExternalDataset() {
-        ExternalRelation external = createExternalRelation();
-        FragmentExec fragment = new FragmentExec(external);
-
-        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
-
-        assertTrue("Expected FragmentExec, got: " + result.getClass().getSimpleName(), result instanceof FragmentExec);
-        // The filter is still stored on the fragment (unchanged, pre-existing no-op behavior for external
-        // sources); only the warning is new -- see PlannerUtils.localPlan, which only ever consumes it for EsSourceExec.
-        assertNotNull("Filter should still be stored on the fragment", ((FragmentExec) result).esFilter());
-        assertWarnings(
-            "The filter in the ES|QL query request is not applied to external dataset(s) [s3://bucket/data/*.parquet]; "
-                + "use a WHERE clause to filter rows from external datasets instead"
-        );
-    }
-
-    public void testIntegrateEsFilterWarningNamesDatasetName() {
-        ExternalRelation external = createExternalRelationWithDatasetName("my_dataset");
-        FragmentExec fragment = new FragmentExec(external);
-
-        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
-
-        assertWarnings(
-            "The filter in the ES|QL query request is not applied to external dataset(s) [my_dataset]; "
-                + "use a WHERE clause to filter rows from external datasets instead"
-        );
-    }
-
-    public void testIntegrateEsFilterWarningListsMultipleDistinctDatasets() {
-        ExternalRelation left = createExternalRelationWithDatasetName("dataset_a");
-        ExternalRelation right = createExternalRelationWithDatasetName("dataset_b");
-        LookupJoinExec join = new LookupJoinExec(
-            SRC,
-            new FragmentExec(left),
-            new FragmentExec(right),
-            List.of(),
-            List.of(),
-            List.of(),
-            null
-        );
-
-        PlannerUtils.integrateEsFilterIntoFragment(join, QueryBuilders.termQuery("name", "foo"));
-
-        // Both distinct datasets must be named, in encounter order, joined into a single warning
-        // rather than one warning per dataset.
-        assertWarnings(
-            "The filter in the ES|QL query request is not applied to external dataset(s) [dataset_a, dataset_b]; "
-                + "use a WHERE clause to filter rows from external datasets instead"
-        );
-    }
+    // --- integrateEsFilterIntoFragment behavior (the DSL request filter now applies to datasets via the rewrite, so the
+    // former "filter not applied to external dataset" warning was removed) ---
 
     public void testIntegrateEsFilterNoWarningWithoutEsFilter() {
         ExternalRelation external = createExternalRelation();

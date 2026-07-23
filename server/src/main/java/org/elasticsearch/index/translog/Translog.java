@@ -854,6 +854,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * this method will return <code>null</code>.
      */
     public Operation readOperation(Location location) throws IOException {
+        return readOperation(location, -1);
+    }
+
+    /**
+     * Reads and returns the operation from the given location. If the record is an {@link IndexBatch}
+     * and {@code rowIndex >= 0}, returns that row's {@link Index} operation. A batch record with
+     * {@code rowIndex < 0} throws. Returns {@code null} if the generation is no longer available.
+     */
+    public Operation readOperation(Location location, int rowIndex) throws IOException {
         try {
             readLock.lock();
             try {
@@ -864,13 +873,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (current.generation == location.generation) {
                     // no need to fsync here the read operation will ensure that buffers are written to disk
                     // if they are still in RAM and we are reading onto that position
-                    return current.read(location);
+                    return current.read(location, rowIndex);
                 } else {
                     // read backwards - it's likely we need to read on that is recent
                     for (int i = readers.size() - 1; i >= 0; i--) {
                         TranslogReader translogReader = readers.get(i);
                         if (translogReader.generation == location.generation) {
-                            return translogReader.read(location);
+                            return translogReader.read(location, rowIndex);
                         }
                     }
                 }
@@ -1098,25 +1107,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return deletionPolicy;
     }
 
-    public record Location(long generation, long translogLocation, int size, int batchRowIndex) implements Comparable<Location> {
+    public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
 
         public static final Location EMPTY = new Location(0, 0, 0);
 
-        public Location(long generation, long translogLocation, int size) {
-            this(generation, translogLocation, size, -1);
-        }
-
-        /**
-         * Whether this location pins a single document's row within a batch ({@link IndexBatch})
-         */
-        public boolean isBatchRow() {
-            return batchRowIndex >= 0;
-        }
-
         @Override
         public String toString() {
-            final String base = "[generation: " + generation + ", location: " + translogLocation + ", size: " + size;
-            return isBatchRow() ? base + ", batchRowIndex: " + batchRowIndex + "]" : base + "]";
+            return "[generation: " + generation + ", location: " + translogLocation + ", size: " + size + "]";
         }
 
         @Override
@@ -1127,6 +1124,37 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
 
             return result;
+        }
+    }
+
+    /**
+     * Pairs a {@link Location} with an optional batch row index for use by the live version map
+     * and the realtime GET path.
+     *
+     * <p>{@code rowIndex} is {@code -1} for a whole-record location and {@code >= 0}
+     * when it pins a single document's row within a batch.
+     */
+    public record OperationLocation(Location location, int rowIndex) {
+
+        /**
+         * Ensure that location is non-null
+         */
+        public OperationLocation {
+            Objects.requireNonNull(location, "location must not be null");
+        }
+
+        /**
+         * Creates a whole-record location that is not a batch row (i.e. {@code rowIndex == -1}).
+         */
+        public OperationLocation(Location location) {
+            this(location, -1);
+        }
+
+        /**
+         * Whether this location pins a single document's row within a batch ({@link IndexBatch}).
+         */
+        public boolean isBatchRow() {
+            return rowIndex >= 0;
         }
     }
 

@@ -52,10 +52,7 @@ public class PressuredCacheBlobReaderTests extends ESTestCase {
         );
     }
 
-    /**
-     * Simple in-memory delegate; a real reader (transport or object store) is unnecessary to exercise the budget lifecycle, which is
-     * entirely in the wrapper.
-     */
+    /** In-memory delegate: the budget lifecycle lives entirely in the wrapper, so a real reader isn't needed. */
     private static CacheBlobReader byteArrayReader() {
         return new CacheBlobReader() {
             @Override
@@ -101,7 +98,7 @@ public class PressuredCacheBlobReaderTests extends ESTestCase {
                 if (randomBoolean()) {
                     listener.onFailure(failure);
                 } else {
-                    // simulate a delegate that throws instead of notifying the listener
+                    // simulate a delegate that throws instead of failing the listener
                     throw new RuntimeException(failure);
                 }
             }
@@ -132,7 +129,7 @@ public class PressuredCacheBlobReaderTests extends ESTestCase {
         assertThat("second read must wait for budget", granted.get(), equalTo(0));
         assertFalse(second.isDone());
 
-        // draining the first stream (closing it) releases its budget and unblocks the second read
+        // closing the first stream releases its budget and unblocks the second read
         safeGet(first).close();
         assertThat(granted.get(), equalTo(1));
         try (InputStream stream = safeGet(second)) {
@@ -143,8 +140,8 @@ public class PressuredCacheBlobReaderTests extends ESTestCase {
     }
 
     /**
-     * A read that had to wait must resume on the pool it was issued from, not on the thread that released the budget: fill handlers
-     * assert specific pools, and direct-executor delegates run the cache-file write on the resuming thread.
+     * A deferred read must resume on the invoking thread's pool, not the releaser's: fill handlers assert specific pools and
+     * direct-executor delegates run the cache-file write on the resuming thread.
      */
     public void testDeferredReadResumesOnAcquiringThreadsPool() throws Exception {
         var pressure = pressureWithLimit(100);
@@ -172,7 +169,7 @@ public class PressuredCacheBlobReaderTests extends ESTestCase {
         reader.getRangeInputStream(0, 80, first);
         assertTrue(first.isDone());
 
-        // issue a second read from a generic pool thread, so that pool is captured as the read's home
+        // issue the second read from a generic-pool thread so that pool is captured as the read's home
         PlainActionFuture<InputStream> second = new PlainActionFuture<>();
         PlainActionFuture<Void> issued = new PlainActionFuture<>();
         threadPool.generic().execute(() -> {
@@ -182,7 +179,7 @@ public class PressuredCacheBlobReaderTests extends ESTestCase {
         safeGet(issued);
         assertFalse(second.isDone());
 
-        // release from the test thread: the deferred read must not run here, it must resume on the generic pool
+        // release from the test thread: the deferred read must resume on the generic pool, not here
         safeGet(first).close();
         try (InputStream stream = safeGet(second)) {
             stream.readAllBytes();

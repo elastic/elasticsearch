@@ -19,14 +19,12 @@ import java.io.InputStream;
 import java.util.concurrent.Executor;
 
 /**
- * Wrapper around a {@link CacheBlobReader} that acquires {@link FillCacheMemoryPressure} budget for the requested length before
- * delegating a read, and releases it when the returned stream is closed (i.e. once a fill thread has drained it to the cache file)
- * or the read fails. The read may be delayed while waiting for budget; only install this on paths that tolerate waiting (warming,
- * prefetching), never on cache-miss reads serving searches.
+ * {@link CacheBlobReader} wrapper: acquires {@link FillCacheMemoryPressure} budget for the requested length before delegating, and
+ * releases it when the returned stream closes (fill wrote it to disk) or the read fails. May delay the read; install only on paths
+ * that tolerate waiting (warming, prefetching), never on cache-miss reads.
  *
- * A read that had to wait resumes on the pool the invoking thread belongs to. The invoking pool is part of the read's contract:
- * fill handlers assert specific pools (see {@code SequentialRangeMissingHandler}), and delegates with a direct fetch executor
- * complete their listener — and thus run the cache-file write — on the invoking thread.
+ * A deferred read resumes on the invoking thread's pool. That pool is part of the read contract: fill handlers assert specific pools
+ * (see {@code SequentialRangeMissingHandler}), and direct-executor delegates run the cache-file write on the resuming thread.
  */
 public class PressuredCacheBlobReader implements CacheBlobReader {
 
@@ -60,7 +58,7 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
                     delegatedListener.onFailure(e);
                 }
             };
-            // routes a synchronously thrown exception to readListener so the budget is still released
+            // routes sync-thrown exceptions to readListener so the budget still releases
             ActionListener.run(readListener, l -> delegate.getRangeInputStream(position, length, l));
         }));
     }
@@ -71,14 +69,13 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
     }
 
     /**
-     * The executor a deferred grant resumes the read on: the pool of the thread that requested the read. All production reads are
-     * issued from registered pool threads (the fill handlers assert as much), so an unresolvable pool fails loudly rather than
-     * running the read on the wrong pool.
+     * Pool a deferred grant resumes on: the invoking thread's pool. Production reads always issue from registered pool threads (fill
+     * handlers assert this), so an unresolvable pool fails loudly rather than resuming on the wrong pool.
      */
     private Executor deferredReadExecutor() {
         final String poolName = EsExecutors.executorName(Thread.currentThread());
         if (poolName == null) {
-            // not an ES pool thread, which only happens in tests: resume on the thread that released the budget
+            // not an ES pool thread (tests only): resume on the releaser
             return EsExecutors.DIRECT_EXECUTOR_SERVICE;
         }
         return threadPool.executor(poolName);

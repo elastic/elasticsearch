@@ -284,6 +284,163 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * Empty input pages must still be emitted with the full output schema (input columns plus fetched columns):
+     * downstream operators address the fetched columns by channel even on pages with no positions.
+     */
+    public void testEmptyInputPageEmitsEmptyPageWithFullSchema() {
+        DriverContext driverContext = driverContext();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {
+                throw new AssertionError("no batches expected for an empty input page");
+            }
+        };
+
+        Page output = null;
+        try (
+            RemoteFetchOperator operator = new RemoteFetchOperator(
+                driverContext,
+                threadContext,
+                0,
+                fields,
+                outputFields,
+                null,
+                ConfigurationAware.CONFIGURATION_MARKER,
+                2,
+                client
+            )
+        ) {
+            operator.addInput(new Page(emptyHandles(driverContext)));
+            operator.finish();
+            output = operator.getOutput();
+
+            assertNotNull(output);
+            assertEquals(0, output.getPositionCount());
+            assertEquals("empty pages must still carry the fetched columns", 2, output.getBlockCount());
+            assertTrue(operator.isFinished());
+
+            RemoteFetchOperator.Status status = (RemoteFetchOperator.Status) operator.status();
+            assertThat(status, equalTo(new RemoteFetchOperator.Status(1, 1, 0, 0, 0, 0)));
+        } finally {
+            if (output != null) {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * A plain fetch (no pushdown) must return exactly one row per handle, so a marker-only batch response has to
+     * be rejected during validation with a row-count error rather than surfacing later as a vague merge failure.
+     */
+    public void testPlainFetchRejectsEmptyBatchResponse() {
+        DriverContext driverContext = driverContext();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {
+                switch (nodeId) {
+                    case "node-a" -> enqueueMarker(batchId);
+                    case "node-b" -> enqueue(batchId, intPage(driverContext, 20), true);
+                    default -> throw new IllegalStateException("unexpected node [" + nodeId + "]");
+                }
+            }
+        };
+
+        Page input = null;
+        try (
+            RemoteFetchOperator operator = new RemoteFetchOperator(
+                driverContext,
+                threadContext,
+                0,
+                fields,
+                outputFields,
+                null,
+                ConfigurationAware.CONFIGURATION_MARKER,
+                2,
+                client
+            )
+        ) {
+            input = new Page(handles(driverContext), carry(driverContext));
+            operator.addInput(input);
+            input = null;
+
+            IllegalStateException exception = expectThrows(IllegalStateException.class, operator::getOutput);
+            assertThat(exception.getMessage(), containsString("remote fetch returned [0] rows but expected [2]"));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * The filtering merge narrows input columns with {@link Block#filter}, which must preserve the original
+     * block encoding: a constant input column stays constant instead of being re-encoded row by row.
+     */
+    public void testFilteredMergePreservesConstantInputBlocks() {
+        DriverContext driverContext = driverContext();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {
+                switch (nodeId) {
+                    case "node-a" -> enqueue(batchId, intPageWithPosition(driverContext, 30, 1), true);
+                    case "node-b" -> enqueue(batchId, intPageWithPosition(driverContext, 20, 0), true);
+                    default -> throw new IllegalStateException("unexpected node [" + nodeId + "]");
+                }
+            }
+        };
+
+        Page input = null;
+        Page output = null;
+        try (
+            RemoteFetchOperator operator = new RemoteFetchOperator(
+                driverContext,
+                threadContext,
+                0,
+                fields,
+                outputFields,
+                pushdownPlan(),
+                ConfigurationAware.CONFIGURATION_MARKER,
+                2,
+                client
+            )
+        ) {
+            input = new Page(handles(driverContext), driverContext.blockFactory().newConstantIntBlockWith(7, 3));
+            operator.addInput(input);
+            input = null;
+            output = operator.getOutput();
+
+            assertNotNull(output);
+            assertEquals(2, output.getPositionCount());
+
+            IntBlock carryValues = output.getBlock(1);
+            assertNotNull("constant input column must stay vector-backed after filtering", carryValues.asVector());
+            assertTrue("constant input column must stay constant after filtering", carryValues.asVector().isConstant());
+            assertEquals(7, carryValues.getInt(0));
+            assertEquals(7, carryValues.getInt(1));
+
+            IntBlock fetchedInts = output.getBlock(2);
+            assertEquals(20, fetchedInts.getInt(0));
+            assertEquals(30, fetchedInts.getInt(1));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+            if (output != null) {
+                output.releaseBlocks();
+            }
+        }
+    }
+
     public void testFilteredFetchDropsRowsAndRemapsPositions() {
         DriverContext driverContext = driverContext();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -847,6 +1004,12 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             builder.appendBytesRef(new RemoteFetchHandle("node-a", "session-a", 1, 0, 11).toBytesRef());
             builder.appendBytesRef(new RemoteFetchHandle("node-b", "session-b", 2, 0, 22).toBytesRef());
             builder.appendBytesRef(new RemoteFetchHandle("node-a", "session-a", 1, 0, 33).toBytesRef());
+            return builder.build();
+        }
+    }
+
+    private static BytesRefBlock emptyHandles(DriverContext driverContext) {
+        try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(0)) {
             return builder.build();
         }
     }

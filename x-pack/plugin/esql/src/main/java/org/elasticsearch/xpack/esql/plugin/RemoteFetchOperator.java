@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -99,12 +100,13 @@ public final class RemoteFetchOperator implements Operator {
             this.groups = groups;
         }
 
-        static PendingInput passthrough(Page inputPage) {
-            return new PendingInput(inputPage, null, null, List.of());
-        }
-
-        boolean isPassthrough() {
-            return groupByPosition == null;
+        /**
+         * A pending input with no rows to fetch. It is immediately complete and flows through the regular merge
+         * path so the emitted page carries the same schema (input columns plus fetched columns) as every other
+         * output page; downstream operators address the fetched columns by channel even on empty pages.
+         */
+        static PendingInput empty(Page inputPage) {
+            return new PendingInput(inputPage, new int[0], new int[0], List.of());
         }
 
         boolean isComplete() {
@@ -200,7 +202,7 @@ public final class RemoteFetchOperator implements Operator {
         pagesReceived++;
         rowsReceived += inputPage.getPositionCount();
         if (inputPage.getPositionCount() == 0) {
-            pendingInputs.addLast(PendingInput.passthrough(inputPage));
+            pendingInputs.addLast(PendingInput.empty(inputPage));
             return;
         }
 
@@ -208,11 +210,7 @@ public final class RemoteFetchOperator implements Operator {
         PendingInput pendingInput = null;
         try {
             GroupedHandles groupedHandles = decodeHandles(inputPage);
-            if (groupedHandles.groups().isEmpty()) {
-                pendingInputs.addLast(PendingInput.passthrough(inputPage));
-                success = true;
-                return;
-            }
+            assert groupedHandles.groups().isEmpty() == false : "non-empty pages always produce at least one group";
             List<PendingGroup> pendingGroups = new ArrayList<>(groupedHandles.groups().size());
             pendingInput = new PendingInput(inputPage, groupedHandles.groupByPosition(), groupedHandles.offsetByPosition(), pendingGroups);
             pendingInputs.addLast(pendingInput);
@@ -291,10 +289,6 @@ public final class RemoteFetchOperator implements Operator {
         if (pendingInput == null) {
             return null;
         }
-        if (pendingInput.isPassthrough()) {
-            pendingInputs.removeFirst();
-            return emit(pendingInput.inputPage);
-        }
         if (pendingInput.isComplete() == false) {
             return null;
         }
@@ -338,7 +332,7 @@ public final class RemoteFetchOperator implements Operator {
             }
             return NOT_BLOCKED;
         }
-        if (pendingInput.isPassthrough() || pendingInput.isComplete()) {
+        if (pendingInput.isComplete()) {
             return NOT_BLOCKED;
         }
         for (PendingGroup group : pendingInput.groups) {
@@ -568,9 +562,8 @@ public final class RemoteFetchOperator implements Operator {
      */
     private boolean validateFetchedPages(Group group, List<Page> pages) {
         boolean expectedPositionMapping = pushdownPlan != null;
-        if (pages.isEmpty()) {
-            return expectedPositionMapping;
-        }
+        // Note: an empty page list is fine for mapped fetches (the pushdown filter may drop every row) but is
+        // caught below for plain fetches, which must return exactly one row per handle.
         int positions = 0;
         boolean[] seenPositions = expectedPositionMapping ? new boolean[group.handles.size()] : null;
         for (Page page : pages) {
@@ -683,49 +676,38 @@ public final class RemoteFetchOperator implements Operator {
         List<Map<Integer, FetchedRowRef>> groupMappings = buildGroupMappings(pagesByGroup);
 
         // Walk the input positions and keep only those that survived the pushdown filter
-        List<Integer> originalPositions = new ArrayList<>(inputPage.getPositionCount());
+        int[] survivingPositions = new int[inputPage.getPositionCount()];
         List<FetchedRowRef> keptRows = new ArrayList<>(inputPage.getPositionCount());
+        int survivors = 0;
         for (int position = 0; position < inputPage.getPositionCount(); position++) {
-            int group = groupByPosition[position];
-            int offset = offsetByPosition[position];
-            FetchedRowRef rowRef = groupMappings.get(group).get(offset);
+            FetchedRowRef rowRef = groupMappings.get(groupByPosition[position]).get(offsetByPosition[position]);
             if (rowRef != null) {
-                originalPositions.add(position);
+                survivingPositions[survivors++] = position;
                 keptRows.add(rowRef);
             }
         }
+        int[] positions = Arrays.copyOf(survivingPositions, survivors);
 
-        // Rebuild: copy kept input columns + append fetched field columns, both filtered to surviving rows
+        // Input columns are narrowed with Block#filter, which preserves the original encoding (constant,
+        // vector, ordinal). Fetched columns are a gather across pages, so they are rebuilt with builders.
         Block[] outputBlocks = new Block[inputPage.getBlockCount() + outputFields.size()];
-        Block.Builder[] builders = new Block.Builder[outputBlocks.length];
+        Block.Builder[] builders = new Block.Builder[outputFields.size()];
         boolean success = false;
         try {
             for (int i = 0; i < inputPage.getBlockCount(); i++) {
-                builders[i] = inputPage.getBlock(i).elementType().newBlockBuilder(originalPositions.size(), driverContext.blockFactory());
+                outputBlocks[i] = inputPage.getBlock(i).filter(false, positions);
             }
-            for (int i = 0; i < outputFields.size(); i++) {
-                builders[inputPage.getBlockCount() + i] = PlannerUtils.toElementType(outputFields.get(i).dataType())
-                    .newBlockBuilder(originalPositions.size(), driverContext.blockFactory());
-            }
-            for (int i = 0; i < originalPositions.size(); i++) {
-                int inputPos = originalPositions.get(i);
-                for (int block = 0; block < inputPage.getBlockCount(); block++) {
-                    builders[block].copyFrom(inputPage.getBlock(block), inputPos, inputPos + 1);
+            for (int field = 0; field < outputFields.size(); field++) {
+                Block.Builder builder = PlannerUtils.toElementType(outputFields.get(field).dataType())
+                    .newBlockBuilder(survivors, driverContext.blockFactory());
+                builders[field] = builder;
+                for (FetchedRowRef rowRef : keptRows) {
+                    Page fetchedPage = pagesByGroup.get(rowRef.group()).pages().get(rowRef.pageIndex());
+                    builder.copyFrom(fetchedPage.getBlock(field), rowRef.position(), rowRef.position() + 1);
                 }
-                FetchedRowRef rowRef = keptRows.get(i);
-                Page fetchedPage = pagesByGroup.get(rowRef.group()).pages().get(rowRef.pageIndex());
-                for (int field = 0; field < outputFields.size(); field++) {
-                    builders[inputPage.getBlockCount() + field].copyFrom(
-                        fetchedPage.getBlock(field),
-                        rowRef.position(),
-                        rowRef.position() + 1
-                    );
-                }
+                outputBlocks[inputPage.getBlockCount() + field] = builder.build();
             }
-            for (int i = 0; i < outputBlocks.length; i++) {
-                outputBlocks[i] = builders[i].build();
-            }
-            Page output = new Page(originalPositions.size(), outputBlocks);
+            Page output = new Page(survivors, outputBlocks);
             success = true;
             return output;
         } finally {

@@ -672,11 +672,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds an source batch to the transaction log as a single record. The returned {@link Location}
-     * covers the whole batch; on read, {@link TranslogSnapshot#next()} explodes the record back into
-     * individual {@link Index} ops. Reading the batch back via {@link BaseTranslogReader#read(Location)}
-     * is not currently supported.
-     */
+     * Adds a source batch to the transaction log as a single record. The returned {@link Location}
+     * covers the whole batch. On snapshot reads, {@link TranslogSnapshot#next()} explodes the record
+     * back into individual {@link Index} ops. To read a single document by row, use
+     * {@link BaseTranslogReader#read(Location, int)} with a {@link Location} and an int that carries a non-negative
+     * {@code batchRowIndex}.
+     **/
     public Location add(final IndexBatch batch) throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
             writeBatchHeaderWithSize(out, batch);

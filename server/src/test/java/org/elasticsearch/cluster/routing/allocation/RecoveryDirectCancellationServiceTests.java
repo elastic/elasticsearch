@@ -58,6 +58,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -823,8 +824,9 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(sentRequests, hasSize(0));
     }
 
-    /// Randomized test that simulates bounded-cache evictions, failed requests, new requests, and term bumps, interleaved
-    /// in random order. Verifies that after every round the service has sent all and only the expected requests.
+    /// Randomized test that simulates bounded-cache evictions, failed requests, new requests, and cancelIfStarted/term
+    /// bumps, interleaved in random order. Verifies that after every round the service has sent all and only the
+    /// expected requests.
     public void testCacheInvalidationAndCancellationsInterleaving() {
         final int numShards = randomIntBetween(2, 10);
         final int numRounds = randomIntBetween(5, 10);
@@ -845,11 +847,11 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             final var shardId = new ShardId(index, i);
             final var primaryNodeId = "primary-node-" + i;
             final var dataNodeId = "data-node-" + i;
+            final var allocId = AllocationId.newInitializing(randomIdentifier("alloc-" + i + "-"));
+            allocationIds.put(dataNodeId, allocId.getId());
             discoveryNodesBuilder.add(newNode(primaryNodeId, primaryNodeId, Set.of(DiscoveryNodeRole.DATA_ROLE)));
             discoveryNodesBuilder.add(newNode(dataNodeId, dataNodeId, Set.of(DiscoveryNodeRole.DATA_ROLE)));
             indexRoutingTableBuilder.addShard(newShardRouting(shardId, primaryNodeId, true, STARTED));
-            final var allocId = AllocationId.newInitializing(randomIdentifier("alloc-" + i + "-"));
-            allocationIds.put(dataNodeId, allocId.getId());
             indexRoutingTableBuilder.addShard(
                 TestShardRouting.shardRoutingBuilder(shardId, dataNodeId, false, ShardRoutingState.INITIALIZING)
                     .withAllocationId(allocId)
@@ -868,8 +870,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
 
-        // IDs which are expected to be in the cache at the end of each round
-        final Set<String> expectedCached = new HashSet<>();
+        // IDs which are expected to be in the cache at the end of each round (value = cancelIfStarted)
+        final Map<String, Boolean> expectedCached = new HashMap<>();
         // IDs whose transport request will fail in the current round
         final Set<String> failThisRound = new HashSet<>();
         // Sent IDs captured in the current round
@@ -901,16 +903,15 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             mock(RerouteService.class)
         );
 
-        long currentTerm = randomLongBetween(1, 5);
+        long currentTerm = 0;
         for (int round = 0; round < numRounds; round++) {
-            // Invalidate some entries to simulate the cache reaching its size or TTL bound
-            final var it = expectedCached.iterator();
+            // Invalidate some entries to simulate the cache reaching its size or TTL bound. Technically, invalidation
+            // uses a different path than eviction but they both end up calling [CacheSegment#remove] and [Cache#delete].
+            final var it = expectedCached.entrySet().iterator();
             while (it.hasNext()) {
-                final var allocId = it.next();
+                final var cached = it.next();
                 if (randomBoolean()) {
-                    // Technically, invalidation uses a different removal path than eviction but they both end
-                    // up calling [CacheSegment#remove] and [Cache#delete].
-                    service.sentCancellations.invalidate(allocId);
+                    service.sentCancellations.invalidate(cached.getKey());
                     it.remove();
                 }
             }
@@ -919,16 +920,43 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             // If we bump the master term, every request is expected to be re-sent
             if (rarely()) {
                 currentTerm++;
-                expectedCached.addAll(allocationIds.values());
-                expectedSentThisRound.addAll(allocationIds.values());
+                for (final String allocId : allocationIds.values()) {
+                    expectedCached.put(allocId, randomBoolean());
+                    expectedSentThisRound.add(allocId);
+                }
             } else {
                 for (final String allocId : allocationIds.values()) {
-                    if (expectedCached.contains(allocId) == false) {
+                    if (expectedCached.containsKey(allocId) == false) {
                         expectedSentThisRound.add(allocId);
-                        expectedCached.add(allocId);
+                        expectedCached.put(allocId, randomBoolean());
+                    } else {
+                        // Randomly promote some allocationIds to cancelIfStarted=true
+                        if (randomBoolean() && expectedCached.get(allocId) == false) {
+                            expectedSentThisRound.add(allocId);
+                            expectedCached.put(allocId, true);
+                        }
                     }
                 }
             }
+
+            final var cancelIfStartedThisRound = expectedCached.keySet()
+                .stream()
+                .filter(expectedCached::get)
+                .collect(Collectors.toUnmodifiableSet());
+
+            // Build a decider that makes canRemain return NO for shards who have cancelIfStarted=true
+            final var cancelIfStartedDecider = new AllocationDecider() {
+                @Override
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
+                    final String allocId = allocationIds.get(node.nodeId());
+                    return cancelIfStartedThisRound.contains(allocId) ? Decision.NO : randomFrom(Decision.NOT_PREFERRED, Decision.YES);
+                }
+            };
 
             // Randomly pick which of the expected sends will fail
             failThisRound.clear();
@@ -951,18 +979,18 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 .build();
 
             actualSentThisRound.clear();
-            service.computeAndSubmitCancellations(balance, createRoutingAllocationFrom(clusterStateThisRound));
+            service.computeAndSubmitCancellations(balance, createRoutingAllocationFrom(clusterStateThisRound, cancelIfStartedDecider));
             taskQueue.runAllRunnableTasks();
 
             assertThat("round " + round + ": sent expected allocation IDs", actualSentThisRound, equalTo(expectedSentThisRound));
 
             // Verify the service cache matches our tracking
             for (final String allocId : allocationIds.values()) {
-                if (expectedCached.contains(allocId)) {
+                if (expectedCached.containsKey(allocId)) {
                     assertThat(
                         "allocation ID " + allocId + " should be in cache",
                         service.sentCancellations.get(allocId),
-                        equalTo(new RecoveryDirectCancellationService.SentCancellation(currentTerm, false))
+                        equalTo(new RecoveryDirectCancellationService.SentCancellation(currentTerm, expectedCached.get(allocId)))
                     );
                 } else {
                     assertThat("allocation ID " + allocId + " should not be in cache", service.sentCancellations.get(allocId), nullValue());

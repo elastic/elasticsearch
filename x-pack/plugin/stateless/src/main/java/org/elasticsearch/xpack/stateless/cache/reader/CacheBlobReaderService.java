@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -60,13 +59,6 @@ public class CacheBlobReaderService {
     private final ThreadPool threadPool;
     private final FillCacheMemoryPressure fillCacheMemoryPressure;
 
-    /**
-     * Convenience constructor for tests: uses a {@link FillCacheMemoryPressure} with the default (heap-relative) limit and no metrics.
-     */
-    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client, ThreadPool threadPool) {
-        this(settings, cacheService, client, threadPool, new FillCacheMemoryPressure(settings, MeterRegistry.NOOP, threadPool.generic()));
-    }
-
     // TODO consider specializing the CacheBlobReaderService for the indexing node to always consider blobs as uploaded (ES-8248)
     // TODO refactor CacheBlobReaderService to keep track of shard's upload info itself (ES-8248)
     public CacheBlobReaderService(
@@ -94,6 +86,12 @@ public class CacheBlobReaderService {
      * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes
      * @param cachePopulationReason         The reason that we're reading from the data source
      * @param fileName                      The actual (lucene) file that's requested from the blob location
+     * @param speculativeFill               whether the reader feeds a speculative fill (warming, online prewarming, commit
+     *                                      prefetching) as opposed to a read some thread is blocked on. Speculative fills are
+     *                                      subject to the {@link FillCacheMemoryPressure} budget. Demand reads must never be:
+     *                                      they drain as soon as bytes arrive, are naturally bounded by the blocked thread, and
+     *                                      must not queue behind speculative work (blocking a pool thread on the budget could
+     *                                      otherwise stall the very pool that deferred reads resume on)
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(
@@ -105,8 +103,11 @@ public class CacheBlobReaderService {
         LongConsumer totalBytesReadFromIndexing,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor objectStoreFetchExecutor,
-        String fileName
+        String fileName,
+        boolean speculativeFill
     ) {
+        assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
+            : "cache-miss reads serve blocked searches and can never be speculative";
         final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
@@ -134,12 +135,10 @@ public class CacheBlobReaderService {
                 indexingShardCacheBlobReader
             );
         }
-        // Cache-miss reads serve searches and must not wait for fill budget; they are naturally bounded by search thread concurrency.
-        // All speculative fills (warming, online prewarming, commit prefetching) go through the memory pressure.
-        if (cachePopulationReason == BlobCacheMetrics.CachePopulationReason.CacheMiss) {
+        if (speculativeFill == false) {
             return cacheBlobReader;
         }
-        return new PressuredCacheBlobReader(cacheBlobReader, fillCacheMemoryPressure);
+        return new PressuredCacheBlobReader(cacheBlobReader, fillCacheMemoryPressure, threadPool);
     }
 
     // protected to override in tests

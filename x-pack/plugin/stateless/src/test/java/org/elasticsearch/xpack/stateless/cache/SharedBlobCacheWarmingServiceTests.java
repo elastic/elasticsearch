@@ -108,6 +108,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -411,7 +412,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    return new CacheBlobReaderService(
+                        nodeSettings,
+                        cacheService,
+                        client,
+                        threadPool,
+                        TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                    ) {
                         @Override
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
@@ -422,7 +429,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             LongConsumer totalBytesReadFromIndexing,
                             BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                             Executor objectStoreFetchExecutor,
-                            String fileName
+                            String fileName,
+                            boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(blobFile.primaryTerm()),
@@ -666,7 +674,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    return new CacheBlobReaderService(
+                        nodeSettings,
+                        cacheService,
+                        client,
+                        threadPool,
+                        TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                    ) {
                         @Override
                         protected CacheBlobReader getIndexingShardCacheBlobReader(
                             ShardId shardId,
@@ -1262,7 +1276,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    return new CacheBlobReaderService(
+                        nodeSettings,
+                        cacheService,
+                        client,
+                        threadPool,
+                        TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                    ) {
                         @Override
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
@@ -1273,7 +1293,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             LongConsumer totalBytesReadFromIndexing,
                             BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                             Executor objectStoreFetchExecutor,
-                            String fileName
+                            String fileName,
+                            boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(blobFile.primaryTerm()),
@@ -1777,11 +1798,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         // admits at most two full-region fetches; deliberately larger than any single fetch so the oversized-grant rule never applies
         final long fillLimitBytes = regionSizeInBytes * 2 + SharedBytes.PAGE_SIZE;
 
-        final var pressure = new FillCacheMemoryPressure(
-            Settings.builder().put(FillCacheMemoryPressure.FILL_BYTES_LIMIT.getKey(), ByteSizeValue.ofBytes(fillLimitBytes)).build(),
-            MeterRegistry.NOOP,
-            r -> r.run()
-        );
+        // constructed in createCacheBlobReaderService, where the node's thread pool is available
+        final var pressureRef = new AtomicReference<FillCacheMemoryPressure>();
         // gate is enabled only around warmCache: reads before it (e.g. updateCommit header reads) flow through untouched
         final var gateFetches = new AtomicBoolean(false);
         final BlockingQueue<Runnable> capturedFetches = new LinkedBlockingQueue<>();
@@ -1802,6 +1820,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             @Override
             protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                var pressure = new FillCacheMemoryPressure(
+                    Settings.builder()
+                        .put(FillCacheMemoryPressure.FILL_BYTES_LIMIT.getKey(), ByteSizeValue.ofBytes(fillLimitBytes))
+                        .build(),
+                    MeterRegistry.NOOP,
+                    threadPool
+                );
+                pressureRef.set(pressure);
                 return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool, pressure) {
                     @Override
                     protected CacheBlobReader getObjectStoreCacheBlobReader(
@@ -1826,6 +1852,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 };
             }
         }) {
+            final FillCacheMemoryPressure pressure = pressureRef.get();
+            assertNotNull(pressure);
             Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
             var indexCommits = fakeNode.generateIndexCommits(12, false);
             VirtualBatchedCompoundCommit vbcc = new VirtualBatchedCompoundCommit(

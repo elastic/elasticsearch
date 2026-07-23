@@ -453,7 +453,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             fileName,
             blobFile,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            cacheService.getShardReadThreadPoolExecutor()
+            cacheService.getShardReadThreadPoolExecutor(),
+            false
         );
     }
 
@@ -464,7 +465,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -484,7 +486,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -504,7 +507,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -512,7 +516,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         String fileName,
         BlobFile blobFile,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-        Executor executor
+        Executor executor,
+        boolean speculativeFill
     ) {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
@@ -523,7 +528,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromIndexing::add,
             cachePopulationReason,
             executor,
-            fileName
+            fileName,
+            speculativeFill
         );
     }
 
@@ -558,17 +564,26 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
             @Override
             protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                // feeds CacheFileReader, i.e. demand reads a warming thread blocks on: accounted as warming but never subject
+                // to the fill-memory budget, which would make them queue behind the speculative region fetches
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,
                     BlobCacheMetrics.CachePopulationReason.Warming,
-                    getCacheService().getShardReadThreadPoolExecutor()
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    false
                 );
             }
 
             @Override
             public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
-                return getCacheBlobReader(blobFile.blobName(), blobFile);
+                return SearchDirectory.this.getCacheBlobReader(
+                    blobFile.blobName(),
+                    blobFile,
+                    BlobCacheMetrics.CachePopulationReason.Warming,
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    true
+                );
             }
 
             @Override

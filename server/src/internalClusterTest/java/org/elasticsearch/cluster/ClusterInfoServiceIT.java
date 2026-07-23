@@ -506,7 +506,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                     }
                 }
                 assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
-                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0L));
+                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
             });
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);

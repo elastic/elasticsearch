@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Helper class that helps to evaluate the query source template.
@@ -87,6 +89,15 @@ public final class SecurityQueryTemplateEvaluator {
                 userModel.put("roles", Arrays.asList(user.roles()));
                 userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
                 userModel.put("applications", Collections.unmodifiableMap(applicationResources));
+                // Flattened, deterministically-ordered union of every application's resources. Provided
+                // because a mustache template cannot path-navigate an application name that contains a
+                // '.' (e.g. Kibana's "kibana-.kibana"), so {{_user.applications.kibana-.kibana}} does not
+                // resolve; {{#toJson}}_user.application_resources{{/toJson}} gives a usable list instead.
+                final Set<String> flattenedResources = new TreeSet<>();
+                for (List<String> resources : applicationResources.values()) {
+                    flattenedResources.addAll(resources);
+                }
+                userModel.put("application_resources", List.copyOf(flattenedResources));
                 Map<String, Object> extraParams = Collections.singletonMap("_user", userModel);
 
                 return MustacheTemplateEvaluator.evaluate(scriptService, parser, extraParams);

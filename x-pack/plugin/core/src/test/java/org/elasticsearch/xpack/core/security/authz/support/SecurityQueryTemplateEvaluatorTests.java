@@ -84,6 +84,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         userModel.put("roles", Arrays.asList(user.roles()));
         userModel.put("metadata", user.metadata());
         userModel.put("applications", Map.of());
+        userModel.put("application_resources", List.of());
         assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
     }
 
@@ -115,6 +116,8 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> userModel = (Map<String, Object>) argument.getValue().getParams().get("_user");
         assertThat(userModel.get("applications"), equalTo(applicationResources));
+        // flattened union across applications, deterministically ordered
+        assertThat(userModel.get("application_resources"), equalTo(List.of("*", "space:default", "space:marketing")));
     }
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {

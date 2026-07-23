@@ -184,7 +184,7 @@ public final class IngestDocument {
     }
 
     private DelegatingMapView initializeTemplateModel() {
-        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap.getSource()));
+        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap.getSource(), INGEST_KEY, ctxMap.getIngestMetadata()));
     }
 
     /**
@@ -1386,20 +1386,27 @@ public final class IngestDocument {
         }
 
         private final String[] pathElements;
+        private final boolean useIngestContext;
         private final boolean useSourceContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
         private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
-            if (path.equals(INGEST_PREFIX)) {
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
-            } else if (path.startsWith(SOURCE_PREFIX)) {
-                useSourceContext = true;
-                newPath = path.substring(SOURCE_PREFIX.length());
+            if (path.startsWith(INGEST_PREFIX)) {
+                // Dotted _ingest.foo paths resolve within the ingest metadata, ignoring any source field named _ingest
+                useIngestContext = true;
+                useSourceContext = false;
+                newPath = path.substring(INGEST_PREFIX.length());
             } else {
-                // The bare _ingest path refers to the source field of that name. Dotted _ingest.foo paths use the ctxMap lookup.
-                useSourceContext = path.equals(INGEST_KEY);
-                newPath = path;
+                useIngestContext = false;
+                if (path.startsWith(SOURCE_PREFIX)) {
+                    useSourceContext = true;
+                    newPath = path.substring(SOURCE_PREFIX.length());
+                } else {
+                    // The bare _ingest path refers to the source field of that name
+                    useSourceContext = path.equals(INGEST_KEY);
+                    newPath = path;
+                }
             }
             String[] pathParts = newPath.split("\\.");
             this.pathElements = processPathParts(path, pathParts, accessPattern);
@@ -1445,6 +1452,9 @@ public final class IngestDocument {
         }
 
         public Object initialContext(IngestDocument document) {
+            if (useIngestContext) {
+                return document.getIngestMetadata();
+            }
             return useSourceContext ? document.getSource() : document.getCtxMap();
         }
     }

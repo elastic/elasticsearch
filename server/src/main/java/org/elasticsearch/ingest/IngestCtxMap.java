@@ -31,9 +31,9 @@ import java.util.Map;
  * <p>
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  * <p>
- * Ingest metadata is exposed for key lookup only ({@code get}, {@code getOrDefault} and {@code containsKey}), masking any
- * {@code _ingest} key in the source. All other {@link Map} operations operate on the source (and document metadata) only,
- * as implemented in {@code CtxMap}.
+ * Ingest metadata is exposed for key lookup only ({@code get}, {@code getOrDefault} and {@code containsKey}), and only when the
+ * source does not itself contain a field named {@code _ingest} (a source field of that name takes precedence). All other
+ * {@link Map} operations operate on the source (and document metadata) only, as implemented in {@code CtxMap}.
  */
 final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
@@ -97,7 +97,7 @@ final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     @Override
     public Object get(Object key) {
-        if (IngestDocument.INGEST_KEY.equals(key)) {
+        if (IngestDocument.INGEST_KEY.equals(key) && source.containsKey(key) == false) {
             return ingestMetadata;
         }
         return super.get(key);
@@ -105,7 +105,7 @@ final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     @Override
     public Object getOrDefault(Object key, Object defaultValue) {
-        if (IngestDocument.INGEST_KEY.equals(key)) {
+        if (IngestDocument.INGEST_KEY.equals(key) && source.containsKey(key) == false) {
             return ingestMetadata;
         }
         return super.getOrDefault(key, defaultValue);

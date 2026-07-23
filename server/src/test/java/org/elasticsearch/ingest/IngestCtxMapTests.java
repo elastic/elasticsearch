@@ -343,40 +343,39 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testExposesIngestMetadataLookup() {
-        Map<String, Object> source = new HashMap<>(Map.of("_ingest", "source-value"));
+        Map<String, Object> source = new HashMap<>();
         IngestDocMetadata metadata = new IngestDocMetadata(new HashMap<>(Map.of("_version", 5L)), null);
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestCtxMap ctx = new IngestCtxMap(source, metadata, ingestMetadata);
 
-        assertThat(ctx.getSource().get("_ingest"), equalTo("source-value"));
-
         assertThat(ctx.get("_ingest"), sameInstance(ingestMetadata));
         assertThat(ctx.getOrDefault("_ingest", "missing"), sameInstance(ingestMetadata));
-        assertThat(ctx.containsKey("_ingest"), equalTo(true));
-
-        ctx.remove("_ingest");
-        assertThat(ctx.getSource().containsKey("_ingest"), equalTo(false));
         assertThat(ctx.containsKey("_ingest"), equalTo(true));
 
         // iteration never yields _ingest (keySet().contains() can't be used here, it delegates to containsKey)
         assertThat(ctx.keySet().stream().anyMatch("_ingest"::equals), equalTo(false));
     }
 
-    public void testSourceIngestFieldCanStillBeMutatedThroughSource() {
-        Map<String, Object> source = new HashMap<>();
-        IngestCtxMap ctx = new IngestCtxMap(
-            source,
-            new IngestDocMetadata(new HashMap<>(Map.of("_version", 5L)), null),
-            new HashMap<>(Map.of("_value", "ingest-value"))
-        );
+    public void testSourceIngestFieldTakesPrecedence() {
+        Map<String, Object> source = new HashMap<>(Map.of("_ingest", "source-value"));
+        IngestDocMetadata metadata = new IngestDocMetadata(new HashMap<>(Map.of("_version", 5L)), null);
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestCtxMap ctx = new IngestCtxMap(source, metadata, ingestMetadata);
 
-        ctx.put("_ingest", "source-value");
-        assertThat(source.get("_ingest"), equalTo("source-value"));
-        assertThat(((Map<?, ?>) ctx.get("_ingest")).get("_value"), equalTo("ingest-value"));
+        assertThat(ctx.get("_ingest"), equalTo("source-value"));
+        assertThat(ctx.getOrDefault("_ingest", "missing"), equalTo("source-value"));
+        assertThat(ctx.containsKey("_ingest"), equalTo(true));
 
-        source.remove("_ingest");
-        assertThat(source.containsKey("_ingest"), equalTo(false));
-        assertThat(((Map<?, ?>) ctx.get("_ingest")).get("_value"), equalTo("ingest-value"));
+        // removing the source field re-exposes the ingest metadata
+        ctx.remove("_ingest");
+        assertThat(ctx.getSource().containsKey("_ingest"), equalTo(false));
+        assertThat(ctx.get("_ingest"), sameInstance(ingestMetadata));
+        assertThat(ctx.containsKey("_ingest"), equalTo(true));
+
+        // and writing a source field of that name masks the ingest metadata again
+        ctx.put("_ingest", "new-value");
+        assertThat(ctx.getSource().get("_ingest"), equalTo("new-value"));
+        assertThat(ctx.get("_ingest"), equalTo("new-value"));
     }
 
     public void testSourceHashMapIsNotCopied() {

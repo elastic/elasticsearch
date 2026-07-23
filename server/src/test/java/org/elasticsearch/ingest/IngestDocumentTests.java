@@ -311,7 +311,10 @@ public class IngestDocumentTests extends ESTestCase {
             // the bare _ingest path refers to the source field of that name, not the ingest metadata
             assertThat(doc.getFieldValue("_ingest", Map.class), equalTo(Map.of("timestamp", BOGUS_TIMESTAMP)));
             assertThat(doc.getFieldValue("_source._ingest", Map.class), equalTo(Map.of("timestamp", BOGUS_TIMESTAMP)));
-            // but scripts (via the ctx map's key lookup) see the ingest metadata
+            // scripts (via the ctx map's key lookup) also see the source field, which takes precedence over the ingest metadata
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getSource().get("_ingest")));
+            // once the source field is removed, scripts see the ingest metadata
+            doc.removeField("_ingest");
             assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getIngestMetadata()));
         });
     }
@@ -859,7 +862,7 @@ public class IngestDocumentTests extends ESTestCase {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("_ingest", "value");
             assertThat(doc.getSource().get("_ingest"), equalTo("value"));
-            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getIngestMetadata()));
+            assertThat(doc.getCtxMap().get("_ingest"), equalTo("value"));
         });
     }
 
@@ -1885,29 +1888,33 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCtxMapExposesIngestMetadataWithoutChangingSource() {
+    public void testCtxMapSourceIngestFieldTakesPrecedence() {
         Map<String, Object> source = new HashMap<>();
         source.put("_ingest", Map.of("source", true));
         source.put("field", "value");
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, source);
         ingestDocument.getIngestMetadata().put("_value", "ingest-value");
 
-        assertThat(ingestDocument.getCtxMap(), sameInstance(ingestDocument.getCtxMap()));
+        // the ctx map (used by Painless) gives the source field precedence over the ingest metadata
+        assertThat(ingestDocument.getCtxMap().get("_ingest"), equalTo(Map.of("source", true)));
 
-        Map<String, Object> retrievedIngestMetadata = (Map<String, Object>) ingestDocument.getCtxMap().get("_ingest");
-        assertThat(retrievedIngestMetadata.get("_value"), equalTo("ingest-value"));
-
-        retrievedIngestMetadata.put("_value", "changed");
+        // general field access with the _ingest. prefix ignores the source field, both for reads and writes
+        assertThat(ingestDocument.getFieldValue("_ingest._value", String.class), equalTo("ingest-value"));
+        ingestDocument.setFieldValue("_ingest._value", "changed");
         assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed"));
-        ingestDocument.getIngestMetadata().put("_value", "changed-again");
-        assertThat(((Map<String, Object>) ingestDocument.getCtxMap().get("_ingest")).get("_value"), equalTo("changed-again"));
-
         assertThat(ingestDocument.getSource().get("_ingest"), equalTo(Map.of("source", true)));
-        assertThat(ingestDocument.getCtxMap().get("_ingest"), sameInstance(ingestDocument.getIngestMetadata()));
 
+        // the copy constructor preserves the source field and the ingest metadata separately
         IngestDocument copy = new IngestDocument(ingestDocument);
         assertThat(copy.getSource().get("_ingest"), equalTo(Map.of("source", true)));
-        assertThat(((Map<String, Object>) copy.getCtxMap().get("_ingest")).get("_value"), equalTo("changed-again"));
+        assertThat(copy.getIngestMetadata().get("_value"), equalTo("changed"));
+
+        // removing the source field exposes the ingest metadata to the ctx map's key lookup
+        ingestDocument.removeField("_ingest");
+        Map<String, Object> retrievedIngestMetadata = (Map<String, Object>) ingestDocument.getCtxMap().get("_ingest");
+        assertThat(retrievedIngestMetadata, sameInstance(ingestDocument.getIngestMetadata()));
+        retrievedIngestMetadata.put("_value", "changed-again");
+        assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed-again"));
     }
 
     public void testCopyConstructor() {

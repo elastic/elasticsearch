@@ -183,6 +183,38 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("matched", Boolean.class), equalTo(true));
     }
 
+    public void testSourceIngestFieldTakesPrecedenceOverIngestMetadata() throws Exception {
+        ScriptService scriptService = new ScriptService(
+            Settings.builder().build(),
+            Map.of(
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Map.of(scriptName, ctx -> "source-value".equals(ctx.get("_ingest"))),
+                    Map.of()
+                )
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(
+            random(),
+            new HashMap<>(Map.of("_ingest", "source-value"))
+        );
+        ConditionalProcessor processor = new ConditionalProcessor(
+            randomAlphaOfLength(10),
+            "description",
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
+            scriptService,
+            new TestProcessor(doc -> doc.setFieldValue("matched", true))
+        );
+
+        execProcessor(processor, ingestDocument, (result, e) -> {});
+
+        assertThat(ingestDocument.getFieldValue("matched", Boolean.class), equalTo(true));
+    }
+
     public void testFieldApiCurrentlyReadsIngestMetadata() throws Exception {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
